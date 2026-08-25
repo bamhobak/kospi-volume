@@ -21,7 +21,7 @@ jobs:
       - name: collect (wait for today's data, then build site)
         env: { TZ: Asia/Seoul }
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then python pipeline.py --no-collect; else python pipeline.py --wait; fi
+          if [ "${{ github.event_name }}" = "push" ]; then python pipeline.py; else python pipeline.py --wait; fi
       - name: commit monthly csv
         run: |
           git config user.name "kospi-bot"; git config user.email "bot@users.noreply.github.com"
