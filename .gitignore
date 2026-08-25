@@ -1,0 +1,7 @@
+__pycache__/
+site/
+data/kospi.db
+data/kospi_volume.csv
+data/*.db-journal
+collect.log
+probe_today.py

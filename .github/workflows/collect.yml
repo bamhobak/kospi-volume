@@ -1,0 +1,38 @@
+name: collect-and-deploy
+on:
+  schedule:
+    - cron: "30 9 * * 1-5"   # 18:30 KST (UTC+9) 평일
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency: { group: pages, cancel-in-progress: false }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt
+      - name: collect (wait for today's data, then build site)
+        env: { TZ: Asia/Seoul }
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then python pipeline.py --no-collect; else python pipeline.py --wait; fi
+      - name: commit monthly csv
+        run: |
+          git config user.name "kospi-bot"; git config user.email "bot@users.noreply.github.com"
+          git add data/*.csv
+          git diff --cached --quiet || (git commit -m "data: $(TZ=Asia/Seoul date +%Y-%m-%d)" && git push)
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: site }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: ${{ steps.deployment.outputs.page_url }} }
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

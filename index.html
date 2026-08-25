@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>코스피 거래량 · 투자자 동향</title>
+<meta name="theme-color" content="#0f1218">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{--bg:#0f1218;--panel:#171b24;--panel2:#1e2330;--line:#2a3040;--txt:#e6e9ef;--mut:#8b93a5;--acc:#4f8cff;--up:#ff5b5b;--dn:#4f8cff;--ind:#f5a623;--org:#38c98b;--frg:#c06bff}
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--txt);font-family:Pretendard,-apple-system,"Malgun Gothic",sans-serif;font-size:13px;overflow:hidden}
+header{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+header h1{font-size:16px;margin:0 8px 0 0;font-weight:700;letter-spacing:-.3px;white-space:nowrap}header h1 span{color:var(--acc)}
+input,select{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 12px;font-size:14px;outline:none;-webkit-appearance:none}
+input:focus{border-color:var(--acc)}input{flex:1;min-width:120px}
+button{background:var(--acc);border:0;color:#fff;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;font-size:13px}
+button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
+#status{color:var(--mut);font-size:12px;width:100%}
+.wrap{display:grid;grid-template-columns:1fr 470px;gap:14px;padding:14px 16px;height:calc(100% - 82px)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;min-height:0}
+.tblwrap{overflow:auto;flex:1;-webkit-overflow-scrolling:touch}
+table{border-collapse:separate;border-spacing:0;width:100%;white-space:nowrap}
+th{position:sticky;top:0;z-index:2;background:var(--panel2);color:var(--mut);font-weight:600;padding:10px 9px;text-align:right;cursor:pointer;user-select:none;border-bottom:1px solid var(--line);font-size:12px}
+th.l,td.l{text-align:left}th.on{color:var(--acc)}
+th:first-child,td:first-child{position:sticky;left:0;z-index:1;background:var(--panel)}th:first-child{z-index:3;background:var(--panel2)}
+td{padding:8px 9px;border-bottom:1px solid #20263280;text-align:right;font-variant-numeric:tabular-nums}
+tr:hover td{background:#ffffff08}tr.sel td{background:#243352}
+td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400}
+.pos{color:var(--up)}.neg{color:var(--dn)}
+.pct{font-size:11px;opacity:.85;margin-left:3px}
+.hot{background:#ff5b5b22;color:#ff8a8a;border-radius:6px;padding:2px 6px;font-weight:600}
+.side{padding:16px;display:flex;flex-direction:column;gap:12px;overflow:auto}
+.side h2{margin:0;font-size:18px}.side .sub{color:var(--mut);font-size:12px;margin-top:2px}
+.kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.kpi div{background:var(--panel2);border-radius:10px;padding:10px}
+.kpi small{display:block;color:var(--mut);font-size:11px;margin-bottom:4px}.kpi b{font-size:14px}
+.chart{background:var(--panel2);border-radius:10px;padding:8px;height:210px}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--mut)}.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.empty{color:var(--mut);text-align:center;margin-top:120px}
+#close{display:none;margin-left:auto}
+@media (max-width:900px){
+  .wrap{grid-template-columns:1fr;padding:10px;height:calc(100% - 92px)}
+  header{padding:10px 12px}header h1{width:100%}
+  .side{position:fixed;inset:0;z-index:20;border-radius:0;background:var(--panel);transform:translateY(100%);transition:transform .25s}
+  .side.open{transform:none}#close{display:inline-block}
+  .kpi{grid-template-columns:repeat(2,1fr)}.chart{height:190px}
+  td,th{padding:8px 7px;font-size:12px}
+}
+</style></head><body>
+<header>
+  <h1>KOSPI <span>거래량 · 투자자 동향</span></h1>
+  <input id="q" placeholder="종목명 / 코드 검색">
+  <select id="days"><option value="5">5영업일</option><option value="7" selected>7영업일</option><option value="10">10영업일</option><option value="20">20영업일</option></select>
+  <button class="ghost" id="csv">CSV</button>
+  <div id="status">불러오는 중…</div>
+</header>
+<div class="wrap">
+  <div class="card"><div class="tblwrap"><table id="tbl"><thead></thead><tbody></tbody></table></div></div>
+  <div class="card side" id="side"><div class="empty">종목을 클릭하면 거래량·투자자 추이가 표시됩니다</div></div>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+// 천/만/억 단위 축약
+function kor(n,sign){if(n==null||isNaN(n))return '';const a=Math.abs(n);let s;
+  if(a>=1e8)s=(a/1e8).toFixed(a>=1e9?0:1).replace(/\.0$/,'')+'억';else if(a>=1e4)s=(a/1e4).toFixed(a>=1e6?0:1).replace(/\.0$/,'')+'만';else if(a>=1e3)s=(a/1e3).toFixed(1).replace(/\.0$/,'')+'천';else s=String(Math.round(a));
+  return (n<0?'-':(sign&&n>0?'+':''))+s}
+const fmt=n=>n==null?'':Math.round(n).toLocaleString();const cls=n=>n>0?'pos':n<0?'neg':'';const WD=['일','월','화','수','목','금','토'];const md=d=>d.slice(4,6)+'/'+d.slice(6)+'('+WD[new Date(+d.slice(0,4),+d.slice(4,6)-1,+d.slice(6)).getDay()]+')';
+const pct=(c,ch)=>{if(c==null||ch==null||c-ch===0)return '';const p=ch/(c-ch)*100;return `<span class="pct">(${p>0?'+':''}${p.toFixed(2)}%)</span>`};
+const chg=(c,ch)=>ch==null?'':`<span class="${cls(ch)}">${ch>0?'+':''}${fmt(ch)}${pct(c,ch)}</span>`;
+let raw={dates:[],rows:[]},view={dates:[],rows:[]},sortKey='last',desc=true,sel=null,charts=[];
+async function load(){raw=await (await fetch('data/table.json?v='+Date.now())).json();prep();render()}
+function prep(){const n=+$('#days').value,D=raw.dates,k=Math.max(0,D.length-n);view.dates=D.slice(k);
+  view.rows=raw.rows.map(r=>{const vols=r.v.slice(k),valid=vols.filter(x=>x!=null);const sum=a=>a.slice(k).reduce((x,y)=>x+(y||0),0);
+    const prev=vols.slice(0,-1).filter(x=>x!=null),last=vols[vols.length-1];const avg=valid.length?valid.reduce((a,b)=>a+b,0)/valid.length:0;
+    const ratio=(prev.length&&last!=null&&prev.reduce((a,b)=>a+b,0))?last/(prev.reduce((a,b)=>a+b,0)/prev.length)*100:null;
+    return {ticker:r.t,name:r.n,close:r.c,change:r.ch,foreign_ratio:r.fr,vols,avg,total:valid.reduce((a,b)=>a+b,0),ratio,indiv:sum(r.i),organ:sum(r.o),frgn:sum(r.f),last:last??-1,chpct:(r.c&&r.ch!=null&&r.c-r.ch)?r.ch/(r.c-r.ch)*100:-999}})}
+function val(r,k){if(k.startsWith('d:'))return r.vols[+k.slice(2)]??-1;return r[k]??-1}
+function render(){
+  const q=$('#q').value.trim().toLowerCase();const D=view.dates;
+  let rows=view.rows.filter(r=>!q||r.name.toLowerCase().includes(q)||r.ticker.includes(q));
+  rows.sort((a,b)=>{const x=val(a,sortKey),y=val(b,sortKey);return (typeof x==='string')?(desc?y.localeCompare(x):x.localeCompare(y)):(desc?y-x:x-y)});
+  const cols=[['name','종목','l'],['close','종가'],['chpct','전일비'],...D.map((d,i)=>['d:'+i,md(d)]).reverse(),['avg','평균'],['ratio','최근/평균'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
+  $('#tbl thead').innerHTML='<tr>'+cols.map(c=>`<th class="${c[2]||''} ${sortKey===c[0]?'on':''}" data-k="${c[0]}">${c[1]}${sortKey===c[0]?(desc?' ▼':' ▲'):''}</th>`).join('')+'</tr>';
+  $('#tbl tbody').innerHTML=rows.map(r=>`<tr data-c="${r.ticker}" class="${sel===r.ticker?'sel':''}">
+    <td class="l name">${r.name} <span class="code">${r.ticker}</span></td>
+    <td>${fmt(r.close)}</td><td>${chg(r.close,r.change)}</td>
+    ${r.vols.map((v,i)=>`<td class="${i===r.vols.length-1?'name':''}">${kor(v)}</td>`).reverse().join('')}
+    <td>${kor(r.avg)}</td><td>${r.ratio==null?'':(r.ratio>=200?`<span class="hot">${Math.round(r.ratio)}%</span>`:Math.round(r.ratio)+'%')}</td>
+    <td class="${cls(r.indiv)}">${kor(r.indiv,1)}</td><td class="${cls(r.organ)}">${kor(r.organ,1)}</td><td class="${cls(r.frgn)}">${kor(r.frgn,1)}</td><td>${r.foreign_ratio??''}%</td></tr>`).join('');
+  $('#status').textContent=D.length?`${rows.length}종목 · ${md(D[0])}~${md(D[D.length-1])} · 개인/기관/외국인=기간 순매수 합계(주) · 갱신 ${raw.updated}`:'데이터 없음';
+  document.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortKey===k)desc=!desc;else{sortKey=k;desc=k!=='name'}render()});
+  document.querySelectorAll('tbody tr').forEach(tr=>tr.onclick=()=>{sel=tr.dataset.c;render();showStock(sel)});
+}
+async function showStock(code){
+  const d=await (await fetch(`data/stock/${code}.json?v=${raw.updated}`)).json();
+  const n=Math.max(+$('#days').value,20);const rows=d.rows.slice(-n).map(x=>({date:d.dates[x[0]],close:x[1],change:x[2],volume:x[3],indiv:x[4],organ:x[5],frgn:x[6],fr:x[7]}));
+  if(!rows.length)return;const L=rows[rows.length-1],labels=rows.map(r=>md(r.date));const sum=k=>rows.reduce((a,r)=>a+(r[k]||0),0);
+  $('#side').innerHTML=`<div style="display:flex;align-items:flex-start"><div><h2>${d.name} <span style="color:var(--mut);font-size:13px">${d.ticker}</span></h2><div class="sub">종가 <b style="color:var(--txt)">${fmt(L.close)}</b> ${chg(L.close,L.change)} · ${md(L.date)} 기준 · 외국인 보유 ${L.fr}%</div></div><button class="ghost" id="close">닫기</button></div>
+  <div class="kpi"><div><small>최근 거래량</small><b>${kor(L.volume)}</b></div><div><small>개인 누적(${rows.length}일)</small><b class="${cls(sum('indiv'))}">${kor(sum('indiv'),1)}</b></div><div><small>기관 누적</small><b class="${cls(sum('organ'))}">${kor(sum('organ'),1)}</b></div><div><small>외국인 누적</small><b class="${cls(sum('frgn'))}">${kor(sum('frgn'),1)}</b></div></div>
+  <div class="legend"><span><i style="background:#4f8cff"></i>거래량</span><span><i style="background:#e6e9ef"></i>종가</span></div><div class="chart"><canvas id="c1"></canvas></div>
+  <div class="legend"><span><i style="background:var(--ind)"></i>개인</span><span><i style="background:var(--org)"></i>기관</span><span><i style="background:var(--frg)"></i>외국인</span><span style="margin-left:auto">일별 순매수</span></div><div class="chart"><canvas id="c2"></canvas></div>
+  <div class="legend"><span style="margin-left:auto">누적 순매수</span></div><div class="chart"><canvas id="c3"></canvas></div>`;
+  $('#side').classList.add('open');$('#close').onclick=()=>$('#side').classList.remove('open');
+  charts.forEach(c=>c.destroy());charts=[];
+  const grid={color:'#2a3040'},tick={color:'#8b93a5',font:{size:10}};
+  const base={responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.dataset.label==='종가'?c.raw.toLocaleString():kor(c.raw,1)}`}}},scales:{x:{grid:{display:false},ticks:{...tick,maxTicksLimit:8}}}};
+  charts.push(new Chart($('#c1'),{data:{labels,datasets:[{type:'bar',label:'거래량',data:rows.map(r=>r.volume),backgroundColor:'#4f8cff99',yAxisID:'y',borderRadius:3},{type:'line',label:'종가',data:rows.map(r=>r.close),borderColor:'#e6e9ef',borderWidth:2,pointRadius:2,yAxisID:'y2',tension:.3}]},
+    options:{...base,scales:{...base.scales,y:{grid,ticks:{...tick,callback:v=>kor(v)}},y2:{position:'right',grid:{display:false},ticks:{...tick,callback:v=>v.toLocaleString()}}}}}));
+  const ds=(k,label,c)=>({label,data:rows.map(r=>r[k]),backgroundColor:c,borderColor:c});
+  charts.push(new Chart($('#c2'),{type:'bar',data:{labels,datasets:[ds('indiv','개인','#f5a623'),ds('organ','기관','#38c98b'),ds('frgn','외국인','#c06bff')]},options:{...base,scales:{...base.scales,y:{grid,ticks:{...tick,callback:v=>kor(v,1)}}}}}));
+  const cum=k=>{let a=0;return rows.map(r=>a+=(r[k]||0))};
+  charts.push(new Chart($('#c3'),{type:'line',data:{labels,datasets:[{label:'개인',data:cum('indiv'),borderColor:'#f5a623',tension:.3,pointRadius:1},{label:'기관',data:cum('organ'),borderColor:'#38c98b',tension:.3,pointRadius:1},{label:'외국인',data:cum('frgn'),borderColor:'#c06bff',tension:.3,pointRadius:1}]},options:{...base,scales:{...base.scales,y:{grid,ticks:{...tick,callback:v=>kor(v,1)}}}}}));
+}
+$('#q').oninput=render;$('#days').onchange=()=>{prep();render();if(sel)showStock(sel)};
+$('#csv').onclick=()=>{const D=view.dates;const h=['코드','종목','종가','전일비','전일비%',...D,'평균','최근/평균%','개인순매수','기관순매수','외국인순매수','외인비율'];
+  const lines=[h.join(','),...view.rows.map(r=>[r.ticker,r.name,r.close,r.change,r.chpct===-999?'':r.chpct.toFixed(2),...r.vols,Math.round(r.avg),r.ratio==null?'':Math.round(r.ratio),r.indiv,r.organ,r.frgn,r.foreign_ratio].join(','))];
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+lines.join('\n')],{type:'text/csv'}));a.download='kospi_volume.csv';a.click()};
+load();
+</script></body></html>
