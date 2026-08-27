@@ -61,8 +61,11 @@ def build_site():
         avg = lambda a: (sum(a) / len(a)) if a else None
         aw, a1, a6 = avg(vol_all[-5:]), avg(vol_all[-25:-5]), avg(vol_all[-145:-25])
         n6 = len(vol_all[-145:-25])
+        amt_all = [x[3] * x[1] for x in s["rows"] if x[3] is not None and x[1]]   # 거래대금(주×종가)
+        amt1 = avg(amt_all[-25:-5])   # 1개월 일평균 거래대금(원)
         table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2],
-                      "aw": aw, "a1": a1, "a6": a6 if n6 >= 60 else None})
+                      "aw": aw, "a1": a1, "a6": a6 if n6 >= 60 else None,
+                      "amt": round(amt1 / 1e8, 2) if amt1 else None, "pref": s["ticker"][-1] != "0"})
         json.dump({"ticker": s["ticker"], "name": s["name"], "dates": dates, "rows": s["rows"]},
                   open(SITE / "data" / "stock" / f"{s['ticker']}.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     json.dump({"dates": tdates, "rows": table, "updated": collect.datetime.now().strftime("%Y-%m-%d %H:%M")},
