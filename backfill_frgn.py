@@ -6,6 +6,8 @@ import FinanceDataReader as fdr
 import collect
 
 FROM = sys.argv[1] if len(sys.argv) > 1 else "20251201"   # 외국인 채울 시작일
+FDR_FROM = sys.argv[2] if len(sys.argv) > 2 else "2024-10-01"   # 거래량/종가 백필 범위
+FDR_TO = sys.argv[3] if len(sys.argv) > 3 else "2025-03-31"
 HDR = {"User-Agent": "Mozilla/5.0"}
 log = collect.log
 listing = fdr.StockListing("KOSPI")[["Code", "Name"]]
@@ -17,7 +19,7 @@ con = sqlite3.connect(collect.DB); collect.init_db(con)
 def fdr_one(code, name):
     rows = []
     try:
-        df = fdr.DataReader(code, "2024-10-01", "2025-03-31"); prev = None
+        df = fdr.DataReader(code, FDR_FROM, FDR_TO); prev = None
         for d, r in df.iterrows():
             c = int(r["Close"]); ch = None if prev is None else c - prev; prev = c
             rows.append((d.strftime("%Y%m%d"), code, name, c, ch, int(r["Volume"]), None, None, None, None))
@@ -33,7 +35,7 @@ con.commit(); log.info("FDR 백필 완료")
 # (2) 외국인/기관 일별 (네이버 금융 frgn 페이지, 20행/페이지)
 def frgn_one(code):
     out = []; page = 1
-    while page <= 40:
+    while page <= 80:
         try:
             r = requests.get(f"https://finance.naver.com/item/frgn.naver?code={code}&page={page}", headers=HDR, timeout=15); r.encoding = "euc-kr"
             tabs = [t for t in pd.read_html(io.StringIO(r.text)) if t.shape[1] >= 9 and t.shape[0] > 3]
@@ -60,7 +62,7 @@ with ThreadPoolExecutor(4) as ex:
         con.executemany("UPDATE daily SET organ=?, frgn=?, foreign_ratio=COALESCE(foreign_ratio, ?) WHERE date=? AND ticker=? AND frgn IS NULL",
                         [(o, fr, ra, d, c) for d, c, v, o, fr, ra in rows])
         total += len(rows); n += 1
-        if n % 100 == 0: con.commit(); log.info(f"외국인 진행 {n}/{len(listing)} ({total}행)")
+        if n % 100 == 0: con.commit(); log.info(f"외국인 진행 {n}/{len(listing)} ({total}행)"); print(f"외국인 진행 {n}/{len(listing)} ({total}행)", flush=True)
 con.commit()
 print(con.execute("SELECT min(date), max(date), count(*), sum(frgn IS NOT NULL) FROM daily").fetchone())
 print("frgn 있는 날짜 범위:", con.execute("SELECT min(date), max(date) FROM daily WHERE frgn IS NOT NULL").fetchone())

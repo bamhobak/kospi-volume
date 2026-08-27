@@ -84,11 +84,23 @@ def wait_for_today(deadline="21:00", interval=600):
         time.sleep(interval)
     log.warning("마감시각까지 당일 데이터 미반영 → 직전 데이터만 수집")
 
+def get_listing():
+    """KOSPI 종목 목록: FDR(KRX) 60초 제한, 실패 시 DB의 최근 종목 목록으로 대체"""
+    from concurrent.futures import ThreadPoolExecutor as _TPE, TimeoutError as _TO
+    try:
+        with _TPE(1) as ex:
+            return ex.submit(lambda: fdr.StockListing("KOSPI")[["Code", "Name"]]).result(timeout=60)
+    except Exception as e:
+        log.warning(f"종목 목록(FDR) 실패 → DB 목록 사용: {e}")
+        con = sqlite3.connect(DB); init_db(con)
+        rows = con.execute("SELECT ticker, name FROM daily WHERE date=(SELECT max(date) FROM daily)").fetchall(); con.close()
+        return pd.DataFrame(rows, columns=["Code", "Name"])
+
 def main(progress=None):
     today = datetime.today()
     yesterday = today.strftime("%Y%m%d")  # 당일 포함
     log.info(f"수집 시작: ~{yesterday}")
-    listing = fdr.StockListing("KOSPI")[["Code", "Name"]]
+    listing = get_listing()
     log.info(f"코스피 종목 수: {len(listing)}")
     con = sqlite3.connect(DB); init_db(con)
     total = done = 0
