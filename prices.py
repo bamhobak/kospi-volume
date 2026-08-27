@@ -30,8 +30,7 @@ def telegram(text):
     print("텔레그램:", r.status_code)
 
 if "--ping" in sys.argv:
-    telegram(f"🔔 GitHub Actions 알림 설정 확인 OK ({now_kst:%m/%d %H:%M})
-평일 09:00~15:55 5분마다 보유 종목 시세를 확인합니다.")
+    telegram(f"🔔 GitHub Actions 알림 설정 확인 OK ({now_kst:%m/%d %H:%M})\n평일 09:00~15:55 5분마다 보유 종목 시세를 확인합니다.")
 
 # 1) 보유 종목 (모든 PIN, 미매도)
 positions = rpc("kospi_state_positions", {}) or []
