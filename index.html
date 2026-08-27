@@ -85,13 +85,12 @@ function render(){
   const fp=$('#fplus').checked;
   if(scr)rows=rows.filter(r=>r.r16!=null&&r.rw1!=null&&r.r16<th1&&r.rw1>=th2&&(!fp||r.fw>0));
   rows.sort((a,b)=>{const x=val(a,sortKey),y=val(b,sortKey);return (typeof x==='string')?(desc?y.localeCompare(x):x.localeCompare(y)):(desc?y-x:x-y)});
-  const cols=[['name','종목','l'],['close','종가'],['chpct','전일비'],...D.map((d,i)=>['d:'+i,md(d)]).reverse(),['avg','평균'],['ratio','최근/평균'],['a6','6M평균'],['a1','1M평균'],['aw','1W평균'],['r16','1M/6M'],['rw1','1W/1M'],['fw','외국인 1W'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
+  const cols=[['name','종목','l'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','6M평균'],['a1','1M평균'],['aw','1W평균'],['r16','1M/6M'],['rw1','1W/1M'],['fw','외국인 1W'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
   $('#tbl thead').innerHTML='<tr>'+cols.map(c=>`<th class="${c[2]||''} ${sortKey===c[0]?'on':''}" data-k="${c[0]}">${c[1]}${sortKey===c[0]?(desc?' ▼':' ▲'):''}</th>`).join('')+'</tr>';
   $('#tbl tbody').innerHTML=rows.map(r=>`<tr data-c="${r.ticker}" class="${sel===r.ticker?'sel':''}">
     <td class="l name">${r.name} <span class="code">${r.ticker}</span></td>
     <td>${fmt(r.close)}</td><td>${chg(r.close,r.change)}</td>
-    ${r.vols.map((v,i)=>`<td class="${i===r.vols.length-1?'name':''}">${kor(v)}</td>`).reverse().join('')}
-    <td>${kor(r.avg)}</td><td>${r.ratio==null?'':(r.ratio>=200?`<span class="hot">${Math.round(r.ratio)}%</span>`:Math.round(r.ratio)+'%')}</td>
+    <td class="name">${kor(r.last<0?null:r.last)}</td><td>${kor(r.avg)}</td><td>${r.ratio==null?'':(r.ratio>=200?`<span class="hot">${Math.round(r.ratio)}%</span>`:Math.round(r.ratio)+'%')}</td>
     <td class="sc">${kor(r.a6)}</td><td class="sc">${kor(r.a1)}</td><td class="sc">${kor(r.aw)}</td><td class="sc">${r.r16==null?'':Math.round(r.r16)+'%'}</td><td>${r.rw1==null?'':(r.rw1>=th2?`<span class="hot">${Math.round(r.rw1)}%</span>`:Math.round(r.rw1)+'%')}</td><td class="${cls(r.fw)}">${kor(r.fw,1)}</td>
     <td class="${cls(r.indiv)}">${kor(r.indiv,1)}</td><td class="${cls(r.organ)}">${kor(r.organ,1)}</td><td class="${cls(r.frgn)}">${kor(r.frgn,1)}</td><td>${r.foreign_ratio??''}%</td></tr>`).join('');
   $('#status').textContent=D.length?`${rows.length}종목${scr?' (잠잠→급등 조건 충족)':''} · ${md(D[0])}~${md(D[D.length-1])} · 개인/기관/외국인=기간 순매수 합계(주) · 갱신 ${raw.updated}`:'데이터 없음';
