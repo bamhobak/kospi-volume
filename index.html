@@ -92,7 +92,7 @@ let raw={dates:[],rows:[]},view={dates:[],rows:[]},sortKey='last',desc=true,sel=
 async function load(){raw=await (await fetch('data/table.json?v='+Date.now())).json();prep();render();mktBadge()}
 function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none';return}
   const d=(k.close/k.ma5-1)*100;el.className='mkt '+(k.up?'up':'dn');
-  el.innerHTML=`${k.up?'▲':'▼'} 코스피 ${k.close.toLocaleString()} <small>· 5일선 ${k.up?'위':'아래'} (${d>0?'+':''}${d.toFixed(1)}%) · ${k.up?'매수 가능':'대기 권장'}</small>`}
+  el.innerHTML=`${k.up?'▲':'▼'} 코스피 ${k.close.toLocaleString()} <small>· 5일선 ${k.up?'위':'아래'} (${d>0?'+':''}${d.toFixed(1)}%)</small>`}
 function prep(){const n=7,D=raw.dates,k=Math.max(0,D.length-n);view.dates=D.slice(k);
   view.rows=raw.rows.map(r=>{const vols=r.v.slice(k),valid=vols.filter(x=>x!=null);const sum=a=>a.slice(k).reduce((x,y)=>x+(y||0),0);
     const prev=vols.slice(0,-1).filter(x=>x!=null),last=vols[vols.length-1];const avg=valid.length?valid.reduce((a,b)=>a+b,0)/valid.length:0;
