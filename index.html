@@ -19,7 +19,9 @@ button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--t
 .mkt small{font-weight:400;opacity:.8}
 .chk{display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 10px;cursor:pointer;white-space:nowrap}
 .chk input{accent-color:var(--acc);width:15px;height:15px;margin:0}
-.opts{color:var(--mut);font-size:12px;white-space:nowrap}.opts label{cursor:pointer}.opts input[type=checkbox]{width:14px;accent-color:var(--acc);vertical-align:-2px}.opts input{width:44px;min-width:0;padding:4px 6px;font-size:12px;text-align:right;flex:none}
+.opts{color:var(--mut);font-size:12px;width:100%;white-space:normal}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}.tabs button{background:var(--panel2);border:1px solid var(--line);color:var(--mut);font-weight:600;padding:7px 12px}
+.tabs button.on{background:var(--acc);border-color:var(--acc);color:#fff}.opts label{cursor:pointer}.opts input[type=checkbox]{width:14px;accent-color:var(--acc);vertical-align:-2px}.opts input{width:44px;min-width:0;padding:4px 6px;font-size:12px;text-align:right;flex:none}
 td.sc{color:#b8c0d0}
 .rule{margin:12px 16px 0;padding:10px 14px;border:1px solid #ff5b5b44;background:#ff5b5b0f;border-radius:12px;font-size:13px;line-height:1.6}
 .rule b{color:#ff8a8a;margin-right:8px}.rule em{font-style:normal;color:var(--txt);font-weight:700}.rule small{display:block;color:var(--mut);font-size:11px}
@@ -57,7 +59,8 @@ td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400
 <header>
   <h1>KOSPI <span>거래량 · 투자자 동향</span></h1>
   <span id="mkt" class="mkt"></span>
-  <span class="opts">조건: 2개월 거래량 &lt; 1년 평균의 50% · 최근 3거래일 ≥ 2개월 평균의 200% · 외국인 1주 순매수 ≥ 1주 거래량의 2% · 거래대금 ≥ 3억 · 우선주 제외</span>
+  <nav id="tabs" class="tabs"></nav>
+  <div id="fdesc" class="opts"></div>
   <button class="ghost" id="csv">CSV</button>
   <div id="status">불러오는 중…</div>
 </header>
@@ -75,8 +78,18 @@ function kor(n,sign){if(n==null||isNaN(n))return '';const a=Math.abs(n);let s;
 const fmt=n=>n==null?'':Math.round(n).toLocaleString();const cls=n=>n>0?'pos':n<0?'neg':'';const WD=['일','월','화','수','목','금','토'];const md=d=>d.slice(4,6)+'/'+d.slice(6)+'('+WD[new Date(+d.slice(0,4),+d.slice(4,6)-1,+d.slice(6)).getDay()]+')';
 const pct=(c,ch)=>{if(c==null||ch==null||c-ch===0)return '';const p=ch/(c-ch)*100;return `<span class="pct">(${p>0?'+':''}${p.toFixed(2)}%)</span>`};
 const chg=(c,ch)=>ch==null?'':`<span class="${cls(ch)}">${ch>0?'+':''}${fmt(ch)}${pct(c,ch)}</span>`;
+// ===== 필터 정의: 새 필터는 이 배열에 추가 =====
+const FILTERS=[
+  {id:1,name:'1번 · 거래량 급등',desc:'2개월 거래량 < 1년 평균의 50% · 최근 3거래일 ≥ 2개월 평균의 200% · 외국인 1주 순매수 ≥ 1주 거래량의 2% · 거래대금 ≥ 3억 · 우선주 제외',
+   fn:r=>r.r16!=null&&r.rw1!=null&&r.r16<50&&r.rw1>=200&&r.fw>0&&r.fw>=0.02*r.v5&&!r.pref&&(r.amt||0)>=3},
+];
+let cur='all';  // 'all' = 모든 필터 통과, 숫자 = 해당 필터만
+function passes(r){return cur==='all'?FILTERS.every(f=>f.fn(r)):FILTERS.find(f=>f.id===cur).fn(r)}
+function renderTabs(){$('#tabs').innerHTML=[`<button data-f="all" class="${cur==='all'?'on':''}">전체 (모든 필터 통과)</button>`,...FILTERS.map(f=>`<button data-f="${f.id}" class="${cur===f.id?'on':''}">${f.name}</button>`)].join('');
+  document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{cur=b.dataset.f==='all'?'all':+b.dataset.f;renderTabs();render()});
+  $('#fdesc').textContent=cur==='all'?FILTERS.map(f=>`[${f.name}] ${f.desc}`).join('  |  '):FILTERS.find(f=>f.id===cur).desc}
 let raw={dates:[],rows:[]},view={dates:[],rows:[]},sortKey='last',desc=true,sel=null,charts=[];
-async function load(){raw=await (await fetch('data/table.json?v='+Date.now())).json();prep();render();mktBadge()}
+async function load(){raw=await (await fetch('data/table.json?v='+Date.now())).json();prep();renderTabs();render();mktBadge()}
 function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none';return}
   const d=(k.close/k.ma5-1)*100;el.className='mkt '+(k.up?'up':'dn');
   el.innerHTML=`${k.up?'▲':'▼'} 코스피 ${k.close.toLocaleString()} <small>· 5일선 ${k.up?'위':'아래'} (${d>0?'+':''}${d.toFixed(1)}%) · ${k.up?'매수 가능':'대기 권장'}</small>`}
@@ -89,9 +102,8 @@ function val(r,k){if(k.startsWith('d:'))return r.vols[+k.slice(2)]??-1;return r[
 function render(){
   const q='';const D=view.dates;
   let rows=view.rows.filter(r=>!q||r.name.toLowerCase().includes(q)||r.ticker.includes(q));
-  const scr=true,th1=50,th2=200;
-  const fp=true,th3=3;
-  if(scr)rows=rows.filter(r=>r.r16!=null&&r.rw1!=null&&r.r16<th1&&r.rw1>=th2&&(!fp||(r.fw>0&&r.fw>=0.02*r.v5))&&!r.pref&&(r.amt||0)>=th3);
+  const th2=200;
+  rows=rows.filter(passes);
   rows.sort((a,b)=>{const x=val(a,sortKey),y=val(b,sortKey);return (typeof x==='string')?(desc?y.localeCompare(x):x.localeCompare(y)):(desc?y-x:x-y)});
   const cols=[['name','종목','l'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','3일평균'],['r16','2M/1Y'],['rw1','3일/2M'],['fw','외국인 1W'],['fwp','외인/거래량'],['amt','2M 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
   $('#tbl thead').innerHTML='<tr>'+cols.map(c=>`<th class="${c[2]||''} ${sortKey===c[0]?'on':''}" data-k="${c[0]}">${c[1]}${sortKey===c[0]?(desc?' ▼':' ▲'):''}</th>`).join('')+'</tr>';
@@ -101,7 +113,7 @@ function render(){
     <td class="name">${kor(r.last<0?null:r.last)}</td><td>${kor(r.avg)}</td><td>${r.ratio==null?'':(r.ratio>=200?`<span class="hot">${Math.round(r.ratio)}%</span>`:Math.round(r.ratio)+'%')}</td>
     <td class="sc">${kor(r.a6)}</td><td class="sc">${kor(r.a1)}</td><td class="sc">${kor(r.aw)}</td><td class="sc">${r.r16==null?'':Math.round(r.r16)+'%'}</td><td>${r.rw1==null?'':(r.rw1>=th2?`<span class="hot">${Math.round(r.rw1)}%</span>`:Math.round(r.rw1)+'%')}</td><td class="${cls(r.fw)}">${kor(r.fw,1)}</td><td class="${cls(r.fwp)}">${r.fwp==null?'':r.fwp.toFixed(1)+'%'}</td><td class="sc">${r.amt==null?'':r.amt+'억'}</td>
     <td class="${cls(r.indiv)}">${kor(r.indiv,1)}</td><td class="${cls(r.organ)}">${kor(r.organ,1)}</td><td class="${cls(r.frgn)}">${kor(r.frgn,1)}</td><td>${r.foreign_ratio??''}%</td></tr>`).join('');
-  $('#status').textContent=D.length?`${rows.length}종목 조건 충족 · ${md(D[0])}~${md(D[D.length-1])} · 개인/기관/외국인=기간 순매수 합계(주) · 갱신 ${raw.updated}`:'데이터 없음';
+  $('#status').textContent=D.length?`${rows.length}종목 (${cur==='all'?'모든 필터':FILTERS.find(f=>f.id===cur).name}) · ${md(D[0])}~${md(D[D.length-1])} · 개인/기관/외국인=기간 순매수 합계(주) · 갱신 ${raw.updated}`:'데이터 없음';
   document.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortKey===k)desc=!desc;else{sortKey=k;desc=k!=='name'}render()});
   document.querySelectorAll('tbody tr').forEach(tr=>tr.onclick=()=>{sel=tr.dataset.c;render();showStock(sel)});
 }
