@@ -139,7 +139,7 @@ async function renderPositions(){
   const open_=rows.filter(r=>!r.p.sell);const avg=open_.length?open_.reduce((a,r)=>a+(r.ret||0),0)/open_.length:0;
   const closed=rows.filter(r=>r.p.sell);const realized=closed.reduce((a,r)=>a+pr(r.p),0);
   const inv=open_.reduce((a,r)=>a+(r.p.qty||0)*r.p.price,0),pnl=open_.reduce((a,r)=>a+((r.p.qty&&r.now)?(r.now-r.p.price)*r.p.qty:0),0);
-  $('#status').textContent=`보유 ${open_.length}종목 평균 ${avg>0?'+':''}${avg.toFixed(1)}%${inv?` · 매수금액 ${kor(inv)}원 · 평가손익 ${kor(pnl,1)}원`:''}${closed.length?` · 매도 완료 ${closed.length}건 합산 ${realized>0?'+':''}${realized.toFixed(1)}%`:''} · 장중 시세 ${live.updated?live.updated.slice(5)+' 갱신 (평일 09~16시 10분 간격)':'없음'}`;
+  $('#status').textContent=`보유 ${open_.length}종목 평균 ${avg>0?'+':''}${avg.toFixed(1)}%${inv?` · 매수금액 ${kor(inv)}원 · 평가손익 ${kor(pnl,1)}원`:''}${closed.length?` · 매도 완료 ${closed.length}건 합산 ${realized>0?'+':''}${realized.toFixed(1)}%`:''} · 장중 시세 ${live.updated?live.updated.slice(5)+' 갱신 (평일 09~16시 5분 간격)':'없음'}`;
   document.querySelectorAll('[data-sell]').forEach(b=>b.onclick=()=>{const a=positions();const p=a.find(x=>x.id==b.dataset.sell);const r=rows.find(r=>r.p.id==p.id);
     const sell=+prompt(`${p.name} 매도가 (원)`,r.now||p.price);if(!sell)return;p.sell=sell;p.sellDate=raw.dates[raw.dates.length-1];savePositions(a);render()});
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{if(!confirm('삭제할까요?'))return;savePositions(positions().filter(x=>x.id!=b.dataset.del));render()});

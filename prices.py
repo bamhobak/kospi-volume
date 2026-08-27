@@ -1,6 +1,6 @@
 """장중 현재가 수집: Supabase에 저장된 보유 종목 코드 → 네이버 실시간 시세 → Supabase '__prices__' 에 저장
 (GitHub Actions에서 평일 장중 10분마다 실행)"""
-import re, json, sys, datetime as dt
+import re, json, sys, time, datetime as dt
 from pathlib import Path
 import requests
 
@@ -26,6 +26,7 @@ for c in codes:
                      "at": d.get("localTradedAt", ""), "status": d.get("marketStatus", "")}
     except Exception as e:
         print("실패", c, e)
-now_kst = (dt.datetime.utcnow() + dt.timedelta(hours=9)).strftime("%Y-%m-%d %H:%M")
+    time.sleep(0.2)
+now_kst = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=9)).strftime("%Y-%m-%d %H:%M")
 rpc("kospi_state_set", {"p_pin": "__prices__", "p_data": {"updated": now_kst, "prices": prices}})
 print("저장:", now_kst, {c: p["now"] for c, p in prices.items()})
