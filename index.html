@@ -109,13 +109,14 @@ async function setPin(){const cur_=getPin();const v=prompt('기기 간 공유용
 function addPosition(code,name,close){const last=raw.dates[raw.dates.length-1];
   const date=prompt(`${name} 매수일 (YYYYMMDD)`,last);if(!date)return;
   const price=+prompt(`${name} 매수가 (원)`,close);if(!price)return;
-  const qty=+(prompt(`${name} 수량 (주, 선택)`,'')||0);
-  const a=positions();a.push({code,name,date:date.replace(/\D/g,''),price,qty,id:Date.now()});savePositions(a);cur='pos';render()}
+  const qty=+(prompt(`${name} 매수 수량 (주)`,'')||0);
+  const row=view.rows.find(x=>x.ticker===code);const filters=row?FILTERS.filter(f=>f.fn(row)).map(f=>f.id):[];
+  const a=positions();a.push({code,name,date:date.replace(/\D/g,''),price,qty,filters,id:Date.now()});savePositions(a);cur='pos';render()}
 async function renderPositions(){
   const ps=positions();
-  const cols=['종목','매수일','매수가','현재가','수익률','보유일','고점','매도선(-8%)','상태','매도가/손익',''];
-  $('#tbl thead').innerHTML='<tr>'+cols.map((c,i)=>`<th class="${[0,1,8,10].includes(i)?'l':''}">${c}</th>`).join('')+'</tr>';
-  if(!ps.length){$('#tbl tbody').innerHTML='<tr><td colspan="11" class="l" style="color:var(--mut);padding:30px">보유 종목이 없습니다. 종목 행의 「매수」 버튼으로 추가하세요.</td></tr>';$('#status').textContent='보유 0종목';return}
+  const cols=['종목','필터','매수일','매수가','수량','매수금액','현재가','수익률','평가손익','보유일','고점','매도선(-8%)','상태','매도가/손익',''];
+  $('#tbl thead').innerHTML='<tr>'+cols.map((c,i)=>`<th class="${[0,1,2,12,14].includes(i)?'l':''}">${c}</th>`).join('')+'</tr>';
+  if(!ps.length){$('#tbl tbody').innerHTML='<tr><td colspan="15" class="l" style="color:var(--mut);padding:30px">보유 종목이 없습니다. 종목 행의 「매수」 버튼으로 추가하세요.</td></tr>';$('#status').textContent='보유 0종목';return}
   const rows=await Promise.all(ps.map(async p=>{let d=null;try{d=await (await fetch(`data/stock/${p.code}.json?v=${raw.updated}`)).json()}catch(e){}
     const rs=d?d.rows.map(x=>({date:d.dates[x[0]],close:x[1]})).filter(x=>x.date>=p.date):[];
     const now=rs.length?rs[rs.length-1].close:null;const hi=rs.length?Math.max(p.price,...rs.map(x=>x.close)):p.price;const days=rs.length;
@@ -124,14 +125,17 @@ async function renderPositions(){
     return {p,now,hi,days,line,ret,st,sc}}));
   const pr=p=>(p.sell/p.price-1)*100;
   $('#tbl tbody').innerHTML=rows.map(({p,now,hi,days,line,ret,st,sc})=>`<tr>
-    <td class="l name">${p.name} <span class="code">${p.code}</span></td><td class="l">${md(p.date)}</td><td>${fmt(p.price)}</td><td>${fmt(now)}</td>
-    <td class="${cls(ret)}">${ret==null?'':(ret>0?'+':'')+ret.toFixed(1)+'%'}</td><td>${days}일</td><td>${fmt(hi)}</td><td>${fmt(line)}</td>
+    <td class="l name">${p.name} <span class="code">${p.code}</span></td>
+    <td class="l">${(p.filters||[]).map(f=>`<span class="tag">${f}</span>`).join('')||'<span class="code">-</span>'}</td>
+    <td class="l">${md(p.date)}</td><td>${fmt(p.price)}</td><td>${p.qty?fmt(p.qty)+'주':''}</td><td>${p.qty?kor(p.price*p.qty)+'원':''}</td><td>${fmt(now)}</td>
+    <td class="${cls(ret)}">${ret==null?'':(ret>0?'+':'')+ret.toFixed(1)+'%'}</td><td class="${cls(ret)}">${p.qty&&now?kor((now-p.price)*p.qty,1)+'원':''}</td><td>${days}일</td><td>${fmt(hi)}</td><td>${fmt(line)}</td>
     <td class="l ${sc}" style="font-weight:600">${st}</td>
     <td class="${p.sell?cls(pr(p)):''}">${p.sell?fmt(p.sell)+' ('+(pr(p)>0?'+':'')+pr(p).toFixed(1)+'%'+(p.qty?' · '+kor((p.sell-p.price)*p.qty,1)+'원':'')+')':''}</td>
     <td class="l">${p.sell?'':`<button class="ghost mini" data-sell="${p.id}">매도</button>`} <button class="ghost mini" data-del="${p.id}">삭제</button></td></tr>`).join('');
   const open_=rows.filter(r=>!r.p.sell);const avg=open_.length?open_.reduce((a,r)=>a+(r.ret||0),0)/open_.length:0;
   const closed=rows.filter(r=>r.p.sell);const realized=closed.reduce((a,r)=>a+pr(r.p),0);
-  $('#status').textContent=`보유 ${open_.length}종목 평균 ${avg>0?'+':''}${avg.toFixed(1)}%${closed.length?` · 매도 완료 ${closed.length}건 합산 ${realized>0?'+':''}${realized.toFixed(1)}%`:''} · 현재가=최근 수집일 종가`;
+  const inv=open_.reduce((a,r)=>a+(r.p.qty||0)*r.p.price,0),pnl=open_.reduce((a,r)=>a+((r.p.qty&&r.now)?(r.now-r.p.price)*r.p.qty:0),0);
+  $('#status').textContent=`보유 ${open_.length}종목 평균 ${avg>0?'+':''}${avg.toFixed(1)}%${inv?` · 매수금액 ${kor(inv)}원 · 평가손익 ${kor(pnl,1)}원`:''}${closed.length?` · 매도 완료 ${closed.length}건 합산 ${realized>0?'+':''}${realized.toFixed(1)}%`:''} · 현재가=최근 수집일 종가`;
   document.querySelectorAll('[data-sell]').forEach(b=>b.onclick=()=>{const a=positions();const p=a.find(x=>x.id==b.dataset.sell);const r=rows.find(r=>r.p.id==p.id);
     const sell=+prompt(`${p.name} 매도가 (원)`,r.now||p.price);if(!sell)return;p.sell=sell;p.sellDate=raw.dates[raw.dates.length-1];savePositions(a);render()});
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{if(!confirm('삭제할까요?'))return;savePositions(positions().filter(x=>x.id!=b.dataset.del));render()});
