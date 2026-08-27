@@ -1,0 +1,14 @@
+name: intraday-prices
+on:
+  schedule:
+    - cron: "*/10 0-6 * * 1-5"   # KST 09:00~15:50 평일, 10분 간격
+  workflow_dispatch:
+jobs:
+  prices:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install requests
+      - run: python prices.py

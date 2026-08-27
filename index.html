@@ -114,12 +114,16 @@ function addPosition(code,name,close){const last=raw.dates[raw.dates.length-1];
   const a=positions();a.push({code,name,date:date.replace(/\D/g,''),price,qty,filters,id:Date.now()});savePositions(a);cur='pos';render()}
 async function renderPositions(){
   const ps=positions();
+  let live={updated:'',prices:{}};try{const d=await rpc('kospi_state_get',{p_pin:'__prices__'});if(d&&d.prices)live=d}catch(e){}
+  const lastD=raw.dates[raw.dates.length-1];
   const cols=['종목','필터','매수일','매수가','수량','매수금액','현재가','수익률','평가손익','보유일','고점','매도선(-8%)','상태','매도가/손익',''];
   $('#tbl thead').innerHTML='<tr>'+cols.map((c,i)=>`<th class="${[0,1,2,12,14].includes(i)?'l':''}">${c}</th>`).join('')+'</tr>';
   if(!ps.length){$('#tbl tbody').innerHTML='<tr><td colspan="15" class="l" style="color:var(--mut);padding:30px">보유 종목이 없습니다. 종목 행의 「매수」 버튼으로 추가하세요.</td></tr>';$('#status').textContent='보유 0종목';return}
   const rows=await Promise.all(ps.map(async p=>{let d=null;try{d=await (await fetch(`data/stock/${p.code}.json?v=${raw.updated}`)).json()}catch(e){}
     const rs=d?d.rows.map(x=>({date:d.dates[x[0]],close:x[1]})).filter(x=>x.date>=p.date):[];
-    const now=rs.length?rs[rs.length-1].close:null;const hi=rs.length?Math.max(p.price,...rs.map(x=>x.close)):p.price;const days=rs.length;
+    const lv=live.prices[p.code];const lvDate=lv&&lv.at?lv.at.slice(0,10).replace(/-/g,''):'';const useLive=lv&&lv.now&&lvDate>lastD&&lvDate>=p.date;
+    const now=useLive?lv.now:(rs.length?rs[rs.length-1].close:null);
+    const hi=Math.max(p.price,...rs.map(x=>x.close),useLive&&lv.high?lv.high:0);const days=rs.length+(useLive?1:0);
     const line=hi*0.92;const ret=now?(now/p.price-1)*100:null;
     let st='보유',sc='';if(p.sell){st='매도 완료';sc='sc'}else if(now!=null&&now<=line){st='⚠ 매도선 이탈';sc='pos'}else if(days>=15){st='⏰ 15일 도래';sc='pos'}
     return {p,now,hi,days,line,ret,st,sc}}));
@@ -127,7 +131,7 @@ async function renderPositions(){
   $('#tbl tbody').innerHTML=rows.map(({p,now,hi,days,line,ret,st,sc})=>`<tr>
     <td class="l name">${p.name} <span class="code">${p.code}</span></td>
     <td class="l">${(p.filters||[]).map(f=>`<span class="tag">${f}</span>`).join('')||'<span class="code">-</span>'}</td>
-    <td class="l">${md(p.date)}</td><td>${fmt(p.price)}</td><td>${p.qty?fmt(p.qty)+'주':''}</td><td>${p.qty?kor(p.price*p.qty)+'원':''}</td><td>${fmt(now)}</td>
+    <td class="l">${md(p.date)}</td><td>${fmt(p.price)}</td><td>${p.qty?fmt(p.qty)+'주':''}</td><td>${p.qty?kor(p.price*p.qty)+'원':''}</td><td>${fmt(now)}${(()=>{const lv=live.prices[p.code];const d=lv&&lv.at?lv.at.slice(0,10).replace(/-/g,''):'';return (lv&&lv.now&&d>lastD)?`<div class="code">${lv.at.slice(11,16)} ${lv.status==='OPEN'?'장중':'마감'}</div>`:`<div class="code">${md(lastD)} 종가</div>`})()}</td>
     <td class="${cls(ret)}">${ret==null?'':(ret>0?'+':'')+ret.toFixed(1)+'%'}</td><td class="${cls(ret)}">${p.qty&&now?kor((now-p.price)*p.qty,1)+'원':''}</td><td>${days}일</td><td>${fmt(hi)}</td><td>${fmt(line)}</td>
     <td class="l ${sc}" style="font-weight:600">${st}</td>
     <td class="${p.sell?cls(pr(p)):''}">${p.sell?fmt(p.sell)+' ('+(pr(p)>0?'+':'')+pr(p).toFixed(1)+'%'+(p.qty?' · '+kor((p.sell-p.price)*p.qty,1)+'원':'')+')':''}</td>
@@ -135,7 +139,7 @@ async function renderPositions(){
   const open_=rows.filter(r=>!r.p.sell);const avg=open_.length?open_.reduce((a,r)=>a+(r.ret||0),0)/open_.length:0;
   const closed=rows.filter(r=>r.p.sell);const realized=closed.reduce((a,r)=>a+pr(r.p),0);
   const inv=open_.reduce((a,r)=>a+(r.p.qty||0)*r.p.price,0),pnl=open_.reduce((a,r)=>a+((r.p.qty&&r.now)?(r.now-r.p.price)*r.p.qty:0),0);
-  $('#status').textContent=`보유 ${open_.length}종목 평균 ${avg>0?'+':''}${avg.toFixed(1)}%${inv?` · 매수금액 ${kor(inv)}원 · 평가손익 ${kor(pnl,1)}원`:''}${closed.length?` · 매도 완료 ${closed.length}건 합산 ${realized>0?'+':''}${realized.toFixed(1)}%`:''} · 현재가=최근 수집일 종가`;
+  $('#status').textContent=`보유 ${open_.length}종목 평균 ${avg>0?'+':''}${avg.toFixed(1)}%${inv?` · 매수금액 ${kor(inv)}원 · 평가손익 ${kor(pnl,1)}원`:''}${closed.length?` · 매도 완료 ${closed.length}건 합산 ${realized>0?'+':''}${realized.toFixed(1)}%`:''} · 장중 시세 ${live.updated?live.updated.slice(5)+' 갱신 (평일 09~16시 10분 간격)':'없음'}`;
   document.querySelectorAll('[data-sell]').forEach(b=>b.onclick=()=>{const a=positions();const p=a.find(x=>x.id==b.dataset.sell);const r=rows.find(r=>r.p.id==p.id);
     const sell=+prompt(`${p.name} 매도가 (원)`,r.now||p.price);if(!sell)return;p.sell=sell;p.sellDate=raw.dates[raw.dates.length-1];savePositions(a);render()});
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{if(!confirm('삭제할까요?'))return;savePositions(positions().filter(x=>x.id!=b.dataset.del));render()});
