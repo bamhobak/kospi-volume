@@ -32,10 +32,10 @@ def hits_asof(END):
             out.append(dict(t=t, n=s["n"], sg=aw / a1, fp=f5s / v5 * 100, amt=avg(a[-(W + Q):-W]) / 1e8))
     return out
 
-kospi = fdr.DataReader("KS11", (START - dt.timedelta(days=40)).isoformat(), "2026-08-28"); kospi["ma5"] = kospi["Close"].rolling(5).mean()
+kospi = fdr.DataReader("KS11", (START - dt.timedelta(days=40)).isoformat(), (END_ + dt.timedelta(days=120)).isoformat()); kospi["ma5"] = kospi["Close"].rolling(5).mean()
 cache = {}
 def px(t):
-    if t not in cache: cache[t] = fdr.DataReader(t, START.isoformat(), "2026-08-28")
+    if t not in cache: cache[t] = fdr.DataReader(t, START.isoformat(), (END_ + dt.timedelta(days=120)).isoformat())
     return cache[t]
 trades = []
 days_ = [d for d in kospi.index if pd.Timestamp(START) <= d <= pd.Timestamp(END_)]
