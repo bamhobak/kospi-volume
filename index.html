@@ -57,7 +57,6 @@ td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400
 <header>
   <h1>KOSPI <span>거래량 · 투자자 동향</span></h1>
   <input id="q" placeholder="종목명 / 코드 검색">
-  <select id="days"><option value="5">5영업일</option><option value="7" selected>7영업일</option><option value="10">10영업일</option><option value="20">20영업일</option></select>
   <span id="mkt" class="mkt"></span>
   <span class="opts">조건: 2개월 거래량 &lt; 1년 평균의 50% · 최근 3거래일 ≥ 2개월 평균의 200% · 외국인 1주 순매수 ≥ 1주 거래량의 2% · 거래대금 ≥ 3억 · 우선주 제외</span>
   <button class="ghost" id="csv">CSV</button>
@@ -82,7 +81,7 @@ async function load(){raw=await (await fetch('data/table.json?v='+Date.now())).j
 function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none';return}
   const d=(k.close/k.ma5-1)*100;el.className='mkt '+(k.up?'up':'dn');
   el.innerHTML=`${k.up?'▲':'▼'} 코스피 ${k.close.toLocaleString()} <small>· 5일선 ${k.up?'위':'아래'} (${d>0?'+':''}${d.toFixed(1)}%) · ${k.up?'매수 가능':'대기 권장'}</small>`}
-function prep(){const n=+$('#days').value,D=raw.dates,k=Math.max(0,D.length-n);view.dates=D.slice(k);
+function prep(){const n=7,D=raw.dates,k=Math.max(0,D.length-n);view.dates=D.slice(k);
   view.rows=raw.rows.map(r=>{const vols=r.v.slice(k),valid=vols.filter(x=>x!=null);const sum=a=>a.slice(k).reduce((x,y)=>x+(y||0),0);
     const prev=vols.slice(0,-1).filter(x=>x!=null),last=vols[vols.length-1];const avg=valid.length?valid.reduce((a,b)=>a+b,0)/valid.length:0;
     const ratio=(prev.length&&last!=null&&prev.reduce((a,b)=>a+b,0))?last/(prev.reduce((a,b)=>a+b,0)/prev.length)*100:null;
@@ -109,7 +108,7 @@ function render(){
 }
 async function showStock(code){
   const d=await (await fetch(`data/stock/${code}.json?v=${raw.updated}`)).json();
-  const n=Math.max(+$('#days').value,20);const rows=d.rows.slice(-n).map(x=>({date:d.dates[x[0]],close:x[1],change:x[2],volume:x[3],indiv:x[4],organ:x[5],frgn:x[6],fr:x[7]}));
+  const n=20;const rows=d.rows.slice(-n).map(x=>({date:d.dates[x[0]],close:x[1],change:x[2],volume:x[3],indiv:x[4],organ:x[5],frgn:x[6],fr:x[7]}));
   if(!rows.length)return;const L=rows[rows.length-1],labels=rows.map(r=>md(r.date));const sum=k=>rows.reduce((a,r)=>a+(r[k]||0),0);
   $('#side').innerHTML=`<div style="display:flex;align-items:flex-start"><div><h2>${d.name} <span style="color:var(--mut);font-size:13px">${d.ticker}</span></h2><div class="sub">종가 <b style="color:var(--txt)">${fmt(L.close)}</b> ${chg(L.close,L.change)} · ${md(L.date)} 기준 · 외국인 보유 ${L.fr}%</div></div><button class="ghost" id="close">닫기</button></div>
   <div class="kpi"><div><small>최근 거래량</small><b>${kor(L.volume)}</b></div><div><small>개인 누적(${rows.length}일)</small><b class="${cls(sum('indiv'))}">${kor(sum('indiv'),1)}</b></div><div><small>기관 누적</small><b class="${cls(sum('organ'))}">${kor(sum('organ'),1)}</b></div><div><small>외국인 누적</small><b class="${cls(sum('frgn'))}">${kor(sum('frgn'),1)}</b></div></div>
@@ -127,7 +126,7 @@ async function showStock(code){
   const cum=k=>{let a=0;return rows.map(r=>a+=(r[k]||0))};
   charts.push(new Chart($('#c3'),{type:'line',data:{labels,datasets:[{label:'개인',data:cum('indiv'),borderColor:'#f5a623',tension:.3,pointRadius:1},{label:'기관',data:cum('organ'),borderColor:'#38c98b',tension:.3,pointRadius:1},{label:'외국인',data:cum('frgn'),borderColor:'#c06bff',tension:.3,pointRadius:1}]},options:{...base,scales:{...base.scales,y:{grid,ticks:{...tick,callback:v=>kor(v,1)}}}}}));
 }
-$('#q').oninput=render;$('#days').onchange=()=>{prep();render();if(sel)showStock(sel)};
+$('#q').oninput=render;
 $('#csv').onclick=()=>{const D=view.dates;const h=['코드','종목','종가','전일비','전일비%',...D,'평균','최근/평균%','1Y평균','2M평균','3일평균','2M/1Y%','3일/2M%','외국인1W순매수','외인/거래량%','2M거래대금(억)','개인순매수','기관순매수','외국인순매수','외인비율'];
   const lines=[h.join(','),...view.rows.map(r=>[r.ticker,r.name,r.close,r.change,r.chpct===-999?'':r.chpct.toFixed(2),...r.vols,Math.round(r.avg),r.ratio==null?'':Math.round(r.ratio),Math.round(r.a6||0),Math.round(r.a1||0),Math.round(r.aw||0),r.r16==null?'':Math.round(r.r16),r.rw1==null?'':Math.round(r.rw1),r.fw,r.fwp==null?'':r.fwp.toFixed(1),r.amt??'',r.indiv,r.organ,r.frgn,r.foreign_ratio].join(','))];
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+lines.join('\n')],{type:'text/csv'}));a.download='kospi_volume.csv';a.click()};
