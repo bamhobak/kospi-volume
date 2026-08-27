@@ -21,7 +21,9 @@ button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--t
 .chk input{accent-color:var(--acc);width:15px;height:15px;margin:0}
 .opts{color:var(--mut);font-size:12px;white-space:nowrap}.opts label{cursor:pointer}.opts input[type=checkbox]{width:14px;accent-color:var(--acc);vertical-align:-2px}.opts input{width:44px;min-width:0;padding:4px 6px;font-size:12px;text-align:right;flex:none}
 td.sc{color:#b8c0d0}
-.wrap{display:grid;grid-template-columns:1fr 470px;gap:14px;padding:14px 16px;height:calc(100% - 82px)}
+.rule{margin:12px 16px 0;padding:10px 14px;border:1px solid #ff5b5b44;background:#ff5b5b0f;border-radius:12px;font-size:13px;line-height:1.6}
+.rule b{color:#ff8a8a;margin-right:8px}.rule em{font-style:normal;color:var(--txt);font-weight:700}.rule small{display:block;color:var(--mut);font-size:11px}
+.wrap{display:grid;grid-template-columns:1fr 470px;gap:14px;padding:12px 16px 14px;height:calc(100% - 82px - 78px)}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;min-height:0}
 .tblwrap{overflow:auto;flex:1;-webkit-overflow-scrolling:touch}
 table{border-collapse:separate;border-spacing:0;width:100%;white-space:nowrap}
@@ -44,7 +46,7 @@ td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400
 .empty{color:var(--mut);text-align:center;margin-top:120px}
 #close{display:none;margin-left:auto}
 @media (max-width:900px){
-  .wrap{grid-template-columns:1fr;padding:10px;height:calc(100% - 92px)}
+  .wrap{grid-template-columns:1fr;padding:10px;height:calc(100% - 92px - 110px)}.rule{margin:10px 10px 0;font-size:12px}
   header{padding:10px 12px}header h1{width:100%}
   .side{position:fixed;inset:0;z-index:20;border-radius:0;background:var(--panel);transform:translateY(100%);transition:transform .25s}
   .side.open{transform:none}#close{display:inline-block}
@@ -61,6 +63,7 @@ td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400
   <button class="ghost" id="csv">CSV</button>
   <div id="status">불러오는 중…</div>
 </header>
+<div class="rule"><b>추천 매매 규칙</b> <span>코스피 5일선 <em>위</em>(▲)일 때만 매수 · 월요일 시가 매수 · <em>15거래일</em> 보유 · 고점 대비 <em>-8%</em> 되돌림 시 조기 매도(트레일링) · 퍼센트 익절·고정 손절 없음</span><small>백테스트 6/8~8/24 · 16건 · 평균 +7.8% · 승률 69% · 5일선 위 매수 시 5일 승률 90% / 아래 17% — 표본이 작으니 소액 분산으로 검증하며 운용</small></div>
 <div class="wrap">
   <div class="card"><div class="tblwrap"><table id="tbl"><thead></thead><tbody></tbody></table></div></div>
   <div class="card side" id="side"><div class="empty">종목을 클릭하면 거래량·투자자 추이가 표시됩니다</div></div>
