@@ -77,7 +77,25 @@ def build_site():
         n6 = len(vol_all[-b0:-q0])
         amt_all = [x[3] * x[1] for x in s["rows"] if x[3] is not None and x[1]]   # 거래대금(주×종가)
         amt1 = avg(amt_all[-q0:-W_SURGE])   # 잠잠창 일평균 거래대금(원)
-        table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2],
+        # 1번 필터 연속 신호 일수: k일 전 기준으로 조건 충족 여부를 계산해 연속 True 개수
+        fr_all = [x[6] for x in s["rows"] if x[3] is not None]     # 외국인 순매수(거래량 있는 행과 정렬 맞춤)
+        def cond(k):
+            v = vol_all[:len(vol_all) - k] if k else vol_all
+            f = fr_all[:len(fr_all) - k] if k else fr_all
+            am = amt_all[:len(amt_all) - k] if k else amt_all
+            if len(v) < b0: return False
+            aw_, a1_, a6_ = avg(v[-W_SURGE:]), avg(v[-q0:-W_SURGE]), avg(v[-b0:-q0])
+            if not (aw_ and a1_ and a6_): return False
+            f5 = f[-5:]
+            if any(x is None for x in f5): return False
+            f5s, v5 = sum(f5), sum(v[-5:])
+            return (a1_ / a6_ < 0.5 and aw_ / a1_ >= 2 and f5s > 0 and f5s >= 0.02 * v5
+                    and (avg(am[-q0:-W_SURGE]) or 0) >= 3e8 and s["ticker"][-1] == "0")
+        streak = 0
+        for k in range(0, 10):
+            if cond(k): streak += 1
+            else: break
+        table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2], "streak": streak,
                       "aw": aw, "a1": a1, "a6": a6 if n6 >= W_BASE // 2 else None,
                       "amt": round(amt1 / 1e8, 2) if amt1 else None, "pref": s["ticker"][-1] != "0"})
         json.dump({"ticker": s["ticker"], "name": s["name"], "dates": dates, "rows": s["rows"]},
