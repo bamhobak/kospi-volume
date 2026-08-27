@@ -100,9 +100,7 @@ if positions:
         if ret > 0 and key_add not in sent:
             stk = streak_of(c)
             if stk >= 4:
-                telegram(f"🔥 <b>{name}</b> 추가매수 고려 — 이익 중 + 신호 {stk}일 연속 유지
-현재가 {now:,.0f} (매수 {price:,.0f}, {ret:+.1f}%)
-백테스트: 이 상태 11건 최초분 +19%/91%, 추가분 +8%/64% (표본 작음) · {now_kst:%m/%d %H:%M}")
+                telegram(f"🔥 <b>{name}</b> 추가매수 고려 — 이익 중 + 신호 {stk}일 연속 유지\n현재가 {now:,.0f} (매수 {price:,.0f}, {ret:+.1f}%)\n백테스트: 이 상태 11건 최초분 +19%/91%, 추가분 +8%/64% (표본 작음) · {now_kst:%m/%d %H:%M}")
                 sent.add(key_add)
         if days >= HOLD_DAYS and key_hold not in sent:
             telegram(f"⏰ <b>{name}</b> 보유 {days}거래일째 — 추천 규칙상 매도일\n현재가 {now:,.0f} (매수 {price:,.0f}, {ret:+.1f}%)\n고점 {hi:,.0f} · 매도선 {line:,.0f} · {now_kst:%m/%d %H:%M}")
