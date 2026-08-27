@@ -3,7 +3,7 @@
 - 신호: (1) 고점 대비 -8% 되돌림(트레일링)  (2) 보유 15거래일째 아침
 - 알림 중복 방지: Supabase '__alerts__' 에 보낸 키 기록
 - 텔레그램: 환경변수 TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (GitHub Secrets) 없으면 알림 생략
-(GitHub Actions에서 평일 장중 5분마다 실행)
+(GitHub Actions에서 평일 장중 5분마다 실행, push 시 설정 확인 핑)
 """
 import re, os, csv, sys, time, datetime as dt
 from pathlib import Path
