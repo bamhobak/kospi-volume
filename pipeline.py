@@ -13,7 +13,8 @@ import collect
 BASE = Path(__file__).parent
 DATA = BASE / "data"
 SITE = BASE / "site"
-TABLE_DAYS, STOCK_DAYS = 20, 150   # 스크리너: 6개월(120)+1개월(20)+1주(5)
+TABLE_DAYS, STOCK_DAYS = 20, 300   # 스크리너: 1년(240)+2개월(40)+2주(10)
+W_SURGE, W_QUIET, W_BASE = 10, 40, 240
 COLS = ["date", "ticker", "name", "close", "change", "volume", "indiv", "organ", "frgn", "foreign_ratio"]
 
 def restore_db():
@@ -56,15 +57,16 @@ def build_site():
         last = s["rows"][-1]
         vols = [m[t0 + i][3] if (t0 + i) in m else None for i in range(len(tdates))]
         inv = [[m[t0 + i][k] if (t0 + i) in m else 0 for i in range(len(tdates))] for k in (4, 5, 6)]
-        # 스크리너용 평균: 1주(최근5) / 1개월(그 이전 20) / 6개월(그 이전 120)
+        # 스크리너용 평균: 급등창(최근 W_SURGE) / 잠잠창(그 이전 W_QUIET) / 기준창(그 이전 W_BASE)
         vol_all = [x[3] for x in s["rows"] if x[3] is not None]
         avg = lambda a: (sum(a) / len(a)) if a else None
-        aw, a1, a6 = avg(vol_all[-5:]), avg(vol_all[-25:-5]), avg(vol_all[-145:-25])
-        n6 = len(vol_all[-145:-25])
+        q0, b0 = W_SURGE + W_QUIET, W_SURGE + W_QUIET + W_BASE
+        aw, a1, a6 = avg(vol_all[-W_SURGE:]), avg(vol_all[-q0:-W_SURGE]), avg(vol_all[-b0:-q0])
+        n6 = len(vol_all[-b0:-q0])
         amt_all = [x[3] * x[1] for x in s["rows"] if x[3] is not None and x[1]]   # 거래대금(주×종가)
-        amt1 = avg(amt_all[-25:-5])   # 1개월 일평균 거래대금(원)
+        amt1 = avg(amt_all[-q0:-W_SURGE])   # 잠잠창 일평균 거래대금(원)
         table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2],
-                      "aw": aw, "a1": a1, "a6": a6 if n6 >= 60 else None,
+                      "aw": aw, "a1": a1, "a6": a6 if n6 >= W_BASE // 2 else None,
                       "amt": round(amt1 / 1e8, 2) if amt1 else None, "pref": s["ticker"][-1] != "0"})
         json.dump({"ticker": s["ticker"], "name": s["name"], "dates": dates, "rows": s["rows"]},
                   open(SITE / "data" / "stock" / f"{s['ticker']}.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
