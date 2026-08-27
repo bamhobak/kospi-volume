@@ -67,7 +67,7 @@ td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400
   <div id="fdesc" class="opts"></div>
   <div id="status">불러오는 중…</div>
 </header>
-<div class="rule"><b>추천 매매 규칙</b> <span>코스피 5일선 <em>위</em>(▲)일 때만 매수 · 월요일 시가 매수 · <em>15거래일</em> 보유 · 고점 대비 <em>-8%</em> 되돌림 시 조기 매도(트레일링) · 퍼센트 익절·고정 손절 없음</span><small>백테스트 6/8~8/24 · 16건 · 평균 +7.8% · 승률 69% · 5일선 위 매수 시 5일 승률 90% / 아래 17% — 표본이 작으니 소액 분산으로 검증하며 운용</small></div>
+<div class="rule"><b>추천 매매 규칙</b> <span>코스피 5일선 <em>위</em>(▲)일 때만 매수 · <em>15거래일</em> 보유 후 종가 매도 · 매수가 대비 <em>-10%</em> 이탈 시 손절 · 퍼센트 익절·트레일링 없음</span><small>백테스트 2026년 93건(5일선 위 71건) · 평균 +5.05% · 승률 52% · PF 2.26 · 손절 없으면 최악 -44% → -10%로 제한 · 익절/트레일링은 수익을 깎음(트레일-8%: +2.66%)</small></div>
 <div class="wrap">
   <div class="card"><div class="tblwrap"><table id="tbl"><thead></thead><tbody></tbody></table></div></div>
   <div class="card side" id="side"><div class="empty">종목을 클릭하면 거래량·투자자 추이가 표시됩니다</div></div>
@@ -93,7 +93,7 @@ function held(code){return positions().some(p=>p.code===code&&!p.sell)}
 function passes(r){if(held(r.ticker))return false; /* 보유 중(미매도) 종목은 매도 전까지 필터에서 제외 */ return cur==='all'?FILTERS.every(f=>f.fn(r)):FILTERS.find(f=>f.id===cur).fn(r)}
 function renderTabs(){$('#tabs').innerHTML=[`<button data-f="all" class="${cur==='all'?'on':''}">전체 (모든 필터 통과)</button>`,...FILTERS.map(f=>`<button data-f="${f.id}" class="${cur===f.id?'on':''}">${f.name} <small>${view.rows.filter(r=>f.fn(r)&&!held(r.ticker)).length}</small></button>`),`<button data-f="pos" class="pos-tab ${cur==='pos'?'on':''}">보유 종목 <small>${positions().filter(p=>!p.sell).length}</small></button>`].join('');
   document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{cur=b.dataset.f==='all'?'all':b.dataset.f==='pos'?'pos':+b.dataset.f;render()});
-  $('#fdesc').innerHTML=cur==='pos'?`내가 매수한 종목 관리 · 추천 규칙: 15거래일 보유, 고점 대비 -8% 이탈 시 매도 · <button class="ghost mini" id="pinbtn">${getPin()===DEFAULT_PIN?'자동 동기화 중 (PIN 변경)':'PIN: '+getPin()+' (공유 중)'}</button>`:cur==='all'?FILTERS.map(f=>`[${f.name}] ${f.desc}`).join('  |  '):FILTERS.find(f=>f.id===cur).desc;const pb=$('#pinbtn');if(pb)pb.onclick=setPin}
+  $('#fdesc').innerHTML=cur==='pos'?`내가 매수한 종목 관리 · 추천 규칙: 15거래일 보유, 매수가 -10% 이탈 시 손절 · <button class="ghost mini" id="pinbtn">${getPin()===DEFAULT_PIN?'자동 동기화 중 (PIN 변경)':'PIN: '+getPin()+' (공유 중)'}</button>`:cur==='all'?FILTERS.map(f=>`[${f.name}] ${f.desc}`).join('  |  '):FILTERS.find(f=>f.id===cur).desc;const pb=$('#pinbtn');if(pb)pb.onclick=setPin}
 // ===== 보유 종목(포지션) — localStorage =====
 let POS=(()=>{try{return JSON.parse(localStorage.getItem('positions')||'[]')}catch(e){return []}})();
 function positions(){return POS}
@@ -119,7 +119,7 @@ async function renderPositions(){
   const ps=positions();
   let live={updated:'',prices:{}};try{const d=await rpc('kospi_state_get',{p_pin:'__prices__'});if(d&&d.prices)live=d}catch(e){}
   const lastD=raw.dates[raw.dates.length-1];
-  const cols=['종목','필터','매수일','매수가','수량','매수금액','현재가','수익률','평가손익','보유일','고점','매도선(-8%)','신호 유지','상태','매도가/손익',''];
+  const cols=['종목','필터','매수일','매수가','수량','매수금액','현재가','수익률','평가손익','보유일','고점','손절선(-10%)','신호 유지','상태','매도가/손익',''];
   $('#tbl thead').innerHTML='<tr>'+cols.map((c,i)=>`<th class="${[0,1,2,13,15].includes(i)?'l':''}">${c}</th>`).join('')+'</tr>';
   if(!ps.length){$('#tbl tbody').innerHTML='<tr><td colspan="16" class="l" style="color:var(--mut);padding:30px">보유 종목이 없습니다. 종목 행의 「매수」 버튼으로 추가하세요.</td></tr>';$('#status').textContent='보유 0종목';return}
   const rows=await Promise.all(ps.map(async p=>{let d=null;try{d=await (await fetch(`data/stock/${p.code}.json?v=${raw.updated}`)).json()}catch(e){}
@@ -127,9 +127,9 @@ async function renderPositions(){
     const lv=live.prices[p.code];const lvDate=lv&&lv.at?lv.at.slice(0,10).replace(/-/g,''):'';const useLive=lv&&lv.now&&lvDate>lastD&&lvDate>=p.date;
     const now=useLive?lv.now:(rs.length?rs[rs.length-1].close:null);
     const hi=Math.max(p.price,...rs.map(x=>x.close),useLive&&lv.high?lv.high:0);const days=rs.length+(useLive?1:0);
-    const line=hi*0.92;const ret=now?(now/p.price-1)*100:null;
+    const line=p.price*0.90;const ret=now?(now/p.price-1)*100:null;
     const tr_=raw.rows.find(x=>x.t===p.code);const streak=tr_?tr_.streak||0:0;
-    let st='보유',sc='';if(p.sell){st='매도 완료';sc='sc'}else if(now!=null&&now<=line){st='⚠ 매도선 이탈';sc='pos'}else if(days>=15){st='⏰ 15일 도래';sc='pos'}
+    let st='보유',sc='';if(p.sell){st='매도 완료';sc='sc'}else if(now!=null&&now<=line){st='⚠ 손절선 이탈';sc='pos'}else if(days>=15){st='⏰ 15일 도래';sc='pos'}
     else if(ret!=null&&ret>0&&streak>=4){st='🔥 추가매수 고려 (이익 중 + 4일 연속 신호)';sc='pos'}
     return {p,now,hi,days,line,ret,st,sc,streak}}));
   const pr=p=>(p.sell/p.price-1)*100;
