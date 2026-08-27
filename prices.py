@@ -1,6 +1,11 @@
-"""장중 현재가 수집: Supabase에 저장된 보유 종목 코드 → 네이버 실시간 시세 → Supabase '__prices__' 에 저장
-(GitHub Actions에서 평일 장중 10분마다 실행)"""
-import re, json, sys, time, datetime as dt
+"""장중 현재가 수집 + 매도 신호 텔레그램 알림
+- Supabase 보유 종목 코드 → 네이버 실시간 시세 → Supabase '__prices__' 저장
+- 신호: (1) 고점 대비 -8% 되돌림(트레일링)  (2) 보유 15거래일째 아침
+- 알림 중복 방지: Supabase '__alerts__' 에 보낸 키 기록
+- 텔레그램: 환경변수 TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (GitHub Secrets) 없으면 알림 생략
+(GitHub Actions에서 평일 장중 5분마다 실행)
+"""
+import re, os, csv, sys, time, datetime as dt
 from pathlib import Path
 import requests
 
@@ -9,14 +14,27 @@ js = (BASE / "assets" / "sb.js").read_text(encoding="utf-8")
 URL = re.search(r"url:'([^']+)'", js).group(1); KEY = re.search(r"key:'([^']+)'", js).group(1)
 H = {"apikey": KEY, "Authorization": f"Bearer {KEY}", "Content-Type": "application/json"}
 NAVER = {"User-Agent": "Mozilla/5.0"}
+TG_TOKEN, TG_CHAT = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
+TRAIL, HOLD_DAYS = 0.08, 15
 num = lambda s: float(str(s).replace(",", "")) if s not in (None, "") else None
+now_kst = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=9)
+today = now_kst.strftime("%Y%m%d")
 
 def rpc(fn, body):
     r = requests.post(f"{URL}/rest/v1/rpc/{fn}", headers=H, json=body, timeout=20); r.raise_for_status()
     return r.json() if r.text else None
 
-codes = rpc("kospi_state_codes", {}) or []
+def telegram(text):
+    if not (TG_TOKEN and TG_CHAT): print("텔레그램 미설정 → 알림 생략:", text.replace("\n", " | ")); return
+    r = requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage", json={"chat_id": TG_CHAT, "text": text, "parse_mode": "HTML"}, timeout=15)
+    print("텔레그램:", r.status_code)
+
+# 1) 보유 종목 (모든 PIN, 미매도)
+positions = rpc("kospi_state_positions", {}) or []
+codes = sorted({p["code"] for p in positions})
 print("보유 종목:", codes)
+
+# 2) 실시간 시세
 prices = {}
 for c in codes:
     try:
@@ -27,6 +45,34 @@ for c in codes:
     except Exception as e:
         print("실패", c, e)
     time.sleep(0.2)
-now_kst = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=9)).strftime("%Y-%m-%d %H:%M")
-rpc("kospi_state_set", {"p_pin": "__prices__", "p_data": {"updated": now_kst, "prices": prices}})
-print("저장:", now_kst, {c: p["now"] for c, p in prices.items()})
+rpc("kospi_state_set", {"p_pin": "__prices__", "p_data": {"updated": now_kst.strftime("%Y-%m-%d %H:%M"), "prices": prices}})
+print("저장:", now_kst.strftime("%H:%M"), {c: p["now"] for c, p in prices.items()})
+
+# 3) 매도 신호 — 일별 종가 이력(data/*.csv)으로 고점·보유일 계산 + 장중 고가 반영
+if positions:
+    hist = {}   # code -> [(date, close)]
+    for f in sorted((BASE / "data").glob("20??-??.csv")):
+        with open(f, encoding="utf-8") as fh:
+            for r in csv.DictReader(fh):
+                if r["ticker"] in codes and r["close"]:
+                    hist.setdefault(r["ticker"], []).append((r["date"], float(r["close"])))
+    alerts = rpc("kospi_state_get", {"p_pin": "__alerts__"}) or {}
+    sent = set(alerts.get("sent", []))
+    for p in positions:
+        c, buy, price = p["code"], str(p["date"]), float(p["price"])
+        lv = prices.get(c) or {}
+        if not lv.get("now"): continue
+        rows = [x for x in hist.get(c, []) if x[0] >= buy]
+        live_today = lv.get("at", "")[:10].replace("-", "") == today
+        days = len([x for x in rows if x[0] < today]) + (1 if live_today else 0)   # 매수일 포함 보유 거래일수
+        hi = max([price] + [x[1] for x in rows] + ([lv["high"]] if live_today and lv.get("high") else []))
+        line = hi * (1 - TRAIL); now = lv["now"]; ret = (now / price - 1) * 100
+        name = p.get("name", c)
+        key_trail, key_hold = f"{p.get('id', c)}:trail", f"{p.get('id', c)}:hold{HOLD_DAYS}"
+        if now <= line and key_trail not in sent:
+            telegram(f"⚠️ <b>{name}</b> 매도선 이탈\n현재가 {now:,.0f} (매수 {price:,.0f}, {ret:+.1f}%)\n고점 {hi:,.0f} 대비 -{(1-now/hi)*100:.1f}% · 매도선 {line:,.0f}\n보유 {days}거래일 · {now_kst:%m/%d %H:%M}")
+            sent.add(key_trail)
+        if days >= HOLD_DAYS and key_hold not in sent:
+            telegram(f"⏰ <b>{name}</b> 보유 {days}거래일째 — 추천 규칙상 매도일\n현재가 {now:,.0f} (매수 {price:,.0f}, {ret:+.1f}%)\n고점 {hi:,.0f} · 매도선 {line:,.0f} · {now_kst:%m/%d %H:%M}")
+            sent.add(key_hold)
+    rpc("kospi_state_set", {"p_pin": "__alerts__", "p_data": {"sent": sorted(sent), "updated": now_kst.strftime("%Y-%m-%d %H:%M")}})
