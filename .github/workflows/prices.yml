@@ -13,6 +13,13 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install requests
+      - name: check secrets
+        env:
+          T: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          C: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          echo "token length=${#T} chat length=${#C}"
+          if [ -z "$T" ] || [ -z "$C" ]; then echo '::error::TELEGRAM secrets 비어 있음'; exit 1; fi
       - run: python prices.py ${{ github.event_name == 'push' && '--ping' || '' }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
