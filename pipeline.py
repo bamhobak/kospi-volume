@@ -13,8 +13,8 @@ import collect
 BASE = Path(__file__).parent
 DATA = BASE / "data"
 SITE = BASE / "site"
-TABLE_DAYS, STOCK_DAYS = 20, 300   # 스크리너: 1년(240)+2개월(40)+2주(10)
-W_SURGE, W_QUIET, W_BASE = 10, 40, 240
+TABLE_DAYS, STOCK_DAYS = 20, 300   # 스크리너: 1년(240)+2개월(40)+3거래일(3)
+W_SURGE, W_QUIET, W_BASE = 3, 40, 240
 COLS = ["date", "ticker", "name", "close", "change", "volume", "indiv", "organ", "frgn", "foreign_ratio"]
 
 def restore_db():

@@ -52,7 +52,7 @@ td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400
   <h1>KOSPI <span>거래량 · 투자자 동향</span></h1>
   <input id="q" placeholder="종목명 / 코드 검색">
   <select id="days"><option value="5">5영업일</option><option value="7" selected>7영업일</option><option value="10">10영업일</option><option value="20">20영업일</option></select>
-  <span class="opts">조건: 2개월 거래량 &lt; 1년 평균의 50% · 최근 2주 ≥ 2개월 평균의 200% · 외국인 1주 순매수 + · 거래대금 ≥ 3억 · 우선주 제외</span>
+  <span class="opts">조건: 2개월 거래량 &lt; 1년 평균의 50% · 최근 3거래일 ≥ 2개월 평균의 200% · 외국인 1주 순매수 + · 거래대금 ≥ 3억 · 우선주 제외</span>
   <button class="ghost" id="csv">CSV</button>
   <div id="status">불러오는 중…</div>
 </header>
@@ -84,7 +84,7 @@ function render(){
   const fp=true,th3=3;
   if(scr)rows=rows.filter(r=>r.r16!=null&&r.rw1!=null&&r.r16<th1&&r.rw1>=th2&&(!fp||r.fw>0)&&!r.pref&&(r.amt||0)>=th3);
   rows.sort((a,b)=>{const x=val(a,sortKey),y=val(b,sortKey);return (typeof x==='string')?(desc?y.localeCompare(x):x.localeCompare(y)):(desc?y-x:x-y)});
-  const cols=[['name','종목','l'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','2W평균'],['r16','2M/1Y'],['rw1','2W/2M'],['fw','외국인 1W'],['amt','2M 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
+  const cols=[['name','종목','l'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','3일평균'],['r16','2M/1Y'],['rw1','3일/2M'],['fw','외국인 1W'],['amt','2M 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
   $('#tbl thead').innerHTML='<tr>'+cols.map(c=>`<th class="${c[2]||''} ${sortKey===c[0]?'on':''}" data-k="${c[0]}">${c[1]}${sortKey===c[0]?(desc?' ▼':' ▲'):''}</th>`).join('')+'</tr>';
   $('#tbl tbody').innerHTML=rows.map(r=>`<tr data-c="${r.ticker}" class="${sel===r.ticker?'sel':''}">
     <td class="l name">${r.name} <span class="code">${r.ticker}</span></td>
@@ -117,7 +117,7 @@ async function showStock(code){
   charts.push(new Chart($('#c3'),{type:'line',data:{labels,datasets:[{label:'개인',data:cum('indiv'),borderColor:'#f5a623',tension:.3,pointRadius:1},{label:'기관',data:cum('organ'),borderColor:'#38c98b',tension:.3,pointRadius:1},{label:'외국인',data:cum('frgn'),borderColor:'#c06bff',tension:.3,pointRadius:1}]},options:{...base,scales:{...base.scales,y:{grid,ticks:{...tick,callback:v=>kor(v,1)}}}}}));
 }
 $('#q').oninput=render;$('#days').onchange=()=>{prep();render();if(sel)showStock(sel)};
-$('#csv').onclick=()=>{const D=view.dates;const h=['코드','종목','종가','전일비','전일비%',...D,'평균','최근/평균%','1Y평균','2M평균','2W평균','2M/1Y%','2W/2M%','외국인1W순매수','2M거래대금(억)','개인순매수','기관순매수','외국인순매수','외인비율'];
+$('#csv').onclick=()=>{const D=view.dates;const h=['코드','종목','종가','전일비','전일비%',...D,'평균','최근/평균%','1Y평균','2M평균','3일평균','2M/1Y%','3일/2M%','외국인1W순매수','2M거래대금(억)','개인순매수','기관순매수','외국인순매수','외인비율'];
   const lines=[h.join(','),...view.rows.map(r=>[r.ticker,r.name,r.close,r.change,r.chpct===-999?'':r.chpct.toFixed(2),...r.vols,Math.round(r.avg),r.ratio==null?'':Math.round(r.ratio),Math.round(r.a6||0),Math.round(r.a1||0),Math.round(r.aw||0),r.r16==null?'':Math.round(r.r16),r.rw1==null?'':Math.round(r.rw1),r.fw,r.amt??'',r.indiv,r.organ,r.frgn,r.foreign_ratio].join(','))];
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+lines.join('\n')],{type:'text/csv'}));a.download='kospi_volume.csv';a.click()};
 load();
