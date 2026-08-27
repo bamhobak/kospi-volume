@@ -2,6 +2,7 @@
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>코스피 거래량 · 투자자 동향</title>
 <meta name="theme-color" content="#0f1218">
+<link rel="icon" type="image/svg+xml" href="icon.svg"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="manifest" href="manifest.json">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
 :root{--bg:#0f1218;--panel:#171b24;--panel2:#1e2330;--line:#2a3040;--txt:#e6e9ef;--mut:#8b93a5;--acc:#4f8cff;--up:#ff5b5b;--dn:#4f8cff;--ind:#f5a623;--org:#38c98b;--frg:#c06bff}
@@ -13,6 +14,9 @@ input:focus{border-color:var(--acc)}input{flex:1;min-width:120px}
 button{background:var(--acc);border:0;color:#fff;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;font-size:13px}
 button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
 #status{color:var(--mut);font-size:12px;width:100%}
+.mkt{display:inline-flex;align-items:center;gap:6px;border-radius:8px;padding:7px 12px;font-weight:700;font-size:13px;white-space:nowrap}
+.mkt.up{background:#ff5b5b22;color:#ff8a8a;border:1px solid #ff5b5b55}.mkt.dn{background:#4f8cff22;color:#8ab4ff;border:1px solid #4f8cff55}
+.mkt small{font-weight:400;opacity:.8}
 .chk{display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 10px;cursor:pointer;white-space:nowrap}
 .chk input{accent-color:var(--acc);width:15px;height:15px;margin:0}
 .opts{color:var(--mut);font-size:12px;white-space:nowrap}.opts label{cursor:pointer}.opts input[type=checkbox]{width:14px;accent-color:var(--acc);vertical-align:-2px}.opts input{width:44px;min-width:0;padding:4px 6px;font-size:12px;text-align:right;flex:none}
@@ -52,6 +56,7 @@ td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400
   <h1>KOSPI <span>거래량 · 투자자 동향</span></h1>
   <input id="q" placeholder="종목명 / 코드 검색">
   <select id="days"><option value="5">5영업일</option><option value="7" selected>7영업일</option><option value="10">10영업일</option><option value="20">20영업일</option></select>
+  <span id="mkt" class="mkt"></span>
   <span class="opts">조건: 2개월 거래량 &lt; 1년 평균의 50% · 최근 3거래일 ≥ 2개월 평균의 200% · 외국인 1주 순매수 ≥ 1주 거래량의 2% · 거래대금 ≥ 3억 · 우선주 제외</span>
   <button class="ghost" id="csv">CSV</button>
   <div id="status">불러오는 중…</div>
@@ -70,7 +75,10 @@ const fmt=n=>n==null?'':Math.round(n).toLocaleString();const cls=n=>n>0?'pos':n<
 const pct=(c,ch)=>{if(c==null||ch==null||c-ch===0)return '';const p=ch/(c-ch)*100;return `<span class="pct">(${p>0?'+':''}${p.toFixed(2)}%)</span>`};
 const chg=(c,ch)=>ch==null?'':`<span class="${cls(ch)}">${ch>0?'+':''}${fmt(ch)}${pct(c,ch)}</span>`;
 let raw={dates:[],rows:[]},view={dates:[],rows:[]},sortKey='last',desc=true,sel=null,charts=[];
-async function load(){raw=await (await fetch('data/table.json?v='+Date.now())).json();prep();render()}
+async function load(){raw=await (await fetch('data/table.json?v='+Date.now())).json();prep();render();mktBadge()}
+function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none';return}
+  const d=(k.close/k.ma5-1)*100;el.className='mkt '+(k.up?'up':'dn');
+  el.innerHTML=`${k.up?'▲':'▼'} 코스피 ${k.close.toLocaleString()} <small>· 5일선 ${k.up?'위':'아래'} (${d>0?'+':''}${d.toFixed(1)}%) · ${k.up?'매수 가능':'대기 권장'}</small>`}
 function prep(){const n=+$('#days').value,D=raw.dates,k=Math.max(0,D.length-n);view.dates=D.slice(k);
   view.rows=raw.rows.map(r=>{const vols=r.v.slice(k),valid=vols.filter(x=>x!=null);const sum=a=>a.slice(k).reduce((x,y)=>x+(y||0),0);
     const prev=vols.slice(0,-1).filter(x=>x!=null),last=vols[vols.length-1];const avg=valid.length?valid.reduce((a,b)=>a+b,0)/valid.length:0;

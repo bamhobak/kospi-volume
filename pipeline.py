@@ -35,10 +35,22 @@ def dump_csv():
             w = csv.writer(fh); w.writerow(COLS); w.writerows(rows)
     con.close()
 
+def kospi_state():
+    """코스피 종가 vs 5일 이동평균 (시장 필터 배지용)"""
+    try:
+        import FinanceDataReader as fdr
+        k = fdr.DataReader("KS11", (collect.datetime.now() - collect.timedelta(days=30)).strftime("%Y-%m-%d"))
+        k = k[k["Close"] > 0].tail(5)
+        close, ma5 = float(k["Close"].iloc[-1]), float(k["Close"].mean())
+        return {"date": k.index[-1].strftime("%Y%m%d"), "close": round(close, 2), "ma5": round(ma5, 2), "up": close > ma5}
+    except Exception as e:
+        print("kospi 조회 실패:", e); return None
+
 def build_site():
     (SITE / "data" / "stock").mkdir(parents=True, exist_ok=True)
     for f in (SITE / "data" / "stock").glob("*.json"): f.unlink()
     shutil.copy(BASE / "index.html", SITE / "index.html")
+    for f in (BASE / "assets").glob("*"): shutil.copy(f, SITE / f.name)
     con = sqlite3.connect(collect.DB); con.row_factory = sqlite3.Row
     dates = [r[0] for r in con.execute("SELECT DISTINCT date FROM daily ORDER BY date DESC LIMIT ?", (STOCK_DAYS,))][::-1]
     if not dates:
@@ -70,7 +82,7 @@ def build_site():
                       "amt": round(amt1 / 1e8, 2) if amt1 else None, "pref": s["ticker"][-1] != "0"})
         json.dump({"ticker": s["ticker"], "name": s["name"], "dates": dates, "rows": s["rows"]},
                   open(SITE / "data" / "stock" / f"{s['ticker']}.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
-    json.dump({"dates": tdates, "rows": table, "updated": collect.datetime.now().strftime("%Y-%m-%d %H:%M")},
+    json.dump({"dates": tdates, "rows": table, "kospi": kospi_state(), "updated": collect.datetime.now().strftime("%Y-%m-%d %H:%M")},
               open(SITE / "data" / "table.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     print(f"site: {len(table)}종목, {tdates[0]}~{tdates[-1]}, table.json {round((SITE/'data'/'table.json').stat().st_size/1024)}KB")
 
