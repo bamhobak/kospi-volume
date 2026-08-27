@@ -90,16 +90,17 @@ let cur='all';  // 'all' = 모든 필터 통과, 숫자 = 해당 필터만
 function passes(r){return cur==='all'?FILTERS.every(f=>f.fn(r)):FILTERS.find(f=>f.id===cur).fn(r)}
 function renderTabs(){$('#tabs').innerHTML=[`<button data-f="all" class="${cur==='all'?'on':''}">전체 (모든 필터 통과)</button>`,...FILTERS.map(f=>`<button data-f="${f.id}" class="${cur===f.id?'on':''}">${f.name} <small>${view.rows.filter(f.fn).length}</small></button>`),`<button data-f="pos" class="pos-tab ${cur==='pos'?'on':''}">보유 종목 <small>${positions().filter(p=>!p.sell).length}</small></button>`].join('');
   document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{cur=b.dataset.f==='all'?'all':b.dataset.f==='pos'?'pos':+b.dataset.f;render()});
-  $('#fdesc').innerHTML=cur==='pos'?`내가 매수한 종목 관리 · 추천 규칙: 15거래일 보유, 고점 대비 -8% 이탈 시 매도 · <button class="ghost mini" id="pinbtn">${getPin()?'PIN: '+getPin()+' (공유 중)':'PIN 설정 → 기기 간 공유'}</button>`:cur==='all'?FILTERS.map(f=>`[${f.name}] ${f.desc}`).join('  |  '):FILTERS.find(f=>f.id===cur).desc;const pb=$('#pinbtn');if(pb)pb.onclick=setPin}
+  $('#fdesc').innerHTML=cur==='pos'?`내가 매수한 종목 관리 · 추천 규칙: 15거래일 보유, 고점 대비 -8% 이탈 시 매도 · <button class="ghost mini" id="pinbtn">${getPin()===DEFAULT_PIN?'자동 동기화 중 (PIN 변경)':'PIN: '+getPin()+' (공유 중)'}</button>`:cur==='all'?FILTERS.map(f=>`[${f.name}] ${f.desc}`).join('  |  '):FILTERS.find(f=>f.id===cur).desc;const pb=$('#pinbtn');if(pb)pb.onclick=setPin}
 // ===== 보유 종목(포지션) — localStorage =====
 let POS=(()=>{try{return JSON.parse(localStorage.getItem('positions')||'[]')}catch(e){return []}})();
 function positions(){return POS}
-function getPin(){try{return localStorage.getItem('pin')||''}catch(e){return ''}}
+const DEFAULT_PIN='bh-e0997ecc2798';  // 기본 공유 키(자동 동기화). PIN 버튼으로 변경 가능
+function getPin(){try{return localStorage.getItem('pin')||DEFAULT_PIN}catch(e){return DEFAULT_PIN}}
 async function rpc(fn,body){const r=await fetch(`${SB.url}/rest/v1/rpc/${fn}`,{method:'POST',headers:{apikey:SB.key,Authorization:'Bearer '+SB.key,'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error(fn+' '+r.status);const t=await r.text();return t?JSON.parse(t):null}
 async function pullRemote(){const pin=getPin();if(!pin||!window.SB)return;try{const d=await rpc('kospi_state_get',{p_pin:pin});if(d&&Array.isArray(d.positions)){POS=d.positions;try{localStorage.setItem('positions',JSON.stringify(POS))}catch(e){}}}catch(e){console.warn('sync pull',e)}}
 async function pushRemote(){const pin=getPin();if(!pin||!window.SB)return;try{await rpc('kospi_state_set',{p_pin:pin,p_data:{positions:POS}})}catch(e){alert('서버 저장 실패: '+e.message)}}
 function savePositions(a){POS=a;try{localStorage.setItem('positions',JSON.stringify(a))}catch(e){};pushRemote()}
-async function setPin(){const cur_=getPin();const v=prompt('기기 간 공유용 PIN (숫자/문자 4자 이상). 같은 PIN을 다른 기기에 입력하면 보유 종목이 공유됩니다.',cur_);if(v==null)return;const pin=v.trim();if(pin.length<4){alert('4자 이상 입력하세요');return}
+async function setPin(){const cur_=getPin();const v=prompt('기기 간 공유용 PIN (4자 이상). 기본값이면 모든 기기가 자동 공유됩니다. 남과 분리하고 싶을 때만 바꾸세요.',cur_===DEFAULT_PIN?'':cur_);if(v==null)return;const pin=v.trim();if(pin.length<4){if(pin===''){try{localStorage.removeItem('pin')}catch(e){};await pullRemote();render();return}alert('4자 이상 입력하세요');return}
   try{localStorage.setItem('pin',pin)}catch(e){}
   const remote=await rpc('kospi_state_get',{p_pin:pin}).catch(()=>null);
   if(remote&&Array.isArray(remote.positions)&&remote.positions.length){if(POS.length&&!confirm(`이 PIN에 저장된 보유 종목 ${remote.positions.length}건을 불러옵니다. 현재 기기의 ${POS.length}건은 덮어씁니다. 계속?`))return;POS=remote.positions;try{localStorage.setItem('positions',JSON.stringify(POS))}catch(e){}}
