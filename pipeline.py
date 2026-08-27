@@ -13,7 +13,7 @@ import collect
 BASE = Path(__file__).parent
 DATA = BASE / "data"
 SITE = BASE / "site"
-TABLE_DAYS, STOCK_DAYS = 20, 60
+TABLE_DAYS, STOCK_DAYS = 20, 150   # 스크리너: 6개월(120)+1개월(20)+1주(5)
 COLS = ["date", "ticker", "name", "close", "change", "volume", "indiv", "organ", "frgn", "foreign_ratio"]
 
 def restore_db():
@@ -35,8 +35,8 @@ def dump_csv():
     con.close()
 
 def build_site():
-    if SITE.exists(): shutil.rmtree(SITE)
-    (SITE / "data" / "stock").mkdir(parents=True)
+    (SITE / "data" / "stock").mkdir(parents=True, exist_ok=True)
+    for f in (SITE / "data" / "stock").glob("*.json"): f.unlink()
     shutil.copy(BASE / "index.html", SITE / "index.html")
     con = sqlite3.connect(collect.DB); con.row_factory = sqlite3.Row
     dates = [r[0] for r in con.execute("SELECT DISTINCT date FROM daily ORDER BY date DESC LIMIT ?", (STOCK_DAYS,))][::-1]
@@ -56,7 +56,13 @@ def build_site():
         last = s["rows"][-1]
         vols = [m[t0 + i][3] if (t0 + i) in m else None for i in range(len(tdates))]
         inv = [[m[t0 + i][k] if (t0 + i) in m else 0 for i in range(len(tdates))] for k in (4, 5, 6)]
-        table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2]})
+        # 스크리너용 평균: 1주(최근5) / 1개월(그 이전 20) / 6개월(그 이전 120)
+        vol_all = [x[3] for x in s["rows"] if x[3] is not None]
+        avg = lambda a: (sum(a) / len(a)) if a else None
+        aw, a1, a6 = avg(vol_all[-5:]), avg(vol_all[-25:-5]), avg(vol_all[-145:-25])
+        n6 = len(vol_all[-145:-25])
+        table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2],
+                      "aw": aw, "a1": a1, "a6": a6 if n6 >= 60 else None})
         json.dump({"ticker": s["ticker"], "name": s["name"], "dates": dates, "rows": s["rows"]},
                   open(SITE / "data" / "stock" / f"{s['ticker']}.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     json.dump({"dates": tdates, "rows": table, "updated": collect.datetime.now().strftime("%Y-%m-%d %H:%M")},

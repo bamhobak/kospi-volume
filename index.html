@@ -13,6 +13,10 @@ input:focus{border-color:var(--acc)}input{flex:1;min-width:120px}
 button{background:var(--acc);border:0;color:#fff;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;font-size:13px}
 button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
 #status{color:var(--mut);font-size:12px;width:100%}
+.chk{display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 10px;cursor:pointer;white-space:nowrap}
+.chk input{accent-color:var(--acc);width:15px;height:15px;margin:0}
+.opts{color:var(--mut);font-size:12px;white-space:nowrap}.opts input{width:44px;min-width:0;padding:4px 6px;font-size:12px;text-align:right;flex:none}
+td.sc{color:#b8c0d0}
 .wrap{display:grid;grid-template-columns:1fr 470px;gap:14px;padding:14px 16px;height:calc(100% - 82px)}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;min-height:0}
 .tblwrap{overflow:auto;flex:1;-webkit-overflow-scrolling:touch}
@@ -48,6 +52,8 @@ td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400
   <h1>KOSPI <span>거래량 · 투자자 동향</span></h1>
   <input id="q" placeholder="종목명 / 코드 검색">
   <select id="days"><option value="5">5영업일</option><option value="7" selected>7영업일</option><option value="10">10영업일</option><option value="20">20영업일</option></select>
+  <label class="chk"><input type="checkbox" id="scr"> 잠잠→급등</label>
+  <span class="opts">1M/6M &lt; <input id="th1" value="50">% · 1W/1M ≥ <input id="th2" value="200">%</span>
   <button class="ghost" id="csv">CSV</button>
   <div id="status">불러오는 중…</div>
 </header>
@@ -70,21 +76,24 @@ function prep(){const n=+$('#days').value,D=raw.dates,k=Math.max(0,D.length-n);v
   view.rows=raw.rows.map(r=>{const vols=r.v.slice(k),valid=vols.filter(x=>x!=null);const sum=a=>a.slice(k).reduce((x,y)=>x+(y||0),0);
     const prev=vols.slice(0,-1).filter(x=>x!=null),last=vols[vols.length-1];const avg=valid.length?valid.reduce((a,b)=>a+b,0)/valid.length:0;
     const ratio=(prev.length&&last!=null&&prev.reduce((a,b)=>a+b,0))?last/(prev.reduce((a,b)=>a+b,0)/prev.length)*100:null;
-    return {ticker:r.t,name:r.n,close:r.c,change:r.ch,foreign_ratio:r.fr,vols,avg,total:valid.reduce((a,b)=>a+b,0),ratio,indiv:sum(r.i),organ:sum(r.o),frgn:sum(r.f),last:last??-1,chpct:(r.c&&r.ch!=null&&r.c-r.ch)?r.ch/(r.c-r.ch)*100:-999}})}
+    return {ticker:r.t,name:r.n,close:r.c,change:r.ch,foreign_ratio:r.fr,vols,avg,total:valid.reduce((a,b)=>a+b,0),ratio,indiv:sum(r.i),organ:sum(r.o),frgn:sum(r.f),aw:r.aw,a1:r.a1,a6:r.a6,r16:(r.a1&&r.a6)?r.a1/r.a6*100:null,rw1:(r.aw&&r.a1)?r.aw/r.a1*100:null,last:last??-1,chpct:(r.c&&r.ch!=null&&r.c-r.ch)?r.ch/(r.c-r.ch)*100:-999}})}
 function val(r,k){if(k.startsWith('d:'))return r.vols[+k.slice(2)]??-1;return r[k]??-1}
 function render(){
   const q=$('#q').value.trim().toLowerCase();const D=view.dates;
   let rows=view.rows.filter(r=>!q||r.name.toLowerCase().includes(q)||r.ticker.includes(q));
+  const scr=$('#scr').checked,th1=+$('#th1').value||50,th2=+$('#th2').value||200;
+  if(scr)rows=rows.filter(r=>r.r16!=null&&r.rw1!=null&&r.r16<th1&&r.rw1>=th2);
   rows.sort((a,b)=>{const x=val(a,sortKey),y=val(b,sortKey);return (typeof x==='string')?(desc?y.localeCompare(x):x.localeCompare(y)):(desc?y-x:x-y)});
-  const cols=[['name','종목','l'],['close','종가'],['chpct','전일비'],...D.map((d,i)=>['d:'+i,md(d)]).reverse(),['avg','평균'],['ratio','최근/평균'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
+  const cols=[['name','종목','l'],['close','종가'],['chpct','전일비'],...D.map((d,i)=>['d:'+i,md(d)]).reverse(),['avg','평균'],['ratio','최근/평균'],['a6','6M평균'],['a1','1M평균'],['aw','1W평균'],['r16','1M/6M'],['rw1','1W/1M'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
   $('#tbl thead').innerHTML='<tr>'+cols.map(c=>`<th class="${c[2]||''} ${sortKey===c[0]?'on':''}" data-k="${c[0]}">${c[1]}${sortKey===c[0]?(desc?' ▼':' ▲'):''}</th>`).join('')+'</tr>';
   $('#tbl tbody').innerHTML=rows.map(r=>`<tr data-c="${r.ticker}" class="${sel===r.ticker?'sel':''}">
     <td class="l name">${r.name} <span class="code">${r.ticker}</span></td>
     <td>${fmt(r.close)}</td><td>${chg(r.close,r.change)}</td>
     ${r.vols.map((v,i)=>`<td class="${i===r.vols.length-1?'name':''}">${kor(v)}</td>`).reverse().join('')}
     <td>${kor(r.avg)}</td><td>${r.ratio==null?'':(r.ratio>=200?`<span class="hot">${Math.round(r.ratio)}%</span>`:Math.round(r.ratio)+'%')}</td>
+    <td class="sc">${kor(r.a6)}</td><td class="sc">${kor(r.a1)}</td><td class="sc">${kor(r.aw)}</td><td class="sc">${r.r16==null?'':Math.round(r.r16)+'%'}</td><td>${r.rw1==null?'':(r.rw1>=th2?`<span class="hot">${Math.round(r.rw1)}%</span>`:Math.round(r.rw1)+'%')}</td>
     <td class="${cls(r.indiv)}">${kor(r.indiv,1)}</td><td class="${cls(r.organ)}">${kor(r.organ,1)}</td><td class="${cls(r.frgn)}">${kor(r.frgn,1)}</td><td>${r.foreign_ratio??''}%</td></tr>`).join('');
-  $('#status').textContent=D.length?`${rows.length}종목 · ${md(D[0])}~${md(D[D.length-1])} · 개인/기관/외국인=기간 순매수 합계(주) · 갱신 ${raw.updated}`:'데이터 없음';
+  $('#status').textContent=D.length?`${rows.length}종목${scr?' (잠잠→급등 조건 충족)':''} · ${md(D[0])}~${md(D[D.length-1])} · 개인/기관/외국인=기간 순매수 합계(주) · 갱신 ${raw.updated}`:'데이터 없음';
   document.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortKey===k)desc=!desc;else{sortKey=k;desc=k!=='name'}render()});
   document.querySelectorAll('tbody tr').forEach(tr=>tr.onclick=()=>{sel=tr.dataset.c;render();showStock(sel)});
 }
@@ -108,9 +117,9 @@ async function showStock(code){
   const cum=k=>{let a=0;return rows.map(r=>a+=(r[k]||0))};
   charts.push(new Chart($('#c3'),{type:'line',data:{labels,datasets:[{label:'개인',data:cum('indiv'),borderColor:'#f5a623',tension:.3,pointRadius:1},{label:'기관',data:cum('organ'),borderColor:'#38c98b',tension:.3,pointRadius:1},{label:'외국인',data:cum('frgn'),borderColor:'#c06bff',tension:.3,pointRadius:1}]},options:{...base,scales:{...base.scales,y:{grid,ticks:{...tick,callback:v=>kor(v,1)}}}}}));
 }
-$('#q').oninput=render;$('#days').onchange=()=>{prep();render();if(sel)showStock(sel)};
-$('#csv').onclick=()=>{const D=view.dates;const h=['코드','종목','종가','전일비','전일비%',...D,'평균','최근/평균%','개인순매수','기관순매수','외국인순매수','외인비율'];
-  const lines=[h.join(','),...view.rows.map(r=>[r.ticker,r.name,r.close,r.change,r.chpct===-999?'':r.chpct.toFixed(2),...r.vols,Math.round(r.avg),r.ratio==null?'':Math.round(r.ratio),r.indiv,r.organ,r.frgn,r.foreign_ratio].join(','))];
+$('#q').oninput=render;$('#scr').onchange=render;$('#th1').oninput=render;$('#th2').oninput=render;$('#days').onchange=()=>{prep();render();if(sel)showStock(sel)};
+$('#csv').onclick=()=>{const D=view.dates;const h=['코드','종목','종가','전일비','전일비%',...D,'평균','최근/평균%','6M평균','1M평균','1W평균','1M/6M%','1W/1M%','개인순매수','기관순매수','외국인순매수','외인비율'];
+  const lines=[h.join(','),...view.rows.map(r=>[r.ticker,r.name,r.close,r.change,r.chpct===-999?'':r.chpct.toFixed(2),...r.vols,Math.round(r.avg),r.ratio==null?'':Math.round(r.ratio),Math.round(r.a6||0),Math.round(r.a1||0),Math.round(r.aw||0),r.r16==null?'':Math.round(r.r16),r.rw1==null?'':Math.round(r.rw1),r.indiv,r.organ,r.frgn,r.foreign_ratio].join(','))];
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+lines.join('\n')],{type:'text/csv'}));a.download='kospi_volume.csv';a.click()};
 load();
 </script></body></html>

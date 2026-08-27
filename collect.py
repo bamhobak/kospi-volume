@@ -1,4 +1,4 @@
-﻿"""
+"""
 코스피 전 종목 일별 거래량 + 투자자별(개인/기관/외국인) 순매수 수집기
 - 데이터원: 네이버 증권 모바일 API (m.stock.naver.com/api/stock/{code}/trend), 종목 목록은 FinanceDataReader
 - 매일 18:30 실행 → 당일까지 수집 (당일 투자자 수치는 잠정치, 다음날 재수집 시 확정치로 덮어씀) (최근 LOOKBACK 영업일 범위 누락분 자동 보충)
@@ -110,6 +110,41 @@ def main(progress=None):
     export_csv(con); con.close()
     log.info("완료")
 
+def backfill(start="2026-01-01"):
+    """1회성 과거 백필: 거래량/종가는 FDR(장기), 투자자는 네이버 60일. 기존 행은 덮어쓰지 않음."""
+    global PAGE_SIZE
+    listing = fdr.StockListing("KOSPI")[["Code", "Name"]]
+    con = sqlite3.connect(DB); init_db(con)
+    log.info(f"백필 시작 {start}~ ({len(listing)}종목)")
+    def one(code, name):
+        rows = []
+        try:
+            df = fdr.DataReader(code, start)
+            prev = None
+            for d, r in df.iterrows():
+                close = int(r["Close"]); chg = None if prev is None else close - prev; prev = close
+                rows.append((d.strftime("%Y%m%d"), code, name, close, chg, int(r["Volume"]), None, None, None, None))
+        except Exception as e:
+            log.warning(f"{code} {name} FDR 실패: {e}")
+        return rows
+    done = 0
+    with ThreadPoolExecutor(WORKERS) as ex:
+        for f in as_completed([ex.submit(one, c, n) for c, n in listing.itertuples(index=False)]):
+            con.executemany("INSERT OR IGNORE INTO daily VALUES (?,?,?,?,?,?,?,?,?,?)", f.result()); done += 1
+            if done % 200 == 0: con.commit(); log.info(f"FDR 진행 {done}/{len(listing)}")
+    con.commit()
+    # 투자자 60일: 기존 행에 채워넣기
+    PAGE_SIZE = 60
+    done = 0
+    with ThreadPoolExecutor(WORKERS) as ex:
+        for f in as_completed([ex.submit(fetch_one, c, n, "00000000") for c, n in listing.itertuples(index=False)]):
+            con.executemany("INSERT OR REPLACE INTO daily VALUES (?,?,?,?,?,?,?,?,?,?)", f.result()); done += 1
+            if done % 200 == 0: con.commit(); log.info(f"투자자 진행 {done}/{len(listing)}")
+    con.commit()
+    n, d0, d1 = con.execute("SELECT count(*), min(date), max(date) FROM daily").fetchone()
+    log.info(f"백필 완료: {n}행 {d0}~{d1}"); con.close()
+
 if __name__ == "__main__":
+    if "--backfill" in sys.argv: backfill(); sys.exit()
     if "--wait" in sys.argv: wait_for_today()
     main()
