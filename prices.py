@@ -86,10 +86,7 @@ if positions:
             sent.add(key_tgt)
         key_add = f"{p.get('id', c)}:add"
         if days >= 3 and ret > 0 and key_add not in sent:
-            telegram(f"🔥 <b>{name}</b> 추가매수 고려 — 매수 후 {days}거래일째 이익 중 ({ret:+.1f}%)
-현재가 {now:,.0f} (매수 {price:,.0f})
-백테스트: 3일째 이익 중인 종목은 최종 승률 78~81% · 추가분도 +2.4~5.7%/PF 2.6~3.8
-{now_kst:%m/%d %H:%M}")
+            telegram(f"🔥 <b>{name}</b> 추가매수 고려 — 매수 후 {days}거래일째 이익 중 ({ret:+.1f}%)\n현재가 {now:,.0f} (매수 {price:,.0f})\n백테스트: 3일째 이익 중이면 최종 승률 78~81% · 추가분도 +2.4~5.7% / PF 2.6~3.8\n{now_kst:%m/%d %H:%M}")
             sent.add(key_add)
         if days >= HOLD_DAYS and key_hold not in sent:
             telegram(f"⏰ <b>{name}</b> 보유 {days}거래일째 — 추천 규칙상 매도일\n현재가 {now:,.0f} (매수 {price:,.0f}, {ret:+.1f}%)\n고점 {hi:,.0f} · {now_kst:%m/%d %H:%M}")
