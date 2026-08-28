@@ -19,10 +19,20 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install -r requirements.txt
-      - name: collect (wait for today's data, then build site)
+      - name: collect (wait for today's data)
         env: { TZ: Asia/Seoul }
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then python pipeline.py; else python pipeline.py --wait; fi
+          if [ "${{ github.event_name }}" = "push" ]; then python pipeline.py --no-site; else python pipeline.py --wait --no-site; fi
+      - name: collect KRX (공매도·기관세부)
+        continue-on-error: true
+        env:
+          KRX_ID: ${{ secrets.KRX_ID }}
+          KRX_PW: ${{ secrets.KRX_PW }}
+          TZ: Asia/Seoul
+        run: python collect_krx.py 12
+      - name: build site (CSV + JSON)
+        env: { TZ: Asia/Seoul }
+        run: python pipeline.py --no-collect
       - name: commit monthly csv
         run: |
           git config user.name "kospi-bot"; git config user.email "bot@users.noreply.github.com"

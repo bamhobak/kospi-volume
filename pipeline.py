@@ -116,4 +116,4 @@ if __name__ == "__main__":
         if "--wait" in sys.argv: collect.wait_for_today()
         collect.main()
     dump_csv()
-    build_site()
+    if "--no-site" not in sys.argv: build_site()
