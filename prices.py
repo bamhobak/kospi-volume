@@ -56,32 +56,11 @@ print("저장:", now_kst.strftime("%H:%M"), {c: p["now"] for c, p in prices.item
 # 3) 매도 신호 — 일별 종가 이력(data/*.csv)으로 고점·보유일 계산 + 장중 고가 반영
 if positions:
     hist = {}   # code -> [(date, close)]
-    full = {}   # code -> [(date, close, volume, frgn)]  (신호 유지 일수 계산용)
     for f in sorted((BASE / "data").glob("20??-??.csv")):
         with open(f, encoding="utf-8") as fh:
             for r in csv.DictReader(fh):
                 if r["ticker"] in codes and r["close"]:
                     hist.setdefault(r["ticker"], []).append((r["date"], float(r["close"])))
-                    full.setdefault(r["ticker"], []).append((r["date"], float(r["close"]), float(r["volume"] or 0), float(r["frgn"]) if r["frgn"] else None))
-    W, Q, B = 3, 40, 240
-    def streak_of(code):
-        """1번 기본조건(2M<1Y 50%, 3D≥2M 200%, 외인5일≥2%, 거래대금≥3억, 보통주) 연속 충족 일수 (최근 수집일 기준)"""
-        if code[-1] != "0": return 0
-        rows = full.get(code, []); v = [r[2] for r in rows]; fr = [r[3] for r in rows]; am = [r[1] * r[2] for r in rows]
-        avg = lambda a: sum(a) / len(a) if a else None
-        def cond(k):
-            vv = v[:len(v) - k] if k else v; ff = fr[:len(fr) - k] if k else fr; aa = am[:len(am) - k] if k else am
-            if len(vv) < W + Q + B // 2: return False
-            aw, a1, a6 = avg(vv[-W:]), avg(vv[-(W + Q):-W]), avg(vv[-(W + Q + B):-(W + Q)])
-            if not (aw and a1 and a6): return False
-            f5 = ff[-5:]
-            if any(x is None for x in f5): return False
-            return a1 / a6 < .5 and aw / a1 >= 2 and sum(f5) > 0 and sum(f5) >= .02 * sum(vv[-5:]) and (avg(aa[-(W + Q):-W]) or 0) >= 3e8
-        n = 0
-        for k in range(10):
-            if cond(k): n += 1
-            else: break
-        return n
     alerts = rpc("kospi_state_get", {"p_pin": "__alerts__"}) or {}
     sent = set(alerts.get("sent", []))
     for p in positions:
@@ -106,11 +85,12 @@ if positions:
             telegram(f"🎯 <b>{name}</b> 익절 목표 도달 (+{rule['target']*100:.0f}%)\n현재가 {now:,.0f} (매수 {price:,.0f}, {ret:+.1f}%)\n보유 {days}거래일 · {now_kst:%m/%d %H:%M}")
             sent.add(key_tgt)
         key_add = f"{p.get('id', c)}:add"
-        if ret > 0 and key_add not in sent:
-            stk = streak_of(c)
-            if stk >= 4:
-                telegram(f"🔥 <b>{name}</b> 추가매수 고려 — 이익 중 + 신호 {stk}일 연속 유지\n현재가 {now:,.0f} (매수 {price:,.0f}, {ret:+.1f}%)\n백테스트: 이 상태 11건 최초분 +19%/91%, 추가분 +8%/64% (표본 작음) · {now_kst:%m/%d %H:%M}")
-                sent.add(key_add)
+        if days >= 3 and ret > 0 and key_add not in sent:
+            telegram(f"🔥 <b>{name}</b> 추가매수 고려 — 매수 후 {days}거래일째 이익 중 ({ret:+.1f}%)
+현재가 {now:,.0f} (매수 {price:,.0f})
+백테스트: 3일째 이익 중인 종목은 최종 승률 78~81% · 추가분도 +2.4~5.7%/PF 2.6~3.8
+{now_kst:%m/%d %H:%M}")
+            sent.add(key_add)
         if days >= HOLD_DAYS and key_hold not in sent:
             telegram(f"⏰ <b>{name}</b> 보유 {days}거래일째 — 추천 규칙상 매도일\n현재가 {now:,.0f} (매수 {price:,.0f}, {ret:+.1f}%)\n고점 {hi:,.0f} · {now_kst:%m/%d %H:%M}")
             sent.add(key_hold)
