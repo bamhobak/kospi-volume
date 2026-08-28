@@ -130,11 +130,11 @@ def main(progress=None):
     con = sqlite3.connect(DB); init_db(con)
     total = done = 0
     with ThreadPoolExecutor(WORKERS) as ex:
-        futs = [ex.submit(fetch_one, c, n, "00000000") for c, n in listing.itertuples(index=False)]
+        futs = [ex.submit(fetch_one, r.Code, r.Name, "00000000") for r in listing.itertuples(index=False)]
         for f in as_completed(futs):
             rows = [r for r in f.result() if r[0] <= yesterday]
             if rows:
-                con.executemany("INSERT OR REPLACE INTO daily VALUES (?,?,?,?,?,?,?,?,?,?)", rows); total += len(rows)
+                con.executemany("INSERT OR REPLACE INTO daily (date, ticker, name, close, change, volume, indiv, organ, frgn, foreign_ratio) VALUES (?,?,?,?,?,?,?,?,?,?)", rows); total += len(rows)
             done += 1
             if progress: progress(done, len(listing))
             if done % 200 == 0:
@@ -171,16 +171,16 @@ def backfill(start="2026-01-01"):
         return rows
     done = 0
     with ThreadPoolExecutor(WORKERS) as ex:
-        for f in as_completed([ex.submit(one, c, n) for c, n in listing.itertuples(index=False)]):
-            con.executemany("INSERT OR IGNORE INTO daily VALUES (?,?,?,?,?,?,?,?,?,?)", f.result()); done += 1
+        for f in as_completed([ex.submit(one, r.Code, r.Name) for r in listing.itertuples(index=False)]):
+            con.executemany("INSERT OR IGNORE INTO daily (date, ticker, name, close, change, volume, indiv, organ, frgn, foreign_ratio) VALUES (?,?,?,?,?,?,?,?,?,?)", f.result()); done += 1
             if done % 200 == 0: con.commit(); log.info(f"FDR 진행 {done}/{len(listing)}")
     con.commit()
     # 투자자 60일: 기존 행에 채워넣기
     PAGE_SIZE = 60
     done = 0
     with ThreadPoolExecutor(WORKERS) as ex:
-        for f in as_completed([ex.submit(fetch_one, c, n, "00000000") for c, n in listing.itertuples(index=False)]):
-            con.executemany("INSERT OR REPLACE INTO daily VALUES (?,?,?,?,?,?,?,?,?,?)", f.result()); done += 1
+        for f in as_completed([ex.submit(fetch_one, r.Code, r.Name, "00000000") for r in listing.itertuples(index=False)]):
+            con.executemany("INSERT OR REPLACE INTO daily (date, ticker, name, close, change, volume, indiv, organ, frgn, foreign_ratio) VALUES (?,?,?,?,?,?,?,?,?,?)", f.result()); done += 1
             if done % 200 == 0: con.commit(); log.info(f"투자자 진행 {done}/{len(listing)}")
     con.commit()
     n, d0, d1 = con.execute("SELECT count(*), min(date), max(date) FROM daily").fetchone()

@@ -28,7 +28,7 @@ def fdr_one(code, name):
 n = 0
 with ThreadPoolExecutor(8 if "--skip-fdr" not in sys.argv else 0 or 1) as ex:
     for f in as_completed([ex.submit(fdr_one, c, nm) for c, nm in fdr_listing.itertuples(index=False)]):
-        con.executemany("INSERT OR IGNORE INTO daily VALUES (?,?,?,?,?,?,?,?,?,?)", f.result()); n += 1
+        con.executemany("INSERT OR IGNORE INTO daily (date, ticker, name, close, change, volume, indiv, organ, frgn, foreign_ratio) VALUES (?,?,?,?,?,?,?,?,?,?)", f.result()); n += 1
         if n % 200 == 0: con.commit(); log.info(f"FDR 진행 {n}/{len(listing)}")
 con.commit(); log.info("FDR 백필 완료")
 
