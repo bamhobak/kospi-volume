@@ -21,6 +21,12 @@ button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--t
 .chk{display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 10px;cursor:pointer;white-space:nowrap}
 .chk input{accent-color:var(--acc);width:15px;height:15px;margin:0}
 .opts{color:var(--mut);font-size:12px;width:100%;white-space:normal}
+.stats{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:2px}
+.s-item{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:5px 12px;text-align:center;min-width:78px}
+.s-item b{display:block;color:var(--acc);font-size:15px;line-height:1.2}.s-item small{color:var(--mut);font-size:10px}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:2px}
+.s-item{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:5px 12px;text-align:center;min-width:76px}
+.s-item b{display:block;color:var(--acc);font-size:15px;line-height:1.25}.s-item small{color:var(--mut);font-size:10px}
 .tag{display:inline-block;min-width:20px;text-align:center;background:var(--acc);color:#fff;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:700;margin-right:3px}
 button.mini{padding:3px 8px;font-size:11px;border-radius:6px}
 .tabs button.pos-tab{border-color:#ff5b5b55;color:#ff8a8a}.tabs button.pos-tab.on{background:#ff5b5b;border-color:#ff5b5b;color:#fff}
@@ -67,7 +73,7 @@ td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400
   <div id="fdesc" class="opts"></div>
   <div id="status">불러오는 중…</div>
 </header>
-<div class="rule"><b>추천 매매 규칙</b> <span>1번 필터 종목을 <em>다음날 시가 매수</em> · <em>10거래일</em> 보유 후 종가 매도 · 매수가 대비 <em>-15%</em> 이탈 시 손절 · 익절·트레일링 없음</span><small>백테스트 2023~2026 · 121건 · 평균 +3.27% · 승률 56% · PF 2.06 · 연도별 2023 +1.9% / 2024 +3.9% / 2025 +4.6% / 2026 +2.2% (모두 플러스) · 거래대금 50억↑ 대형주라 슬리피지 부담 작음</small></div>
+<div class="rule"><b>추천 매매 규칙</b> <span><em>1번</em> 대형주 상승초입 → 다음날 시가 매수 · <em>10거래일</em> 보유 · <em>손절 -15%</em> &nbsp;|&nbsp; <em>2번</em> 조정 중 매집 → 다음날 시가 매수 · <em>10거래일</em> 보유 · <em>익절 +20%</em> · 손절 없음</span><small>슬리피지·수수료·거래세 반영 순수익 기준(2023~2026) · 1번 +4.04%/승률 57%/PF 2.24 · 2번 +3.52%/승률 61%/PF 2.74 · 둘 다 4년 모두 플러스 · 두 필터는 성격이 반대(상승 초입 vs 조정 중)라 병행 시 분산 효과</small></div>
 <div class="wrap">
   <div class="card"><div class="tblwrap"><table id="tbl"><thead></thead><tbody></tbody></table></div></div>
   <div class="card side" id="side"><div class="empty">종목을 클릭하면 거래량·투자자 추이가 표시됩니다</div></div>
@@ -83,16 +89,33 @@ const pct=(c,ch)=>{if(c==null||ch==null||c-ch===0)return '';const p=ch/(c-ch)*10
 const chg=(c,ch)=>ch==null?'':`<span class="${cls(ch)}">${ch>0?'+':''}${fmt(ch)}${pct(c,ch)}</span>`;
 // ===== 필터 정의: 새 필터는 이 배열에 추가 =====
 const FILTERS=[
-  {id:1,name:'1번 · 대형주 거래량 급등',desc:'2개월 거래량 < 1년 평균의 60% · 최근 3거래일 ≥ 2개월 평균의 200% · 외국인 1주 순매수 ≥ 1주 거래량의 2% · 2개월 평균 거래대금 ≥ 50억 · 최근 10거래일 주가 0~20% 상승(과열 제외) · 코스피 20일선 위 · 우선주 제외 — 백테스트 2023~26 121건 평균 +3.27% / 승률 56% / PF 2.06 (4년 모두 플러스)',
-   fn:r=>r.r16!=null&&r.rw1!=null&&r.r16<60&&r.rw1>=200&&r.fw>0&&r.fw>=0.02*r.v5&&!r.pref&&(r.amt||0)>=50
+  {id:1,name:'1번 · 대형주 상승초입',desc:'2개월 거래량 < 1년 평균의 50% · 최근 3거래일 ≥ 2개월 평균의 200% · 외국인 1주 순매수 ≥ 거래량의 2% · 2개월 평균 거래대금 ≥ 50억 · 최근 10거래일 주가 0~20% 상승 · 코스피 20일선 위 · 우선주 제외  ▶ 매매: 10거래일 보유, 손절 -15%  ▶ 백테스트 2023~26: 순수익 +4.04% / 승률 57% / PF 2.24 (70건, 4년 모두 플러스)',
+   rule:{hold:10,stop:15,target:null},
+   stats:{n:70, perMonth:1.6, win:57, pf:2.24, avg:4.04, years:'2023 +0.1% / 2024 +5.9% / 2025 +6.6% / 2026 +2.6%'},
+   fn:r=>r.r16!=null&&r.rw1!=null&&r.r16<50&&r.rw1>=200&&r.fw>0&&r.fw>=0.02*r.v5&&!r.pref&&(r.amt||0)>=50
         &&r.ret10!=null&&r.ret10>=0&&r.ret10<=20&&!!(raw.kospi&&raw.kospi.up20)},
+  {id:2,name:'2번 · 조정 중 매집',desc:'2개월 거래량 < 1년 평균의 40%(매우 잠잠) · 최근 3거래일 ≥ 2개월 평균의 200% · 외국인 1주 순매수 ≥ 거래량의 2% · 2개월 평균 거래대금 ≥ 3억 · 최근 3거래일 주가 하락(조정 중) · 우선주 제외 · 시장 무관  ▶ 매매: 10거래일 보유, 익절 +20%, 손절 없음  ▶ 백테스트 2023~26: 순수익 +3.52% / 승률 61% / PF 2.74 (77건, 4년 모두 플러스)',
+   rule:{hold:10,stop:null,target:20},
+   stats:{n:77, perMonth:1.8, win:61, pf:2.74, avg:3.52, years:'2023 +4.2% / 2024 +2.7% / 2025 +1.7% / 2026 +7.5%'},
+   fn:r=>r.r16!=null&&r.rw1!=null&&r.r16<40&&r.rw1>=200&&r.fw>0&&r.fw>=0.02*r.v5&&!r.pref&&(r.amt||0)>=3
+        &&r.ret3!=null&&r.ret3<=0},
 ];
 let cur='all';  // 'all' = 모든 필터 통과, 숫자 = 해당 필터만
 function held(code){return positions().some(p=>p.code===code&&!p.sell)}
 function passes(r){if(held(r.ticker))return false; /* 보유 중(미매도) 종목은 매도 전까지 필터에서 제외 */ return cur==='all'?FILTERS.every(f=>f.fn(r)):FILTERS.find(f=>f.id===cur).fn(r)}
 function renderTabs(){$('#tabs').innerHTML=[`<button data-f="all" class="${cur==='all'?'on':''}">전체 (모든 필터 통과)</button>`,...FILTERS.map(f=>`<button data-f="${f.id}" class="${cur===f.id?'on':''}">${f.name} <small>${view.rows.filter(r=>f.fn(r)&&!held(r.ticker)).length}</small></button>`),`<button data-f="pos" class="pos-tab ${cur==='pos'?'on':''}">보유 종목 <small>${positions().filter(p=>!p.sell).length}</small></button>`].join('');
   document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{cur=b.dataset.f==='all'?'all':b.dataset.f==='pos'?'pos':+b.dataset.f;render()});
-  $('#fdesc').innerHTML=cur==='pos'?`내가 매수한 종목 관리 · 추천 규칙: 10거래일 보유, 매수가 -15% 이탈 시 손절 · <button class="ghost mini" id="pinbtn">${getPin()===DEFAULT_PIN?'자동 동기화 중 (PIN 변경)':'PIN: '+getPin()+' (공유 중)'}</button>`:cur==='all'?FILTERS.map(f=>`[${f.name}] ${f.desc}`).join('  |  '):FILTERS.find(f=>f.id===cur).desc;const pb=$('#pinbtn');if(pb)pb.onclick=setPin}
+  $('#fdesc').innerHTML=cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 필터의 규칙이 자동 적용됩니다 (1번: 10일·손절-15% / 2번: 10일·익절+20%) · <button class="ghost mini" id="pinbtn">${getPin()===DEFAULT_PIN?'자동 동기화 중 (PIN 변경)':'PIN: '+getPin()+' (공유 중)'}</button>`:cur==='all'?FILTERS.map(f=>`[${f.name}] ${f.desc}`).join('  |  '):statsHtml(FILTERS.find(f=>f.id===cur));const pb=$('#pinbtn');if(pb)pb.onclick=setPin}
+function statsHtml(f){const t=f.stats,cnt=view.rows.filter(x=>f.fn(x)&&!held(x.ticker)).length,tot=view.rows.length||1;
+  return `<div class="stats">
+    <span class="s-item"><b>${t.win}%</b><small>기대 승률</small></span>
+    <span class="s-item"><b>${t.pf}</b><small>기대 PF</small></span>
+    <span class="s-item"><b>+${t.avg}%</b><small>기대 순수익/건</small></span>
+    <span class="s-item"><b>월 ${t.perMonth}건</b><small>출현 빈도(44개월 ${t.n}건)</small></span>
+    <span class="s-item"><b>${(t.n/44/21/944*100).toFixed(3)}%</b><small>종목·일별 출현 확률</small></span>
+    <span class="s-item"><b>${cnt}종목</b><small>오늘 (전체 ${tot}종목 중)</small></span></div>
+  <div style="margin-top:6px">${f.desc}</div>
+  <div style="margin-top:4px;color:var(--mut)">연도별 순수익 — ${t.years}</div>`}
 // ===== 보유 종목(포지션) — localStorage =====
 let POS=(()=>{try{return JSON.parse(localStorage.getItem('positions')||'[]')}catch(e){return []}})();
 function positions(){return POS}
@@ -118,7 +141,7 @@ async function renderPositions(){
   const ps=positions();
   let live={updated:'',prices:{}};try{const d=await rpc('kospi_state_get',{p_pin:'__prices__'});if(d&&d.prices)live=d}catch(e){}
   const lastD=raw.dates[raw.dates.length-1];
-  const cols=['종목','필터','매수일','매수가','수량','매수금액','현재가','수익률','평가손익','보유일','고점','손절선(-15%)','신호 유지','상태','매도가/손익',''];
+  const cols=['종목','필터','매수일','매수가','수량','매수금액','현재가','수익률','평가손익','보유일','고점','손절/익절선','신호 유지','상태','매도가/손익',''];
   $('#tbl thead').innerHTML='<tr>'+cols.map((c,i)=>`<th class="${[0,1,2,13,15].includes(i)?'l':''}">${c}</th>`).join('')+'</tr>';
   if(!ps.length){$('#tbl tbody').innerHTML='<tr><td colspan="16" class="l" style="color:var(--mut);padding:30px">보유 종목이 없습니다. 종목 행의 「매수」 버튼으로 추가하세요.</td></tr>';$('#status').textContent='보유 0종목';return}
   const rows=await Promise.all(ps.map(async p=>{let d=null;try{d=await (await fetch(`data/stock/${p.code}.json?v=${raw.updated}`)).json()}catch(e){}
@@ -126,17 +149,22 @@ async function renderPositions(){
     const lv=live.prices[p.code];const lvDate=lv&&lv.at?lv.at.slice(0,10).replace(/-/g,''):'';const useLive=lv&&lv.now&&lvDate>lastD&&lvDate>=p.date;
     const now=useLive?lv.now:(rs.length?rs[rs.length-1].close:null);
     const hi=Math.max(p.price,...rs.map(x=>x.close),useLive&&lv.high?lv.high:0);const days=rs.length+(useLive?1:0);
-    const line=p.price*0.85;const ret=now?(now/p.price-1)*100:null;
+    const rule=(FILTERS.find(f=>(p.filters||[]).includes(f.id))||FILTERS[0]).rule;
+    const line=rule.stop?p.price*(1-rule.stop/100):null;const tgt=rule.target?p.price*(1+rule.target/100):null;
+    const ret=now?(now/p.price-1)*100:null;
     const tr_=raw.rows.find(x=>x.t===p.code);const streak=tr_?tr_.streak||0:0;
-    let st='보유',sc='';if(p.sell){st='매도 완료';sc='sc'}else if(now!=null&&now<=line){st='⚠ 손절선 이탈';sc='pos'}else if(days>=10){st='⏰ 10일 도래 (매도)';sc='pos'}
+    let st='보유',sc='';if(p.sell){st='매도 완료';sc='sc'}
+    else if(line&&now!=null&&now<=line){st='🛑 손절선 이탈';sc='pos'}
+    else if(tgt&&now!=null&&now>=tgt){st='🎯 익절 도달 (+'+rule.target+'%)';sc='pos'}
+    else if(days>=rule.hold){st='⏰ '+rule.hold+'일 도래 (매도)';sc='pos'}
     else if(ret!=null&&ret>0&&streak>=4){st='🔥 추가매수 고려 (이익 중 + 4일 연속 신호)';sc='pos'}
-    return {p,now,hi,days,line,ret,st,sc,streak}}));
+    return {p,now,hi,days,line,tgt,ret,st,sc,streak,rule}}));
   const pr=p=>(p.sell/p.price-1)*100;
-  $('#tbl tbody').innerHTML=rows.map(({p,now,hi,days,line,ret,st,sc,streak})=>`<tr>
+  $('#tbl tbody').innerHTML=rows.map(({p,now,hi,days,line,tgt,ret,st,sc,streak,rule})=>`<tr>
     <td class="l name">${p.name} <span class="code">${p.code}</span></td>
     <td class="l">${(p.filters||[]).map(f=>`<span class="tag">${f}</span>`).join('')||'<span class="code">-</span>'}</td>
     <td class="l">${md(p.date)}</td><td>${fmt(p.price)}</td><td>${p.qty?fmt(p.qty)+'주':''}</td><td>${p.qty?kor(p.price*p.qty)+'원':''}</td><td>${fmt(now)}${(()=>{const lv=live.prices[p.code];const d=lv&&lv.at?lv.at.slice(0,10).replace(/-/g,''):'';return (lv&&lv.now&&d>lastD)?`<div class="code">${lv.at.slice(11,16)} ${lv.status==='OPEN'?'장중':'마감'}</div>`:`<div class="code">${md(lastD)} 종가</div>`})()}</td>
-    <td class="${cls(ret)}">${ret==null?'':(ret>0?'+':'')+ret.toFixed(1)+'%'}</td><td class="${cls(ret)}">${p.qty&&now?kor((now-p.price)*p.qty,1)+'원':''}</td><td>${days}일</td><td>${fmt(hi)}</td><td>${fmt(line)}</td>
+    <td class="${cls(ret)}">${ret==null?'':(ret>0?'+':'')+ret.toFixed(1)+'%'}</td><td class="${cls(ret)}">${p.qty&&now?kor((now-p.price)*p.qty,1)+'원':''}</td><td>${days}일</td><td>${fmt(hi)}</td><td>${line?'손절 '+fmt(line):''}${tgt?'익절 '+fmt(tgt):''}</td>
     <td>${streak?`<span class="${streak>=4?'hot':''}">${streak}일</span>`:'-'}</td><td class="l ${sc}" style="font-weight:600">${st}</td>
     <td class="${p.sell?cls(pr(p)):''}">${p.sell?fmt(p.sell)+' ('+(pr(p)>0?'+':'')+pr(p).toFixed(1)+'%'+(p.qty?' · '+kor((p.sell-p.price)*p.qty,1)+'원':'')+')':''}</td>
     <td class="l">${p.sell?'':`<button class="ghost mini" data-sell="${p.id}">매도</button>`} <button class="ghost mini" data-del="${p.id}">삭제</button></td></tr>`).join('');

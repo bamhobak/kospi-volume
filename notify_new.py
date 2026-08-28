@@ -35,9 +35,12 @@ def fwp(r):
 
 # 사이트 index.html 의 FILTERS 와 동일
 FILTERS = [
-    (1, "1번 · 대형주 거래량 급등", lambda r: (r.get("streak") or 0) >= 1 and fwp(r) >= 2 and not r["pref"]
-        and (r.get("amt") or 0) >= 50 and r.get("ret10") is not None and 0 <= r["ret10"] <= 20
-        and bool(kospi.get("up20"))),
+    (1, "1번 · 대형주 상승초입 (10일 보유·손절 -15%)",
+     lambda r: (r.get("streak") or 0) >= 1 and fwp(r) >= 2 and not r["pref"] and (r.get("amt") or 0) >= 50
+     and r["a1"] / r["a6"] < 0.5 and r.get("ret10") is not None and 0 <= r["ret10"] <= 20 and bool(kospi.get("up20"))),
+    (2, "2번 · 조정 중 매집 (10일 보유·익절 +20%)",
+     lambda r: (r.get("streak") or 0) >= 1 and fwp(r) >= 2 and not r["pref"] and (r.get("amt") or 0) >= 3
+     and r["a1"] / r["a6"] < 0.4 and r.get("ret3") is not None and r["ret3"] <= 0),
 ]
 
 held = {p["code"] for p in (rpc("kospi_state_positions", {}) or [])}
