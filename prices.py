@@ -1,6 +1,6 @@
 """장중 현재가 수집 + 매도 신호 텔레그램 알림
 - Supabase 보유 종목 코드 → 네이버 실시간 시세 → Supabase '__prices__' 저장
-- 신호: 필터별 — 1번 손절 -15% / 2번 익절 +20%, 공통 보유 10거래일째
+- 신호: 필터별 손절 — 1번 -15% / 2번 -10%, 공통 보유 10거래일째
 - 알림 중복 방지: Supabase '__alerts__' 에 보낸 키 기록
 - 텔레그램: 환경변수 TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (GitHub Secrets) 없으면 알림 생략
 (GitHub Actions에서 평일 장중 5분마다 실행, push 시 설정 확인 핑)
@@ -16,7 +16,7 @@ H = {"apikey": KEY, "Authorization": f"Bearer {KEY}", "Content-Type": "applicati
 NAVER = {"User-Agent": "Mozilla/5.0"}
 TG_TOKEN, TG_CHAT = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
 HOLD_DAYS = 10
-RULES = {1: {"stop": 0.15, "target": None}, 2: {"stop": None, "target": 0.20}}   # 필터별 청산 규칙
+RULES = {1: {"stop": 0.15, "target": None}, 2: {"stop": 0.10, "target": None}}   # 필터별 청산 규칙
 DEFAULT_RULE = RULES[1]
 num = lambda s: float(str(s).replace(",", "")) if s not in (None, "") else None
 now_kst = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=9)
