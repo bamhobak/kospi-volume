@@ -27,6 +27,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("collect")
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 
+EXTRA_COLS = [("open", "INTEGER"), ("high", "INTEGER"), ("low", "INTEGER"),
+              ("amount", "INTEGER"), ("marcap", "INTEGER"), ("shares", "INTEGER")]
+
 def init_db(con):
     con.execute("""CREATE TABLE IF NOT EXISTS daily(
         date TEXT, ticker TEXT, name TEXT,
@@ -34,6 +37,9 @@ def init_db(con):
         indiv INTEGER, organ INTEGER, frgn INTEGER, foreign_ratio REAL,
         PRIMARY KEY(date, ticker))""")
     con.execute("CREATE INDEX IF NOT EXISTS ix_daily_ticker ON daily(ticker, date)")
+    have = {r[1] for r in con.execute("PRAGMA table_info(daily)")}
+    for c, t in EXTRA_COLS:
+        if c not in have: con.execute(f"ALTER TABLE daily ADD COLUMN {c} {t}")
     con.commit()
 
 def num(s):
@@ -89,12 +95,31 @@ def get_listing():
     from concurrent.futures import ThreadPoolExecutor as _TPE, TimeoutError as _TO
     try:
         with _TPE(1) as ex:
-            return ex.submit(lambda: fdr.StockListing("KOSPI")[["Code", "Name"]]).result(timeout=60)
+            return ex.submit(lambda: fdr.StockListing("KOSPI")).result(timeout=60)
     except Exception as e:
         log.warning(f"종목 목록(FDR) 실패 → DB 목록 사용: {e}")
         con = sqlite3.connect(DB); init_db(con)
         rows = con.execute("SELECT ticker, name FROM daily WHERE date=(SELECT max(date) FROM daily)").fetchall(); con.close()
         return pd.DataFrame(rows, columns=["Code", "Name"])
+
+def apply_snapshot(con, listing, date):
+    """StockListing 스냅샷(OHLC·거래대금·시총·상장주식수)을 해당 날짜 행에 반영"""
+    cols = {"Open": "open", "High": "high", "Low": "low", "Amount": "amount", "Marcap": "marcap", "Stocks": "shares"}
+    have = [c for c in cols if c in listing.columns]
+    if not have: return 0
+    rows = []
+    for r in listing.itertuples(index=False):
+        d = getattr(r, "_asdict", None)
+        vals = []
+        for c in have:
+            v = getattr(r, c, None)
+            try: vals.append(int(v) if v == v and v is not None else None)
+            except Exception: vals.append(None)
+        rows.append(tuple(vals) + (date, r.Code))
+    sets = ", ".join(f"{cols[c]}=COALESCE(?, {cols[c]})" for c in have)
+    con.executemany(f"UPDATE daily SET {sets} WHERE date=? AND ticker=?", rows)
+    con.commit()
+    return len(rows)
 
 def main(progress=None):
     today = datetime.today()
@@ -115,6 +140,11 @@ def main(progress=None):
             if done % 200 == 0:
                 con.commit(); log.info(f"진행 {done}/{len(listing)}")
     con.commit()
+    try:
+        n = apply_snapshot(con, listing, yesterday)
+        log.info(f"시세 스냅샷 반영({yesterday}): {n}종목 (OHLC·거래대금·시총·상장주식수)")
+    except Exception as e:
+        log.warning(f"스냅샷 반영 실패: {e}")
     cutoff = (today - timedelta(days=KEEP_DAYS)).strftime("%Y%m%d")
     con.execute("DELETE FROM daily WHERE date < ?", (cutoff,)); con.commit()
     dates = [r[0] for r in con.execute("SELECT DISTINCT date FROM daily ORDER BY date DESC LIMIT 7")]
@@ -125,7 +155,7 @@ def main(progress=None):
 def backfill(start="2026-01-01"):
     """1회성 과거 백필: 거래량/종가는 FDR(장기), 투자자는 네이버 60일. 기존 행은 덮어쓰지 않음."""
     global PAGE_SIZE
-    listing = fdr.StockListing("KOSPI")[["Code", "Name"]]
+    listing = get_listing()
     con = sqlite3.connect(DB); init_db(con)
     log.info(f"백필 시작 {start}~ ({len(listing)}종목)")
     def one(code, name):

@@ -15,14 +15,15 @@ DATA = BASE / "data"
 SITE = BASE / "site"
 TABLE_DAYS, STOCK_DAYS = 20, 300   # 스크리너: 1년(240)+2개월(40)+3거래일(3)
 W_SURGE, W_QUIET, W_BASE = 3, 40, 240
-COLS = ["date", "ticker", "name", "close", "change", "volume", "indiv", "organ", "frgn", "foreign_ratio"]
+COLS = ["date", "ticker", "name", "close", "change", "volume", "indiv", "organ", "frgn", "foreign_ratio",
+        "open", "high", "low", "amount", "marcap", "shares"]
 
 def restore_db():
     con = sqlite3.connect(collect.DB); collect.init_db(con)
     for f in sorted(DATA.glob("20??-??.csv")):
         with open(f, encoding="utf-8") as fh:
             rows = [tuple(r[c] or None for c in COLS) for r in csv.DictReader(fh)]
-        con.executemany("INSERT OR IGNORE INTO daily VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
+        con.executemany(f"INSERT OR IGNORE INTO daily ({','.join(COLS)}) VALUES ({','.join('?'*len(COLS))})", rows)
     con.commit(); con.close()
 
 def dump_csv():
@@ -101,7 +102,7 @@ def build_site():
         ret10 = round((closes[-1] / closes[-11] - 1) * 100, 2) if len(closes) >= 11 and closes[-11] else None  # 최근 10거래일
         table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2], "streak": streak, "ret3": ret3, "ret10": ret10,
                       "aw": aw, "a1": a1, "a6": a6 if n6 >= W_BASE // 2 else None,
-                      "amt": round(amt1 / 1e8, 2) if amt1 else None, "pref": s["ticker"][-1] != "0"})
+                      "amt": round(amt1 / 1e8, 2) if amt1 else None, "cap": round((last[8] or 0) / 1e8) if len(last) > 8 and last[8] else None, "pref": s["ticker"][-1] != "0"})
         json.dump({"ticker": s["ticker"], "name": s["name"], "dates": dates, "rows": s["rows"]},
                   open(SITE / "data" / "stock" / f"{s['ticker']}.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     json.dump({"dates": tdates, "rows": table, "kospi": kospi_state(), "updated": collect.datetime.now().strftime("%Y-%m-%d %H:%M")},
