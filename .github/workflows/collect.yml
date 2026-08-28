@@ -23,13 +23,6 @@ jobs:
         env: { TZ: Asia/Seoul }
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then python pipeline.py --no-site; else python pipeline.py --wait --no-site; fi
-      - name: collect KRX (공매도·기관세부)
-        continue-on-error: true
-        env:
-          KRX_ID: ${{ secrets.KRX_ID }}
-          KRX_PW: ${{ secrets.KRX_PW }}
-          TZ: Asia/Seoul
-        run: python collect_krx.py 12
       - name: build site (CSV + JSON)
         env: { TZ: Asia/Seoul }
         run: python pipeline.py --no-collect
