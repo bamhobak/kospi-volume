@@ -22,6 +22,8 @@ today = datetime.today()
 start = FROM.replace("-", "") if FROM else (today - timedelta(days=DAYS * 2)).strftime("%Y%m%d")
 end = today.strftime("%Y%m%d")
 
+SLEEP = float(os.environ.get("KRX_SLEEP", "1.0"))   # 요청 간격(초) — 과도한 요청 시 KRX 차단됨
+MAX_DAYS = int(os.environ.get("KRX_MAX_DAYS", "0"))  # 0=제한 없음, 백필은 나눠서 실행 권장
 INVESTORS = [("연기금", "pension"), ("투신", "trust"), ("사모", "private"),
              ("보험", "insurance"), ("금융투자", "fininv"), ("기타법인", "corp")]
 COLS = [("short_vol", "INTEGER"), ("short_ratio", "REAL"), ("short_bal", "INTEGER"), ("short_bal_ratio", "REAL")] \
@@ -34,10 +36,11 @@ for c, t in COLS:
     if c not in have: con.execute(f"ALTER TABLE daily ADD COLUMN {c} {t}")
 con.commit()
 
-days = [d.strftime("%Y%m%d") for d in pd.bdate_range(start, end)]
+days = [r[0] for r in con.execute("SELECT DISTINCT date FROM daily WHERE date BETWEEN ? AND ? ORDER BY date", (start, end))]   # 실제 거래일만
 # 이미 채워진 날짜는 건너뜀
 done_short = {r[0] for r in con.execute("SELECT date FROM daily WHERE short_vol IS NOT NULL GROUP BY date")}
 done_inv = {r[0] for r in con.execute("SELECT date FROM daily WHERE pension IS NOT NULL GROUP BY date")}
+if MAX_DAYS: days = [d for d in days if d not in done_short][:MAX_DAYS] or days[:MAX_DAYS]
 log.info(f"KRX 수집 {start}~{end} · 대상 {len(days)}영업일 (공매도 완료 {len(done_short)}일, 투자자 {len(done_inv)}일)")
 
 n_s = n_i = 0
@@ -59,7 +62,7 @@ for i, d in enumerate(days):
                 con.commit(); n_s += 1
         except Exception as e:
             log.warning(f"공매도 {d}: {str(e)[:50]}")
-        time.sleep(0.2)
+        time.sleep(SLEEP)
     # ---- 투자자별 ----
     if d not in done_inv:
         got = False
@@ -72,7 +75,7 @@ for i, d in enumerate(days):
                 got = True
             except Exception as e:
                 log.warning(f"{name} {d}: {str(e)[:50]}")
-            time.sleep(0.2)
+            time.sleep(SLEEP)
         if got: con.commit(); n_i += 1
     if i % 20 == 0:
         log.info(f"진행 {i}/{len(days)} · 공매도 {n_s}일 · 투자자 {n_i}일")
