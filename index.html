@@ -104,12 +104,12 @@ const FILTERS=[
    fn:r=>r.r16!=null&&r.rw1!=null&&r.r16<40&&r.rw1>=200&&r.fw>0&&r.fw>=0.02*r.v5&&!r.pref&&(r.amt||0)>=3
         &&r.ret3!=null&&r.ret3<=0},
 ];
-let cur='all';  // 'all' = 모든 필터 통과, 숫자 = 해당 필터만
+let cur='all';  // 'all' = 하나라도 통과(OR), 숫자 = 해당 필터만
 function held(code){return positions().some(p=>p.code===code&&!p.sell)}
 function passes(r){if(held(r.ticker))return false; /* 보유 중(미매도) 종목은 매도 전까지 필터에서 제외 */ return cur==='all'?FILTERS.some(f=>f.fn(r)):FILTERS.find(f=>f.id===cur).fn(r)}
 function renderTabs(){$('#tabs').innerHTML=[`<button data-f="all" class="${cur==='all'?'on':''}">전체 <small>${view.rows.filter(r=>FILTERS.some(f=>f.fn(r))&&!held(r.ticker)).length}</small></button>`,...FILTERS.map(f=>`<button data-f="${f.id}" class="${cur===f.id?'on':''}">${f.name} <small>${view.rows.filter(r=>f.fn(r)&&!held(r.ticker)).length}</small></button>`),`<button data-f="pos" class="pos-tab ${cur==='pos'?'on':''}">보유 종목 <small>${positions().filter(p=>!p.sell).length}</small></button>`].join('');
   document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{cur=b.dataset.f==='all'?'all':b.dataset.f==='pos'?'pos':+b.dataset.f;showInfo=false;render()});
-  $('#fdesc').innerHTML=cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 필터의 규칙이 자동 적용됩니다 (1번: 10일·손절-15% / 2번: 10일·익절+20%) · <button class="ghost mini" id="pinbtn">${getPin()===DEFAULT_PIN?'자동 동기화 중 (PIN 변경)':'PIN: '+getPin()+' (공유 중)'}</button>`:cur==='all'?'':statsHtml(FILTERS.find(f=>f.id===cur));const rb=$('#rule');
+  $('#fdesc').innerHTML=cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 필터의 규칙이 자동 적용됩니다 (1번: 10일·손절-15% / 2번: 10일·익절+20%) · <button class="ghost mini" id="pinbtn">${getPin()===DEFAULT_PIN?'자동 동기화 중 (PIN 변경)':'PIN: '+getPin()+' (공유 중)'}</button>`:cur==='all'?'1번 또는 2번 필터에 하나라도 해당하는 종목입니다. 각 필터 탭에서 기대 승률·PF와 매매 규칙을 확인하세요.':statsHtml(FILTERS.find(f=>f.id===cur));const rb=$('#rule');
   if(rb){const f=(typeof cur==='number')?FILTERS.find(x=>x.id===cur):null;
     if(f){rb.style.display='';rb.innerHTML=`<b>${f.name} 매매 규칙</b> <span>${f.ruleText}</span>`}else{rb.style.display='none'}}
   const pb=$('#pinbtn');if(pb)pb.onclick=setPin;[$('#infobtn'),$('#infobtn2')].forEach(ib=>{if(ib)ib.onclick=()=>{showInfo=!showInfo;renderTabs()}})}
