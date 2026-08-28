@@ -134,7 +134,7 @@ def main(progress=None):
         for f in as_completed(futs):
             rows = [r for r in f.result() if r[0] <= yesterday]
             if rows:
-                con.executemany("INSERT OR REPLACE INTO daily (date, ticker, name, close, change, volume, indiv, organ, frgn, foreign_ratio) VALUES (?,?,?,?,?,?,?,?,?,?)", rows); total += len(rows)
+                con.executemany("INSERT INTO daily (date, ticker, name, close, change, volume, indiv, organ, frgn, foreign_ratio) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(date, ticker) DO UPDATE SET name=excluded.name, close=excluded.close, change=excluded.change, volume=excluded.volume, indiv=excluded.indiv, organ=excluded.organ, frgn=excluded.frgn, foreign_ratio=excluded.foreign_ratio", rows); total += len(rows)
             done += 1
             if progress: progress(done, len(listing))
             if done % 200 == 0:
@@ -180,7 +180,7 @@ def backfill(start="2026-01-01"):
     done = 0
     with ThreadPoolExecutor(WORKERS) as ex:
         for f in as_completed([ex.submit(fetch_one, r.Code, r.Name, "00000000") for r in listing.itertuples(index=False)]):
-            con.executemany("INSERT OR REPLACE INTO daily (date, ticker, name, close, change, volume, indiv, organ, frgn, foreign_ratio) VALUES (?,?,?,?,?,?,?,?,?,?)", f.result()); done += 1
+            con.executemany("INSERT INTO daily (date, ticker, name, close, change, volume, indiv, organ, frgn, foreign_ratio) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(date, ticker) DO UPDATE SET name=excluded.name, close=excluded.close, change=excluded.change, volume=excluded.volume, indiv=excluded.indiv, organ=excluded.organ, frgn=excluded.frgn, foreign_ratio=excluded.foreign_ratio", f.result()); done += 1
             if done % 200 == 0: con.commit(); log.info(f"투자자 진행 {done}/{len(listing)}")
     con.commit()
     n, d0, d1 = con.execute("SELECT count(*), min(date), max(date) FROM daily").fetchone()
