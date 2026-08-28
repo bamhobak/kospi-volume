@@ -22,7 +22,7 @@ def restore_db():
     con = sqlite3.connect(collect.DB); collect.init_db(con)
     for f in sorted(DATA.glob("20??-??.csv")):
         with open(f, encoding="utf-8") as fh:
-            rows = [tuple(r[c] or None for c in COLS) for r in csv.DictReader(fh)]
+            rows = [tuple((r.get(c) or None) for c in COLS) for r in csv.DictReader(fh)]
         con.executemany(f"INSERT OR IGNORE INTO daily ({','.join(COLS)}) VALUES ({','.join('?'*len(COLS))})", rows)
     con.commit(); con.close()
 
@@ -64,6 +64,7 @@ def build_site():
     for r in rows:
         s = by.setdefault(r["ticker"], {"ticker": r["ticker"], "name": r["name"], "rows": []})
         s["rows"].append([idx[r["date"]], r["close"], r["change"], r["volume"], r["indiv"], r["organ"], r["frgn"], r["foreign_ratio"]])
+        if r["marcap"]: s["cap"] = round(r["marcap"] / 1e8)
     tdates = dates[-TABLE_DAYS:]; t0 = len(dates) - len(tdates)
     table = []
     for s in by.values():
@@ -102,7 +103,7 @@ def build_site():
         ret10 = round((closes[-1] / closes[-11] - 1) * 100, 2) if len(closes) >= 11 and closes[-11] else None  # 최근 10거래일
         table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2], "streak": streak, "ret3": ret3, "ret10": ret10,
                       "aw": aw, "a1": a1, "a6": a6 if n6 >= W_BASE // 2 else None,
-                      "amt": round(amt1 / 1e8, 2) if amt1 else None, "cap": round((last[8] or 0) / 1e8) if len(last) > 8 and last[8] else None, "pref": s["ticker"][-1] != "0"})
+                      "amt": round(amt1 / 1e8, 2) if amt1 else None, "cap": s.get("cap"), "pref": s["ticker"][-1] != "0"})
         json.dump({"ticker": s["ticker"], "name": s["name"], "dates": dates, "rows": s["rows"]},
                   open(SITE / "data" / "stock" / f"{s['ticker']}.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     json.dump({"dates": tdates, "rows": table, "kospi": kospi_state(), "updated": collect.datetime.now().strftime("%Y-%m-%d %H:%M")},
