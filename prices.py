@@ -1,6 +1,6 @@
 """장중 현재가 수집 + 매도 신호 텔레그램 알림
 - Supabase 보유 종목 코드 → 네이버 실시간 시세 → Supabase '__prices__' 저장
-- 신호: (1) 매수가 대비 -10% 손절선 이탈  (2) 보유 15거래일째 아침
+- 신호: (1) 매수가 대비 -15% 손절선 이탈  (2) 보유 10거래일째 아침
 - 알림 중복 방지: Supabase '__alerts__' 에 보낸 키 기록
 - 텔레그램: 환경변수 TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (GitHub Secrets) 없으면 알림 생략
 (GitHub Actions에서 평일 장중 5분마다 실행, push 시 설정 확인 핑)
@@ -15,7 +15,7 @@ URL = re.search(r"url:'([^']+)'", js).group(1); KEY = re.search(r"key:'([^']+)'"
 H = {"apikey": KEY, "Authorization": f"Bearer {KEY}", "Content-Type": "application/json"}
 NAVER = {"User-Agent": "Mozilla/5.0"}
 TG_TOKEN, TG_CHAT = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
-STOP, HOLD_DAYS = 0.10, 15   # 매수가 대비 -10% 손절, 15거래일 보유
+STOP, HOLD_DAYS = 0.15, 10   # 매수가 대비 -15% 손절, 10거래일 보유
 num = lambda s: float(str(s).replace(",", "")) if s not in (None, "") else None
 now_kst = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=9)
 today = now_kst.strftime("%Y%m%d")
@@ -94,7 +94,7 @@ if positions:
         name = p.get("name", c)
         key_trail, key_hold = f"{p.get('id', c)}:stop", f"{p.get('id', c)}:hold{HOLD_DAYS}"
         if now <= line and key_trail not in sent:
-            telegram(f"🛑 <b>{name}</b> 손절선 이탈 (-10%)\n현재가 {now:,.0f} (매수 {price:,.0f}, {ret:+.1f}%)\n손절선 {line:,.0f} · 보유 {days}거래일 · 고점 {hi:,.0f}\n{now_kst:%m/%d %H:%M}")
+            telegram(f"🛑 <b>{name}</b> 손절선 이탈 (-15%)\n현재가 {now:,.0f} (매수 {price:,.0f}, {ret:+.1f}%)\n손절선 {line:,.0f} · 보유 {days}거래일 · 고점 {hi:,.0f}\n{now_kst:%m/%d %H:%M}")
             sent.add(key_trail)
         key_add = f"{p.get('id', c)}:add"
         if ret > 0 and key_add not in sent:

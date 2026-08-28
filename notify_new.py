@@ -35,9 +35,9 @@ def fwp(r):
 
 # 사이트 index.html 의 FILTERS 와 동일
 FILTERS = [
-    (1, "1번 · 거래량 급등(2일 연속)", lambda r: (r.get("streak") or 0) >= 2),
-    (2, "2번 · 급등+외인5%+상승초입", lambda r: (r.get("streak") or 0) >= 1 and fwp(r) >= 5
-        and r.get("ret3") is not None and 0 < r["ret3"] <= 10 and bool(kospi.get("up"))),
+    (1, "1번 · 대형주 거래량 급등", lambda r: (r.get("streak") or 0) >= 1 and fwp(r) >= 2 and not r["pref"]
+        and (r.get("amt") or 0) >= 50 and r.get("ret10") is not None and 0 <= r["ret10"] <= 20
+        and bool(kospi.get("up20"))),
 ]
 
 held = {p["code"] for p in (rpc("kospi_state_positions", {}) or [])}
@@ -49,7 +49,7 @@ prev_state = rpc("kospi_state_get", {"p_pin": "__filters__"}) or {}
 prev = prev_state.get("filters", {})
 prev_date = prev_state.get("date", "")
 info = {r["t"]: r for r in rows}
-kmark = "▲ 5일선 위" if kospi.get("up") else "▼ 5일선 아래"
+kmark = "▲ 20일선 위" if kospi.get("up20") else "▼ 20일선 아래"
 
 lines = []
 for fid, name, _ in FILTERS:
@@ -61,7 +61,7 @@ for fid, name, _ in FILTERS:
         r = info[t]
         chp = (r["ch"] / (r["c"] - r["ch"]) * 100) if r.get("c") and r.get("ch") and r["c"] != r["ch"] else 0
         lines.append(f"• <b>{r['n']}</b> ({t}) {r['c']:,}원 ({chp:+.1f}%)\n"
-                     f"   연속 {r.get('streak', 0)}일 · 외인 {fwp(r):.1f}% · 3일 {(r.get('ret3') or 0):+.1f}% · 거래대금 {r.get('amt', 0):.0f}억")
+                     f"   외인 {fwp(r):.1f}% · 3일 {(r.get('ret3') or 0):+.1f}% · 10일 {(r.get('ret10') or 0):+.1f}% · 거래대금 {r.get('amt', 0):.0f}억 · 급등 {(r['aw']/r['a1']):.1f}배")
 
 if lines and prev_date:   # 첫 실행(비교 대상 없음)에는 보내지 않음
     telegram(f"🆕 <b>신규 편입 종목</b> ({last_date[4:6]}/{last_date[6:]} 기준 · 코스피 {kmark})"
