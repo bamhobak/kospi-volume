@@ -18,7 +18,7 @@ DB = DATA / "kospi.db"
 CSV = DATA / "kospi_volume.csv"
 LOG = BASE / "collect.log"
 PAGE_SIZE = 15       # 최근 N영업일 (누락 보충 범위)
-KEEP_DAYS = 400
+KEEP_DAYS = 2500      # DB 보관 기간(일). CSV가 원본이므로 넉넉히 유지 — 백테스트에 과거 데이터 필요
 WORKERS = 8
 HDR = {"User-Agent": "Mozilla/5.0"}
 
