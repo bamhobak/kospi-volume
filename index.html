@@ -14,7 +14,7 @@ input,select{background:var(--panel2);border:1px solid var(--line);color:var(--t
 input:focus{border-color:var(--acc)}input{flex:1;min-width:120px}
 button{background:var(--acc);border:0;color:#fff;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;font-size:13px}
 button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
-#status{color:var(--mut);font-size:12px;width:100%}
+#status{color:var(--mut);font-size:12px;margin-left:auto;white-space:nowrap}
 .mkt{display:inline-flex;align-items:center;gap:6px;border-radius:8px;padding:7px 12px;font-weight:700;font-size:13px;white-space:nowrap}
 .mkt.up{background:#ff5b5b22;color:#ff8a8a;border:1px solid #ff5b5b55}.mkt.dn{background:#4f8cff22;color:#8ab4ff;border:1px solid #4f8cff55}
 .mkt small{font-weight:400;opacity:.8}
@@ -74,8 +74,8 @@ td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400
   <h1>밤호박 <span>종목 선별기</span></h1>
   <span id="mkt" class="mkt"></span>
   <nav id="tabs" class="tabs"></nav>
-  <div id="fdesc" class="opts"></div>
   <div id="status">불러오는 중…</div>
+  <div id="fdesc" class="opts"></div>
 </header>
 <div class="rule" id="rule" style="display:none"></div>
 <div class="wrap">
@@ -213,7 +213,7 @@ function render(){renderTabs();if(cur==='pos'){renderPositions();return}
     <td class="name">${kor(r.last<0?null:r.last)}</td><td>${kor(r.avg)}</td><td>${r.ratio==null?'':(r.ratio>=200?`<span class="hot">${Math.round(r.ratio)}%</span>`:Math.round(r.ratio)+'%')}</td>
     <td class="sc">${kor(r.a6)}</td><td class="sc">${kor(r.a1)}</td><td class="sc">${kor(r.aw)}</td><td class="sc">${r.r16==null?'':Math.round(r.r16)+'%'}</td><td>${r.rw1==null?'':(r.rw1>=th2?`<span class="hot">${Math.round(r.rw1)}%</span>`:Math.round(r.rw1)+'%')}</td><td class="${cls(r.fw)}">${kor(r.fw,1)}</td><td class="${cls(r.fwp)}">${r.fwp==null?'':r.fwp.toFixed(1)+'%'}</td><td class="sc">${r.amt==null?'':r.amt+'억'}</td>
     <td class="${cls(r.indiv)}">${kor(r.indiv,1)}</td><td class="${cls(r.organ)}">${kor(r.organ,1)}</td><td class="${cls(r.frgn)}">${kor(r.frgn,1)}</td><td>${r.foreign_ratio??''}%</td></tr>`).join('');
-  $('#status').textContent=D.length?`${rows.length}종목 (${cur==='all'?'모든 필터':FILTERS.find(f=>f.id===cur).name}) · 보유 중 종목은 제외 · ${md(D[0])}~${md(D[D.length-1])} · 개인/기관/외국인=기간 순매수 합계(주) · 갱신 ${raw.updated}`:'데이터 없음';
+  $('#status').textContent=`갱신 ${raw.updated||''}`;
   document.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortKey===k)desc=!desc;else{sortKey=k;desc=k!=='name'}render()});
   document.querySelectorAll('tbody tr').forEach(tr=>tr.onclick=()=>{sel=tr.dataset.c;render();showStock(sel)});
   document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=e=>{e.stopPropagation();const r=view.rows.find(x=>x.ticker===b.dataset.buy);addPosition(r.ticker,r.name,r.close)});
