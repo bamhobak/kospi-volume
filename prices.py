@@ -1,6 +1,6 @@
 """장중 현재가 수집 + 매도 신호 텔레그램 알림
 - Supabase 보유 종목 코드 → 네이버 실시간 시세 → Supabase '__prices__' 저장
-- 신호: (1) 매수가 대비 -15% 손절선 이탈  (2) 보유 10거래일째 아침
+- 신호: 필터별 — 1번 손절 -15% / 2번 익절 +20%, 공통 보유 10거래일째
 - 알림 중복 방지: Supabase '__alerts__' 에 보낸 키 기록
 - 텔레그램: 환경변수 TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (GitHub Secrets) 없으면 알림 생략
 (GitHub Actions에서 평일 장중 5분마다 실행, push 시 설정 확인 핑)
@@ -15,7 +15,9 @@ URL = re.search(r"url:'([^']+)'", js).group(1); KEY = re.search(r"key:'([^']+)'"
 H = {"apikey": KEY, "Authorization": f"Bearer {KEY}", "Content-Type": "application/json"}
 NAVER = {"User-Agent": "Mozilla/5.0"}
 TG_TOKEN, TG_CHAT = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
-STOP, HOLD_DAYS = 0.15, 10   # 매수가 대비 -15% 손절, 10거래일 보유
+HOLD_DAYS = 10
+RULES = {1: {"stop": 0.15, "target": None}, 2: {"stop": None, "target": 0.20}}   # 필터별 청산 규칙
+DEFAULT_RULE = RULES[1]
 num = lambda s: float(str(s).replace(",", "")) if s not in (None, "") else None
 now_kst = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=9)
 today = now_kst.strftime("%Y%m%d")
@@ -90,12 +92,19 @@ if positions:
         live_today = lv.get("at", "")[:10].replace("-", "") == today
         days = len([x for x in rows if x[0] < today]) + (1 if live_today else 0)   # 매수일 포함 보유 거래일수
         hi = max([price] + [x[1] for x in rows] + ([lv["high"]] if live_today and lv.get("high") else []))
-        line = price * (1 - STOP); now = lv["now"]; ret = (now / price - 1) * 100
+        rule = next((RULES[f] for f in (p.get("filters") or []) if f in RULES), DEFAULT_RULE)
+        line = price * (1 - rule["stop"]) if rule["stop"] else None
+        tgt = price * (1 + rule["target"]) if rule["target"] else None
+        now = lv["now"]; ret = (now / price - 1) * 100
         name = p.get("name", c)
         key_trail, key_hold = f"{p.get('id', c)}:stop", f"{p.get('id', c)}:hold{HOLD_DAYS}"
-        if now <= line and key_trail not in sent:
-            telegram(f"🛑 <b>{name}</b> 손절선 이탈 (-15%)\n현재가 {now:,.0f} (매수 {price:,.0f}, {ret:+.1f}%)\n손절선 {line:,.0f} · 보유 {days}거래일 · 고점 {hi:,.0f}\n{now_kst:%m/%d %H:%M}")
+        if line and now <= line and key_trail not in sent:
+            telegram(f"🛑 <b>{name}</b> 손절선 이탈 (-{rule['stop']*100:.0f}%)\n현재가 {now:,.0f} (매수 {price:,.0f}, {ret:+.1f}%)\n손절선 {line:,.0f} · 보유 {days}거래일 · 고점 {hi:,.0f}\n{now_kst:%m/%d %H:%M}")
             sent.add(key_trail)
+        key_tgt = f"{p.get('id', c)}:target"
+        if tgt and now >= tgt and key_tgt not in sent:
+            telegram(f"🎯 <b>{name}</b> 익절 목표 도달 (+{rule['target']*100:.0f}%)\n현재가 {now:,.0f} (매수 {price:,.0f}, {ret:+.1f}%)\n보유 {days}거래일 · {now_kst:%m/%d %H:%M}")
+            sent.add(key_tgt)
         key_add = f"{p.get('id', c)}:add"
         if ret > 0 and key_add not in sent:
             stk = streak_of(c)
@@ -103,6 +112,6 @@ if positions:
                 telegram(f"🔥 <b>{name}</b> 추가매수 고려 — 이익 중 + 신호 {stk}일 연속 유지\n현재가 {now:,.0f} (매수 {price:,.0f}, {ret:+.1f}%)\n백테스트: 이 상태 11건 최초분 +19%/91%, 추가분 +8%/64% (표본 작음) · {now_kst:%m/%d %H:%M}")
                 sent.add(key_add)
         if days >= HOLD_DAYS and key_hold not in sent:
-            telegram(f"⏰ <b>{name}</b> 보유 {days}거래일째 — 추천 규칙상 매도일\n현재가 {now:,.0f} (매수 {price:,.0f}, {ret:+.1f}%)\n고점 {hi:,.0f} · 손절선 {line:,.0f} · {now_kst:%m/%d %H:%M}")
+            telegram(f"⏰ <b>{name}</b> 보유 {days}거래일째 — 추천 규칙상 매도일\n현재가 {now:,.0f} (매수 {price:,.0f}, {ret:+.1f}%)\n고점 {hi:,.0f} · {now_kst:%m/%d %H:%M}")
             sent.add(key_hold)
     rpc("kospi_state_set", {"p_pin": "__alerts__", "p_data": {"sent": sorted(sent), "updated": now_kst.strftime("%Y-%m-%d %H:%M")}})
