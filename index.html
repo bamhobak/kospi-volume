@@ -109,16 +109,14 @@ function renderTabs(){$('#tabs').innerHTML=[`<button data-f="all" class="${cur==
   document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{cur=b.dataset.f==='all'?'all':b.dataset.f==='pos'?'pos':+b.dataset.f;showInfo=false;render()});
   $('#fdesc').innerHTML=cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 필터의 규칙이 자동 적용됩니다 (1번: 10일·손절-15% / 2번: 10일·익절+20%) · <button class="ghost mini" id="pinbtn">${getPin()===DEFAULT_PIN?'자동 동기화 중 (PIN 변경)':'PIN: '+getPin()+' (공유 중)'}</button>`:cur==='all'?'':statsHtml(FILTERS.find(f=>f.id===cur));const pb=$('#pinbtn');if(pb)pb.onclick=setPin;const ib=$('#infobtn');if(ib)ib.onclick=()=>{showInfo=!showInfo;renderTabs()}}
 let showInfo=false;
-function statsHtml(f){const t=f.stats,cnt=view.rows.filter(x=>f.fn(x)&&!held(x.ticker)).length,tot=view.rows.length||1;
+function statsHtml(f){const t=f.stats;
   const btn=`<button class="ghost mini info-btn" id="infobtn">${showInfo?'✕ 닫기':'ⓘ 조건·통계'}</button>`;
   if(!showInfo) return btn;
   return btn+`<div class="stats" style="margin-top:8px">
     <span class="s-item"><b>${t.win}%</b><small>기대 승률</small></span>
     <span class="s-item"><b>${t.pf}</b><small>기대 PF</small></span>
     <span class="s-item"><b>+${t.avg}%</b><small>기대 순수익/건</small></span>
-    <span class="s-item"><b>월 ${t.perMonth}건</b><small>출현 빈도(44개월 ${t.n}건)</small></span>
-    <span class="s-item"><b>${(t.n/44/21/944*100).toFixed(3)}%</b><small>종목·일별 출현 확률</small></span>
-    <span class="s-item"><b>${cnt}종목</b><small>오늘 (전체 ${tot}종목 중)</small></span></div>
+    <span class="s-item"><b>월 ${t.perMonth}건</b><small>출현 빈도(44개월 ${t.n}건)</small></span></div>
   <div style="margin-top:6px">${f.desc}</div>
   <div style="margin-top:4px;color:var(--mut)">연도별 순수익 — ${t.years}</div>`}
 // ===== 보유 종목(포지션) — localStorage =====
