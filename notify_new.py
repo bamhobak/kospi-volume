@@ -65,6 +65,10 @@ for fid, name, _ in FILTERS:
         chp = (r["ch"] / (r["c"] - r["ch"]) * 100) if r.get("c") and r.get("ch") and r["c"] != r["ch"] else 0
         lines.append(f"• <b>{r['n']}</b> ({t}) {r['c']:,}원 ({chp:+.1f}%)\n"
                      f"   외인 {fwp(r):.1f}% · 3일 {(r.get('ret3') or 0):+.1f}% · 10일 {(r.get('ret10') or 0):+.1f}% · 거래대금 {r.get('amt', 0):.0f}억 · 급등 {(r['aw']/r['a1']):.1f}배")
+        TR = T.get("themeRet") or {}
+        th = [f"{g} {TR[g]:+.1f}%" if g in TR else g for g in (r.get("th") or [])[:3]]
+        if r.get("up") or th:
+            lines.append(f"   🏷 {r.get('up') or ''}{' · ' if r.get('up') and th else ''}{' / '.join(th)}")
 
 if lines and prev_date:   # 첫 실행(비교 대상 없음)에는 보내지 않음
     telegram(f"🆕 <b>신규 편입 종목</b> ({last_date[4:6]}/{last_date[6:]} 기준 · 코스피 {kmark})"

@@ -23,6 +23,20 @@ jobs:
         env: { TZ: Asia/Seoul }
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then python pipeline.py --no-site; else python pipeline.py --wait --no-site; fi
+      - name: collect sector/theme (테마 주1회·업종 분기1회)
+        continue-on-error: true
+        env: { TZ: Asia/Seoul }
+        run: |
+          DOW=$(date +%u); DOM=$(date +%d); MON=$(date +%m)
+          ARGS=""
+          if [ "$DOW" = "1" ]; then ARGS="--theme"; fi
+          if [ "$DOM" = "01" ] && echo "01 04 07 10" | grep -qw "$MON"; then ARGS=""; fi
+          if [ -n "${{ github.event_name == 'workflow_dispatch' && 'X' || '' }}" ]; then ARGS=""; fi
+          if [ "$DOW" = "1" ] || [ "$DOM" = "01" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "sector 수집: ARGS='$ARGS'"; python collect_sector.py $ARGS
+          else
+            echo "오늘은 sector 수집 안 함 (요일=$DOW, 일=$DOM)"
+          fi
       - name: build site (CSV + JSON)
         env: { TZ: Asia/Seoul }
         run: python pipeline.py --no-collect

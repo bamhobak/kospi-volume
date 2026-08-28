@@ -48,16 +48,41 @@ def kospi_state():
     except Exception as e:
         print("kospi 조회 실패:", e); return None
 
+def load_sector(con):
+    """최신 스냅샷의 업종·테마 매핑 (없으면 빈 dict)"""
+    try:
+        snap = con.execute("SELECT max(snap) FROM sector").fetchone()[0]
+    except Exception:
+        return {}, {}, None
+    if not snap: return {}, {}, None
+    up = {r[0]: r[1] for r in con.execute("SELECT ticker, gname FROM sector WHERE snap=? AND kind='upjong'", (snap,))}
+    th = {}
+    for t, g in con.execute("SELECT ticker, gname FROM sector WHERE snap=? AND kind='theme'", (snap,)):
+        th.setdefault(t, []).append(g)
+    return up, th, snap
+
+def theme_returns(con, th, last_date):
+    """테마별 당일 평균 등락률 (자체 DB 종가로 계산)"""
+    chg = {r[0]: (r[1] / (r[2] - r[1]) * 100) if r[2] and r[1] is not None and r[2] != r[1] else 0.0
+           for r in con.execute("SELECT ticker, change, close FROM daily WHERE date=?", (last_date,))}
+    agg = {}
+    for t, gs in th.items():
+        if t not in chg: continue
+        for g in gs: agg.setdefault(g, []).append(chg[t])
+    return {g: round(sum(v) / len(v), 2) for g, v in agg.items() if len(v) >= 3}
+
 def build_site():
     (SITE / "data" / "stock").mkdir(parents=True, exist_ok=True)
     for f in (SITE / "data" / "stock").glob("*.json"): f.unlink()
     shutil.copy(BASE / "index.html", SITE / "index.html")
     for f in (BASE / "assets").glob("*"): shutil.copy(f, SITE / f.name)
     con = sqlite3.connect(collect.DB); con.row_factory = sqlite3.Row
+    UP, TH, SNAP = load_sector(con)
     dates = [r[0] for r in con.execute("SELECT DISTINCT date FROM daily ORDER BY date DESC LIMIT ?", (STOCK_DAYS,))][::-1]
     if not dates:
         json.dump({"dates": [], "rows": [], "updated": ""}, open(SITE / "data" / "table.json", "w", encoding="utf-8")); return
     rows = con.execute("SELECT * FROM daily WHERE date >= ? ORDER BY ticker, date", (dates[0],)).fetchall()
+    TRET = theme_returns(con, TH, dates[-1]) if TH else {}
     con.close()
     idx = {d: i for i, d in enumerate(dates)}
     by = {}
@@ -103,10 +128,11 @@ def build_site():
         ret10 = round((closes[-1] / closes[-11] - 1) * 100, 2) if len(closes) >= 11 and closes[-11] else None  # 최근 10거래일
         table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2], "streak": streak, "ret3": ret3, "ret10": ret10,
                       "aw": aw, "a1": a1, "a6": a6 if n6 >= W_BASE // 2 else None,
-                      "amt": round(amt1 / 1e8, 2) if amt1 else None, "cap": s.get("cap"), "pref": s["ticker"][-1] != "0"})
+                      "amt": round(amt1 / 1e8, 2) if amt1 else None, "cap": s.get("cap"), "pref": s["ticker"][-1] != "0",
+                      "up": UP.get(s["ticker"]), "th": sorted(TH.get(s["ticker"], []), key=lambda g: -TRET.get(g, 0))[:6]})
         json.dump({"ticker": s["ticker"], "name": s["name"], "dates": dates, "rows": s["rows"]},
                   open(SITE / "data" / "stock" / f"{s['ticker']}.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
-    json.dump({"dates": tdates, "rows": table, "kospi": kospi_state(), "updated": collect.datetime.now().strftime("%Y-%m-%d %H:%M")},
+    json.dump({"dates": tdates, "rows": table, "kospi": kospi_state(), "themeRet": TRET, "sectorSnap": SNAP, "updated": collect.datetime.now().strftime("%Y-%m-%d %H:%M")},
               open(SITE / "data" / "table.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     print(f"site: {len(table)}종목, {tdates[0]}~{tdates[-1]}, table.json {round((SITE/'data'/'table.json').stat().st_size/1024)}KB")
 
