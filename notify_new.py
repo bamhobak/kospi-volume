@@ -39,11 +39,11 @@ FILTERS = [
      lambda r: (r.get("streak") or 0) >= 1 and fwp(r) >= 2 and not r["pref"]
      and (r.get("amt") or 0) >= 50 and r["a1"] / r["a6"] < 0.5
      and r.get("ret10") is not None and 0 <= r["ret10"] <= 20 and bool(kospi.get("up20"))
-     and r.get("rs") is not None and r["rs"] > 0),
+     and r.get("rs") is not None and r["rs"] > 0 and r.get("srDown") is True),
     (2, "2번 · 조정 중 매집 (10일 보유·손절 없음)",
      lambda r: (r.get("streak") or 0) >= 1 and fwp(r) >= 2 and not r["pref"]
      and (r.get("amt") or 0) >= 3 and r["a1"] / r["a6"] < 0.3
-     and r.get("ret3") is not None and r["ret3"] <= 0
+     and r.get("ret3") is not None and r["ret3"] <= -5
      and r.get("srDown") is True and r.get("dilu") is not True),
 ]
 
