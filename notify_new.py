@@ -36,11 +36,15 @@ def fwp(r):
 # 사이트 index.html 의 FILTERS 와 동일
 FILTERS = [
     (1, "1번 · 대형주 상승초입 (10일 보유·손절 -15%·익절 +30%)",
-     lambda r: (r.get("streak") or 0) >= 1 and fwp(r) >= 2 and not r["pref"] and (r.get("amt") or 0) >= 50
-     and r["a1"] / r["a6"] < 0.5 and r.get("ret10") is not None and 0 <= r["ret10"] <= 20 and bool(kospi.get("up20"))),
+     lambda r: (r.get("streak") or 0) >= 1 and fwp(r) >= 2 and not r["pref"]
+     and (r.get("amt") or 0) >= 50 and r["a1"] / r["a6"] < 0.5
+     and r.get("ret10") is not None and 0 <= r["ret10"] <= 20 and bool(kospi.get("up20"))
+     and r.get("rs") is not None and r["rs"] > 0),
     (2, "2번 · 조정 중 매집 (10일 보유·손절 -10%)",
-     lambda r: (r.get("streak") or 0) >= 1 and fwp(r) >= 2 and not r["pref"] and (r.get("amt") or 0) >= 3
-     and r["a1"] / r["a6"] < 0.4 and r.get("ret3") is not None and r["ret3"] <= 0),
+     lambda r: (r.get("streak") or 0) >= 1 and fwp(r) >= 2 and not r["pref"]
+     and (r.get("amt") or 0) >= 3 and r["a1"] / r["a6"] < 0.4
+     and r.get("ret3") is not None and r["ret3"] <= 0
+     and r.get("srDown") is True and r.get("dilu") is not True),
 ]
 
 held = {p["code"] for p in (rpc("kospi_state_positions", {}) or [])}

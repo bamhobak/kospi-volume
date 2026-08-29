@@ -5,3 +5,14 @@ data/kospi_volume.csv
 data/*.db-journal
 collect.log
 probe_today.py
+
+.env
+data/dart/
+
+# 로컬 전용 (백테스트 캐시·대용량 DB·토큰)
+data/.kis_token.json
+data/kis/
+data/delisted.db
+data/delisted.log
+data/*.pkl
+data/fundamental/

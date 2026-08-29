@@ -1,6 +1,6 @@
 """장중 현재가 수집 + 매도 신호 텔레그램 알림
 - Supabase 보유 종목 코드 → 네이버 실시간 시세 → Supabase '__prices__' 저장
-- 신호: 필터별 — 1번 손절 -15%·익절 +30% / 2번 손절 -10%, 공통 보유 10거래일째
+- 신호: 필터별 — 1번 10일·손절15%·익절30% / 2번 10일·손절10%
 - 알림 중복 방지: Supabase '__alerts__' 에 보낸 키 기록
 - 텔레그램: 환경변수 TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (GitHub Secrets) 없으면 알림 생략
 (GitHub Actions에서 평일 장중 5분마다 실행, push 시 설정 확인 핑)
@@ -16,7 +16,7 @@ H = {"apikey": KEY, "Authorization": f"Bearer {KEY}", "Content-Type": "applicati
 NAVER = {"User-Agent": "Mozilla/5.0"}
 TG_TOKEN, TG_CHAT = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
 HOLD_DAYS = 10
-RULES = {1: {"stop": 0.15, "target": 0.30}, 2: {"stop": 0.10, "target": None}}   # 필터별 청산 규칙
+RULES = {1: {"stop": 0.15, "target": 0.30, "hold": 10}, 2: {"stop": 0.10, "target": None, "hold": 10}}   # 필터별 청산 규칙
 DEFAULT_RULE = RULES[1]
 num = lambda s: float(str(s).replace(",", "")) if s not in (None, "") else None
 now_kst = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=9)
@@ -76,7 +76,7 @@ if positions:
         tgt = price * (1 + rule["target"]) if rule["target"] else None
         now = lv["now"]; ret = (now / price - 1) * 100
         name = p.get("name", c)
-        key_trail, key_hold = f"{p.get('id', c)}:stop", f"{p.get('id', c)}:hold{HOLD_DAYS}"
+        key_trail, key_hold = f"{p.get('id', c)}:stop", f"{p.get('id', c)}:hold"
         if line and now <= line and key_trail not in sent:
             telegram(f"🛑 <b>{name}</b> 손절선 이탈 (-{rule['stop']*100:.0f}%)\n현재가 {now:,.0f} (매수 {price:,.0f}, {ret:+.1f}%)\n손절선 {line:,.0f} · 보유 {days}거래일 · 고점 {hi:,.0f}\n{now_kst:%m/%d %H:%M}")
             sent.add(key_trail)
@@ -88,7 +88,8 @@ if positions:
         if days >= 3 and ret > 0 and key_add not in sent:
             telegram(f"🔥 <b>{name}</b> 추가매수 고려 — 매수 후 {days}거래일째 이익 중 ({ret:+.1f}%)\n현재가 {now:,.0f} (매수 {price:,.0f})\n백테스트: 3일째 이익 중이면 최종 승률 78~81% · 추가분도 +2.4~5.7% / PF 2.6~3.8\n{now_kst:%m/%d %H:%M}")
             sent.add(key_add)
-        if days >= HOLD_DAYS and key_hold not in sent:
+        hold_n = rule.get("hold", HOLD_DAYS)
+        if days >= hold_n and key_hold not in sent:
             telegram(f"⏰ <b>{name}</b> 보유 {days}거래일째 — 추천 규칙상 매도일\n현재가 {now:,.0f} (매수 {price:,.0f}, {ret:+.1f}%)\n고점 {hi:,.0f} · {now_kst:%m/%d %H:%M}")
             sent.add(key_hold)
     rpc("kospi_state_set", {"p_pin": "__alerts__", "p_data": {"sent": sorted(sent), "updated": now_kst.strftime("%Y-%m-%d %H:%M")}})

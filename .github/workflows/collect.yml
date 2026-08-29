@@ -37,13 +37,22 @@ jobs:
           else
             echo "오늘은 sector 수집 안 함 (요일=$DOW, 일=$DOM)"
           fi
+      - name: collect extra (공매도·희석공시 최근분)
+        continue-on-error: true
+        env:
+          TZ: Asia/Seoul
+          KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
+          KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+        run: python collect_daily_extra.py
+
       - name: build site (CSV + JSON)
         env: { TZ: Asia/Seoul }
         run: python pipeline.py --no-collect
       - name: commit monthly csv
         run: |
           git config user.name "kospi-bot"; git config user.email "bot@users.noreply.github.com"
-          git add data/20*.csv
+          git add data/20*.csv data/short_recent.csv data/dilution_recent.csv
           git diff --cached --quiet || (git commit -m "data: $(TZ=Asia/Seoul date +%Y-%m-%d)" && git pull --rebase && git push)
       - name: notify new picks
         env:

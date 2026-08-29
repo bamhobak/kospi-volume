@@ -16,7 +16,7 @@ SITE = BASE / "site"
 TABLE_DAYS, STOCK_DAYS = 20, 300   # 스크리너: 1년(240)+2개월(40)+3거래일(3)
 W_SURGE, W_QUIET, W_BASE = 3, 40, 240
 COLS = ["date", "ticker", "name", "close", "change", "volume", "indiv", "organ", "frgn", "foreign_ratio",
-        "open", "high", "low", "amount", "marcap", "shares"]
+        "open", "high", "low", "amount", "marcap", "shares", "market"]
 
 def restore_db():
     con = sqlite3.connect(collect.DB); collect.init_db(con)
@@ -43,8 +43,16 @@ def kospi_state():
         k = fdr.DataReader("KS11", (collect.datetime.now() - collect.timedelta(days=60)).strftime("%Y-%m-%d"))
         k = k[k["Close"] > 0]
         close = float(k["Close"].iloc[-1]); ma5 = float(k["Close"].tail(5).mean()); ma20 = float(k["Close"].tail(20).mean())
-        return {"date": k.index[-1].strftime("%Y%m%d"), "close": round(close, 2), "ma5": round(ma5, 2),
-                "ma20": round(ma20, 2), "up": close > ma5, "up20": close > ma20}
+        out = {"date": k.index[-1].strftime("%Y%m%d"), "close": round(close, 2), "ma5": round(ma5, 2),
+               "ma20": round(ma20, 2), "up": close > ma5, "up20": close > ma20}
+        try:
+            q = fdr.DataReader("KQ11", (collect.datetime.now() - collect.timedelta(days=60)).strftime("%Y-%m-%d"))
+            q = q[q["Close"] > 0]
+            qc = float(q["Close"].iloc[-1]); q20 = float(q["Close"].tail(20).mean()); q5 = float(q["Close"].tail(5).mean())
+            out.update(kq=round(qc, 2), kq20=round(q20, 2), kqUp20=qc > q20, kqUp5=qc > q5)
+        except Exception as e:
+            print("코스닥 지수 조회 실패:", e)
+        return out
     except Exception as e:
         print("kospi 조회 실패:", e); return None
 
@@ -71,6 +79,64 @@ def theme_returns(con, th, last_date):
         for g in gs: agg.setdefault(g, []).append(chg[t])
     return {g: round(sum(v) / len(v), 2) for g, v in agg.items() if len(v) >= 3}
 
+def upjong_rs(con, up, dates):
+    """업종 상대강도 = 업종 20일 수익률 - 시장(코스피 동일가중) 20일 수익률"""
+    ds = dates[-21:]
+    if len(ds) < 21 or not up: return {}
+    px = {}
+    for d, t, c in con.execute(
+            "SELECT date, ticker, close FROM daily WHERE market='KOSPI' AND close IS NOT NULL "
+            "AND date IN (%s)" % ",".join("?" * len(ds)), ds):
+        px.setdefault(t, {})[d] = c
+    gret, mret = {}, {}
+    for t, series in px.items():
+        g = up.get(t); prev = None
+        for d in ds:
+            c = series.get(d)
+            if c is None: prev = None; continue
+            if prev:
+                r = (c / prev - 1) * 100
+                mret.setdefault(d, []).append(r)
+                if g and g != "기타": gret.setdefault(g, {}).setdefault(d, []).append(r)
+            prev = c
+    def cum(daily):
+        x = 1.0
+        for v in daily: x *= 1 + v / 100
+        return (x - 1) * 100
+    if not mret: return {}
+    mk = cum([sum(v) / len(v) for _, v in sorted(mret.items())])
+    return {g: round(cum([sum(v) / len(v) for _, v in sorted(dd.items())]) - mk, 2)
+            for g, dd in gret.items() if len(dd) >= 15}
+
+def short_flags(dates):
+    """최근 공매도 비중 5일평균 < 20일평균 여부 (data/short_recent.csv)"""
+    f = DATA / "short_recent.csv"
+    if not f.exists(): return {}
+    by = {}
+    with open(f, encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            try: by.setdefault(r["ticker"], []).append((r["date"], float(r["short_ratio"])))
+            except (TypeError, ValueError): pass
+    out = {}
+    for t, v in by.items():
+        v.sort()
+        s5 = [x[1] for x in v[-5:]]; s20 = [x[1] for x in v[-20:]]
+        if len(s5) < 5 or len(s20) < 20: continue
+        a5, a20 = sum(s5) / len(s5), sum(s20) / len(s20)
+        out[t] = {"sr5": round(a5, 2), "sr20": round(a20, 2), "srDown": a5 < a20}
+    return out
+
+def dilution_flags(last_date, days=90):
+    """최근 days일 내 유상증자·CB 공시 종목 (data/dilution_recent.csv)"""
+    f = DATA / "dilution_recent.csv"
+    if not f.exists(): return set()
+    d0 = (collect.datetime.strptime(last_date, "%Y%m%d") - collect.timedelta(days=days)).strftime("%Y%m%d")
+    out = set()
+    with open(f, encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            if d0 <= r["rcept_dt"] <= last_date: out.add(r["ticker"])
+    return out
+
 def build_site():
     (SITE / "data" / "stock").mkdir(parents=True, exist_ok=True)
     for f in (SITE / "data" / "stock").glob("*.json"): f.unlink()
@@ -83,11 +149,14 @@ def build_site():
         json.dump({"dates": [], "rows": [], "updated": ""}, open(SITE / "data" / "table.json", "w", encoding="utf-8")); return
     rows = con.execute("SELECT * FROM daily WHERE date >= ? ORDER BY ticker, date", (dates[0],)).fetchall()
     TRET = theme_returns(con, TH, dates[-1]) if TH else {}
+    RS = upjong_rs(con, UP, dates) if UP else {}
+    SF = short_flags(dates)
+    DILU = dilution_flags(dates[-1])
     con.close()
     idx = {d: i for i, d in enumerate(dates)}
     by = {}
     for r in rows:
-        s = by.setdefault(r["ticker"], {"ticker": r["ticker"], "name": r["name"], "rows": []})
+        s = by.setdefault(r["ticker"], {"ticker": r["ticker"], "name": r["name"], "rows": [], "mkt": r["market"] or "KOSPI"})
         s["rows"].append([idx[r["date"]], r["close"], r["change"], r["volume"], r["indiv"], r["organ"], r["frgn"], r["foreign_ratio"]])
         if r["marcap"]: s["cap"] = round(r["marcap"] / 1e8)
     tdates = dates[-TABLE_DAYS:]; t0 = len(dates) - len(tdates)
@@ -128,11 +197,15 @@ def build_site():
         ret10 = round((closes[-1] / closes[-11] - 1) * 100, 2) if len(closes) >= 11 and closes[-11] else None  # 최근 10거래일
         table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2], "streak": streak, "ret3": ret3, "ret10": ret10,
                       "aw": aw, "a1": a1, "a6": a6 if n6 >= W_BASE // 2 else None,
-                      "amt": round(amt1 / 1e8, 2) if amt1 else None, "cap": s.get("cap"), "pref": s["ticker"][-1] != "0",
-                      "up": UP.get(s["ticker"]), "th": sorted(TH.get(s["ticker"], []), key=lambda g: -TRET.get(g, 0))[:6]})
+                      "amt": round(amt1 / 1e8, 2) if amt1 else None, "cap": s.get("cap"), "pref": s["ticker"][-1] != "0", "mk": s.get("mkt", "KOSPI"),
+                      "up": UP.get(s["ticker"]), "rs": RS.get(UP.get(s["ticker"])),
+                      "sr": (SF.get(s["ticker"]) or {}).get("sr5"),
+                      "srDown": (SF.get(s["ticker"]) or {}).get("srDown"),
+                      "dilu": s["ticker"] in DILU,
+                      "th": sorted(TH.get(s["ticker"], []), key=lambda g: -TRET.get(g, 0))[:6]})
         json.dump({"ticker": s["ticker"], "name": s["name"], "dates": dates, "rows": s["rows"]},
                   open(SITE / "data" / "stock" / f"{s['ticker']}.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
-    json.dump({"dates": tdates, "rows": table, "kospi": kospi_state(), "themeRet": TRET, "sectorSnap": SNAP, "updated": collect.datetime.now().strftime("%Y-%m-%d %H:%M")},
+    json.dump({"dates": tdates, "rows": table, "kospi": kospi_state(), "themeRet": TRET, "upjongRS": RS, "shortN": len(SF), "diluN": len(DILU), "sectorSnap": SNAP, "updated": collect.datetime.now().strftime("%Y-%m-%d %H:%M")},
               open(SITE / "data" / "table.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     print(f"site: {len(table)}종목, {tdates[0]}~{tdates[-1]}, table.json {round((SITE/'data'/'table.json').stat().st_size/1024)}KB")
 
