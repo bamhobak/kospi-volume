@@ -78,8 +78,13 @@ for fid, name, _ in FILTERS:
             lines.append(f"   🏷 {r.get('up') or ''}{' · ' if r.get('up') and th else ''}{' / '.join(th)}")
 
 if lines and prev_date:   # 첫 실행(비교 대상 없음)에는 보내지 않음
+    guide = ("\n\n💡 <b>매수 안내</b>\n"
+             "• 1번: <b>지금 NXT 야간거래로 종가 매수</b>가 유리 (실측 +3.57% vs 다음날 시가 +3.44%)\n"
+             "• 2번: <b>다음날 시가 매수</b>가 유리 (급락 직후라 시초에 더 빠짐)\n"
+             "• 공통: 다음날 시가가 <b>+5% 이상 갭상승</b>이면 매수 보류\n"
+             "• 10거래일 보유 · 손절 없음 · 1번만 +20% 익절")
     telegram(f"🆕 <b>신규 편입 종목</b> ({last_date[4:6]}/{last_date[6:]} 기준 · 코스피 {kmark})"
-             + "".join(lines)
+             + "".join(lines) + guide
              + f"\n\nhttps://bamhobak.github.io/kospi-volume/")
 elif lines:
     print("첫 실행 — 기준 목록만 저장:", cur)
