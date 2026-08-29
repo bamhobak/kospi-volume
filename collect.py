@@ -18,7 +18,8 @@ DB = DATA / "kospi.db"
 CSV = DATA / "kospi_volume.csv"
 LOG = BASE / "collect.log"
 PAGE_SIZE = 15       # 최근 N영업일 (누락 보충 범위)
-KEEP_DAYS = 2500      # DB 보관 기간(일). CSV가 원본이므로 넉넉히 유지 — 백테스트에 과거 데이터 필요
+KEEP_DAYS = 0         # 0 = 삭제 안 함. 과거 데이터는 백테스트 자산이므로 절대 지우지 않는다
+                      # (2500일이었을 때 GitHub Actions 가 매일 2018~2019 데이터를 CSV에서 지우고 있었음)
 WORKERS = 8
 HDR = {"User-Agent": "Mozilla/5.0"}
 
@@ -146,8 +147,9 @@ def main(progress=None):
         log.info(f"시세 스냅샷 반영({yesterday}): {n}종목 (OHLC·거래대금·시총·상장주식수)")
     except Exception as e:
         log.warning(f"스냅샷 반영 실패: {e}")
-    cutoff = (today - timedelta(days=KEEP_DAYS)).strftime("%Y%m%d")
-    con.execute("DELETE FROM daily WHERE date < ?", (cutoff,)); con.commit()
+    if KEEP_DAYS > 0:
+        cutoff = (today - timedelta(days=KEEP_DAYS)).strftime("%Y%m%d")
+        con.execute("DELETE FROM daily WHERE date < ?", (cutoff,)); con.commit()
     dates = [r[0] for r in con.execute("SELECT DISTINCT date FROM daily ORDER BY date DESC LIMIT 7")]
     log.info(f"저장 {total}행, 최근 수집일: {dates}")
     export_csv(con); con.close()
