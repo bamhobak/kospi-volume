@@ -56,17 +56,35 @@ def kospi_state():
     except Exception as e:
         print("kospi 조회 실패:", e); return None
 
+SECTOR_CSV = DATA / "sector.csv"
+
 def load_sector(con):
-    """최신 스냅샷의 업종·테마 매핑 (없으면 빈 dict)"""
+    """업종·테마 매핑. DB의 최신 스냅샷을 쓰되, 없으면 커밋된 data/sector.csv 로 대체.
+       (GitHub Actions 는 매 실행마다 DB를 CSV에서 새로 만들기 때문에 sector 테이블이 비어 있음)"""
+    snap, rows = None, []
     try:
         snap = con.execute("SELECT max(snap) FROM sector").fetchone()[0]
     except Exception:
-        return {}, {}, None
-    if not snap: return {}, {}, None
-    up = {r[0]: r[1] for r in con.execute("SELECT ticker, gname FROM sector WHERE snap=? AND kind='upjong'", (snap,))}
+        snap = None
+    if snap:
+        rows = list(con.execute("SELECT kind, gname, ticker FROM sector WHERE snap=?", (snap,)))
+        # DB에 있으면 CSV로도 남겨 다음 CI 실행에서 쓰게 함
+        try:
+            with open(SECTOR_CSV, "w", encoding="utf-8", newline="") as fh:
+                w = csv.writer(fh); w.writerow(["snap", "kind", "gname", "ticker"])
+                w.writerows([(snap, k, g, t) for k, g, t in rows])
+        except Exception as e:
+            print("sector.csv 쓰기 실패:", e)
+    elif SECTOR_CSV.exists():
+        with open(SECTOR_CSV, encoding="utf-8") as fh:
+            for r in csv.DictReader(fh):
+                snap = r["snap"]; rows.append((r["kind"], r["gname"], r["ticker"]))
+        print(f"sector: DB 비어 있음 → {SECTOR_CSV.name} 사용 ({len(rows):,}행, snap={snap})")
+    if not rows: return {}, {}, None
+    up = {t: g for k, g, t in rows if k == "upjong"}
     th = {}
-    for t, g in con.execute("SELECT ticker, gname FROM sector WHERE snap=? AND kind='theme'", (snap,)):
-        th.setdefault(t, []).append(g)
+    for k, g, t in rows:
+        if k == "theme": th.setdefault(t, []).append(g)
     return up, th, snap
 
 def theme_returns(con, th, last_date):

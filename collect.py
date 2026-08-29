@@ -28,7 +28,8 @@ log = logging.getLogger("collect")
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 EXTRA_COLS = [("open", "INTEGER"), ("high", "INTEGER"), ("low", "INTEGER"),
-              ("amount", "INTEGER"), ("marcap", "INTEGER"), ("shares", "INTEGER")]
+              ("amount", "INTEGER"), ("marcap", "INTEGER"), ("shares", "INTEGER"),
+              ("market", "TEXT")]
 
 def init_db(con):
     con.execute("""CREATE TABLE IF NOT EXISTS daily(
