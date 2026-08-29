@@ -46,6 +46,7 @@ FILTERS = [
      and (r.get("amt") or 0) >= 3 and r["a1"] / r["a6"] < 0.3
      and r.get("ret3") is not None and r["ret3"] <= -5
      and r.get("ret10") is not None and r["ret10"] <= 0
+     and not bool(kospi.get("up20"))
      and r.get("srDown") is True and r.get("dilu") is not True),
 ]
 
