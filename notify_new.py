@@ -40,14 +40,23 @@ FILTERS = [
      and (r.get("amt") or 0) >= 50 and r["a1"] / r["a6"] < 0.5
      and r.get("ret10") is not None and 0 <= r["ret10"] <= 20
      and bool(kospi.get("up20")) and bool(kospi.get("up"))
-     and r.get("rs") is not None and r["rs"] > 0 and r.get("srDown") is True),
+     and r.get("rs") is not None and r["rs"] > 0 and r.get("srDown") is True
+     and r.get("disc") is not True),
     (2, "2번 · 조정 중 매집 (10일 보유·손절 없음)",
      lambda r: (r.get("streak") or 0) >= 1 and fwp(r) >= 2 and not r["pref"]
      and (r.get("amt") or 0) >= 3 and r["a1"] / r["a6"] < 0.3
      and r.get("ret3") is not None and r["ret3"] <= -5
      and r.get("ret10") is not None and r["ret10"] <= 0
      and not bool(kospi.get("up20"))
-     and r.get("srDown") is True and r.get("dilu") is not True),
+     and r.get("srDown") is True and r.get("dilu") is not True and r.get("disc") is not True),
+    (3, "3번 · 폭락 반등 (20일 보유·손절 없음)",
+     lambda r: not r["pref"]
+     and r.get("ret20") is not None and r["ret20"] <= -20
+     and r.get("vs1") is not None and r["vs1"] >= 2
+     and r.get("fw60") is not None and r["fw60"] >= 1
+     and (r.get("amt20") if r.get("amt20") is not None else (r.get("amt") or 0)) >= 3
+     and kospi.get("up60") is False
+     and r.get("srDown") is True and r.get("dilu") is not True and r.get("disc") is not True),
 ]
 
 held = {p["code"] for p in (rpc("kospi_state_positions", {}) or [])}
@@ -59,7 +68,7 @@ prev_state = rpc("kospi_state_get", {"p_pin": "__filters__"}) or {}
 prev = prev_state.get("filters", {})
 prev_date = prev_state.get("date", "")
 info = {r["t"]: r for r in rows}
-kmark = "▲ 20일선 위" if kospi.get("up20") else "▼ 20일선 아래"
+kmark = ("▲ 20일선 위" if kospi.get("up20") else "▼ 20일선 아래") + ("" if kospi.get("up60") is None else " · " + ("▲ 60일선 위" if kospi.get("up60") else "▼ 60일선 아래"))
 
 lines = []
 for fid, name, _ in FILTERS:
@@ -70,8 +79,13 @@ for fid, name, _ in FILTERS:
     for t in new:
         r = info[t]
         chp = (r["ch"] / (r["c"] - r["ch"]) * 100) if r.get("c") and r.get("ch") and r["c"] != r["ch"] else 0
-        lines.append(f"• <b>{r['n']}</b> ({t}) {r['c']:,}원 ({chp:+.1f}%)\n"
-                     f"   외인 {fwp(r):.1f}% · 3일 {(r.get('ret3') or 0):+.1f}% · 10일 {(r.get('ret10') or 0):+.1f}% · 거래대금 {r.get('amt', 0):.0f}억 · 급등 {(r['aw']/r['a1']):.1f}배")
+        lines.append(f"• <b>{r['n']}</b> ({t}) {r['c']:,}원 ({chp:+.1f}%)")
+        if fid == 3:
+            lines.append(f"   20일 {(r.get('ret20') or 0):+.1f}% · 외인 60일 {(r.get('fw60') or 0):+.1f}% · "
+                         f"당일 거래량 {(r.get('vs1') or 0):.1f}배 · 거래대금 {(r.get('amt20') or r.get('amt') or 0):.0f}억")
+        else:
+            lines.append(f"   외인 {fwp(r):.1f}% · 3일 {(r.get('ret3') or 0):+.1f}% · 10일 {(r.get('ret10') or 0):+.1f}% · "
+                         f"거래대금 {r.get('amt', 0):.0f}억 · 급등 {(r['aw']/r['a1']):.1f}배")
         TR = T.get("themeRet") or {}
         th = [f"{g} {TR[g]:+.1f}%" if g in TR else g for g in (r.get("th") or [])[:3]]
         if r.get("up") or th:
@@ -82,7 +96,8 @@ if lines and prev_date:   # 첫 실행(비교 대상 없음)에는 보내지 않
              "• 1번: <b>지금 NXT 야간거래로 종가 매수</b>가 유리 (실측 +3.57% vs 다음날 시가 +3.44%)\n"
              "• 2번: <b>다음날 시가 매수</b>가 유리 (급락 직후라 시초에 더 빠짐)\n"
              "• 공통: 다음날 시가가 <b>+5% 이상 갭상승</b>이면 매수 보류\n"
-             "• 10거래일 보유 · 손절 없음 · 1번만 +20% 익절")
+             "• 3번: <b>다음날 시가 매수</b> · <b>20거래일</b> 보유 (폭락 반등 — 흔들려도 손절 금지)\n"
+             "• 보유: 1·2번 10거래일 / 3번 20거래일 · 손절 없음 · 1번만 +20% 익절")
     telegram(f"🆕 <b>신규 편입 종목</b> ({last_date[4:6]}/{last_date[6:]} 기준 · 코스피 {kmark})"
              + "".join(lines) + guide
              + f"\n\nhttps://bamhobak.github.io/kospi-volume/")

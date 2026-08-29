@@ -40,11 +40,13 @@ def kospi_state():
     """코스피 종가 vs 5일 이동평균 (시장 필터 배지용)"""
     try:
         import FinanceDataReader as fdr
-        k = fdr.DataReader("KS11", (collect.datetime.now() - collect.timedelta(days=60)).strftime("%Y-%m-%d"))
+        k = fdr.DataReader("KS11", (collect.datetime.now() - collect.timedelta(days=200)).strftime("%Y-%m-%d"))
         k = k[k["Close"] > 0]
         close = float(k["Close"].iloc[-1]); ma5 = float(k["Close"].tail(5).mean()); ma20 = float(k["Close"].tail(20).mean())
+        ma60 = float(k["Close"].tail(60).mean()) if len(k) >= 60 else None
         out = {"date": k.index[-1].strftime("%Y%m%d"), "close": round(close, 2), "ma5": round(ma5, 2),
-               "ma20": round(ma20, 2), "up": close > ma5, "up20": close > ma20}
+               "ma20": round(ma20, 2), "up": close > ma5, "up20": close > ma20,
+               "ma60": round(ma60, 2) if ma60 else None, "up60": (close > ma60) if ma60 else None}
         try:
             q = fdr.DataReader("KQ11", (collect.datetime.now() - collect.timedelta(days=60)).strftime("%Y-%m-%d"))
             q = q[q["Close"] > 0]
@@ -213,7 +215,19 @@ def build_site():
         closes = [x[1] for x in s["rows"] if x[1]]
         ret3 = round((closes[-1] / closes[-4] - 1) * 100, 2) if len(closes) >= 4 and closes[-4] else None   # 최근 3거래일 주가 변화율
         ret10 = round((closes[-1] / closes[-11] - 1) * 100, 2) if len(closes) >= 11 and closes[-11] else None  # 최근 10거래일
+        # ── 3번 필터(폭락 반등)용 ──────────────────────────────
+        ret20 = round((closes[-1] / closes[-21] - 1) * 100, 2) if len(closes) >= 21 and closes[-21] else None  # 최근 20거래일
+        a20p = avg(vol_all[-21:-1])                          # 직전 20일(당일 제외) 평균 거래량
+        vs1 = round(vol_all[-1] / a20p, 2) if len(vol_all) >= 21 and a20p else None   # 당일 거래량 배수
+        v60, f60 = vol_all[-60:], fr_all[-60:]               # 외국인 60일 누적 순매수 비중(%)
+        fw60 = (round(sum(x or 0 for x in f60) / sum(v60) * 100, 2)
+                if len(v60) >= 60 and len(f60) >= 60 and sum(v60) else None)
+        amt20 = round(avg(amt_all[-20:]) / 1e8, 2) if len(amt_all) >= 20 else None    # 20일 평균 거래대금(억)
+        # 가격 불연속(액면분할·병합 등 미조정) 감지: 상하한가 ±30% 라 32% 초과 변동은 물리적으로 불가능
+        rec = closes[-26:]
+        disc = any(rec[i-1] and not (0.68 < rec[i] / rec[i-1] < 1.32) for i in range(1, len(rec)))
         table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2], "streak": streak, "ret3": ret3, "ret10": ret10,
+                      "ret20": ret20, "vs1": vs1, "fw60": fw60, "amt20": amt20, "disc": disc,
                       "aw": aw, "a1": a1, "a6": a6 if n6 >= W_BASE // 2 else None,
                       "amt": round(amt1 / 1e8, 2) if amt1 else None, "cap": s.get("cap"), "pref": s["ticker"][-1] != "0", "mk": s.get("mkt", "KOSPI"),
                       "up": UP.get(s["ticker"]), "rs": RS.get(UP.get(s["ticker"])),

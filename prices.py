@@ -16,7 +16,8 @@ H = {"apikey": KEY, "Authorization": f"Bearer {KEY}", "Content-Type": "applicati
 NAVER = {"User-Agent": "Mozilla/5.0"}
 TG_TOKEN, TG_CHAT = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
 HOLD_DAYS = 10
-RULES = {1: {"stop": None, "target": 0.20, "hold": 10}, 2: {"stop": None, "target": None, "hold": 10}}   # 필터별 청산 규칙
+RULES = {1: {"stop": None, "target": 0.20, "hold": 10}, 2: {"stop": None, "target": None, "hold": 10},
+         3: {"stop": None, "target": None, "hold": 20}}   # 필터별 청산 규칙
 DEFAULT_RULE = RULES[1]
 num = lambda s: float(str(s).replace(",", "")) if s not in (None, "") else None
 now_kst = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=9)
