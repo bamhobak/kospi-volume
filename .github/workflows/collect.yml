@@ -58,6 +58,7 @@ jobs:
       # 코스닥 DB·공매도는 리포지토리에 없어(용량) 캐시로 실행 간 이어붙인다.
       # 푸시 빌드에서도 복원해야 D1(코스닥) 규칙이 데이터를 찾는다.
       - name: restore kosdaq cache
+        id: kdcache
         uses: actions/cache/restore@v4
         with:
           path: |
@@ -66,13 +67,15 @@ jobs:
           key: kosdaq-db-${{ github.run_id }}
           restore-keys: kosdaq-db-
       - name: collect kosdaq (최근 60거래일 누적 · 코스닥 필터용)
-        if: github.event_name != 'push' && steps.td.outputs.trading == 'true'
+        # 캐시 미스면 푸시 빌드에서도 받는다. 코스닥 DB 는 리포지토리에 없어
+        # 캐시가 유일한 출처이고, 비면 사이트에서 1,823종목이 통째로 사라진다.
+        if: (github.event_name != 'push' && steps.td.outputs.trading == 'true') || steps.kdcache.outputs.cache-matched-key == ''
         continue-on-error: true
         env: { TZ: Asia/Seoul }
         run: python collect_kosdaq_daily.py --days 60 --prune 150
       - name: save kosdaq cache
         uses: actions/cache/save@v4
-        if: github.event_name != 'push' && steps.td.outputs.trading == 'true'
+        if: hashFiles('data/kosdaq.db') != ''
         with:
           path: |
             data/kosdaq.db
