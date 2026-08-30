@@ -11,7 +11,7 @@ import collect
 log = collect.log
 BASE = Path(__file__).parent
 DB = BASE / "data" / "delisted_kd.db"
-FD, TD = "20210101", "20260828"
+FD, TD = "20180101", "20260828"
 HDR = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 W = 8
 
@@ -22,6 +22,8 @@ for c in ("organ", "frgn", "foreign_ratio"):
         con.execute(f"ALTER TABLE daily ADD COLUMN {c} {'REAL' if c=='foreign_ratio' else 'INTEGER'}")
 con.execute("CREATE TABLE IF NOT EXISTS inv_done(ticker TEXT PRIMARY KEY, n INTEGER)")
 con.commit()
+if "--reset" in sys.argv:
+    con.execute("DELETE FROM inv_done"); con.commit(); log.info("inv_done 초기화")
 todo = [t for t in pd.read_csv("data/kosdaq_delisted.csv", dtype=str).Symbol
         if t not in {r[0] for r in con.execute("SELECT ticker FROM inv_done")}]
 log.info(f"폐지 코스닥 투자자 수집: {len(todo)}종목")

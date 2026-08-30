@@ -31,6 +31,9 @@ con.execute("""CREATE TABLE IF NOT EXISTS daily(
     PRIMARY KEY(date, ticker))""")
 con.execute("CREATE INDEX IF NOT EXISTS ix_kd_ticker ON daily(ticker, date)")
 con.execute("CREATE TABLE IF NOT EXISTS done(mode TEXT, ticker TEXT, n INTEGER, at TEXT, PRIMARY KEY(mode, ticker))")
+if "--reset" in sys.argv:                      # 기간을 늘려 다시 받을 때
+    con.execute("DELETE FROM done WHERE mode=?", (MODE,)); con.commit()
+    log.info(f"done({MODE}) 초기화 — 전 종목 재수집")
 con.commit()
 
 listing = fdr.StockListing("KOSDAQ")

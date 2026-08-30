@@ -13,7 +13,7 @@ import collect
 log = collect.log
 BASE = Path(__file__).parent
 DB = BASE / "data" / "delisted_kd.db"
-FROM, TO = "2021-01-01", "2026-08-28"
+FROM, TO = "2018-01-01", "2026-08-28"
 KEY = [l.split("=", 1)[1].strip() for l in (BASE / ".env").read_text(encoding="utf-8").splitlines()
        if l.startswith("DART_API_KEY=")][0]
 
@@ -28,6 +28,9 @@ for e in root.iter("list"):
     sc = (e.findtext("stock_code") or "").strip()
     if len(sc) == 6 and sc.isdigit(): ALL[sc] = (e.findtext("corp_name") or "").strip()
 cand = sorted(set(ALL) - listed)
+if "--reset" in sys.argv:
+    con0 = sqlite3.connect(DB, timeout=600); con0.execute("DELETE FROM done"); con0.commit(); con0.close()
+    log.info("done 초기화 — 2018년부터 재수집")
 log.info(f"폐지 후보 {len(cand):,}종목 · {FROM}~{TO}")
 
 con = sqlite3.connect(DB, timeout=600)
@@ -60,7 +63,12 @@ with ThreadPoolExecutor(8) as ex:
     for f in as_completed([ex.submit(one, c) for c in todo]):
         code, rows = f.result()
         if rows:
-            con.executemany("INSERT OR REPLACE INTO daily VALUES (?,?,?,?,?,?,?,?,?)", rows)
+            con.executemany(
+                "INSERT INTO daily (date,ticker,name,close,change,volume,open,high,low) "
+                "VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(date,ticker) DO UPDATE SET "
+                "name=excluded.name, close=excluded.close, change=excluded.change, "
+                "volume=excluded.volume, open=excluded.open, high=excluded.high, low=excluded.low",
+                rows)   # 이미 모은 organ/frgn 은 건드리지 않는다
             tot += len(rows); hit += 1
         con.execute("INSERT OR REPLACE INTO done VALUES (?,?)", (code, len(rows)))
         n += 1

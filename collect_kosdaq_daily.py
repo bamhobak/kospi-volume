@@ -37,9 +37,11 @@ try:
         listing = ex.submit(lambda: fdr.StockListing("KOSDAQ")).result(timeout=90)
     CODES = [(r.Code, r.Name) for r in listing.itertuples(index=False)
              if isinstance(r.Code, str) and len(r.Code) == 6]
+    CAP = {r.Code: r.Marcap for r in listing.itertuples(index=False)
+           if isinstance(r.Code, str) and getattr(r, "Marcap", None) == getattr(r, "Marcap", None)}
 except Exception as e:
     log.warning(f"코스닥 목록(FDR) 실패 → DB 목록 사용: {str(e)[:60]}")
-    CODES = con.execute("SELECT ticker, max(name) FROM daily GROUP BY ticker").fetchall()
+    CODES = con.execute("SELECT ticker, max(name) FROM daily GROUP BY ticker").fetchall(); CAP = {}
 log.info(f"코스닥 {len(CODES)}종목 · 최근 {DAYS}거래일 수집")
 
 def one(code, name):
@@ -70,6 +72,12 @@ with ThreadPoolExecutor(WORKERS) as ex:
         if rows: con.executemany(UPS, rows); tot += len(rows)
         n += 1
         if n % 300 == 0: con.commit(); log.info(f"진행 {n}/{len(CODES)} ({tot:,}행)")
+# 시가총액 스냅샷 (최신 거래일 행에 반영) — 전체 종목 목록 정렬용
+if CAP:
+    last = con.execute("SELECT max(date) FROM daily").fetchone()[0]
+    rows = [(int(v), last, t) for t, v in CAP.items() if v and v == v]
+    con.executemany("UPDATE daily SET marcap=? WHERE date=? AND ticker=?", rows)
+    con.commit(); log.info(f"시가총액 반영 {len(rows):,}종목 ({last})")
 con.commit()
 if PRUNE > 0:
     keep = [r[0] for r in con.execute("SELECT DISTINCT date FROM daily ORDER BY date DESC LIMIT ?", (PRUNE,))]
