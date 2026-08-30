@@ -237,8 +237,17 @@ function renderTabs(){
     if(f==='kp'||f==='kq'){sortKey='cap';desc=true}          /* 전체 종목은 시총 순 */
     showInfo=false;render()});
   const K=raw.kospi||{};
-  $('#mktstate').innerHTML=K.up60==null?'':
-    `<i style="background:${K.up60?'var(--dn)':'var(--org)'}"></i>코스피 60일선 <b>${K.up60?'위':'아래'}</b> · ${K.up60?'P1 활성':'P3·D1 활성'}`;
+  /* 시장 조건으로 오늘 열린 규칙과 그 근거를 한 줄로 */
+  if(K.close!=null){
+    const open=[];
+    if(K.up&&K.up20)open.push('P1');
+    if(!K.up20)open.push('P2');
+    if(K.up60===false)open.push('P3','D1');
+    const ma=[`5일선 ${K.up?'위':'아래'}`,`20일선 ${K.up20?'위':'아래'}`,
+              K.up60==null?null:`60일선 ${K.up60?'위':'아래'}`].filter(Boolean).join(' · ');
+    $('#mktstate').innerHTML=`<i style="background:${open.length?'var(--org)':'var(--faint)'}"></i>`
+      +`코스피 ${ma} → ${open.length?`오늘 열린 규칙 <b>${open.join('·')}</b>`:'<b>열린 규칙 없음</b>'}`;
+  }else $('#mktstate').innerHTML='';
   $('#fdesc').innerHTML=cur==='done'?'매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요.':cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (P1: 10거래일·익절+20%·손절없음 / P2: 10거래일·손절없음 / P3·D1: 20거래일·손절없음) · <button class="ghost mini" id="pinbtn">${getPin()===DEFAULT_PIN?'자동 동기화 중 (PIN 변경)':'PIN: '+getPin()+' (공유 중)'}</button>`:cur==='all'?'P1·P2·P3(코스피)·D1(코스닥) 규칙 중 하나라도 해당하는 종목입니다. 각 규칙 탭에서 기대 승률·PF와 매매 규칙을 확인하세요.':(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));const rb=$('#rule');
   if(rb){const f=FILTERS.find(x=>x.id===cur)||null;
     if(f){rb.style.display='';rb.innerHTML=`<b>${f.name} 매매 규칙</b> <span>${f.ruleText}</span>`}else{rb.style.display='none'}}
@@ -409,10 +418,11 @@ async function renderPositions(){
 let raw={dates:[],rows:[]},view={dates:[],rows:[]},sortKey='last',desc=true,sel=null,charts=[];
 async function load(){await pullRemote();raw=await (await fetch('data/table.json?v='+Date.now())).json();prep();render();mktBadge()}
 function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none';return}
-  const d=(k.close/k.ma5-1)*100;el.className='mkt '+(k.up?'up':'dn');
+  /* 지수는 값만 보여준다. 이평선은 규칙 활성 여부와 함께 상태 칩에서 한 번에 안내한다.
+     코스닥 20일선은 어떤 규칙도 쓰지 않아 표시하지 않는다 (D1 도 코스피 60일선을 본다). */
   el.className='mkt '+(k.up20?'up':'dn');
-  el.innerHTML=`${k.up20?'▲':'▼'} 코스피 ${k.close.toLocaleString()} <small>· 20일선 ${k.up20?'위':'아래'}</small>`
-    +(k.kq?` &nbsp;<span class="mkt ${k.kqUp20?'up':'dn'}" style="margin-left:6px">${k.kqUp20?'▲':'▼'} 코스닥 ${k.kq.toLocaleString()} <small>· 20일선 ${k.kqUp20?'위':'아래'}</small></span>`:'')}
+  el.innerHTML=`${k.up20?'▲':'▼'} 코스피 ${k.close.toLocaleString()}`
+    +(k.kq?` &nbsp;<span class="mkt ${k.kqUp20?'up':'dn'}" style="margin-left:6px">${k.kqUp20?'▲':'▼'} 코스닥 ${k.kq.toLocaleString()}</span>`:'')}
 function prep(){const n=7,D=raw.dates,k=Math.max(0,D.length-n);view.dates=D.slice(k);
   view.rows=raw.rows.map(r=>{const vols=r.v.slice(k),valid=vols.filter(x=>x!=null);const sum=a=>a.slice(k).reduce((x,y)=>x+(y||0),0);
     const prev=vols.slice(0,-1).filter(x=>x!=null),last=vols[vols.length-1];const avg=valid.length?valid.reduce((a,b)=>a+b,0)/valid.length:0;
