@@ -16,10 +16,10 @@ H = {"apikey": KEY, "Authorization": f"Bearer {KEY}", "Content-Type": "applicati
 NAVER = {"User-Agent": "Mozilla/5.0"}
 TG_TOKEN, TG_CHAT = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
 HOLD_DAYS = 10
-RULES = {1: {"stop": None, "target": 0.20, "hold": 10}, 2: {"stop": None, "target": None, "hold": 10},
-         3: {"stop": None, "target": None, "hold": 20},
-         4: {"stop": None, "target": None, "hold": 20}}   # 필터별 청산 규칙
-DEFAULT_RULE = RULES[1]
+RULES = {"P1": {"stop": None, "target": 0.20, "hold": 10}, "P2": {"stop": None, "target": None, "hold": 10},
+         "P3": {"stop": None, "target": None, "hold": 20}, "D1": {"stop": None, "target": None, "hold": 20}}
+LEGACY_ID = {1: "P1", 2: "P2", 3: "P3", 4: "D1"}      # 예전에 저장된 숫자 id 호환   # 필터별 청산 규칙
+DEFAULT_RULE = RULES["P1"]
 num = lambda s: float(str(s).replace(",", "")) if s not in (None, "") else None
 now_kst = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=9)
 today = now_kst.strftime("%Y%m%d")
@@ -73,7 +73,8 @@ if positions:
         live_today = lv.get("at", "")[:10].replace("-", "") == today
         days = len([x for x in rows if x[0] < today]) + (1 if live_today else 0)   # 매수일 포함 보유 거래일수
         hi = max([price] + [x[1] for x in rows] + ([lv["high"]] if live_today and lv.get("high") else []))
-        rule = next((RULES[f] for f in (p.get("filters") or []) if f in RULES), DEFAULT_RULE)
+        fids = [LEGACY_ID.get(f, f) for f in (p.get("filters") or [])]
+        rule = next((RULES[f] for f in fids if f in RULES), DEFAULT_RULE)
         line = price * (1 - rule["stop"]) if rule["stop"] else None
         tgt = price * (1 + rule["target"]) if rule["target"] else None
         now = lv["now"]; ret = (now / price - 1) * 100

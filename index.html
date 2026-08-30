@@ -50,6 +50,7 @@ button.mini{padding:3px 8px;font-size:11px;border-radius:6px}
 .mkleg i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
 .mkleg i.kp{background:var(--acc)}.mkleg i.kq{background:var(--ind)}
 .kqtag{color:var(--ind);font-weight:700}
+.tabs button.done-tab{border-color:#38c98b55;color:#7fdcb4}.tabs button.done-tab.on{background:var(--org);border-color:var(--org);color:#0f1218}
 .tabs button.all-tab{opacity:.75;font-weight:500}.tabs button.all-tab.on{opacity:1;font-weight:700}.opts label{cursor:pointer}.opts input[type=checkbox]{width:14px;accent-color:var(--acc);vertical-align:-2px}.opts input{width:44px;min-width:0;padding:4px 6px;font-size:12px;text-align:right;flex:none}
 td.sc{color:#b8c0d0}
 .rule{margin:12px 16px 0;padding:10px 14px;border:1px solid #ff5b5b44;background:#ff5b5b0f;border-radius:12px;font-size:13px;line-height:1.6}
@@ -110,26 +111,26 @@ const pct=(c,ch)=>{if(c==null||ch==null||c-ch===0)return '';const p=ch/(c-ch)*10
 const chg=(c,ch)=>ch==null?'':`<span class="${cls(ch)}">${ch>0?'+':''}${fmt(ch)}${pct(c,ch)}</span>`;
 // ===== 필터 정의: 새 필터는 이 배열에 추가 =====
 const FILTERS=[
-  {id:1,name:'P1 · 상승초입',code:'P1',mkt:'KOSPI',desc:'2개월 거래량 < 1년 평균의 50% · 최근 3거래일 ≥ 2개월 평균의 200% · 외국인 1주 순매수 ≥ 거래량의 **3%** · 2개월 평균 거래대금 ≥ 50억 · 최근 10거래일 주가 0~20% 상승 · **코스피 5일선·20일선 둘 다 위** · 업종 상대강도 > 0(업종 20일 수익률이 시장 초과) · 공매도 비중 5일평균 < 20일평균(감소 중) · 우선주 제외  ▶ 매매: **당일 종가 매수(NXT 야간거래)** 또는 다음날 시가 매수 · 10거래일 보유 · 익절 +20% · 손절 없음 · **다음날 시가가 +5% 이상 갭상승하면 매수 보류**  ▶ 백테스트 2019~26(8년, 절대수익): 평균 +3.13% / 중앙값 +1.64% / 승률 55% (139건)  ▶ **학습(2019~22) +2.59% → 검증(2023~26) +3.54%** — 세 필터 중 유일하게 검증기간이 학습기간보다 좋습니다(과최적화 흔적 없음). 대신 수익률 자체는 가장 낮습니다',
+  {id:'P1',name:'P1 · 상승초입',mkt:'KOSPI',desc:'2개월 거래량 < 1년 평균의 50% · 최근 3거래일 ≥ 2개월 평균의 200% · 외국인 1주 순매수 ≥ 거래량의 **3%** · 2개월 평균 거래대금 ≥ 50억 · 최근 10거래일 주가 0~20% 상승 · **코스피 5일선·20일선 둘 다 위** · 업종 상대강도 > 0(업종 20일 수익률이 시장 초과) · 공매도 비중 5일평균 < 20일평균(감소 중) · 우선주 제외  ▶ 매매: **당일 종가 매수(NXT 야간거래)** 또는 다음날 시가 매수 · 10거래일 보유 · 익절 +20% · 손절 없음 · **다음날 시가가 +5% 이상 갭상승하면 매수 보류**  ▶ 백테스트 2019~26(8년, 절대수익): 평균 +3.13% / 중앙값 +1.64% / 승률 55% (139건)  ▶ **학습(2019~22) +2.59% → 검증(2023~26) +3.54%** — 세 필터 중 유일하게 검증기간이 학습기간보다 좋습니다(과최적화 흔적 없음). 대신 수익률 자체는 가장 낮습니다',
    rule:{hold:10,stop:null,target:20}, ruleText:'<em>당일 종가 매수</em>(NXT 야간거래, 실측 +3.57%) 또는 다음날 시가 매수(+3.44%) · <em>10거래일</em> 보유 후 종가 매도 · <em>+20%</em> 도달 시 익절 · 손절 <em>없음</em> · 다음날 시가로 살 때 <em>+5% 이상 갭상승이면 보류</em>',
    stats:{n:139, perMonth:1.5, win:55, pf:2.34, avg:3.13, years:'절대수익(당일 종가 매수 기준) · 2019 -7.4% / 2020 +6.9% / 2021 +2.8% / 2022 +4.1% / 2023 -2.7% / 2024 +0.7% / 2025 +4.8% / 2026 +5.3%'},
    fn:r=>r.mk==='KOSPI'&&r.r16!=null&&r.rw1!=null&&r.r16<50&&r.rw1>=200&&r.fw>0&&r.fw>=0.03*r.v5&&!r.pref&&(r.amt||0)>=50
         &&r.ret10!=null&&r.ret10>=0&&r.ret10<=20&&!!(raw.kospi&&raw.kospi.up20&&raw.kospi.up)
         &&r.rs!=null&&r.rs>0&&r.srDown===true&&r.disc!==true},
-  {id:2,name:'P2 · 조정매집',code:'P2',mkt:'KOSPI',desc:'2개월 거래량 < 1년 평균의 30%(매우 잠잠) · 최근 3거래일 ≥ 2개월 평균의 200% · 외국인 1주 순매수 ≥ 거래량의 2% · 2개월 평균 거래대금 ≥ 3억 · 최근 3거래일 주가 **-5% 이하 급락**(투매 구간) · **최근 10거래일도 하락**(추세적 눌림) · **코스피 20일선 아래**(조정·하락 국면 전용) · **공매도 비중 5일평균 < 20일평균(공매도 감소 중)** · **최근 90일 내 유상증자·CB 공시 없음** · 우선주 제외  ▶ 매매: **다음날 시가 매수**(당일 종가 매수보다 유리 — 급락 직후라 시초에 더 빠짐) · 10거래일 보유 후 종가 매도 · 손절·익절 없음 · **시가 +5% 이상 갭상승 시 보류**  ▶ 백테스트 2019~26(8년, 절대수익): 평균 +16.49% / 중앙값 +9.14% / 승률 83% / PF 15.77 (123건, 신호 있는 8년 모두 플러스)  ▶ **학습(2019~22) +20.18% → 검증(2023~26) +6.81%**(34건, 승률 91%) — 실전 기대치는 검증 쪽으로 보십시오  ▶ 강세장에는 신호가 거의 없음 — 그 구간은 1번 필터가 담당',
+  {id:'P2',name:'P2 · 조정매집',mkt:'KOSPI',desc:'2개월 거래량 < 1년 평균의 30%(매우 잠잠) · 최근 3거래일 ≥ 2개월 평균의 200% · 외국인 1주 순매수 ≥ 거래량의 2% · 2개월 평균 거래대금 ≥ 3억 · 최근 3거래일 주가 **-5% 이하 급락**(투매 구간) · **최근 10거래일도 하락**(추세적 눌림) · **코스피 20일선 아래**(조정·하락 국면 전용) · **공매도 비중 5일평균 < 20일평균(공매도 감소 중)** · **최근 90일 내 유상증자·CB 공시 없음** · 우선주 제외  ▶ 매매: **다음날 시가 매수**(당일 종가 매수보다 유리 — 급락 직후라 시초에 더 빠짐) · 10거래일 보유 후 종가 매도 · 손절·익절 없음 · **시가 +5% 이상 갭상승 시 보류**  ▶ 백테스트 2019~26(8년, 절대수익): 평균 +16.49% / 중앙값 +9.14% / 승률 83% / PF 15.77 (123건, 신호 있는 8년 모두 플러스)  ▶ **학습(2019~22) +20.18% → 검증(2023~26) +6.81%**(34건, 승률 91%) — 실전 기대치는 검증 쪽으로 보십시오  ▶ 강세장에는 신호가 거의 없음 — 그 구간은 1번 필터가 담당',
    rule:{hold:10,stop:null,target:null}, ruleText:'다음날 <em>시가 매수</em> · <em>10거래일</em> 보유 후 종가 매도 (손절·익절 <em>없음</em> — 손절이 성과를 깎는다는 실측 결과)',
    stats:{n:123, perMonth:1.2, win:83, pf:15.77, avg:16.49, years:'절대수익 · 2019 +21.1% / 2020 +40.3% / 2021 +4.2% / 2022 +4.2% / 2023 +7.4% / 2024 +7.4% / 2025 +10.5% / 2026 신호없음'},
    fn:r=>r.mk==='KOSPI'&&r.r16!=null&&r.rw1!=null&&r.r16<30&&r.rw1>=200&&r.fw>0&&r.fw>=0.02*r.v5&&!r.pref&&(r.amt||0)>=3
         &&r.ret3!=null&&r.ret3<=-5&&r.ret10!=null&&r.ret10<=0&&!(raw.kospi&&raw.kospi.up20)
         &&r.srDown===true&&r.dilu!==true&&r.disc!==true},
-  {id:3,name:'P3 · 폭락반등',code:'P3',mkt:'KOSPI',desc:'**최근 20거래일 주가 -20% 이하 폭락** · **당일 거래량 ≥ 직전 20일 평균의 2배**(투매 정점) · **외국인 60일 누적 순매수 ≥ 거래량의 1%**(장기 수급 유입) · 20일 평균 거래대금 ≥ 3억 · **코스피 60일선 아래**(시장도 무너진 국면) · **소속 업종의 60일 수익률 -10% 이하**(업종까지 무너졌을 때 — 업종 평균을 구할 수 없는 종목은 통과) · 공매도 비중 5일평균 < 20일평균(감소 중) · 최근 90일 내 유상증자·CB 공시 없음 · 우선주 제외  ▶ 매매: **다음날 시가 매수** · **20거래일 보유** 후 종가 매도 · **손절·익절 없음**(손절을 넣으면 반등을 놓쳐 수익이 깎임 — 손절 -20% 적용 시 +20.0%→+15.9%)  ▶ 백테스트 2018~26(9년, 절대수익, **상장폐지 77종목 포함**): 평균 **+22.82%** / 중앙값 +16.82% / 승률 82% / PF 14.28 (474건)  ▶ **학습(2018~22) +24.77% → 검증(2023~26) +9.36%** — 실전 기대치는 검증 쪽으로 보십시오  ▶ ⚠ **폭락 전용 필터**: 540건 중 208건(39%)이 2020년 3월 코로나 폭락 한 달에 몰려 있고, 104개월 중 41개월(39%)에만 신호가 납니다. 강세장에는 거의 안 걸립니다  ▶ ⚠ 손절이 없어 한 종목에서 **-62.5%**(와이투솔루션, 2020-02-24)까지 맞은 적이 있습니다',
+  {id:'P3',name:'P3 · 폭락반등',mkt:'KOSPI',desc:'**최근 20거래일 주가 -20% 이하 폭락** · **당일 거래량 ≥ 직전 20일 평균의 2배**(투매 정점) · **외국인 60일 누적 순매수 ≥ 거래량의 1%**(장기 수급 유입) · 20일 평균 거래대금 ≥ 3억 · **코스피 60일선 아래**(시장도 무너진 국면) · **소속 업종의 60일 수익률 -10% 이하**(업종까지 무너졌을 때 — 업종 평균을 구할 수 없는 종목은 통과) · 공매도 비중 5일평균 < 20일평균(감소 중) · 최근 90일 내 유상증자·CB 공시 없음 · 우선주 제외  ▶ 매매: **다음날 시가 매수** · **20거래일 보유** 후 종가 매도 · **손절·익절 없음**(손절을 넣으면 반등을 놓쳐 수익이 깎임 — 손절 -20% 적용 시 +20.0%→+15.9%)  ▶ 백테스트 2018~26(9년, 절대수익, **상장폐지 77종목 포함**): 평균 **+22.82%** / 중앙값 +16.82% / 승률 82% / PF 14.28 (474건)  ▶ **학습(2018~22) +24.77% → 검증(2023~26) +9.36%** — 실전 기대치는 검증 쪽으로 보십시오  ▶ ⚠ **폭락 전용 필터**: 540건 중 208건(39%)이 2020년 3월 코로나 폭락 한 달에 몰려 있고, 104개월 중 41개월(39%)에만 신호가 납니다. 강세장에는 거의 안 걸립니다  ▶ ⚠ 손절이 없어 한 종목에서 **-62.5%**(와이투솔루션, 2020-02-24)까지 맞은 적이 있습니다',
    rule:{hold:20,stop:null,target:null}, ruleText:'다음날 <em>시가 매수</em> · <em>20거래일</em> 보유 후 종가 매도 (손절·익절 <em>없음</em>)',
    stats:{n:474, perMonth:4.6, win:82, pf:14.28, avg:22.82, years:'절대수익 · 2018 +10.5% / 2019 +13.8% / 2020 +35.2% / 2021 +6.0% / 2022 +11.8% / 2023 +5.9% / 2024 +1.6% / 2025 +4.0% / 2026 +14.6%'},
    fn:r=>r.mk==='KOSPI'&&!r.pref&&r.ret20!=null&&r.ret20<=-20&&r.vs1!=null&&r.vs1>=2
         &&r.fw60!=null&&r.fw60>=1&&(r.amt20!=null?r.amt20:(r.amt||0))>=3
         &&!!(raw.kospi&&raw.kospi.up60===false)&&(r.sr60==null||r.sr60<=-10)
         &&r.srDown===true&&r.dilu!==true&&r.disc!==true},
-  {id:4,name:'D1 · 낙폭과대',code:'D1',mkt:'KOSDAQ',desc:'**코스닥 종목** · 최근 20거래일 주가 **-20% 이하 폭락** · **당일 거래량 ≥ 직전 20일 평균의 2배** · **외국인 60일 누적 순매수 ≥ 거래량의 1%** · 20일 평균 거래대금 ≥ **2억**(코스닥 기준으로 조정 — 코스피 3억과 같은 통과율) · **코스피 60일선 아래**(코스닥 지수가 아니라 코스피 지수를 봅니다 — 실측 +1.5% vs +8.2%) · **소속 업종(표준산업분류)의 60일 수익률 -15% 이하**(업종 평균을 구할 수 없는 종목은 통과) · 공매도 비중 5일평균 < 20일평균 · 최근 90일 내 유상증자·CB 공시 없음  ▶ 매매: **다음날 시가 매수** · **20거래일** 보유 후 종가 매도 · 손절·익절 없음  ▶ 백테스트 2021~26(6년, 절대수익, **상장폐지 128종목 포함**): 평균 **+13.35%** / 중앙값 +8.26% / 승률 70% / PF 5.18 (209건) · **학습(21~23) +4.09% → 검증(24~26) +11.52%**  ▶ ⚠ 코스닥은 부실 상장폐지가 잦습니다(2021~26년 128종목, 감사의견 거절 35건). 폐지 종목까지 넣어 실측한 값이며, 폐지 종목이 만든 신호 9건의 평균은 -2.5%였습니다  ▶ ⚠ 손절이 없어 한 종목에서 -46%까지 맞은 적이 있습니다',
+  {id:'D1',name:'D1 · 낙폭과대',mkt:'KOSDAQ',desc:'**코스닥 종목** · 최근 20거래일 주가 **-20% 이하 폭락** · **당일 거래량 ≥ 직전 20일 평균의 2배** · **외국인 60일 누적 순매수 ≥ 거래량의 1%** · 20일 평균 거래대금 ≥ **2억**(코스닥 기준으로 조정 — 코스피 3억과 같은 통과율) · **코스피 60일선 아래**(코스닥 지수가 아니라 코스피 지수를 봅니다 — 실측 +1.5% vs +8.2%) · **소속 업종(표준산업분류)의 60일 수익률 -15% 이하**(업종 평균을 구할 수 없는 종목은 통과) · 공매도 비중 5일평균 < 20일평균 · 최근 90일 내 유상증자·CB 공시 없음  ▶ 매매: **다음날 시가 매수** · **20거래일** 보유 후 종가 매도 · 손절·익절 없음  ▶ 백테스트 2021~26(6년, 절대수익, **상장폐지 128종목 포함**): 평균 **+13.35%** / 중앙값 +8.26% / 승률 70% / PF 5.18 (209건) · **학습(21~23) +4.09% → 검증(24~26) +11.52%**  ▶ ⚠ 코스닥은 부실 상장폐지가 잦습니다(2021~26년 128종목, 감사의견 거절 35건). 폐지 종목까지 넣어 실측한 값이며, 폐지 종목이 만든 신호 9건의 평균은 -2.5%였습니다  ▶ ⚠ 손절이 없어 한 종목에서 -46%까지 맞은 적이 있습니다',
    rule:{hold:20,stop:null,target:null}, ruleText:'다음날 <em>시가 매수</em> · <em>20거래일</em> 보유 후 종가 매도 (손절·익절 <em>없음</em>)',
    stats:{n:209, perMonth:2.9, win:70, pf:5.18, avg:13.35, years:'절대수익 · 2021 -3.2% / 2022 +5.0% / 2023 +6.2% / 2024 +4.4% / 2025 신호없음 / 2026 +20.0%'},
    fn:r=>r.mk==='KOSDAQ'&&!r.pref&&r.ret20!=null&&r.ret20<=-20&&r.vs1!=null&&r.vs1>=2
@@ -138,20 +139,24 @@ const FILTERS=[
         &&r.srDown===true&&r.dilu!==true&&r.disc!==true},
 ];
 let cur='all';  // 'all' = 하나라도 통과(OR), 숫자 = 해당 필터만
-const fcode=id=>{const f=FILTERS.find(x=>x.id===id);return f?f.code:id};
+const LEGACY_ID={1:'P1',2:'P2',3:'P3',4:'D1'};       // 예전에 저장된 숫자 id 호환
+const normId=v=>LEGACY_ID[v]||v;
+const fcode=id=>normId(id);
+const fOf=id=>FILTERS.find(x=>x.id===normId(id));
 function held(code){return positions().some(p=>p.code===code&&!p.sell)}
 function passes(r){
+  if(cur==='done')return false;
   if(cur==='kp')return r.mk==='KOSPI';        /* 전체 종목 탭은 보유 여부와 무관하게 다 보여준다 */
   if(cur==='kq')return r.mk==='KOSDAQ';
   if(held(r.ticker))return false;             /* 보유 중(미매도) 종목은 매도 전까지 필터에서 제외 */
   return cur==='all'?FILTERS.some(f=>f.fn(r)):FILTERS.find(f=>f.id===cur).fn(r)}
-function renderTabs(){$('#tabs').innerHTML=[`<button data-f="all" class="${cur==='all'?'on':''}">매수추천 <small>${view.rows.filter(r=>FILTERS.some(f=>f.fn(r))&&!held(r.ticker)).length}</small></button>`,...FILTERS.map(f=>`<button data-f="${f.id}" class="mk-${f.mkt==='KOSDAQ'?'kq':'kp'} ${cur===f.id?'on':''}">${f.name} <small>${view.rows.filter(r=>f.fn(r)&&!held(r.ticker)).length}</small></button>`),`<button data-f="pos" class="pos-tab ${cur==='pos'?'on':''}">보유 종목 <small>${positions().filter(p=>!p.sell).length}</small></button>`,`<button data-f="kp" class="mk-kp all-tab ${cur==='kp'?'on':''}">코스피 전체 <small>${view.rows.filter(r=>r.mk==='KOSPI').length}</small></button>`,`<button data-f="kq" class="mk-kq all-tab ${cur==='kq'?'on':''}">코스닥 전체 <small>${view.rows.filter(r=>r.mk==='KOSDAQ').length}</small></button>`].join('');
+function renderTabs(){$('#tabs').innerHTML=[`<button data-f="pos" class="pos-tab ${cur==='pos'?'on':''}">보유 종목 <small>${positions().filter(p=>!p.sell).length}</small></button>`,`<button data-f="all" class="${cur==='all'?'on':''}">매수 대기 <small>${view.rows.filter(r=>FILTERS.some(f=>f.fn(r))&&!held(r.ticker)).length}</small></button>`,...FILTERS.map(f=>`<button data-f="${f.id}" class="mk-${f.mkt==='KOSDAQ'?'kq':'kp'} ${cur===f.id?'on':''}">${f.name} <small>${view.rows.filter(r=>f.fn(r)&&!held(r.ticker)).length}</small></button>`),`<button data-f="done" class="done-tab ${cur==='done'?'on':''}">완료 <small>${positions().filter(p=>p.sell).length}</small></button>`,`<button data-f="kp" class="mk-kp all-tab ${cur==='kp'?'on':''}">코스피 전체 <small>${view.rows.filter(r=>r.mk==='KOSPI').length}</small></button>`,`<button data-f="kq" class="mk-kq all-tab ${cur==='kq'?'on':''}">코스닥 전체 <small>${view.rows.filter(r=>r.mk==='KOSDAQ').length}</small></button>`].join('');
   document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{const f=b.dataset.f;
-    cur=(f==='all'||f==='pos'||f==='kp'||f==='kq')?f:+f;
+    cur=f;
     if(f==='kp'||f==='kq'){sortKey='cap';desc=true}          /* 전체 종목은 시총 순 */
     showInfo=false;render()});
-  $('#fdesc').innerHTML=cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 필터의 규칙이 자동 적용됩니다 (P1: 10거래일·익절+20%·손절없음 / P2: 10거래일·손절없음 / P3·D1: 20거래일·손절없음) · <button class="ghost mini" id="pinbtn">${getPin()===DEFAULT_PIN?'자동 동기화 중 (PIN 변경)':'PIN: '+getPin()+' (공유 중)'}</button>`:cur==='all'?'P1·P2·P3(코스피)·D1(코스닥) 필터 중 하나라도 해당하는 종목입니다. 각 필터 탭에서 기대 승률·PF와 매매 규칙을 확인하세요.':(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 필터와 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));const rb=$('#rule');
-  if(rb){const f=(typeof cur==='number')?FILTERS.find(x=>x.id===cur):null;
+  $('#fdesc').innerHTML=cur==='done'?'매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요.':cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (P1: 10거래일·익절+20%·손절없음 / P2: 10거래일·손절없음 / P3·D1: 20거래일·손절없음) · <button class="ghost mini" id="pinbtn">${getPin()===DEFAULT_PIN?'자동 동기화 중 (PIN 변경)':'PIN: '+getPin()+' (공유 중)'}</button>`:cur==='all'?'P1·P2·P3(코스피)·D1(코스닥) 규칙 중 하나라도 해당하는 종목입니다. 각 규칙 탭에서 기대 승률·PF와 매매 규칙을 확인하세요.':(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));const rb=$('#rule');
+  if(rb){const f=FILTERS.find(x=>x.id===cur)||null;
     if(f){rb.style.display='';rb.innerHTML=`<b>${f.name} 매매 규칙</b> <span>${f.ruleText}</span>`}else{rb.style.display='none'}}
   const pb=$('#pinbtn');if(pb)pb.onclick=setPin;[$('#infobtn'),$('#infobtn2')].forEach(ib=>{if(ib)ib.onclick=()=>{showInfo=!showInfo;renderTabs()}})}
 let showInfo=false;
@@ -161,7 +166,7 @@ function statsHtml(f){const t=f.stats;
     <span class="s-item" title="Profit Factor — 이익 거래의 합 ÷ 손실 거래의 합. 1.0이면 본전, 높을수록 손실 대비 이익이 큽니다."><b>${t.pf}</b></span>
     <span class="s-item" title="건당 평균 순수익 — 수수료·세금·슬리피지를 모두 뺀 값입니다. 중앙값은 이보다 낮을 수 있습니다(큰 수익 몇 건이 평균을 끌어올림)."><b>+${t.avg}%</b></span>
     <span class="s-item" title="출현 빈도 — 백테스트 전 구간에서 ${t.n}건이 나왔습니다. 신호가 없는 달도 많으니 조용하다고 고장난 게 아닙니다."><b>월 ${t.perMonth}건</b></span>
-    <span class="s-item info-card" id="infobtn2" title="필터 상세 조건과 연도별 성적 보기">${showInfo?'✕':'ⓘ'}</span></div>`;
+    <span class="s-item info-card" id="infobtn2" title="규칙 상세 조건과 연도별 성적 보기">${showInfo?'✕':'ⓘ'}</span></div>`;
   if(!showInfo) return cards;
   return cards+`
   <div style="margin-top:6px">${f.desc}</div>
@@ -188,18 +193,19 @@ function addPosition(code,name,close){const last=raw.dates[raw.dates.length-1];
   const row=view.rows.find(x=>x.ticker===code);const filters=row?FILTERS.filter(f=>f.fn(row)).map(f=>f.id):[];
   const a=positions();a.push({code,name,date:date.replace(/\D/g,''),price,qty,filters,id:Date.now()});savePositions(a);cur='pos';render()}
 async function renderPositions(){
-  const ps=positions();
+  const DONE=cur==='done';
+  const ps=positions().filter(p=>DONE?p.sell:!p.sell);   // 보유 탭은 미매도, 완료 탭은 매도된 것만
   let live={updated:'',prices:{}};try{const d=await rpc('kospi_state_get',{p_pin:'__prices__'});if(d&&d.prices)live=d}catch(e){}
   const lastD=raw.dates[raw.dates.length-1];
-  const cols=['종목','필터','매수일','매수가','수량','매수금액','현재가','수익률','평가손익','보유일','고점','손절/익절선','신호 유지','상태','매도가/손익',''];
+  const cols=['종목','규칙','매수일','매수가','수량','매수금액','현재가','수익률','평가손익','보유일','고점','손절/익절선','신호 유지','상태','매도가/손익',''];
   $('#tbl thead').innerHTML='<tr>'+cols.map((c,i)=>`<th class="${[0,1,2,13,15].includes(i)?'l':''}">${c}</th>`).join('')+'</tr>';
-  if(!ps.length){$('#tbl tbody').innerHTML='<tr><td colspan="16" class="l" style="color:var(--mut);padding:30px">보유 종목이 없습니다. 종목 행의 「매수」 버튼으로 추가하세요.</td></tr>';$('#status').textContent='보유 0종목';return}
+  if(!ps.length){$('#tbl tbody').innerHTML=`<tr><td colspan="16" class="l" style="color:var(--mut);padding:30px">${DONE?'매도 완료된 종목이 없습니다. 보유 종목 탭에서 「매도」를 기록하면 여기로 옵니다.':'보유 종목이 없습니다. 종목 행의 「매수」 버튼으로 추가하세요.'}</td></tr>`;$('#status').textContent='보유 0종목';return}
   const rows=await Promise.all(ps.map(async p=>{let d=null;try{d=await (await fetch(`data/stock/${p.code}.json?v=${raw.updated}`)).json()}catch(e){}
     const rs=d?d.rows.map(x=>({date:d.dates[x[0]],close:x[1]})).filter(x=>x.date>=p.date):[];
     const lv=live.prices[p.code];const lvDate=lv&&lv.at?lv.at.slice(0,10).replace(/-/g,''):'';const useLive=lv&&lv.now&&lvDate>lastD&&lvDate>=p.date;
     const now=useLive?lv.now:(rs.length?rs[rs.length-1].close:null);
     const hi=Math.max(p.price,...rs.map(x=>x.close),useLive&&lv.high?lv.high:0);const days=rs.length+(useLive?1:0);
-    const rule=(FILTERS.find(f=>(p.filters||[]).includes(f.id))||FILTERS[0]).rule;
+    const rule=((p.filters||[]).map(fOf).find(Boolean)||FILTERS[0]).rule;
     const line=rule.stop?p.price*(1-rule.stop/100):null;const tgt=rule.target?p.price*(1+rule.target/100):null;
     const ret=now?(now/p.price-1)*100:null;
     const tr_=raw.rows.find(x=>x.t===p.code);const streak=tr_?tr_.streak||0:0;
@@ -221,7 +227,7 @@ async function renderPositions(){
   const open_=rows.filter(r=>!r.p.sell);const avg=open_.length?open_.reduce((a,r)=>a+(r.ret||0),0)/open_.length:0;
   const closed=rows.filter(r=>r.p.sell);const realized=closed.reduce((a,r)=>a+pr(r.p),0);
   const inv=open_.reduce((a,r)=>a+(r.p.qty||0)*r.p.price,0),pnl=open_.reduce((a,r)=>a+((r.p.qty&&r.now)?(r.now-r.p.price)*r.p.qty:0),0);
-  $('#status').textContent=`보유 ${open_.length}종목 평균 ${avg>0?'+':''}${avg.toFixed(1)}%${inv?` · 매수금액 ${kor(inv)}원 · 평가손익 ${kor(pnl,1)}원`:''}${closed.length?` · 매도 완료 ${closed.length}건 합산 ${realized>0?'+':''}${realized.toFixed(1)}%`:''} · 장중 시세 ${live.updated?live.updated.slice(5)+' 갱신 (평일 09~16시 5분 간격)':'없음'}`;
+  $('#status').textContent=DONE?`매도 완료 ${closed.length}건 · 합산 수익률 ${realized>0?'+':''}${realized.toFixed(1)}% · 건당 평균 ${closed.length?(realized/closed.length>0?'+':'')+(realized/closed.length).toFixed(2):'0'}%`:`보유 ${open_.length}종목 평균 ${avg>0?'+':''}${avg.toFixed(1)}%${inv?` · 매수금액 ${kor(inv)}원 · 평가손익 ${kor(pnl,1)}원`:''}${closed.length?` · 매도 완료 ${closed.length}건 합산 ${realized>0?'+':''}${realized.toFixed(1)}%`:''} · 장중 시세 ${live.updated?live.updated.slice(5)+' 갱신 (평일 09~16시 5분 간격)':'없음'}`;
   document.querySelectorAll('[data-sell]').forEach(b=>b.onclick=()=>{const a=positions();const p=a.find(x=>x.id==b.dataset.sell);const r=rows.find(r=>r.p.id==p.id);
     const sell=+prompt(`${p.name} 매도가 (원)`,r.now||p.price);if(!sell)return;p.sell=sell;p.sellDate=raw.dates[raw.dates.length-1];savePositions(a);render()});
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{if(!confirm('삭제할까요?'))return;savePositions(positions().filter(x=>x.id!=b.dataset.del));render()});
@@ -239,17 +245,17 @@ function prep(){const n=7,D=raw.dates,k=Math.max(0,D.length-n);view.dates=D.slic
     const ratio=(prev.length&&last!=null&&prev.reduce((a,b)=>a+b,0))?last/(prev.reduce((a,b)=>a+b,0)/prev.length)*100:null;
     return {ticker:r.t,name:r.n,close:r.c,change:r.ch,foreign_ratio:r.fr,vols,avg,total:valid.reduce((a,b)=>a+b,0),ratio,indiv:sum(r.i),organ:sum(r.o),frgn:sum(r.f),amt:r.amt,cap:r.cap,r1m:r.r1m,r3m:r.r3m,r6m:r.r6m,r1y:r.r1y,per:r.per,pbr:r.pbr,pcr:r.pcr,dy:r.dy,pref:r.pref,fw:r.f.slice(-5).reduce((x,y)=>x+(y||0),0),v5:r.v.slice(-5).reduce((x,y)=>x+(y||0),0),fwp:(()=>{const v=r.v.slice(-5).reduce((x,y)=>x+(y||0),0),f=r.f.slice(-5).reduce((x,y)=>x+(y||0),0);return v?f/v*100:null})(),streak:r.streak||0,ret3:r.ret3,ret10:r.ret10,ret20:r.ret20,sr60:r.sr60,vs1:r.vs1,fw60:r.fw60,amt20:r.amt20,disc:r.disc,up:r.up,rs:r.rs,sr:r.sr,srDown:r.srDown,dilu:r.dilu,th:r.th||[],mk:r.mk||'KOSPI',aw:r.aw,a1:r.a1,a6:r.a6,r16:(r.a1&&r.a6)?r.a1/r.a6*100:null,rw1:(r.aw&&r.a1)?r.aw/r.a1*100:null,last:last??-1,chpct:(r.c&&r.ch!=null&&r.c-r.ch)?r.ch/(r.c-r.ch)*100:-999}})}
 function val(r,k){if(k==='hits')return FILTERS.filter(f=>f.fn(r)).length;if(k.startsWith('d:'))return r.vols[+k.slice(2)]??-1;return r[k]??-1}
-function render(){renderTabs();if(cur==='pos'){renderPositions();return}
+function render(){renderTabs();if(cur==='pos'||cur==='done'){renderPositions();return}
   const q='';const D=view.dates;
   let rows=view.rows.filter(r=>!q||r.name.toLowerCase().includes(q)||r.ticker.includes(q));
   const th2=200;
   rows=rows.filter(passes);
   rows.sort((a,b)=>{const x=val(a,sortKey),y=val(b,sortKey);return (typeof x==='string')?(desc?y.localeCompare(x):x.localeCompare(y)):(desc?y-x:x-y)});
-  const cols=[['name','종목','l'],['hits','통과 필터'],['up','업종','l'],['cap','시가총액'],['r1m','1개월'],['r3m','3개월'],['r6m','6개월'],['r1y','1년'],['per','PER'],['pbr','PBR'],['pcr','PCR'],['sr60','업종 60일'],['streak','연속'],['ret3','3일'],['ret10','10일'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','3일평균'],['r16','2M/1Y'],['rw1','3일/2M'],['fw','외국인 1W'],['fwp','외인/거래량'],['amt','2M 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
+  const cols=[['name','종목','l'],['hits','통과 규칙'],['up','업종','l'],['cap','시가총액'],['r1m','1개월'],['r3m','3개월'],['r6m','6개월'],['r1y','1년'],['per','PER'],['pbr','PBR'],['pcr','PCR'],['sr60','업종 60일'],['streak','연속'],['ret3','3일'],['ret10','10일'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','3일평균'],['r16','2M/1Y'],['rw1','3일/2M'],['fw','외국인 1W'],['fwp','외인/거래량'],['amt','2M 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
   $('#tbl thead').innerHTML='<tr>'+cols.map(c=>`<th class="${c[2]||''} ${sortKey===c[0]?'on':''}" data-k="${c[0]}">${c[1]}${sortKey===c[0]?(desc?' ▼':' ▲'):''}</th>`).join('')+'</tr>';
   $('#tbl tbody').innerHTML=rows.map(r=>`<tr data-c="${r.ticker}" class="${sel===r.ticker?'sel':''}">
     <td class="l name">${r.name} <span class="code">${r.ticker}${r.mk==='KOSDAQ'?' <b class="kqtag">코스닥</b>':''}</span></td>
-    <td class="l">${FILTERS.filter(f=>f.fn(r)).map(f=>`<span class="tag">${f.code}</span>`).join('')} <button class="ghost mini" data-buy="${r.ticker}">매수</button></td>
+    <td class="l">${FILTERS.filter(f=>f.fn(r)).map(f=>`<span class="tag">${f.id}</span>`).join('')} <button class="ghost mini" data-buy="${r.ticker}">매수</button></td>
     <td class="l sc">${r.up||''}${r.rs!=null?` <small class="${r.rs>0?'pos':'neg'}">${r.rs>0?'+':''}${r.rs.toFixed(1)}%</small>`:''}</td><td class="sc">${r.cap==null?'':(r.cap>=10000?(r.cap/10000).toFixed(1)+'조':fmt(r.cap)+'억')}</td>${['r1m','r3m','r6m','r1y'].map(k=>`<td class="${cls(r[k])}">${r[k]==null?'':(r[k]>0?'+':'')+r[k].toFixed(1)+'%'}</td>`).join('')}${['per','pbr','pcr'].map(k=>`<td class="sc">${r[k]==null?'':r[k].toFixed(2)}</td>`).join('')}<td class="${cls(r.sr60)}">${r.sr60==null?'':(r.sr60>0?'+':'')+r.sr60.toFixed(1)+'%'}</td><td>${r.streak?`<span class="${r.streak>=2?'hot':''}">${r.streak}일</span>`:''}</td><td class="${cls(r.ret3)}">${r.ret3==null?'':(r.ret3>0?'+':'')+r.ret3.toFixed(1)+'%'}</td><td class="${cls(r.ret10)}">${r.ret10==null?'':(r.ret10>0?'+':'')+r.ret10.toFixed(1)+'%'}</td>
     <td>${fmt(r.close)}</td><td>${chg(r.close,r.change)}</td>
     <td class="name">${kor(r.last<0?null:r.last)}</td><td>${kor(r.avg)}</td><td>${r.ratio==null?'':(r.ratio>=200?`<span class="hot">${Math.round(r.ratio)}%</span>`:Math.round(r.ratio)+'%')}</td>

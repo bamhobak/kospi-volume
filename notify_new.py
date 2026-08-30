@@ -35,21 +35,21 @@ def fwp(r):
 
 # 사이트 index.html 의 FILTERS 와 동일
 FILTERS = [
-    (1, "P1 · 상승초입 (코스피·10일 보유·익절 +20%·손절 없음)",
+    ("P1", "P1 · 상승초입 (코스피·10일 보유·익절 +20%·손절 없음)",
      lambda r: r.get("mk") == "KOSPI" and (r.get("streak") or 0) >= 1 and fwp(r) >= 3 and not r["pref"]
      and (r.get("amt") or 0) >= 50 and r["a1"] / r["a6"] < 0.5
      and r.get("ret10") is not None and 0 <= r["ret10"] <= 20
      and bool(kospi.get("up20")) and bool(kospi.get("up"))
      and r.get("rs") is not None and r["rs"] > 0 and r.get("srDown") is True
      and r.get("disc") is not True),
-    (2, "P2 · 조정매집 (코스피·10일 보유·손절 없음)",
+    ("P2", "P2 · 조정매집 (코스피·10일 보유·손절 없음)",
      lambda r: r.get("mk") == "KOSPI" and (r.get("streak") or 0) >= 1 and fwp(r) >= 2 and not r["pref"]
      and (r.get("amt") or 0) >= 3 and r["a1"] / r["a6"] < 0.3
      and r.get("ret3") is not None and r["ret3"] <= -5
      and r.get("ret10") is not None and r["ret10"] <= 0
      and not bool(kospi.get("up20"))
      and r.get("srDown") is True and r.get("dilu") is not True and r.get("disc") is not True),
-    (3, "P3 · 폭락반등 (코스피·20일 보유·손절 없음)",
+    ("P3", "P3 · 폭락반등 (코스피·20일 보유·손절 없음)",
      lambda r: r.get("mk") == "KOSPI" and not r["pref"]
      and r.get("ret20") is not None and r["ret20"] <= -20
      and r.get("vs1") is not None and r["vs1"] >= 2
@@ -58,7 +58,7 @@ FILTERS = [
      and kospi.get("up60") is False
      and (r.get("sr60") is None or r["sr60"] <= -10)
      and r.get("srDown") is True and r.get("dilu") is not True and r.get("disc") is not True),
-    (4, "D1 · 낙폭과대 (코스닥·20일 보유·손절 없음)",
+    ("D1", "D1 · 낙폭과대 (코스닥·20일 보유·손절 없음)",
      lambda r: r.get("mk") == "KOSDAQ" and not r["pref"]
      and r.get("ret20") is not None and r["ret20"] <= -20
      and r.get("vs1") is not None and r["vs1"] >= 2
@@ -90,7 +90,7 @@ for fid, name, _ in FILTERS:
         r = info[t]
         chp = (r["ch"] / (r["c"] - r["ch"]) * 100) if r.get("c") and r.get("ch") and r["c"] != r["ch"] else 0
         lines.append(f"• <b>{r['n']}</b> ({t}) {r['c']:,}원 ({chp:+.1f}%)")
-        if fid in (3, 4):   # P3 / D1
+        if fid in ("P3", "D1"):
             lines.append(f"   20일 {(r.get('ret20') or 0):+.1f}% · 외인 60일 {(r.get('fw60') or 0):+.1f}% · "
                          f"당일 거래량 {(r.get('vs1') or 0):.1f}배 · 거래대금 {(r.get('amt20') or r.get('amt') or 0):.0f}억"
                          + (f" · 업종 60일 {r['sr60']:+.1f}%" if r.get('sr60') is not None else ""))
