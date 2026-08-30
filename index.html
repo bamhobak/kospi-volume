@@ -16,6 +16,8 @@ input,select{background:var(--panel2);border:1px solid var(--line);color:var(--t
 input:focus{border-color:var(--acc)}input{flex:1;min-width:120px}
 button{background:var(--acc);border:0;color:#08090b;border-radius:0;padding:8px 14px;font-weight:600;cursor:pointer;font-size:13px}
 button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
+#q{flex:none;width:180px;padding:6px 10px;font-size:12px;border-radius:0}
+#q:focus{border-color:var(--acc)}
 #status{color:var(--mut);font-size:12px;margin-left:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mkt{display:inline-flex;align-items:center;gap:6px;padding:0 2px;font-weight:700;font-size:13px;white-space:nowrap;font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
 .mkt.up{color:#fb7185}.mkt.dn{color:#60a5fa}
@@ -148,6 +150,7 @@ td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400
   <h1>밤호박 <span>종목 선별기</span></h1>
   <span id="mkt" class="mkt"></span>
   <span id="mktstate" class="mktstate"></span>
+  <input id="q" type="search" placeholder="종목명·코드 검색" autocomplete="off">
   <div id="status">불러오는 중…</div>
 </header>
 <div class="shell">
@@ -199,11 +202,6 @@ const FILTERS=[
         &&r.fw60!=null&&r.fw60>=1&&(r.amt20!=null?r.amt20:0)>=2
         &&!!(raw.kospi&&raw.kospi.up60===false)&&(r.sr60==null||r.sr60<=-15)
         &&r.srDown===true&&r.dilu!==true&&r.disc!==true},
-  {id:'D2',name:'D2 · 거래량폭발(테스트)',mkt:'KOSDAQ',
-   desc:'⚠ **테스트용 임시 규칙입니다 — 백테스트로 검증하지 않았습니다.** 화면·알림·보유종목 흐름을 신호가 여러 건 있을 때 확인하려고 넣은 것이니, 실제 매매에 쓰지 마십시오.  ▶ 조건: 코스닥 · 당일 거래량 ≥ 직전 20일 평균의 3배 · 20일 평균 거래대금 ≥ 50억 · 우선주·불연속 제외',
-   rule:{hold:10,stop:null,target:null}, ruleText:'테스트용 — 매매 규칙 없음',
-   stats:{n:0, perMonth:0, win:0, pf:0, avg:0, years:'백테스트 없음 (테스트용 규칙)'},
-   fn:r=>r.mk==='KOSDAQ'&&!r.pref&&r.vs1!=null&&r.vs1>=3&&(r.amt20||0)>=50&&r.disc!==true},
 ];
 let cur='all';  // 'all' = 하나라도 통과(OR), 숫자 = 해당 필터만
 const LEGACY_ID={1:'P1',2:'P2',3:'P3',4:'D1'};       // 예전에 저장된 숫자 id 호환
@@ -244,8 +242,10 @@ function renderTabs(){
   $('#fdesc').innerHTML=cur==='done'?'매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요.':cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (P1: 10거래일·익절+20%·손절없음 / P2: 10거래일·손절없음 / P3·D1: 20거래일·손절없음) · <button class="ghost mini" id="pinbtn">${getPin()===DEFAULT_PIN?'자동 동기화 중 (PIN 변경)':'PIN: '+getPin()+' (공유 중)'}</button>`:cur==='all'?'P1·P2·P3(코스피)·D1(코스닥) 규칙 중 하나라도 해당하는 종목입니다. 각 규칙 탭에서 기대 승률·PF와 매매 규칙을 확인하세요.':(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));const rb=$('#rule');
   if(rb){const f=FILTERS.find(x=>x.id===cur)||null;
     if(f){rb.style.display='';rb.innerHTML=`<b>${f.name} 매매 규칙</b> <span>${f.ruleText}</span>`}else{rb.style.display='none'}}
+  const qb=$('#q');if(qb&&!qb.dataset.b){qb.dataset.b='1';
+    qb.oninput=()=>{query=qb.value;rowLimit=200;render()}}
   const pb=$('#pinbtn');if(pb)pb.onclick=setPin;[$('#infobtn'),$('#infobtn2')].forEach(ib=>{if(ib)ib.onclick=()=>{showInfo=!showInfo;renderTabs()}})}
-let showInfo=false;let rowLimit=200;let doneRule=null;   /* 완료 탭 규칙 필터 */   /* 조회 표 렌더 상한 — 2천행 DOM 파싱이 브라우저를 멈춘다 */
+let showInfo=false;let rowLimit=200;let query='';let doneRule=null;   /* 완료 탭 규칙 필터 */   /* 조회 표 렌더 상한 — 2천행 DOM 파싱이 브라우저를 멈춘다 */
 function showTable(on){const t=$('#tblcard'),c=$('#cards');
   if(t)t.style.display=on?'':'none'; if(c)c.style.display=on?'none':'flex'}
 const pctTxt=v=>v==null?'—':(v>0?'+':'')+v.toFixed(1)+'%';
@@ -421,7 +421,7 @@ function prep(){const n=7,D=raw.dates,k=Math.max(0,D.length-n);view.dates=D.slic
 function val(r,k){if(k==='hits')return FILTERS.filter(f=>f.fn(r)).length;if(k.startsWith('d:'))return r.vols[+k.slice(2)]??-1;return r[k]??-1}
 const isCardView=()=>cur==='all'||FILTERS.some(f=>f.id===cur);   /* 규칙·매수대기는 카드, 조회는 표 */
 function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);renderPositions();return}
-  const q='';const D=view.dates;
+  const q=query.trim().toLowerCase();const D=view.dates;
   let rows=view.rows.filter(r=>!q||r.name.toLowerCase().includes(q)||r.ticker.includes(q));
   const th2=200;
   rows=rows.filter(passes);
@@ -433,7 +433,7 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
   $('#tbl thead').innerHTML='<tr>'+cols.map(c=>`<th class="${c[2]||''} ${sortKey===c[0]?'on':''}" data-k="${c[0]}">${c[1]}${sortKey===c[0]?(desc?' ▼':' ▲'):''}</th>`).join('')+'</tr>';
   const total=rows.length,shown=rows.slice(0,rowLimit);
   $('#tbl tbody').innerHTML=shown.map(r=>`<tr data-c="${r.ticker}" class="${sel===r.ticker?'sel':''}">
-    <td class="l name">${r.name} <span class="code">${r.ticker}${r.mk==='KOSDAQ'?' <b class="kqtag">코스닥</b>':''}</span></td>
+    <td class="l name">${r.name} <span class="code">${r.ticker}</span></td>
     ${browse?'':`<td class="l">${FILTERS.filter(f=>f.fn(r)).map(f=>`<span class="tag ${f.mkt==='KOSDAQ'?'kq':''}">${f.id}</span>`).join('')} <button class="ghost mini" data-buy="${r.ticker}">매수</button></td>`}
     <td class="sc">${r.cap==null?'':(r.cap>=10000?(r.cap/10000).toFixed(1)+'조':fmt(r.cap)+'억')}</td>${['r1m','r3m','r6m','r1y'].map(k=>`<td class="${cls(r[k])}">${r[k]==null?'':(r[k]>0?'+':'')+r[k].toFixed(1)+'%'}</td>`).join('')}${['per','pbr','pcr'].map(k=>`<td class="sc">${r[k]==null?'':r[k].toFixed(2)}</td>`).join('')}<td class="l sc">${r.up||''}${r.rs!=null?` <small class="${r.rs>0?'pos':'neg'}">${r.rs>0?'+':''}${r.rs.toFixed(1)}%</small>`:''}</td><td class="${cls(r.sr60)}">${r.sr60==null?'':(r.sr60>0?'+':'')+r.sr60.toFixed(1)+'%'}</td><td>${r.streak?`<span class="${r.streak>=2?'hot':''}">${r.streak}일</span>`:''}</td><td class="${cls(r.ret3)}">${r.ret3==null?'':(r.ret3>0?'+':'')+r.ret3.toFixed(1)+'%'}</td><td class="${cls(r.ret10)}">${r.ret10==null?'':(r.ret10>0?'+':'')+r.ret10.toFixed(1)+'%'}</td>
     <td>${fmt(r.close)}</td><td>${chg(r.close,r.change)}</td>
