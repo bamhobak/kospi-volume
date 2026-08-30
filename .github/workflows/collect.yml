@@ -3,6 +3,11 @@ on:
   schedule:
     - cron: "30 9 * * 1-5"   # 18:30 KST (UTC+9) 평일
   workflow_dispatch:
+    inputs:
+      force:
+        description: "휴장일에도 강제로 수집"
+        type: boolean
+        default: false
   push:
     branches: [main]
 permissions:
@@ -19,14 +24,24 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install -r requirements.txt
+      # 주말·공휴일(설날·추석 등)엔 수집하지 않는다. cron 의 1-5 는 월~금만 거를 뿐
+      # 공휴일은 못 거른다 — 코스피 지수에 오늘 봉이 있는지로 판정한다.
+      - name: 영업일 판정
+        id: td
+        env: { TZ: Asia/Seoul }
+        run: |
+          OK=$(python is_trading_day.py)
+          if [ "${{ inputs.force }}" = "true" ]; then OK=true; echo "force 입력 — 휴장일이어도 수집"; fi
+          echo "trading=$OK" >> $GITHUB_OUTPUT
+          echo "수집 여부: $OK"
       # 푸시(코드 변경)는 수집을 건너뛰고 빌드·배포만 한다.
       # 데이터 수집은 스케줄(평일 18:30)과 수동 실행에서만 — 하루 한 번이면 충분하다.
       - name: collect (wait for today's data)
-        if: github.event_name != 'push'
+        if: github.event_name != 'push' && steps.td.outputs.trading == 'true'
         env: { TZ: Asia/Seoul }
         run: python pipeline.py --wait --no-site
       - name: collect sector/theme (테마 주1회·업종 분기1회)
-        if: github.event_name != 'push'
+        if: github.event_name != 'push' && steps.td.outputs.trading == 'true'
         continue-on-error: true
         env: { TZ: Asia/Seoul }
         run: |
@@ -51,13 +66,13 @@ jobs:
           key: kosdaq-db-${{ github.run_id }}
           restore-keys: kosdaq-db-
       - name: collect kosdaq (최근 60거래일 누적 · 코스닥 필터용)
-        if: github.event_name != 'push'
+        if: github.event_name != 'push' && steps.td.outputs.trading == 'true'
         continue-on-error: true
         env: { TZ: Asia/Seoul }
         run: python collect_kosdaq_daily.py --days 60 --prune 150
       - name: save kosdaq cache
         uses: actions/cache/save@v4
-        if: github.event_name != 'push'
+        if: github.event_name != 'push' && steps.td.outputs.trading == 'true'
         with:
           path: |
             data/kosdaq.db
@@ -65,13 +80,13 @@ jobs:
           key: kosdaq-db-${{ github.run_id }}
 
       - name: collect valuation (PER·PBR·PCR)
-        if: github.event_name != 'push'
+        if: github.event_name != 'push' && steps.td.outputs.trading == 'true'
         continue-on-error: true
         env: { TZ: Asia/Seoul }
         run: python collect_valuation.py --workers 8
 
       - name: collect extra (공매도·희석공시 최근분)
-        if: github.event_name != 'push'
+        if: github.event_name != 'push' && steps.td.outputs.trading == 'true'
         continue-on-error: true
         env:
           TZ: Asia/Seoul
@@ -85,7 +100,7 @@ jobs:
         run: python pipeline.py --no-collect
       # 알림은 데이터가 갱신됐을 때만 — 코드 푸시로 텔레그램이 나가면 안 된다
       - name: notify new picks
-        if: github.event_name != 'push'
+        if: github.event_name != 'push' && steps.td.outputs.trading == 'true'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
