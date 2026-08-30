@@ -38,6 +38,7 @@ button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--t
 .thtag{background:var(--panel2);border:1px solid var(--line);border-radius:0;padding:3px 8px;font-size:11px;color:var(--mut)}
 .thtag.sector{border-color:var(--acc);color:var(--acc)}.thtag.up{border-color:#fb718555;color:#fb7185}
 .thtag b{font-weight:700}
+.tag.kq{background:var(--ind)}
 .tag{display:inline-block;min-width:20px;text-align:center;background:var(--acc);color:#08090b;border-radius:0;padding:1px 6px;font-size:11px;font-weight:700;margin-right:3px}
 button.mini{padding:3px 8px;font-size:11px;border-radius:0}
 .tabs button.pos-tab{border-color:#fb718555;color:#fb7185}.tabs button.pos-tab.on{background:#fb7185;border-color:#fb7185;color:#08090b}
@@ -215,7 +216,7 @@ function renderTabs(){
   const sec=Object.entries(raw.upjongRet60||{}).sort((x,y)=>x[1]-y[1]).slice(0,3)
     .map(([g,v])=>`<div class="row"><span style="color:var(--mut)">${g}</span><span class="n" style="color:var(--dn);font-family:'IBM Plex Mono',monospace">${v.toFixed(1)}%</span></div>`).join('');
   $('#rail').innerHTML=
-    `<div class="grp"><div class="k">오늘 할 일</div>`
+    `<div class="grp">`
     + nrow('pos','pos','보유 종목',positions().filter(p=>!p.sell).length)
     + nrow('all','','매수 대기',wait)
     + nrow('done','done','완료',positions().filter(p=>p.sell).length) + `</div>`
@@ -226,6 +227,7 @@ function renderTabs(){
     + (sec?`<div style="flex-grow:1"></div><div class="sec"><div class="k">업종 60일 최약</div>${sec}</div>`:'');
   document.querySelectorAll('#rail .it').forEach(b=>b.onclick=()=>{const f=b.dataset.f;
     cur=f;
+    rowLimit=200;
     if(f==='kp'||f==='kq'){sortKey='cap';desc=true}          /* 전체 종목은 시총 순 */
     showInfo=false;render()});
   const K=raw.kospi||{};
@@ -235,7 +237,7 @@ function renderTabs(){
   if(rb){const f=FILTERS.find(x=>x.id===cur)||null;
     if(f){rb.style.display='';rb.innerHTML=`<b>${f.name} 매매 규칙</b> <span>${f.ruleText}</span>`}else{rb.style.display='none'}}
   const pb=$('#pinbtn');if(pb)pb.onclick=setPin;[$('#infobtn'),$('#infobtn2')].forEach(ib=>{if(ib)ib.onclick=()=>{showInfo=!showInfo;renderTabs()}})}
-let showInfo=false;
+let showInfo=false;let rowLimit=200;   /* 조회 표 렌더 상한 — 2천행 DOM 파싱이 브라우저를 멈춘다 */
 function showTable(on){const t=$('#tblcard'),c=$('#cards');
   if(t)t.style.display=on?'':'none'; if(c)c.style.display=on?'none':'flex'}
 const pctTxt=v=>v==null?'—':(v>0?'+':'')+v.toFixed(1)+'%';
@@ -278,7 +280,7 @@ function renderCards(rows){
           <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
             <span class="nm">${r.name}</span>
             <span class="code" style="color:var(--dim);font-size:12px">${r.ticker}</span>
-            <span class="tag">${f.id}</span></div>
+            <span class="tag ${kq?'kq':''}">${f.id}</span></div>
           <div style="color:var(--mut);font-size:12px">${kq?'코스닥':'코스피'}${r.up?' · '+r.up:''}${r.cap?' · 시총 '+(r.cap>=10000?(r.cap/10000).toFixed(1)+'조':fmt(r.cap)+'억'):''}</div>
         </div>
         <div style="text-align:right;flex:none">
@@ -361,7 +363,7 @@ async function renderPositions(){
   const pr=p=>(p.sell/p.price-1)*100;
   $('#tbl tbody').innerHTML=rows.map(({p,now,hi,days,line,tgt,ret,st,sc,streak,rule})=>`<tr>
     <td class="l name">${p.name} <span class="code">${p.code}</span></td>
-    <td class="l">${(p.filters||[]).map(f=>`<span class="tag">${fcode(f)}</span>`).join('')||'<span class="code">-</span>'}</td>
+    <td class="l">${(p.filters||[]).map(f=>{const ff=fOf(f);return `<span class="tag ${ff&&ff.mkt==='KOSDAQ'?'kq':''}">${fcode(f)}</span>`}).join('')||'<span class="code">-</span>'}</td>
     <td class="l">${md(p.date)}</td><td>${fmt(p.price)}</td><td>${p.qty?fmt(p.qty)+'주':''}</td><td>${p.qty?kor(p.price*p.qty)+'원':''}</td><td>${fmt(now)}${(()=>{const lv=live.prices[p.code];const d=lv&&lv.at?lv.at.slice(0,10).replace(/-/g,''):'';return (lv&&lv.now&&d>lastD)?`<div class="code">${lv.at.slice(11,16)} ${lv.status==='OPEN'?'장중':'마감'}</div>`:`<div class="code">${md(lastD)} 종가</div>`})()}</td>
     <td class="${cls(ret)}">${ret==null?'':(ret>0?'+':'')+ret.toFixed(1)+'%'}</td><td class="${cls(ret)}">${p.qty&&now?kor((now-p.price)*p.qty,1)+'원':''}</td><td>${days}일</td><td>${fmt(hi)}</td><td>${line?'손절 '+fmt(line):''}${tgt?'익절 '+fmt(tgt):''}</td>
     <td>${streak?`<span class="${streak>=4?'hot':''}">${streak}일</span>`:'-'}</td><td class="l ${sc}" style="font-weight:600">${st}</td>
@@ -400,17 +402,21 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
   const browse=(cur==='kp'||cur==='kq');   /* 조회 전용 — 매수 버튼 없음 */
   const cols=[['name','종목','l'],...(browse?[]:[['hits','통과 규칙']]),['up','업종','l'],['cap','시가총액'],['r1m','1개월'],['r3m','3개월'],['r6m','6개월'],['r1y','1년'],['per','PER'],['pbr','PBR'],['pcr','PCR'],['sr60','업종 60일'],['streak','연속'],['ret3','3일'],['ret10','10일'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','3일평균'],['r16','2M/1Y'],['rw1','3일/2M'],['fw','외국인 1W'],['fwp','외인/거래량'],['amt','2M 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
   $('#tbl thead').innerHTML='<tr>'+cols.map(c=>`<th class="${c[2]||''} ${sortKey===c[0]?'on':''}" data-k="${c[0]}">${c[1]}${sortKey===c[0]?(desc?' ▼':' ▲'):''}</th>`).join('')+'</tr>';
-  $('#tbl tbody').innerHTML=rows.map(r=>`<tr data-c="${r.ticker}" class="${sel===r.ticker?'sel':''}">
+  const total=rows.length,shown=rows.slice(0,rowLimit);
+  $('#tbl tbody').innerHTML=shown.map(r=>`<tr data-c="${r.ticker}" class="${sel===r.ticker?'sel':''}">
     <td class="l name">${r.name} <span class="code">${r.ticker}${r.mk==='KOSDAQ'?' <b class="kqtag">코스닥</b>':''}</span></td>
-    ${browse?'':`<td class="l">${FILTERS.filter(f=>f.fn(r)).map(f=>`<span class="tag">${f.id}</span>`).join('')} <button class="ghost mini" data-buy="${r.ticker}">매수</button></td>`}
+    ${browse?'':`<td class="l">${FILTERS.filter(f=>f.fn(r)).map(f=>`<span class="tag ${f.mkt==='KOSDAQ'?'kq':''}">${f.id}</span>`).join('')} <button class="ghost mini" data-buy="${r.ticker}">매수</button></td>`}
     <td class="l sc">${r.up||''}${r.rs!=null?` <small class="${r.rs>0?'pos':'neg'}">${r.rs>0?'+':''}${r.rs.toFixed(1)}%</small>`:''}</td><td class="sc">${r.cap==null?'':(r.cap>=10000?(r.cap/10000).toFixed(1)+'조':fmt(r.cap)+'억')}</td>${['r1m','r3m','r6m','r1y'].map(k=>`<td class="${cls(r[k])}">${r[k]==null?'':(r[k]>0?'+':'')+r[k].toFixed(1)+'%'}</td>`).join('')}${['per','pbr','pcr'].map(k=>`<td class="sc">${r[k]==null?'':r[k].toFixed(2)}</td>`).join('')}<td class="${cls(r.sr60)}">${r.sr60==null?'':(r.sr60>0?'+':'')+r.sr60.toFixed(1)+'%'}</td><td>${r.streak?`<span class="${r.streak>=2?'hot':''}">${r.streak}일</span>`:''}</td><td class="${cls(r.ret3)}">${r.ret3==null?'':(r.ret3>0?'+':'')+r.ret3.toFixed(1)+'%'}</td><td class="${cls(r.ret10)}">${r.ret10==null?'':(r.ret10>0?'+':'')+r.ret10.toFixed(1)+'%'}</td>
     <td>${fmt(r.close)}</td><td>${chg(r.close,r.change)}</td>
     <td class="name">${kor(r.last<0?null:r.last)}</td><td>${kor(r.avg)}</td><td>${r.ratio==null?'':(r.ratio>=200?`<span class="hot">${Math.round(r.ratio)}%</span>`:Math.round(r.ratio)+'%')}</td>
     <td class="sc">${kor(r.a6)}</td><td class="sc">${kor(r.a1)}</td><td class="sc">${kor(r.aw)}</td><td class="sc">${r.r16==null?'':Math.round(r.r16)+'%'}</td><td>${r.rw1==null?'':(r.rw1>=th2?`<span class="hot">${Math.round(r.rw1)}%</span>`:Math.round(r.rw1)+'%')}</td><td class="${cls(r.fw)}">${kor(r.fw,1)}</td><td class="${cls(r.fwp)}">${r.fwp==null?'':r.fwp.toFixed(1)+'%'}</td><td class="sc">${r.amt==null?'':r.amt+'억'}</td>
     <td class="${cls(r.indiv)}">${kor(r.indiv,1)}</td><td class="${cls(r.organ)}">${kor(r.organ,1)}</td><td class="${cls(r.frgn)}">${kor(r.frgn,1)}</td><td>${r.foreign_ratio??''}%</td></tr>`).join('');
   $('#status').textContent=`갱신 ${raw.updated||''}`;
-  document.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortKey===k)desc=!desc;else{sortKey=k;desc=k!=='name'}render()});
-  document.querySelectorAll('tbody tr').forEach(tr=>tr.onclick=()=>{sel=tr.dataset.c;render();showStock(sel)});
+  document.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortKey===k)desc=!desc;else{sortKey=k;desc=k!=='name'}rowLimit=200;render()});
+  if(total>shown.length)$('#tbl tbody').innerHTML+=`<tr><td colspan="40" style="text-align:center;padding:14px">`
+    +`<button class="ghost mini" id="more">${(total-shown.length).toLocaleString()}개 더 보기</button></td></tr>`;
+  document.querySelectorAll('tbody tr[data-c]').forEach(tr=>tr.onclick=()=>{sel=tr.dataset.c;render();showStock(sel)});
+  const mb=$('#more');if(mb)mb.onclick=()=>{rowLimit+=200;render()};
   document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=e=>{e.stopPropagation();const r=view.rows.find(x=>x.ticker===b.dataset.buy);addPosition(r.ticker,r.name,r.close)});
 }
 async function showStock(code){
