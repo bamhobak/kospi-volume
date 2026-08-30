@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="sb.js"></script>
 <style>
-:root{--bg:#08090b;--panel:#0e1013;--panel2:#15181d;--line:#23272e;--txt:#f4f6f9;--mut:#7d848f;--acc:#5eead4;--up:#fb7185;--dn:#5eead4;--ind:#ffd60a;--org:#4ade80;--frg:#c084fc}
+:root{--dim:#565c66;--faint:#3a3f47;--bg:#08090b;--panel:#0e1013;--panel2:#15181d;--line:#23272e;--txt:#f4f6f9;--mut:#7d848f;--acc:#5eead4;--up:#fb7185;--dn:#5eead4;--ind:#ffd60a;--org:#4ade80;--frg:#c084fc}
 *{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--txt);font-family:'Gothic A1',Pretendard,-apple-system,"Malgun Gothic",sans-serif;font-size:13px;overflow:hidden}
 header{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
 header h1{font-size:16px;margin:0 8px 0 0;font-weight:900;letter-spacing:-.8px;white-space:nowrap}header h1 span{color:var(--acc)}
@@ -57,7 +57,49 @@ button.mini{padding:3px 8px;font-size:11px;border-radius:0}
 td.sc{color:#9aa3ae}
 .rule{margin:12px 16px 0;padding:10px 14px;border:1px solid #fb718544;background:#fb71850f;border-radius:0;font-size:13px;line-height:1.6}
 .rule b{color:#fb7185;margin-right:8px}.rule em{font-style:normal;color:var(--txt);font-weight:700}.rule small{display:block;color:var(--mut);font-size:11px}
-.wrap{display:grid;grid-template-columns:1fr 470px;gap:14px;padding:12px 16px 14px;height:calc(100% - 82px - 78px)}
+header{height:52px;padding:0 18px;flex-wrap:nowrap;gap:16px}
+.mktstate{display:inline-flex;align-items:center;gap:7px;padding:4px 11px;background:var(--panel2);
+          border:1px solid var(--line);color:var(--mut);font-size:11px;white-space:nowrap}
+.mktstate i{width:6px;height:6px;border-radius:999px;background:var(--org);display:inline-block}
+.mktstate b{color:var(--txt)}
+.shell{display:flex;height:calc(100% - 52px);min-height:0}
+.rail{width:212px;flex:none;background:#0b0d10;border-right:1px solid var(--line);
+      display:flex;flex-direction:column;padding:14px 10px;gap:15px;overflow-y:auto}
+.rail .k{color:var(--dim);font-size:10px;font-weight:700;letter-spacing:.08em;padding:0 8px 4px}
+.rail .grp{display:flex;flex-direction:column;gap:4px}
+.rail .it{display:flex;align-items:center;gap:9px;padding:9px 10px;cursor:pointer;
+          border:1px solid transparent;color:var(--mut);white-space:nowrap;font-weight:600}
+.rail .it:hover{background:var(--panel2)}
+.rail .it.on{background:var(--panel2);border-color:var(--acc);color:var(--txt)}
+.rail .it .n{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;color:var(--dim)}
+.rail .it.on .n{color:var(--acc);font-weight:700}
+.rail .it .bar{width:5px;height:15px;flex:none;background:var(--acc);opacity:.3}
+.rail .it.on .bar{opacity:1}
+.rail .it.kq .bar{background:var(--ind)}.rail .it.kq.on{border-color:var(--ind)}.rail .it.kq.on .n{color:var(--ind)}
+.rail .it.pos{border-color:#fb718555}.rail .it.pos.on{border-color:var(--up)}.rail .it.pos.on .n{color:var(--up)}
+.rail .it.done.on{border-color:var(--org)}.rail .it.done.on .n{color:var(--org)}
+.rail .it .rid{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:11px;width:20px;color:var(--acc)}
+.rail .it.kq .rid{color:var(--ind)}
+.rail .sec{padding:11px;background:var(--panel2);border:1px solid var(--line)}
+.rail .sec .row{display:flex;justify-content:space-between;font-size:11px;margin-top:5px}
+.main{flex-grow:1;min-width:0;display:flex;flex-direction:column;min-height:0}
+.fdesc{padding:12px 18px 0;color:var(--mut);font-size:12px}
+.wrap{display:grid;grid-template-columns:1fr 470px;gap:14px;padding:12px 18px 14px;flex-grow:1;min-height:0}
+.cards{overflow:auto;display:flex;flex-direction:column;gap:12px;min-height:0}
+.sig{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--acc);
+     padding:19px 21px;display:flex;flex-direction:column;gap:17px}
+.sig.kq{border-left-color:var(--ind)}
+.sig .hd{display:flex;align-items:flex-start;gap:14px}
+.sig .nm{font-weight:900;font-size:19px;letter-spacing:-.6px}
+.sig .why{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px}
+.sig .why div{background:var(--panel2);padding:11px 12px}
+.sig .why .l{color:var(--dim);font-size:10px;margin-bottom:5px}
+.sig .why .v{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;font-size:16px;font-weight:700}
+.sig .why .s{color:var(--faint);font-size:10px;margin-top:3px}
+.sig .plan{display:flex;align-items:center;background:var(--panel2);padding:14px 18px;gap:16px}
+.sig .plan .st{flex-grow:1}.sig .plan .st b{display:block;font-weight:600;margin-top:4px}
+.sig .warn{display:flex;align-items:center;gap:9px;color:var(--dim);font-size:11px;line-height:1.5}
+.k{color:var(--dim);font-size:10px;font-weight:700;letter-spacing:.08em}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:0;overflow:hidden;display:flex;flex-direction:column;min-height:0}
 .tblwrap{overflow:auto;flex:1;-webkit-overflow-scrolling:touch}
 table{border-collapse:separate;border-spacing:0;width:100%;white-space:nowrap}
@@ -81,7 +123,8 @@ td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400
 .empty{color:var(--mut);text-align:center;margin-top:120px}
 #close{display:none;margin-left:auto}
 @media (max-width:900px){
-  .wrap{grid-template-columns:1fr;padding:10px;height:calc(100% - 92px - 110px)}.rule{margin:10px 10px 0;font-size:12px}
+  .rail{display:none}
+  .wrap{grid-template-columns:1fr;padding:10px}.rule{margin:10px 10px 0;font-size:12px}
   header{padding:10px 12px}header h1{width:100%}
   .side{position:fixed;inset:0;z-index:20;border-radius:0;background:var(--panel);transform:translateY(100%);transition:transform .25s}
   .side.open{transform:none}#close{display:inline-block}
@@ -92,16 +135,20 @@ td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400
 <header>
   <h1>밤호박 <span>종목 선별기</span></h1>
   <span id="mkt" class="mkt"></span>
+  <span id="mktstate" class="mktstate"></span>
   <div id="status">불러오는 중…</div>
-  <div class="brk"></div>
-  <nav id="tabs" class="tabs"></nav>
-  <div class="mkleg"><span><i class="kp"></i>코스피</span><span><i class="kq"></i>코스닥</span></div>
-  <div id="fdesc" class="opts"></div>
 </header>
-<div class="rule" id="rule" style="display:none"></div>
-<div class="wrap">
-  <div class="card"><div class="tblwrap"><table id="tbl"><thead></thead><tbody></tbody></table></div></div>
-  <div class="card side" id="side"><div class="empty">종목을 클릭하면 거래량·투자자 추이가 표시됩니다</div></div>
+<div class="shell">
+  <nav id="rail" class="rail"></nav>
+  <div class="main">
+    <div id="fdesc" class="fdesc"></div>
+    <div class="rule" id="rule" style="display:none"></div>
+    <div class="wrap">
+      <div class="card" id="tblcard"><div class="tblwrap"><table id="tbl"><thead></thead><tbody></tbody></table></div></div>
+      <div id="cards" class="cards" style="display:none"></div>
+      <div class="card side" id="side"><div class="empty">종목을 클릭하면 거래량·투자자 추이가 표시됩니다</div></div>
+    </div>
+  </div>
 </div>
 <script>
 const $=s=>document.querySelector(s);
@@ -153,16 +200,97 @@ function passes(r){
   if(cur==='kq')return r.mk==='KOSDAQ';
   if(held(r.ticker))return false;             /* 보유 중(미매도) 종목은 매도 전까지 필터에서 제외 */
   return cur==='all'?FILTERS.some(f=>f.fn(r)):FILTERS.find(f=>f.id===cur).fn(r)}
-function renderTabs(){$('#tabs').innerHTML=[`<button data-f="pos" class="pos-tab ${cur==='pos'?'on':''}">보유 종목 <small>${positions().filter(p=>!p.sell).length}</small></button>`,`<button data-f="all" class="${cur==='all'?'on':''}">매수 대기 <small>${view.rows.filter(r=>FILTERS.some(f=>f.fn(r))&&!held(r.ticker)).length}</small></button>`,...FILTERS.map(f=>`<button data-f="${f.id}" class="mk-${f.mkt==='KOSDAQ'?'kq':'kp'} ${cur===f.id?'on':''}">${f.name} <small>${view.rows.filter(r=>f.fn(r)&&!held(r.ticker)).length}</small></button>`),`<button data-f="done" class="done-tab ${cur==='done'?'on':''}">완료 <small>${positions().filter(p=>p.sell).length}</small></button>`,`<button data-f="kp" class="mk-kp all-tab ${cur==='kp'?'on':''}">코스피 전체 <small>${view.rows.filter(r=>r.mk==='KOSPI').length}</small></button>`,`<button data-f="kq" class="mk-kq all-tab ${cur==='kq'?'on':''}">코스닥 전체 <small>${view.rows.filter(r=>r.mk==='KOSDAQ').length}</small></button>`].join('');
-  document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{const f=b.dataset.f;
+function renderTabs(){
+  const nrow=(f,cls,label,n,extra='')=>`<div class="it ${cls} ${cur===f?'on':''}" data-f="${f}">${extra}<span>${label}</span><span class="n">${n}</span></div>`;
+  const wait=view.rows.filter(r=>FILTERS.some(f=>f.fn(r))&&!held(r.ticker)).length;
+  const rules=FILTERS.map(f=>nrow(f.id,f.mkt==='KOSDAQ'?'kq':'',f.name.split(' · ')[1],
+      view.rows.filter(r=>f.fn(r)&&!held(r.ticker)).length,
+      `<span class="bar"></span><span class="rid">${f.id}</span>`)).join('');
+  const sec=Object.entries(raw.upjongRet60||{}).sort((x,y)=>x[1]-y[1]).slice(0,3)
+    .map(([g,v])=>`<div class="row"><span style="color:var(--mut)">${g}</span><span class="n" style="color:var(--dn);font-family:'IBM Plex Mono',monospace">${v.toFixed(1)}%</span></div>`).join('');
+  $('#rail').innerHTML=
+    `<div class="grp"><div class="k">오늘 할 일</div>`
+    + nrow('pos','pos','보유 종목',positions().filter(p=>!p.sell).length)
+    + nrow('all','','매수 대기',wait)
+    + nrow('done','done','완료',positions().filter(p=>p.sell).length) + `</div>`
+    + `<div class="grp"><div class="k">규칙</div>${rules}</div>`
+    + `<div class="grp"><div class="k">조회</div>`
+    + nrow('kp','','코스피 전체',view.rows.filter(r=>r.mk==='KOSPI').length,'<span class="bar"></span>')
+    + nrow('kq','kq','코스닥 전체',view.rows.filter(r=>r.mk==='KOSDAQ').length,'<span class="bar"></span>') + `</div>`
+    + (sec?`<div style="flex-grow:1"></div><div class="sec"><div class="k">업종 60일 최약</div>${sec}</div>`:'');
+  document.querySelectorAll('#rail .it').forEach(b=>b.onclick=()=>{const f=b.dataset.f;
     cur=f;
     if(f==='kp'||f==='kq'){sortKey='cap';desc=true}          /* 전체 종목은 시총 순 */
     showInfo=false;render()});
+  const K=raw.kospi||{};
+  $('#mktstate').innerHTML=K.up60==null?'':
+    `<i style="background:${K.up60?'var(--dn)':'var(--org)'}"></i>코스피 60일선 <b>${K.up60?'위':'아래'}</b> · ${K.up60?'P1 활성':'P3·D1 활성'}`;
   $('#fdesc').innerHTML=cur==='done'?'매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요.':cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (P1: 10거래일·익절+20%·손절없음 / P2: 10거래일·손절없음 / P3·D1: 20거래일·손절없음) · <button class="ghost mini" id="pinbtn">${getPin()===DEFAULT_PIN?'자동 동기화 중 (PIN 변경)':'PIN: '+getPin()+' (공유 중)'}</button>`:cur==='all'?'P1·P2·P3(코스피)·D1(코스닥) 규칙 중 하나라도 해당하는 종목입니다. 각 규칙 탭에서 기대 승률·PF와 매매 규칙을 확인하세요.':(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));const rb=$('#rule');
   if(rb){const f=FILTERS.find(x=>x.id===cur)||null;
     if(f){rb.style.display='';rb.innerHTML=`<b>${f.name} 매매 규칙</b> <span>${f.ruleText}</span>`}else{rb.style.display='none'}}
   const pb=$('#pinbtn');if(pb)pb.onclick=setPin;[$('#infobtn'),$('#infobtn2')].forEach(ib=>{if(ib)ib.onclick=()=>{showInfo=!showInfo;renderTabs()}})}
 let showInfo=false;
+function showTable(on){const t=$('#tblcard'),c=$('#cards');
+  if(t)t.style.display=on?'':'none'; if(c)c.style.display=on?'none':'flex'}
+const pctTxt=v=>v==null?'—':(v>0?'+':'')+v.toFixed(1)+'%';
+function whyCells(r,f){
+  /* 규칙마다 '왜 걸렸나'를 조건별 실제값 + 기준값으로 보여준다 */
+  const kospiDown=!(raw.kospi&&raw.kospi.up60);
+  const C={dn:'var(--dn)',up:'var(--up)'};
+  const T={
+    P3:[['20일 낙폭',pctTxt(r.ret20),C.dn,'기준 −20%↓'],['당일 거래량',(r.vs1??0).toFixed(1)+'배',C.up,'기준 2배↑'],
+        ['외국인 60일',pctTxt(r.fw60),C.up,'기준 1%↑'],['업종 60일',pctTxt(r.sr60),C.dn,'기준 −10%↓'],
+        ['코스피 60일선',kospiDown?'아래':'위',C.dn,'시장 조건']],
+    D1:[['20일 낙폭',pctTxt(r.ret20),C.dn,'기준 −20%↓'],['당일 거래량',(r.vs1??0).toFixed(1)+'배',C.up,'기준 2배↑'],
+        ['외국인 60일',pctTxt(r.fw60),C.up,'기준 1%↑'],['업종 60일',pctTxt(r.sr60),C.dn,'기준 −15%↓'],
+        ['코스피 60일선',kospiDown?'아래':'위',C.dn,'시장 조건']],
+    P1:[['10일 등락',pctTxt(r.ret10),C.up,'기준 0~20%'],['3일/2개월 거래량',Math.round(r.rw1||0)+'%',C.up,'기준 200%↑'],
+        ['외인/거래량',r.fwp==null?'—':r.fwp.toFixed(1)+'%',C.up,'기준 3%↑'],
+        ['2M/1Y 거래량',Math.round(r.r16||0)+'%',C.dn,'기준 50%↓'],['거래대금',(r.amt??0)+'억',C.up,'기준 50억↑']],
+    P2:[['3일 등락',pctTxt(r.ret3),C.dn,'기준 −5%↓'],['10일 등락',pctTxt(r.ret10),C.dn,'기준 하락'],
+        ['3일/2개월 거래량',Math.round(r.rw1||0)+'%',C.up,'기준 200%↑'],
+        ['외인/거래량',r.fwp==null?'—':r.fwp.toFixed(1)+'%',C.up,'기준 2%↑'],
+        ['2M/1Y 거래량',Math.round(r.r16||0)+'%',C.dn,'기준 30%↓']]};
+  return (T[f.id]||[]).map(([l,v,c,sub])=>
+    `<div><div class="l">${l}</div><div class="v" style="color:${c}">${v}</div><div class="s">${sub}</div></div>`).join('')}
+function renderCards(rows){
+  const box=$('#cards');
+  if(!rows.length){box.innerHTML=`<div class="empty" style="margin-top:60px">${cur==='all'?'오늘 조건을 만족한 종목이 없습니다.':'오늘 이 규칙에 걸린 종목이 없습니다.'}<div style="font-size:12px;margin-top:8px;color:var(--faint)">신호가 없는 날이 더 많습니다.</div></div>`;return}
+  box.innerHTML=rows.map(r=>{
+    const f=FILTERS.find(x=>x.id===cur)||FILTERS.find(x=>x.fn(r));
+    if(!f)return '';
+    const kq=f.mkt==='KOSDAQ',hold=f.rule.hold;
+    const chp=(r.close&&r.change!=null&&r.close!==r.change)?r.change/(r.close-r.change)*100:0;
+    return `<div class="sig ${kq?'kq':''}">
+      <div class="hd">
+        <div style="flex-grow:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
+            <span class="nm">${r.name}</span>
+            <span class="code" style="color:var(--dim);font-size:12px">${r.ticker}</span>
+            <span class="tag">${f.id}</span></div>
+          <div style="color:var(--mut);font-size:12px">${kq?'코스닥':'코스피'}${r.up?' · '+r.up:''}${r.cap?' · 시총 '+(r.cap>=10000?(r.cap/10000).toFixed(1)+'조':fmt(r.cap)+'억'):''}</div>
+        </div>
+        <div style="text-align:right;flex:none">
+          <div class="n" style="font-size:23px;font-weight:700;line-height:1.1;font-family:'IBM Plex Mono',monospace">${fmt(r.close)}<span style="font-size:13px;color:var(--mut);font-weight:500">원</span></div>
+          <div class="${chp>0?'pos':'neg'}" style="font-size:12px;margin-top:2px;font-family:'IBM Plex Mono',monospace">${chp>0?'+':''}${chp.toFixed(1)}%</div>
+        </div>
+      </div>
+      <div><div class="k" style="margin-bottom:9px">왜 걸렸나</div><div class="why">${whyCells(r,f)}</div></div>
+      <div class="plan">
+        <div class="st"><span class="k">매수</span><b>다음날 시가</b></div>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        <div class="st"><span class="k">보유</span><b>${hold}거래일${f.rule.target?' · 익절 +'+f.rule.target+'%':''}</b></div>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        <div class="st"><span class="k">매도</span><b>${hold}일 뒤 종가</b></div>
+        <div style="flex:none"><button data-buy="${r.ticker}">매수 기록</button></div>
+      </div>
+      <div class="warn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ind)" stroke-width="2" stroke-linecap="round" style="flex:none"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+        <span>${f.rule.stop?'손절 '+f.rule.stop+'%':'손절이 없습니다 — 보유기간을 끝까지 채우는 것이 규칙입니다'}. 기대 승률 ${f.stats.win}% · 건당 ${f.stats.avg>0?'+':''}${f.stats.avg}%</span>
+      </div></div>`}).join('');
+  document.querySelectorAll('#cards [data-buy]').forEach(b=>b.onclick=e=>{e.stopPropagation();
+    const r=view.rows.find(x=>x.ticker===b.dataset.buy);addPosition(r.ticker,r.name,r.close)});
+  $('#status').textContent=`갱신 ${raw.updated||''}`}
 function statsHtml(f){const t=f.stats;
   const cards=`<div class="stats">
     <span class="s-item" title="기대 승률 — 백테스트 ${t.n}건 중 수익으로 끝난 비율. 손절이 없으므로 보유기간을 끝까지 채웠을 때 기준입니다."><b>${t.win}%</b></span>
@@ -248,11 +376,14 @@ function prep(){const n=7,D=raw.dates,k=Math.max(0,D.length-n);view.dates=D.slic
     const ratio=(prev.length&&last!=null&&prev.reduce((a,b)=>a+b,0))?last/(prev.reduce((a,b)=>a+b,0)/prev.length)*100:null;
     return {ticker:r.t,name:r.n,close:r.c,change:r.ch,foreign_ratio:r.fr,vols,avg,total:valid.reduce((a,b)=>a+b,0),ratio,indiv:sum(r.i),organ:sum(r.o),frgn:sum(r.f),amt:r.amt,cap:r.cap,r1m:r.r1m,r3m:r.r3m,r6m:r.r6m,r1y:r.r1y,per:r.per,pbr:r.pbr,pcr:r.pcr,dy:r.dy,pref:r.pref,fw:r.f.slice(-5).reduce((x,y)=>x+(y||0),0),v5:r.v.slice(-5).reduce((x,y)=>x+(y||0),0),fwp:(()=>{const v=r.v.slice(-5).reduce((x,y)=>x+(y||0),0),f=r.f.slice(-5).reduce((x,y)=>x+(y||0),0);return v?f/v*100:null})(),streak:r.streak||0,ret3:r.ret3,ret10:r.ret10,ret20:r.ret20,sr60:r.sr60,vs1:r.vs1,fw60:r.fw60,amt20:r.amt20,disc:r.disc,up:r.up,rs:r.rs,sr:r.sr,srDown:r.srDown,dilu:r.dilu,th:r.th||[],mk:r.mk||'KOSPI',aw:r.aw,a1:r.a1,a6:r.a6,r16:(r.a1&&r.a6)?r.a1/r.a6*100:null,rw1:(r.aw&&r.a1)?r.aw/r.a1*100:null,last:last??-1,chpct:(r.c&&r.ch!=null&&r.c-r.ch)?r.ch/(r.c-r.ch)*100:-999}})}
 function val(r,k){if(k==='hits')return FILTERS.filter(f=>f.fn(r)).length;if(k.startsWith('d:'))return r.vols[+k.slice(2)]??-1;return r[k]??-1}
-function render(){renderTabs();if(cur==='pos'||cur==='done'){renderPositions();return}
+const isCardView=()=>cur==='all'||FILTERS.some(f=>f.id===cur);   /* 규칙·매수대기는 카드, 조회는 표 */
+function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);renderPositions();return}
   const q='';const D=view.dates;
   let rows=view.rows.filter(r=>!q||r.name.toLowerCase().includes(q)||r.ticker.includes(q));
   const th2=200;
   rows=rows.filter(passes);
+  if(isCardView()){showTable(false);renderCards(rows);return}
+  showTable(true);
   rows.sort((a,b)=>{const x=val(a,sortKey),y=val(b,sortKey);return (typeof x==='string')?(desc?y.localeCompare(x):x.localeCompare(y)):(desc?y-x:x-y)});
   const cols=[['name','종목','l'],['hits','통과 규칙'],['up','업종','l'],['cap','시가총액'],['r1m','1개월'],['r3m','3개월'],['r6m','6개월'],['r1y','1년'],['per','PER'],['pbr','PBR'],['pcr','PCR'],['sr60','업종 60일'],['streak','연속'],['ret3','3일'],['ret10','10일'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','3일평균'],['r16','2M/1Y'],['rw1','3일/2M'],['fw','외국인 1W'],['fwp','외인/거래량'],['amt','2M 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
   $('#tbl thead').innerHTML='<tr>'+cols.map(c=>`<th class="${c[2]||''} ${sortKey===c[0]?'on':''}" data-k="${c[0]}">${c[1]}${sortKey===c[0]?(desc?' ▼':' ▲'):''}</th>`).join('')+'</tr>';

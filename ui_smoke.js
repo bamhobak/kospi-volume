@@ -7,9 +7,11 @@ const T = JSON.parse(fs.readFileSync('site/data/table.json', 'utf8'));
 const mkEl = () => ({ innerHTML: '', textContent: '', style: {}, dataset: {},
   onclick: null, classList: { add() {}, remove() {}, toggle() {} },
   querySelectorAll: () => [], querySelector: () => null, appendChild() {}, addEventListener() {} });
+const EL = {};
+const pick = sel => (EL[sel] = EL[sel] || mkEl());
 const doc = {
-  querySelector: () => mkEl(), querySelectorAll: () => [],
-  getElementById: () => mkEl(), createElement: () => mkEl(),
+  querySelector: sel => pick(sel), querySelectorAll: () => [],
+  getElementById: id => pick('#' + id), createElement: () => mkEl(),
   addEventListener() {}, body: mkEl(), documentElement: mkEl(),
 };
 global.document = doc;
@@ -49,7 +51,10 @@ for (const cur of ['pos', 'all', ...ids, 'done', 'kp', 'kq']) {
     vm.runInContext(`cur = ${typeof cur === 'number' ? cur : JSON.stringify(cur)}; render()`, ctx);
     let n = '-';
     try { n = vm.runInContext('view.rows.filter(passes).length', ctx); } catch (e) { n = 'passes오류: ' + e.message }
-    console.log(`  cur=${String(cur).padEnd(4)} render OK · passes ${n}건`);
+    const rail = (EL['#rail'] || {}).innerHTML || '';
+    const cards = (EL['#cards'] || {}).innerHTML || '';
+    const tbody = (EL['#tbl tbody'] || {}).innerHTML || '';
+    console.log(`  cur=${String(cur).padEnd(4)} passes ${String(n).padEnd(5)} 레일 ${String(rail.length).padStart(5)}자 · 카드 ${String(cards.length).padStart(6)}자 · 표 ${String(tbody.length).padStart(7)}자`);
   } catch (e) {
     fail++; console.log(`  cur=${String(cur).padEnd(4)} ✗ ${e.message}`);
   }
