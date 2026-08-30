@@ -54,6 +54,11 @@ jobs:
           path: data/kosdaq.db
           key: kosdaq-db-${{ github.run_id }}
 
+      - name: collect valuation (PER·PBR·PCR)
+        continue-on-error: true
+        env: { TZ: Asia/Seoul }
+        run: python collect_valuation.py --workers 8
+
       - name: collect extra (공매도·희석공시 최근분)
         continue-on-error: true
         env:
@@ -74,7 +79,7 @@ jobs:
       - name: commit monthly csv
         run: |
           git config user.name "kospi-bot"; git config user.email "bot@users.noreply.github.com"
-          git add data/20*.csv data/short_recent.csv data/dilution_recent.csv data/sector.csv data/industry.csv
+          git add data/20*.csv data/short_recent.csv data/dilution_recent.csv data/sector.csv data/industry.csv data/valuation.csv
           git diff --cached --quiet || (git commit -m "data: $(TZ=Asia/Seoul date +%Y-%m-%d)" && git pull --rebase && git push)
       - uses: actions/upload-pages-artifact@v3
         with: { path: site }

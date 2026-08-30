@@ -26,6 +26,7 @@ button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--t
 .info-btn{border-color:var(--acc)!important;color:var(--acc)!important}
 .info-card{cursor:pointer;color:var(--acc);font-size:15px;font-weight:700;min-width:60px}.info-card:hover{border-color:var(--acc)}
 .s-item b{display:block;color:var(--acc);font-size:15px;line-height:1.2}.s-item small{color:var(--mut);font-size:10px}
+.s-item{cursor:help;padding:9px 12px}.s-item:hover{border-color:var(--acc)}
 .stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:2px}
 .s-item{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:5px 12px;text-align:center;min-width:76px}
 .info-btn{border-color:var(--acc)!important;color:var(--acc)!important}
@@ -155,11 +156,11 @@ function renderTabs(){$('#tabs').innerHTML=[`<button data-f="all" class="${cur==
 let showInfo=false;
 function statsHtml(f){const t=f.stats;
   const cards=`<div class="stats">
-    <span class="s-item"><b>${t.win}%</b><small>기대 승률</small></span>
-    <span class="s-item"><b>${t.pf}</b><small>기대 PF</small></span>
-    <span class="s-item"><b>+${t.avg}%</b><small>기대 순수익/건</small></span>
-    <span class="s-item"><b>월 ${t.perMonth}건</b><small>출현 빈도(44개월 ${t.n}건)</small></span>
-    <span class="s-item info-card" id="infobtn2">${showInfo?'✕':'ⓘ'}<small>상세 조건</small></span></div>`;
+    <span class="s-item" title="기대 승률 — 백테스트 ${t.n}건 중 수익으로 끝난 비율. 손절이 없으므로 보유기간을 끝까지 채웠을 때 기준입니다."><b>${t.win}%</b></span>
+    <span class="s-item" title="Profit Factor — 이익 거래의 합 ÷ 손실 거래의 합. 1.0이면 본전, 높을수록 손실 대비 이익이 큽니다."><b>${t.pf}</b></span>
+    <span class="s-item" title="건당 평균 순수익 — 수수료·세금·슬리피지를 모두 뺀 값입니다. 중앙값은 이보다 낮을 수 있습니다(큰 수익 몇 건이 평균을 끌어올림)."><b>+${t.avg}%</b></span>
+    <span class="s-item" title="출현 빈도 — 백테스트 전 구간에서 ${t.n}건이 나왔습니다. 신호가 없는 달도 많으니 조용하다고 고장난 게 아닙니다."><b>월 ${t.perMonth}건</b></span>
+    <span class="s-item info-card" id="infobtn2" title="필터 상세 조건과 연도별 성적 보기">${showInfo?'✕':'ⓘ'}</span></div>`;
   if(!showInfo) return cards;
   return cards+`
   <div style="margin-top:6px">${f.desc}</div>
@@ -235,7 +236,7 @@ function prep(){const n=7,D=raw.dates,k=Math.max(0,D.length-n);view.dates=D.slic
   view.rows=raw.rows.map(r=>{const vols=r.v.slice(k),valid=vols.filter(x=>x!=null);const sum=a=>a.slice(k).reduce((x,y)=>x+(y||0),0);
     const prev=vols.slice(0,-1).filter(x=>x!=null),last=vols[vols.length-1];const avg=valid.length?valid.reduce((a,b)=>a+b,0)/valid.length:0;
     const ratio=(prev.length&&last!=null&&prev.reduce((a,b)=>a+b,0))?last/(prev.reduce((a,b)=>a+b,0)/prev.length)*100:null;
-    return {ticker:r.t,name:r.n,close:r.c,change:r.ch,foreign_ratio:r.fr,vols,avg,total:valid.reduce((a,b)=>a+b,0),ratio,indiv:sum(r.i),organ:sum(r.o),frgn:sum(r.f),amt:r.amt,cap:r.cap,pref:r.pref,fw:r.f.slice(-5).reduce((x,y)=>x+(y||0),0),v5:r.v.slice(-5).reduce((x,y)=>x+(y||0),0),fwp:(()=>{const v=r.v.slice(-5).reduce((x,y)=>x+(y||0),0),f=r.f.slice(-5).reduce((x,y)=>x+(y||0),0);return v?f/v*100:null})(),streak:r.streak||0,ret3:r.ret3,ret10:r.ret10,ret20:r.ret20,sr60:r.sr60,vs1:r.vs1,fw60:r.fw60,amt20:r.amt20,disc:r.disc,up:r.up,rs:r.rs,sr:r.sr,srDown:r.srDown,dilu:r.dilu,th:r.th||[],mk:r.mk||'KOSPI',aw:r.aw,a1:r.a1,a6:r.a6,r16:(r.a1&&r.a6)?r.a1/r.a6*100:null,rw1:(r.aw&&r.a1)?r.aw/r.a1*100:null,last:last??-1,chpct:(r.c&&r.ch!=null&&r.c-r.ch)?r.ch/(r.c-r.ch)*100:-999}})}
+    return {ticker:r.t,name:r.n,close:r.c,change:r.ch,foreign_ratio:r.fr,vols,avg,total:valid.reduce((a,b)=>a+b,0),ratio,indiv:sum(r.i),organ:sum(r.o),frgn:sum(r.f),amt:r.amt,cap:r.cap,r1m:r.r1m,r3m:r.r3m,r6m:r.r6m,r1y:r.r1y,per:r.per,pbr:r.pbr,pcr:r.pcr,dy:r.dy,pref:r.pref,fw:r.f.slice(-5).reduce((x,y)=>x+(y||0),0),v5:r.v.slice(-5).reduce((x,y)=>x+(y||0),0),fwp:(()=>{const v=r.v.slice(-5).reduce((x,y)=>x+(y||0),0),f=r.f.slice(-5).reduce((x,y)=>x+(y||0),0);return v?f/v*100:null})(),streak:r.streak||0,ret3:r.ret3,ret10:r.ret10,ret20:r.ret20,sr60:r.sr60,vs1:r.vs1,fw60:r.fw60,amt20:r.amt20,disc:r.disc,up:r.up,rs:r.rs,sr:r.sr,srDown:r.srDown,dilu:r.dilu,th:r.th||[],mk:r.mk||'KOSPI',aw:r.aw,a1:r.a1,a6:r.a6,r16:(r.a1&&r.a6)?r.a1/r.a6*100:null,rw1:(r.aw&&r.a1)?r.aw/r.a1*100:null,last:last??-1,chpct:(r.c&&r.ch!=null&&r.c-r.ch)?r.ch/(r.c-r.ch)*100:-999}})}
 function val(r,k){if(k==='hits')return FILTERS.filter(f=>f.fn(r)).length;if(k.startsWith('d:'))return r.vols[+k.slice(2)]??-1;return r[k]??-1}
 function render(){renderTabs();if(cur==='pos'){renderPositions();return}
   const q='';const D=view.dates;
@@ -243,12 +244,12 @@ function render(){renderTabs();if(cur==='pos'){renderPositions();return}
   const th2=200;
   rows=rows.filter(passes);
   rows.sort((a,b)=>{const x=val(a,sortKey),y=val(b,sortKey);return (typeof x==='string')?(desc?y.localeCompare(x):x.localeCompare(y)):(desc?y-x:x-y)});
-  const cols=[['name','종목','l'],['hits','통과 필터'],['up','업종','l'],['cap','시가총액'],['sr60','업종 60일'],['streak','연속'],['ret3','3일'],['ret10','10일'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','3일평균'],['r16','2M/1Y'],['rw1','3일/2M'],['fw','외국인 1W'],['fwp','외인/거래량'],['amt','2M 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
+  const cols=[['name','종목','l'],['hits','통과 필터'],['up','업종','l'],['cap','시가총액'],['r1m','1개월'],['r3m','3개월'],['r6m','6개월'],['r1y','1년'],['per','PER'],['pbr','PBR'],['pcr','PCR'],['sr60','업종 60일'],['streak','연속'],['ret3','3일'],['ret10','10일'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','3일평균'],['r16','2M/1Y'],['rw1','3일/2M'],['fw','외국인 1W'],['fwp','외인/거래량'],['amt','2M 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
   $('#tbl thead').innerHTML='<tr>'+cols.map(c=>`<th class="${c[2]||''} ${sortKey===c[0]?'on':''}" data-k="${c[0]}">${c[1]}${sortKey===c[0]?(desc?' ▼':' ▲'):''}</th>`).join('')+'</tr>';
   $('#tbl tbody').innerHTML=rows.map(r=>`<tr data-c="${r.ticker}" class="${sel===r.ticker?'sel':''}">
     <td class="l name">${r.name} <span class="code">${r.ticker}${r.mk==='KOSDAQ'?' <b class="kqtag">코스닥</b>':''}</span></td>
     <td class="l">${FILTERS.filter(f=>f.fn(r)).map(f=>`<span class="tag">${f.id}</span>`).join('')} <button class="ghost mini" data-buy="${r.ticker}">매수</button></td>
-    <td class="l sc">${r.up||''}${r.rs!=null?` <small class="${r.rs>0?'pos':'neg'}">${r.rs>0?'+':''}${r.rs.toFixed(1)}%</small>`:''}</td><td class="sc">${r.cap==null?'':(r.cap>=10000?(r.cap/10000).toFixed(1)+'조':fmt(r.cap)+'억')}</td><td class="${cls(r.sr60)}">${r.sr60==null?'':(r.sr60>0?'+':'')+r.sr60.toFixed(1)+'%'}</td><td>${r.streak?`<span class="${r.streak>=2?'hot':''}">${r.streak}일</span>`:''}</td><td class="${cls(r.ret3)}">${r.ret3==null?'':(r.ret3>0?'+':'')+r.ret3.toFixed(1)+'%'}</td><td class="${cls(r.ret10)}">${r.ret10==null?'':(r.ret10>0?'+':'')+r.ret10.toFixed(1)+'%'}</td>
+    <td class="l sc">${r.up||''}${r.rs!=null?` <small class="${r.rs>0?'pos':'neg'}">${r.rs>0?'+':''}${r.rs.toFixed(1)}%</small>`:''}</td><td class="sc">${r.cap==null?'':(r.cap>=10000?(r.cap/10000).toFixed(1)+'조':fmt(r.cap)+'억')}</td>${['r1m','r3m','r6m','r1y'].map(k=>`<td class="${cls(r[k])}">${r[k]==null?'':(r[k]>0?'+':'')+r[k].toFixed(1)+'%'}</td>`).join('')}${['per','pbr','pcr'].map(k=>`<td class="sc">${r[k]==null?'':r[k].toFixed(2)}</td>`).join('')}<td class="${cls(r.sr60)}">${r.sr60==null?'':(r.sr60>0?'+':'')+r.sr60.toFixed(1)+'%'}</td><td>${r.streak?`<span class="${r.streak>=2?'hot':''}">${r.streak}일</span>`:''}</td><td class="${cls(r.ret3)}">${r.ret3==null?'':(r.ret3>0?'+':'')+r.ret3.toFixed(1)+'%'}</td><td class="${cls(r.ret10)}">${r.ret10==null?'':(r.ret10>0?'+':'')+r.ret10.toFixed(1)+'%'}</td>
     <td>${fmt(r.close)}</td><td>${chg(r.close,r.change)}</td>
     <td class="name">${kor(r.last<0?null:r.last)}</td><td>${kor(r.avg)}</td><td>${r.ratio==null?'':(r.ratio>=200?`<span class="hot">${Math.round(r.ratio)}%</span>`:Math.round(r.ratio)+'%')}</td>
     <td class="sc">${kor(r.a6)}</td><td class="sc">${kor(r.a1)}</td><td class="sc">${kor(r.aw)}</td><td class="sc">${r.r16==null?'':Math.round(r.r16)+'%'}</td><td>${r.rw1==null?'':(r.rw1>=th2?`<span class="hot">${Math.round(r.rw1)}%</span>`:Math.round(r.rw1)+'%')}</td><td class="${cls(r.fw)}">${kor(r.fw,1)}</td><td class="${cls(r.fwp)}">${r.fwp==null?'':r.fwp.toFixed(1)+'%'}</td><td class="sc">${r.amt==null?'':r.amt+'억'}</td>

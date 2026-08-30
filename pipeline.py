@@ -167,11 +167,37 @@ def short_flags(dates):
 
 INDUSTRY_CSV = DATA / "industry.csv"
 
+VALUATION_CSV = DATA / "valuation.csv"
+
+def load_valuation():
+    """PER/PBR/PCR 등 (data/valuation.csv) — collect_valuation.py 가 하루 1회 갱신"""
+    if not VALUATION_CSV.exists(): return {}
+    out = {}
+    with open(VALUATION_CSV, encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            f = lambda k: (float(r[k]) if r.get(k) not in (None, "", "None") else None)
+            try:
+                out[r["ticker"]] = {"per": f("per"), "pbr": f("pbr"), "pcr": f("pcr"),
+                                    "eps": f("eps"), "bps": f("bps"), "dy": f("div_yield"),
+                                    "uper": f("upjong_per"), "ev": f("ev_ebitda")}
+            except ValueError: pass
+    return out
+
 def load_industry():
     """표준산업분류 (코스닥 업종 조건용) — data/industry.csv"""
     if not INDUSTRY_CSV.exists(): return {}
     with open(INDUSTRY_CSV, encoding="utf-8") as fh:
         return {r["ticker"]: r["industry"] for r in csv.DictReader(fh) if r.get("industry")}
+
+def fill_valuation(table):
+    """PER/PBR/PCR 등을 종목 행에 붙인다."""
+    V = load_valuation()
+    n = 0
+    for r in table:
+        v = V.get(r["t"])
+        if not v: continue
+        r.update({k: x for k, x in v.items() if x is not None}); n += 1
+    print(f"밸류에이션: {len(V):,}종목 로드 · {n:,}종목 매칭")
 
 def fill_sr60(table, up_kospi, r60_kospi):
     """종목마다 '소속 업종의 60일 수익률'(sr60) 을 채운다.
@@ -283,6 +309,10 @@ def build_site():
         # ── 3번 필터(폭락 반등)용 ──────────────────────────────
         ret20 = round((closes[-1] / closes[-21] - 1) * 100, 2) if len(closes) >= 21 and closes[-21] else None  # 최근 20거래일
         ret60 = round((closes[-1] / closes[-61] - 1) * 100, 2) if len(closes) >= 61 and closes[-61] else None  # 업종 60일 수익률 집계용
+        # 기간 수익률 (1M=20 / 3M=60 / 6M=120 / 1Y=240 거래일) — 수정주가 기준
+        def _r(n):
+            return round((closes[-1] / closes[-(n + 1)] - 1) * 100, 2) if len(closes) >= n + 1 and closes[-(n + 1)] else None
+        r1m, r3m, r6m, r1y = _r(20), _r(60), _r(120), _r(240)
         a20p = avg(vol_all[-21:-1])                          # 직전 20일(당일 제외) 평균 거래량
         vs1 = round(vol_all[-1] / a20p, 2) if len(vol_all) >= 21 and a20p else None   # 당일 거래량 배수
         v60, f60 = vol_all[-60:], fr_all[-60:]               # 외국인 60일 누적 순매수 비중(%)
@@ -293,7 +323,7 @@ def build_site():
         rec = closes[-26:]
         disc = any(rec[i-1] and not (0.68 < rec[i] / rec[i-1] < 1.32) for i in range(1, len(rec)))
         table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2], "streak": streak, "ret3": ret3, "ret10": ret10,
-                      "ret20": ret20, "ret60": ret60, "vs1": vs1, "fw60": fw60, "amt20": amt20, "disc": disc,
+                      "ret20": ret20, "ret60": ret60, "r1m": r1m, "r3m": r3m, "r6m": r6m, "r1y": r1y, "vs1": vs1, "fw60": fw60, "amt20": amt20, "disc": disc,
                       "aw": aw, "a1": a1, "a6": a6 if n6 >= W_BASE // 2 else None,
                       "amt": round(amt1 / 1e8, 2) if amt1 else None, "cap": s.get("cap"), "pref": s["ticker"][-1] != "0", "mk": s.get("mkt", "KOSPI"),
                       "up": UP.get(s["ticker"]), "rs": RS.get(UP.get(s["ticker"])),
@@ -304,6 +334,7 @@ def build_site():
         json.dump({"ticker": s["ticker"], "name": s["name"], "dates": dates, "rows": s["rows"]},
                   open(SITE / "data" / "stock" / f"{s['ticker']}.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     fill_sr60(table, UP, R60)
+    fill_valuation(table)
     json.dump({"dates": tdates, "rows": table, "kospi": kospi_state(), "themeRet": TRET, "upjongRS": RS, "upjongRet60": R60, "shortN": len(SF), "diluN": len(DILU), "sectorSnap": SNAP, "updated": collect.datetime.now().strftime("%Y-%m-%d %H:%M")},
               open(SITE / "data" / "table.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     print(f"site: {len(table)}종목, {tdates[0]}~{tdates[-1]}, table.json {round((SITE/'data'/'table.json').stat().st_size/1024)}KB")
