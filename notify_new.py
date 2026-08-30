@@ -56,6 +56,7 @@ FILTERS = [
      and r.get("fw60") is not None and r["fw60"] >= 1
      and (r.get("amt20") if r.get("amt20") is not None else (r.get("amt") or 0)) >= 3
      and kospi.get("up60") is False
+     and (r.get("sr60") is None or r["sr60"] <= -10)
      and r.get("srDown") is True and r.get("dilu") is not True and r.get("disc") is not True),
     (4, "4번 · 낙폭과대 (코스닥·20일 보유·손절 없음)",
      lambda r: r.get("mk") == "KOSDAQ" and not r["pref"]
@@ -64,6 +65,7 @@ FILTERS = [
      and r.get("fw60") is not None and r["fw60"] >= 1
      and (r.get("amt20") or 0) >= 2
      and kospi.get("up60") is False
+     and (r.get("sr60") is None or r["sr60"] <= -15)
      and r.get("srDown") is True and r.get("dilu") is not True and r.get("disc") is not True),
 ]
 
@@ -90,7 +92,8 @@ for fid, name, _ in FILTERS:
         lines.append(f"• <b>{r['n']}</b> ({t}) {r['c']:,}원 ({chp:+.1f}%)")
         if fid in (3, 4):
             lines.append(f"   20일 {(r.get('ret20') or 0):+.1f}% · 외인 60일 {(r.get('fw60') or 0):+.1f}% · "
-                         f"당일 거래량 {(r.get('vs1') or 0):.1f}배 · 거래대금 {(r.get('amt20') or r.get('amt') or 0):.0f}억")
+                         f"당일 거래량 {(r.get('vs1') or 0):.1f}배 · 거래대금 {(r.get('amt20') or r.get('amt') or 0):.0f}억"
+                         + (f" · 업종 60일 {r['sr60']:+.1f}%" if r.get('sr60') is not None else ""))
         else:
             lines.append(f"   외인 {fwp(r):.1f}% · 3일 {(r.get('ret3') or 0):+.1f}% · 10일 {(r.get('ret10') or 0):+.1f}% · "
                          f"거래대금 {r.get('amt', 0):.0f}억 · 급등 {(r['aw']/r['a1']):.1f}배")

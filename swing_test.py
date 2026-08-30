@@ -1,156 +1,150 @@
-"""스윙 매매(지지 되돌림 + 5분할 매수) 실측
-A. 120일선 지지 매수 — 단일 매수 vs 5분할 매수
-B. 이전 저항(전고점) 지지전환 매수
-청산: 전고점 도달 / 2~3개월 분할매도 / 고정보유
-사용: python swing_test.py
+# -*- coding: utf-8 -*-
+"""스윙매매 기법 실측 — 2단계: 기법별 테스트
+   매수 = 신호 다음날 시가 / 청산 = 보유기간·손절·익절·트레일링 (일중 경로 반영)
+   폐지 종목은 보유 중 거래 종료 시 마지막 종가로 청산
 """
-import io, sys, pickle
-from pathlib import Path
+import io, sys, time
 import numpy as np, pandas as pd
-
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
-BASE = Path(__file__).parent
-cache = pickle.load(open(BASE / "data" / "ohlc500.pkl", "rb"))
+T0 = time.time()
+def log(m): print(f"[{time.time()-T0:4.0f}s] {m}", flush=True)
 
-def prep(d):
-    d = d.copy()
-    d["ma120"] = d["Close"].rolling(120).mean()
-    d["ma20"] = d["Close"].rolling(20).mean()
-    d["vma20"] = d["Volume"].rolling(20).mean()
-    return d
+D = pd.read_pickle("data/swing.pkl")
+D = D[~D.bad].reset_index(drop=True)
+log(f"{len(D):,}행 · {D.ticker.nunique()}종목")
 
-P = {c: prep(d) for c, d in cache.items() if d is not None and len(d) >= 320}
-print(f"종목 {len(P)}", file=sys.stderr)
-START = pd.Timestamp("2023-01-01")
-PIVOT = 5
+# ── 종목별 경로 배열 (청산 시뮬레이션용) ─────────────────────
+TK = D.ticker.values
+order = np.argsort(TK, kind="stable")
+D = D.iloc[order].reset_index(drop=True)
+tk = D.ticker.values
+starts = {}
+u, idx0 = np.unique(tk, return_index=True)
+for t, i in zip(u, idx0): starts[t] = i
+ends = {}
+for t, i in zip(u, np.append(idx0[1:], len(tk))): ends[t] = i
+OP, HI, LO, CL = D.open.values.astype(float), D.high.values.astype(float), D.low.values.astype(float), D.close.values.astype(float)
+ROW = np.arange(len(D))
+LOC = ROW - np.array([starts[t] for t in tk])            # 종목 내 위치
+LEN = np.array([ends[t] - starts[t] for t in tk])        # 종목 길이
+BASE0 = np.array([starts[t] for t in tk])
+COST = D.cost.values; YR = D.y.values; ATR = D.atr.values
 
-def swing_highs(H, L=PIVOT):
-    return [(i + L, i, H[i]) for i in range(L, len(H) - L) if H[i] == max(H[i - L:i + L + 1])]
+def simulate(sig, hold=10, stop=None, target=None, trail=None, stop_atr=None):
+    """sig = 불리언 마스크. 다음날 시가 매수, hold 거래일 보유.
+       stop/target = % (예 -8, 20) · trail = 고점대비 % 하락 시 청산 · stop_atr = ATR 배수 손절"""
+    s = np.flatnonzero(sig)
+    s = s[LOC[s] + 1 < LEN[s]]                            # 다음날이 있어야 매수 가능
+    if len(s) == 0: return None
+    buy = OP[s + 1]
+    ok = buy > 0
+    s, buy = s[ok], buy[ok]
+    n = len(s)
+    out = np.empty(n)
+    for k in range(n):
+        i, b = s[k], buy[k]
+        last = BASE0[i] + LEN[i] - 1
+        end = min(i + hold, last)
+        st = b * (1 + stop / 100) if stop is not None else None
+        if stop_atr is not None and np.isfinite(ATR[i]): st = b - stop_atr * ATR[i]
+        tg = b * (1 + target / 100) if target is not None else None
+        peak = b; res = None
+        for j in range(i + 1, end + 1):
+            if st is not None and LO[j] <= st: res = (st / b - 1) * 100; break
+            if tg is not None and HI[j] >= tg: res = (tg / b - 1) * 100; break
+            if trail is not None:
+                peak = max(peak, HI[j])
+                tl = peak * (1 - trail / 100)
+                if LO[j] <= tl and peak > b: res = (tl / b - 1) * 100; break
 
-# ---------------- 신호 ----------------
-def signals():
-    A, B = [], []
-    for code, d in P.items():
-        H, L, C, V = d["High"].values, d["Low"].values, d["Close"].values, d["Volume"].values
-        MA, MA20, VMA = d["ma120"].values, d["ma20"].values, d["vma20"].values
-        sh = swing_highs(H)
-        i0 = max(np.searchsorted(d.index, START), 130)
-        lastA = lastB = -99
-        for i in range(i0, len(d) - 1):
-            if np.isnan(MA[i]) or MA[i] <= 0: continue
-            # 최근 60봉 전고점 = 목표
-            prev_hi = H[max(0, i - 60):i].max()
-            # ---- A. 120일선 지지 ----
-            if i - lastA >= 20:
-                above = (C[i - 40:i] > MA[i - 40:i]).mean()          # 최근 40봉 대부분 120선 위 = 상승추세 유지
-                touched = L[i] <= MA[i] * 1.02                        # 120선 ±2% 접촉
-                held = C[i] > MA[i] * 0.99                            # 종가는 120선 부근 이상 유지
-                fell = C[i] / H[max(0, i - 20):i].max() - 1 <= -0.07  # 직전 고점 대비 7% 이상 조정 (급등 추격 아님)
-                if above >= 0.7 and touched and held and fell:
-                    o = d["Open"].iloc[i + 1]
-                    if o > 0 and prev_hi / o - 1 >= 0.03:
-                        A.append(dict(code=code, i=i + 1, date=d.index[i], o=o, ma=MA[i], target=prev_hi, y=d.index[i].year))
-                        lastA = i
-            # ---- B. 이전 저항 → 지지 전환 ----
-            if i - lastB >= 20:
-                cands = [v for (t, j, v) in sh if t <= i - 5 and i - j <= 120 and v < C[max(0, i - 20):i].max()]
-                if cands:
-                    lvl = max([v for v in cands if v <= C[i] * 1.03] or [0])
-                    if lvl > 0 and L[i] <= lvl * 1.02 and C[i] > lvl * 0.99 and C[i] / H[max(0, i - 20):i].max() - 1 <= -0.05:
-                        o = d["Open"].iloc[i + 1]
-                        if o > 0 and prev_hi / o - 1 >= 0.03:
-                            B.append(dict(code=code, i=i + 1, date=d.index[i], o=o, ma=lvl, target=prev_hi, y=d.index[i].year))
-                            lastB = i
-    return A, B
+        if res is None: res = (CL[end] / b - 1) * 100
+        out[k] = res
+    return dict(r=out - COST[s], y=YR[s], i=s)
 
-A, B = signals()
-print(f"120일선 지지 {len(A)}건 · 저항전환 {len(B)}건", file=sys.stderr)
+def stat(res, mn=30):
+    if res is None or len(res["r"]) < mn: return None
+    r, y = res["r"], res["y"]
+    ism, osm = r[y <= 2022], r[y >= 2023]
+    if len(ism) < 5 or len(osm) < 5: return None
+    rs = np.sort(r)
+    yy = pd.Series(r).groupby(y).agg(["mean", "size"]); yy = yy[yy["size"] >= 3]
+    return dict(n=len(r), ret=r.mean(), med=np.median(r), win=(r > 0).mean() * 100,
+                pf=(r[r > 0].sum() / abs(r[r <= 0].sum())) if (r <= 0).any() else 99.,
+                is_=ism.mean(), os_=osm.mean(), t5=rs[:-5].mean() if len(rs) > 5 else np.nan,
+                pos=int((yy["mean"] > 0).sum()), ny=len(yy), worst=r.min(), tot=r.sum() / 100 * 3_000_000)
 
-# ---------------- 청산 ----------------
-def single(s, exit_mode, stop_pct=10, maxbars=60, split_sell=None):
-    """단일 매수. exit_mode: 'target'(전고점) / 'time'(만기) """
-    d = P[s["code"]]; i0, o = s["i"], s["o"]
-    stop = o * (1 - stop_pct / 100)
-    for k in range(i0, min(i0 + maxbars, len(d))):
-        if d["Low"].iloc[k] <= stop: return ((stop / o - 1) * 100, "손절")
-        if exit_mode == "target" and d["High"].iloc[k] >= s["target"]:
-            return ((s["target"] / o - 1) * 100, "전고점")
-    j = min(i0 + maxbars, len(d)) - 1
-    return ((d["Close"].iloc[j] / o - 1) * 100, "만기")
+HDR = ("| 기법 | 신호 | 절대수익 | 중앙값 | 승률 | PF | 상위5제외 | 학습(~22) | 검증(23~) | +연도 | 최악 | 300만씩 |\n"
+       "|---|---|---|---|---|---|---|---|---|---|---|---|")
+def row(lab, res):
+    s = stat(res)
+    if not s: return print(f"| {lab} | {0 if res is None else len(res['r'])} | 부족 |" + " - |" * 9)
+    print(f"| {lab} | {s['n']} | **{s['ret']:+.2f}%** | {s['med']:+.2f}% | {s['win']:.0f}% | {s['pf']:.2f} | "
+          f"{s['t5']:+.2f}% | {s['is_']:+.2f}% | **{s['os_']:+.2f}%** | {s['pos']}/{s['ny']} | {s['worst']:+.0f}% | "
+          f"{s['tot']/10000:+,.0f}만 |")
 
-def split5(s, steps=(0, 3, 6, 9, 12), stop_pct=20, maxbars=60, exit_mode="target"):
-    """5분할: 첫 진입 후 -3/-6/-9/-12%마다 1/5씩 추가. 반환 (평단수익률, 전체자금수익률, 사유, 투입비율)"""
-    d = P[s["code"]]; i0, o = s["i"], s["o"]
-    prices = [o]; filled = 1
-    hard = o * (1 - stop_pct / 100)
-    for k in range(i0, min(i0 + maxbars, len(d))):
-        lo, hi = d["Low"].iloc[k], d["High"].iloc[k]
-        while filled < 5 and lo <= o * (1 - steps[filled] / 100):
-            prices.append(o * (1 - steps[filled] / 100)); filled += 1
-        avg = np.mean(prices)
-        if lo <= hard:
-            r = (hard / avg - 1) * 100
-            return (r, r * filled / 5, "손절", filled / 5)
-        if exit_mode == "target" and hi >= s["target"]:
-            r = (s["target"] / avg - 1) * 100
-            return (r, r * filled / 5, "전고점", filled / 5)
-    j = min(i0 + maxbars, len(d)) - 1
-    avg = np.mean(prices); r = (d["Close"].iloc[j] / avg - 1) * 100
-    return (r, r * filled / 5, "만기", filled / 5)
+LIQ = (D.amt20 >= 10) & (D.srd.notna())     # 최소 유동성 (하루 10억)
+print(f"\n유동성 통과 {int(LIQ.sum()):,}행\n")
 
-def split_sell(s, sell_bars=(20, 40, 60), stop_pct=15):
-    """2~3개월 분할 매도: 20/40/60봉에 1/3씩 종가 매도"""
-    d = P[s["code"]]; i0, o = s["i"], s["o"]
-    stop = o * (1 - stop_pct / 100); got = []; rem = 3
-    for k in range(i0, min(i0 + 61, len(d))):
-        if d["Low"].iloc[k] <= stop:
-            got += [(stop / o - 1) * 100] * rem; rem = 0; break
-        if k - i0 in sell_bars and rem > 0:
-            got.append((d["Close"].iloc[k] / o - 1) * 100); rem -= 1
-    if rem > 0:
-        j = min(i0 + 60, len(d)) - 1
-        got += [(d["Close"].iloc[j] / o - 1) * 100] * rem
-    return (np.mean(got), "분할매도")
+# ═══ ① 저점 반등 ═══════════════════════════════════════════
+print("## ① 저점 찍고 반등 (10일 보유)\n"); print(HDR)
+for lab, m in [
+    ("120일 신저가 당일", LIQ & D.newlo120),
+    ("120일 신저가 후 양봉 전환", LIQ & (D.newlo120.groupby(D.ticker).shift(1) == True) & (D.body > 0)),
+    ("240일 신저가 + 아랫꼬리(50%↑)", LIQ & D.newlo240 & (D.lwick >= 0.5)),
+    ("120일 저점 +5% 이내 + 양봉", LIQ & (D.fromlo120 <= 0.05) & (D.body > 1)),
+    ("120일 저점권 + 거래량 3배", LIQ & (D.fromlo120 <= 0.05) & (D.vr20 >= 3)),
+    ("120일 저점권 + 거래량 3배 + 종가 상단(0.7↑)", LIQ & (D.fromlo120 <= 0.05) & (D.vr20 >= 3) & (D.clpos >= 0.7)),
+    ("쌍바닥(60일저점 재확인 ±3%) + 반등", LIQ & (D.fromlo60.abs() <= 0.03) & (D.fromlo120 > 0.02) & (D.body > 1) & (D.vr20 >= 2)),
+]: row(lab, simulate(m.values, hold=10))
 
-def stat(rs):
-    r = [x[0] for x in rs if x]
-    if len(r) < 15: return None
-    w = [v for v in r if v > 0]; l = [v for v in r if v <= 0]
-    return dict(n=len(r), avg=np.mean(r), win=len(w) / len(r) * 100, med=np.median(r),
-                pf=(sum(w) / abs(sum(l))) if l else 99)
-def f(s): return f"{s['avg']:+.2f}% / {s['win']:.0f}% / PF {s['pf']:.2f} ({s['n']})" if s else "표본부족"
+# ═══ ② 거래량 폭발 ═════════════════════════════════════════
+print("\n## ② 거래량 폭발 (10일 보유)\n"); print(HDR)
+for lab, m in [
+    ("거래량 3배 + 양봉", LIQ & (D.vr20 >= 3) & (D.body > 0)),
+    ("거래량 5배 + 양봉", LIQ & (D.vr20 >= 5) & (D.body > 0)),
+    ("거래량 5배 + 장대양봉(5%↑)", LIQ & (D.vr20 >= 5) & (D.body >= 5)),
+    ("60일 신고 거래량 + 양봉", LIQ & (D.vmax60 >= 1) & (D.body > 0)),
+    ("거래량 말랐다가(5/60<0.6) 5배 폭발", LIQ & (D.vdry < 0.6) & (D.vr20 >= 5) & (D.body > 0)),
+    ("거래량 5배 + 양봉 + 하락구간(60일 -20%↓)", LIQ & (D.vr20 >= 5) & (D.body > 0) & (D.run60 <= -20)),
+    ("거래량 5배 + 양봉 + 상승구간(60일 +20%↑)", LIQ & (D.vr20 >= 5) & (D.body > 0) & (D.run60 >= 20)),
+]: row(lab, simulate(m.values, hold=10))
 
-print("# 스윙 매매(지지 되돌림 + 분할매수) 실측 — KOSPI 거래대금 상위 492종목, 2023-01~2026-08\n")
-print("표기: 평균 / 승률 / PF (건수) · IS=2023~24, OOS=2025~26\n")
+# ═══ ③ 선 돌파 ═════════════════════════════════════════════
+print("\n## ③ 선 돌파 (10일 보유)\n"); print(HDR)
+for lab, m in [
+    ("60일 전고점 돌파", LIQ & D.brk60),
+    ("60일 전고점 돌파 + 거래량 2배", LIQ & D.brk60 & (D.vr20 >= 2)),
+    ("120일 전고점 돌파 + 거래량 2배", LIQ & D.brk120 & (D.vr20 >= 2)),
+    ("240일 전고점 돌파 + 거래량 2배", LIQ & D.brk240 & (D.vr20 >= 2)),
+    ("좁은 박스(60일폭<25%) 돌파 + 거래량 2배", LIQ & D.brk60 & (D.boxw60 < 0.25) & (D.vr20 >= 2)),
+    ("60일선 상향돌파 + 거래량 2배", LIQ & (D.dev60 > 0) & (D.close.groupby(D.ticker).shift(1) <= D.ma60.groupby(D.ticker).shift(1)) & (D.vr20 >= 2)),
+    ("120일선 상향돌파 + 거래량 2배", LIQ & (D.dev120 > 0) & (D.close.groupby(D.ticker).shift(1) <= D.ma120.groupby(D.ticker).shift(1)) & (D.vr20 >= 2)),
+]: row(lab, simulate(m.values, hold=10))
 
-for lab, S in (("A. 120일선 지지 매수", A), ("B. 이전 저항 → 지지 전환 매수", B)):
-    print(f"\n## {lab} — {len(S)}건\n")
-    print("| 매수·청산 방식 | 전체 | IS(2023~24) | OOS(2025~26) |\n|---|---|---|---|")
-    runs = [("단일매수 · 전고점 익절 / -10% 손절 / 60봉", lambda s: single(s, "target", 10, 60)),
-            ("단일매수 · 전고점 익절 / -7% 손절", lambda s: single(s, "target", 7, 60)),
-            ("단일매수 · 60봉 보유(익절없음) / -10% 손절", lambda s: single(s, "time", 10, 60)),
-            ("단일매수 · 2~3개월 분할매도(20/40/60봉)", lambda s: split_sell(s)),
-            ("5분할매수 · 전고점 익절 (평단 기준)", lambda s: (split5(s)[0], split5(s)[2])),
-            ("5분할매수 · 전고점 익절 (전체자금 기준)", lambda s: (split5(s)[1], split5(s)[2])),
-            ("5분할매수 · 60봉 보유 (평단 기준)", lambda s: (split5(s, exit_mode="time")[0], "만기")),
-            ]
-    for rl, fn in runs:
-        R = [(fn(s), s) for s in S]
-        a = stat([r for r, _ in R]); b = stat([r for r, s in R if s["y"] <= 2024]); c = stat([r for r, s in R if s["y"] >= 2025])
-        print(f"| {rl} | {f(a)} | {f(b)} | {f(c)} |")
-    # 분할 상세
-    sp = [split5(s) for s in S]
-    print(f"\n분할 소진: " + " · ".join(f"{int(x*5)}차 {sum(1 for y in sp if abs(y[3]-x)<1e-9)}건({sum(1 for y in sp if abs(y[3]-x)<1e-9)/len(sp)*100:.0f}%)" for x in (0.2, 0.4, 0.6, 0.8, 1.0)))
-    hows = pd.Series([x[2] for x in sp]).value_counts()
-    print("청산 사유(5분할): " + " · ".join(f"{k} {v}건({v/len(sp)*100:.0f}%)" for k, v in hows.items()))
-    print(f"평균 목표수익(전고점까지 거리): {np.mean([(s['target']/s['o']-1)*100 for s in S]):.1f}%")
-    print(f"\n연도별 (단일매수·전고점 익절/-10% 손절)\n\n| 연도 | 건수 | 평균 | 승률 | PF |\n|---|---|---|---|---|")
-    for y in (2023, 2024, 2025, 2026):
-        st_ = stat([single(s, "target", 10, 60) for s in S if s["y"] == y])
-        print(f"| {y} | {st_['n']} | {st_['avg']:+.2f}% | {st_['win']:.0f}% | {st_['pf']:.2f} |" if st_ else f"| {y} | - | | | |")
+# ═══ ④ 눌림목 ══════════════════════════════════════════════
+print("\n## ④ 눌림목 (10일 보유)\n"); print(HDR)
+for lab, m in [
+    ("20일 +20%↑ 급등 후 20일선 눌림(±3%)", LIQ & (D.run20 >= 20) & (D.near20 <= 0.03)),
+    ("20일 +20%↑ 후 고점대비 -10~-20% 눌림", LIQ & (D.run20 >= 20) & D.pull.between(-0.20, -0.10)),
+    ("60일 +30%↑ 후 20일선 눌림 + 거래량 감소", LIQ & (D.run60 >= 30) & (D.near20 <= 0.03) & (D.vdry < 0.8)),
+    ("정배열 + 5일선 눌림(±2%) + 양봉", LIQ & D.ma5_20 & D.ma20_60 & (D.near20 <= 0.05) & (D.body > 0)),
+    ("피보 38.2% 되돌림 부근(0.55~0.68)", LIQ & D.fib.between(0.55, 0.68) & (D.run60 >= 20) & (D.body > 0)),
+    ("피보 50% 되돌림 부근(0.45~0.55)", LIQ & D.fib.between(0.45, 0.55) & (D.run60 >= 20) & (D.body > 0)),
+    ("눌림 + 거래량 급감(5/60<0.5) 후 양봉", LIQ & (D.run60 >= 20) & (D.vdry < 0.5) & (D.body > 1)),
+]: row(lab, simulate(m.values, hold=10))
 
-print("\n## 참고: 손절 폭별 (A 120일선 지지, 단일매수·전고점 익절)\n")
-print("| 손절 | 전체 | 승률 | PF |\n|---|---|---|---|")
-for sp_ in (5, 7, 10, 15, 20):
-    st_ = stat([single(s, "target", sp_, 60) for s in A])
-    print(f"| -{sp_}% | {st_['avg']:+.2f}% | {st_['win']:.0f}% | {st_['pf']:.2f} |" if st_ else f"| -{sp_}% | - | | |")
+# ═══ ⑤ 주봉·월봉 ═══════════════════════════════════════════
+print("\n## ⑤ 주봉·월봉 결합 (10일 보유)\n"); print(HDR)
+BOT = LIQ & (D.fromlo120 <= 0.05) & (D.vr20 >= 3) & (D.body > 1)      # ①의 저점반등 기본형
+for lab, m in [
+    ("저점반등 기본형", BOT),
+    ("+ 주봉 5주선 위", BOT & (D.w_above5 == True)),
+    ("+ 주봉 5주선 아래", BOT & (D.w_above5 == False)),
+    ("+ 주봉 양봉", BOT & (D.wup == True)),
+    ("+ 주봉 거래량 1.5배", BOT & (D.wvr >= 1.5)),
+    ("+ 월봉 6개월선 위", BOT & (D.m_above6 == True)),
+    ("+ 월봉 6개월선 아래", BOT & (D.m_above6 == False)),
+    ("+ 월봉 12개월선 아래", BOT & (D.m_above12 == False)),
+]: row(lab, simulate(m.values, hold=10))
+
+log("완료")

@@ -128,6 +128,23 @@ def upjong_rs(con, up, dates):
     return {g: round(cum([sum(v) / len(v) for _, v in sorted(dd.items())]) - mk, 2)
             for g, dd in gret.items() if len(dd) >= 15}
 
+def upjong_ret60(con, up, dates, n=60):
+    """업종 n일 수익률 = 소속 종목들의 n거래일 수익률 동일가중 평균 (회원 5종목 이상)
+       백테스트(f3_sector.py)와 같은 정의 — 지수 누적이 아니라 종목별 수익률의 평균"""
+    if len(dates) < n + 1 or not up: return {}
+    d0, d1 = dates[-(n + 1)], dates[-1]
+    px = {}
+    for d, t, c in con.execute(
+            "SELECT date, ticker, close FROM daily WHERE market='KOSPI' AND close>0 AND date IN (?,?)", (d0, d1)):
+        px.setdefault(t, {})[d] = c
+    byg = {}
+    for t, s in px.items():
+        g = up.get(t)
+        if not g or g == "기타": continue
+        a, b = s.get(d0), s.get(d1)
+        if a and b: byg.setdefault(g, []).append((b / a - 1) * 100)
+    return {g: round(sum(v) / len(v), 2) for g, v in byg.items() if len(v) >= 5}
+
 def short_flags(dates):
     """최근 공매도 비중 5일평균 < 20일평균 여부 (short_recent.csv + kosdaq_short_recent.csv)"""
     by = {}
@@ -147,6 +164,35 @@ def short_flags(dates):
         a5, a20 = sum(s5) / len(s5), sum(s20) / len(s20)
         out[t] = {"sr5": round(a5, 2), "sr20": round(a20, 2), "srDown": a5 < a20}
     return out
+
+INDUSTRY_CSV = DATA / "industry.csv"
+
+def load_industry():
+    """표준산업분류 (코스닥 업종 조건용) — data/industry.csv"""
+    if not INDUSTRY_CSV.exists(): return {}
+    with open(INDUSTRY_CSV, encoding="utf-8") as fh:
+        return {r["ticker"]: r["industry"] for r in csv.DictReader(fh) if r.get("industry")}
+
+def fill_sr60(table, up_kospi, r60_kospi):
+    """종목마다 '소속 업종의 60일 수익률'(sr60) 을 채운다.
+       코스피는 sector.csv 업종 + 이미 계산한 r60_kospi, 코스닥은 industry.csv 로 직접 집계.
+       업종 회원이 5종목 미만이면 None (필터는 None 을 통과로 처리)."""
+    IND = load_industry()
+    agg = {}
+    for r in table:
+        if r.get("mk") != "KOSDAQ" or r.get("ret60") is None: continue
+        g = IND.get(r["t"])
+        if g: agg.setdefault(g, []).append(r["ret60"])
+    kq = {g: round(sum(v) / len(v), 2) for g, v in agg.items() if len(v) >= 5}
+    n = 0
+    for r in table:
+        if r.get("mk") == "KOSDAQ":
+            g = IND.get(r["t"]); r["up"] = r.get("up") or g
+            r["sr60"] = kq.get(g)
+        else:
+            r["sr60"] = r60_kospi.get(up_kospi.get(r["t"]))
+        if r["sr60"] is not None: n += 1
+    print(f"업종 60일 수익률: 코스피 {len(r60_kospi)}업종 · 코스닥 {len(kq)}업종 · 종목 {n:,}개 매칭")
 
 def load_kosdaq(dates):
     """코스닥 최근 구간 (data/kosdaq.db) — 없으면 빈 목록.
@@ -188,6 +234,7 @@ def build_site():
     rows = list(rows) + load_kosdaq(dates)
     TRET = theme_returns(con, TH, dates[-1]) if TH else {}
     RS = upjong_rs(con, UP, dates) if UP else {}
+    R60 = upjong_ret60(con, UP, dates) if UP else {}      # 업종 60일 수익률(3번 필터용)
     SF = short_flags(dates)
     DILU = dilution_flags(dates[-1])
     con.close()
@@ -235,6 +282,7 @@ def build_site():
         ret10 = round((closes[-1] / closes[-11] - 1) * 100, 2) if len(closes) >= 11 and closes[-11] else None  # 최근 10거래일
         # ── 3번 필터(폭락 반등)용 ──────────────────────────────
         ret20 = round((closes[-1] / closes[-21] - 1) * 100, 2) if len(closes) >= 21 and closes[-21] else None  # 최근 20거래일
+        ret60 = round((closes[-1] / closes[-61] - 1) * 100, 2) if len(closes) >= 61 and closes[-61] else None  # 업종 60일 수익률 집계용
         a20p = avg(vol_all[-21:-1])                          # 직전 20일(당일 제외) 평균 거래량
         vs1 = round(vol_all[-1] / a20p, 2) if len(vol_all) >= 21 and a20p else None   # 당일 거래량 배수
         v60, f60 = vol_all[-60:], fr_all[-60:]               # 외국인 60일 누적 순매수 비중(%)
@@ -245,7 +293,7 @@ def build_site():
         rec = closes[-26:]
         disc = any(rec[i-1] and not (0.68 < rec[i] / rec[i-1] < 1.32) for i in range(1, len(rec)))
         table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2], "streak": streak, "ret3": ret3, "ret10": ret10,
-                      "ret20": ret20, "vs1": vs1, "fw60": fw60, "amt20": amt20, "disc": disc,
+                      "ret20": ret20, "ret60": ret60, "vs1": vs1, "fw60": fw60, "amt20": amt20, "disc": disc,
                       "aw": aw, "a1": a1, "a6": a6 if n6 >= W_BASE // 2 else None,
                       "amt": round(amt1 / 1e8, 2) if amt1 else None, "cap": s.get("cap"), "pref": s["ticker"][-1] != "0", "mk": s.get("mkt", "KOSPI"),
                       "up": UP.get(s["ticker"]), "rs": RS.get(UP.get(s["ticker"])),
@@ -255,7 +303,8 @@ def build_site():
                       "th": sorted(TH.get(s["ticker"], []), key=lambda g: -TRET.get(g, 0))[:6]})
         json.dump({"ticker": s["ticker"], "name": s["name"], "dates": dates, "rows": s["rows"]},
                   open(SITE / "data" / "stock" / f"{s['ticker']}.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
-    json.dump({"dates": tdates, "rows": table, "kospi": kospi_state(), "themeRet": TRET, "upjongRS": RS, "shortN": len(SF), "diluN": len(DILU), "sectorSnap": SNAP, "updated": collect.datetime.now().strftime("%Y-%m-%d %H:%M")},
+    fill_sr60(table, UP, R60)
+    json.dump({"dates": tdates, "rows": table, "kospi": kospi_state(), "themeRet": TRET, "upjongRS": RS, "upjongRet60": R60, "shortN": len(SF), "diluN": len(DILU), "sectorSnap": SNAP, "updated": collect.datetime.now().strftime("%Y-%m-%d %H:%M")},
               open(SITE / "data" / "table.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     print(f"site: {len(table)}종목, {tdates[0]}~{tdates[-1]}, table.json {round((SITE/'data'/'table.json').stat().st_size/1024)}KB")
 
