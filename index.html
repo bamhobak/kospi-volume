@@ -233,7 +233,7 @@ function renderTabs(){
     ;
   document.querySelectorAll('#rail .it').forEach(b=>b.onclick=()=>{const f=b.dataset.f;
     cur=f;
-    rowLimit=200;
+    rowLimit=100;
     if(f==='kp'||f==='kq'){sortKey='cap';desc=true}          /* 전체 종목은 시총 순 */
     showInfo=false;render()});
   const K=raw.kospi||{};
@@ -243,9 +243,9 @@ function renderTabs(){
   if(rb){const f=FILTERS.find(x=>x.id===cur)||null;
     if(f){rb.style.display='';rb.innerHTML=`<b>${f.name} 매매 규칙</b> <span>${f.ruleText}</span>`}else{rb.style.display='none'}}
   const qb=$('#q');if(qb&&!qb.dataset.b){qb.dataset.b='1';
-    qb.oninput=()=>{query=qb.value;rowLimit=200;render()}}
+    qb.oninput=()=>{query=qb.value;rowLimit=100;render()}}
   const pb=$('#pinbtn');if(pb)pb.onclick=setPin;[$('#infobtn'),$('#infobtn2')].forEach(ib=>{if(ib)ib.onclick=()=>{showInfo=!showInfo;renderTabs()}})}
-let showInfo=false;let rowLimit=200;let query='';let doneRule=null;   /* 완료 탭 규칙 필터 */   /* 조회 표 렌더 상한 — 2천행 DOM 파싱이 브라우저를 멈춘다 */
+let showInfo=false;let rowLimit=100;let rowTotal=0;let query='';   /* 조회 표: 100개씩 무한 스크롤 */let doneRule=null;   /* 완료 탭 규칙 필터 */   /* 조회 표 렌더 상한 — 2천행 DOM 파싱이 브라우저를 멈춘다 */
 function showTable(on){const t=$('#tblcard'),c=$('#cards');
   if(t)t.style.display=on?'':'none'; if(c)c.style.display=on?'none':'flex'}
 const pctTxt=v=>v==null?'—':(v>0?'+':'')+v.toFixed(1)+'%';
@@ -431,7 +431,7 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
   const browse=(cur==='kp'||cur==='kq');   /* 조회 전용 — 매수 버튼 없음 */
   const cols=[['name','종목','l'],...(browse?[]:[['hits','통과 규칙']]),['cap','시가총액'],['r1m','1개월'],['r3m','3개월'],['r6m','6개월'],['r1y','1년'],['per','PER'],['pbr','PBR'],['pcr','PCR'],['up','업종','l'],['sr60','업종 60일'],['streak','연속'],['ret3','3일'],['ret10','10일'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','3일평균'],['r16','2M/1Y'],['rw1','3일/2M'],['fw','외국인 1W'],['fwp','외인/거래량'],['amt','2M 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
   $('#tbl thead').innerHTML='<tr>'+cols.map(c=>`<th class="${c[2]||''} ${sortKey===c[0]?'on':''}" data-k="${c[0]}">${c[1]}${sortKey===c[0]?(desc?' ▼':' ▲'):''}</th>`).join('')+'</tr>';
-  const total=rows.length,shown=rows.slice(0,rowLimit);
+  const total=rows.length,shown=rows.slice(0,rowLimit);rowTotal=total;
   $('#tbl tbody').innerHTML=shown.map(r=>`<tr data-c="${r.ticker}" class="${sel===r.ticker?'sel':''}">
     <td class="l name">${r.name} <span class="code">${r.ticker}</span></td>
     ${browse?'':`<td class="l">${FILTERS.filter(f=>f.fn(r)).map(f=>`<span class="tag ${f.mkt==='KOSDAQ'?'kq':''}">${f.id}</span>`).join('')} <button class="ghost mini" data-buy="${r.ticker}">매수</button></td>`}
@@ -441,11 +441,16 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
     <td class="sc">${kor(r.a6)}</td><td class="sc">${kor(r.a1)}</td><td class="sc">${kor(r.aw)}</td><td class="sc">${r.r16==null?'':Math.round(r.r16)+'%'}</td><td>${r.rw1==null?'':(r.rw1>=th2?`<span class="hot">${Math.round(r.rw1)}%</span>`:Math.round(r.rw1)+'%')}</td><td class="${cls(r.fw)}">${kor(r.fw,1)}</td><td class="${cls(r.fwp)}">${r.fwp==null?'':r.fwp.toFixed(1)+'%'}</td><td class="sc">${r.amt==null?'':r.amt+'억'}</td>
     <td class="${cls(r.indiv)}">${kor(r.indiv,1)}</td><td class="${cls(r.organ)}">${kor(r.organ,1)}</td><td class="${cls(r.frgn)}">${kor(r.frgn,1)}</td><td>${r.foreign_ratio??''}%</td></tr>`).join('');
   $('#status').textContent=`갱신 ${raw.updated||''}`;
-  document.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortKey===k)desc=!desc;else{sortKey=k;desc=k!=='name'}rowLimit=200;render()});
-  if(total>shown.length)$('#tbl tbody').innerHTML+=`<tr><td colspan="40" style="text-align:center;padding:14px">`
-    +`<button class="ghost mini" id="more">${(total-shown.length).toLocaleString()}개 더 보기</button></td></tr>`;
+  document.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortKey===k)desc=!desc;else{sortKey=k;desc=k!=='name'}rowLimit=100;render()});
+  if(total>shown.length)$('#tbl tbody').innerHTML+=`<tr><td colspan="40" style="text-align:center;padding:16px;color:var(--dim)">`
+    +`${shown.length.toLocaleString()} / ${total.toLocaleString()} — 아래로 스크롤하면 더 불러옵니다</td></tr>`;
   document.querySelectorAll('tbody tr[data-c]').forEach(tr=>tr.onclick=()=>{sel=tr.dataset.c;render();showStock(sel)});
-  const mb=$('#more');if(mb)mb.onclick=()=>{rowLimit+=200;render()};
+  const tw=document.querySelector('.tblwrap');
+  if(tw&&!tw.dataset.inf){tw.dataset.inf='1';        /* 스크롤 리스너는 한 번만 */
+    tw.addEventListener('scroll',()=>{
+      if(isCardView()||cur==='pos'||cur==='done'||rowLimit>=rowTotal)return;
+      if(tw.scrollTop+tw.clientHeight>=tw.scrollHeight-320){rowLimit+=100;render()}
+    })}
   document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=e=>{e.stopPropagation();const r=view.rows.find(x=>x.ticker===b.dataset.buy);addPosition(r.ticker,r.name,r.close)});
 }
 async function showStock(code){

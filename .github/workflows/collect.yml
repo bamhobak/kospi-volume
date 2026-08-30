@@ -72,7 +72,7 @@ jobs:
         if: (github.event_name != 'push' && steps.td.outputs.trading == 'true') || steps.kdcache.outputs.cache-matched-key == ''
         continue-on-error: true
         env: { TZ: Asia/Seoul }
-        run: python collect_kosdaq_daily.py --days 60 --prune 150
+        run: python collect_kosdaq_daily.py --days 60 --backfill 260 --prune 300
       - name: save kosdaq cache
         uses: actions/cache/save@v4
         if: hashFiles('data/kosdaq.db') != ''
