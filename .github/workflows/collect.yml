@@ -19,11 +19,14 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install -r requirements.txt
+      # 푸시(코드 변경)는 수집을 건너뛰고 빌드·배포만 한다.
+      # 데이터 수집은 스케줄(평일 18:30)과 수동 실행에서만 — 하루 한 번이면 충분하다.
       - name: collect (wait for today's data)
+        if: github.event_name != 'push'
         env: { TZ: Asia/Seoul }
-        run: |
-          if [ "${{ github.event_name }}" = "push" ]; then python pipeline.py --no-site; else python pipeline.py --wait --no-site; fi
+        run: python pipeline.py --wait --no-site
       - name: collect sector/theme (테마 주1회·업종 분기1회)
+        if: github.event_name != 'push'
         continue-on-error: true
         env: { TZ: Asia/Seoul }
         run: |
@@ -37,29 +40,38 @@ jobs:
           else
             echo "오늘은 sector 수집 안 함 (요일=$DOW, 일=$DOM)"
           fi
+      # 코스닥 DB·공매도는 리포지토리에 없어(용량) 캐시로 실행 간 이어붙인다.
+      # 푸시 빌드에서도 복원해야 D1(코스닥) 규칙이 데이터를 찾는다.
       - name: restore kosdaq cache
         uses: actions/cache/restore@v4
         with:
-          path: data/kosdaq.db
+          path: |
+            data/kosdaq.db
+            data/kosdaq_short_recent.csv
           key: kosdaq-db-${{ github.run_id }}
           restore-keys: kosdaq-db-
       - name: collect kosdaq (최근 60거래일 누적 · 코스닥 필터용)
+        if: github.event_name != 'push'
         continue-on-error: true
         env: { TZ: Asia/Seoul }
         run: python collect_kosdaq_daily.py --days 60 --prune 150
       - name: save kosdaq cache
         uses: actions/cache/save@v4
-        if: always()
+        if: github.event_name != 'push'
         with:
-          path: data/kosdaq.db
+          path: |
+            data/kosdaq.db
+            data/kosdaq_short_recent.csv
           key: kosdaq-db-${{ github.run_id }}
 
       - name: collect valuation (PER·PBR·PCR)
+        if: github.event_name != 'push'
         continue-on-error: true
         env: { TZ: Asia/Seoul }
         run: python collect_valuation.py --workers 8
 
       - name: collect extra (공매도·희석공시 최근분)
+        if: github.event_name != 'push'
         continue-on-error: true
         env:
           TZ: Asia/Seoul
@@ -71,7 +83,9 @@ jobs:
       - name: build site (CSV + JSON)
         env: { TZ: Asia/Seoul }
         run: python pipeline.py --no-collect
+      # 알림은 데이터가 갱신됐을 때만 — 코드 푸시로 텔레그램이 나가면 안 된다
       - name: notify new picks
+        if: github.event_name != 'push'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
