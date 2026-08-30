@@ -17,6 +17,8 @@ BASE = Path(__file__).parent
 DB = BASE / "data" / "kosdaq.db"
 arg = lambda k, d: sys.argv[sys.argv.index(k) + 1] if k in sys.argv else d
 DAYS = int(arg("--days", "60"))          # 네이버 trend API 최대 60
+PRUNE = int(arg("--prune", "0"))         # >0 이면 최근 N거래일만 남김 (CI 캐시 크기 제한용).
+                                         # 로컬 백테스트 DB는 기본값 0 이라 절대 지우지 않는다.
 HDR = {"User-Agent": "Mozilla/5.0"}
 WORKERS = 8
 num = collect.num
@@ -69,6 +71,13 @@ with ThreadPoolExecutor(WORKERS) as ex:
         n += 1
         if n % 300 == 0: con.commit(); log.info(f"진행 {n}/{len(CODES)} ({tot:,}행)")
 con.commit()
+if PRUNE > 0:
+    keep = [r[0] for r in con.execute("SELECT DISTINCT date FROM daily ORDER BY date DESC LIMIT ?", (PRUNE,))]
+    if keep:
+        n0 = con.execute("SELECT count(*) FROM daily").fetchone()[0]
+        con.execute("DELETE FROM daily WHERE date < ?", (min(keep),)); con.commit()
+        con.execute("VACUUM"); con.commit()
+        log.info(f"정리: {n0:,} → {con.execute('SELECT count(*) FROM daily').fetchone()[0]:,}행 (최근 {len(keep)}거래일)")
 d0, d1 = con.execute("SELECT min(date), max(date) FROM daily").fetchone()
 log.info(f"코스닥 완료: {tot:,}행 반영 ({time.time()-t0:.0f}s) · DB "
          f"{con.execute('SELECT count(*) FROM daily').fetchone()[0]:,}행 {d0}~{d1}")

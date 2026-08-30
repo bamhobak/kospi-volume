@@ -37,10 +37,22 @@ jobs:
           else
             echo "오늘은 sector 수집 안 함 (요일=$DOW, 일=$DOM)"
           fi
-      - name: collect kosdaq (최근 60거래일 · 코스닥 필터용)
+      - name: restore kosdaq cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data/kosdaq.db
+          key: kosdaq-db-${{ github.run_id }}
+          restore-keys: kosdaq-db-
+      - name: collect kosdaq (최근 60거래일 누적 · 코스닥 필터용)
         continue-on-error: true
         env: { TZ: Asia/Seoul }
-        run: python collect_kosdaq_daily.py --days 60
+        run: python collect_kosdaq_daily.py --days 60 --prune 150
+      - name: save kosdaq cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: data/kosdaq.db
+          key: kosdaq-db-${{ github.run_id }}
 
       - name: collect extra (공매도·희석공시 최근분)
         continue-on-error: true
