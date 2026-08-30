@@ -14,7 +14,7 @@ input,select{background:var(--panel2);border:1px solid var(--line);color:var(--t
 input:focus{border-color:var(--acc)}input{flex:1;min-width:120px}
 button{background:var(--acc);border:0;color:#fff;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer;font-size:13px}
 button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
-#status{color:var(--mut);font-size:12px;margin-left:auto;white-space:nowrap}
+#status{color:var(--mut);font-size:12px;margin-left:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mkt{display:inline-flex;align-items:center;gap:6px;border-radius:8px;padding:7px 12px;font-weight:700;font-size:13px;white-space:nowrap}
 .mkt.up{background:#ff5b5b22;color:#ff8a8a;border:1px solid #ff5b5b55}.mkt.dn{background:#4f8cff22;color:#8ab4ff;border:1px solid #4f8cff55}
 .mkt small{font-weight:400;opacity:.8}
@@ -39,7 +39,16 @@ button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--t
 button.mini{padding:3px 8px;font-size:11px;border-radius:6px}
 .tabs button.pos-tab{border-color:#ff5b5b55;color:#ff8a8a}.tabs button.pos-tab.on{background:#ff5b5b;border-color:#ff5b5b;color:#fff}
 .tabs{display:flex;gap:6px;flex-wrap:wrap}.tabs button{background:var(--panel2);border:1px solid var(--line);color:var(--mut);font-weight:600;padding:7px 12px}
-.tabs button.on{background:var(--acc);border-color:var(--acc);color:#fff}.opts label{cursor:pointer}.opts input[type=checkbox]{width:14px;accent-color:var(--acc);vertical-align:-2px}.opts input{width:44px;min-width:0;padding:4px 6px;font-size:12px;text-align:right;flex:none}
+.tabs button.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.tabs button.mk-kp{border-color:#4f8cff55;color:#93b6ff}
+.tabs button.mk-kp.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.tabs button.mk-kq{border-color:#f5a62355;color:#f3c169}
+.tabs button.mk-kq.on{background:var(--ind);border-color:var(--ind);color:#14171f}
+.brk{flex-basis:100%;height:0;margin:0}
+.mkleg{display:flex;gap:10px;align-items:center;font-size:11px;color:var(--mut);margin-left:2px}
+.mkleg i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.mkleg i.kp{background:var(--acc)}.mkleg i.kq{background:var(--ind)}
+.kqtag{color:var(--ind);font-weight:700}.opts label{cursor:pointer}.opts input[type=checkbox]{width:14px;accent-color:var(--acc);vertical-align:-2px}.opts input{width:44px;min-width:0;padding:4px 6px;font-size:12px;text-align:right;flex:none}
 td.sc{color:#b8c0d0}
 .rule{margin:12px 16px 0;padding:10px 14px;border:1px solid #ff5b5b44;background:#ff5b5b0f;border-radius:12px;font-size:13px;line-height:1.6}
 .rule b{color:#ff8a8a;margin-right:8px}.rule em{font-style:normal;color:var(--txt);font-weight:700}.rule small{display:block;color:var(--mut);font-size:11px}
@@ -77,8 +86,10 @@ td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400
 <header>
   <h1>밤호박 <span>종목 선별기</span></h1>
   <span id="mkt" class="mkt"></span>
-  <nav id="tabs" class="tabs"></nav>
   <div id="status">불러오는 중…</div>
+  <div class="brk"></div>
+  <nav id="tabs" class="tabs"></nav>
+  <div class="mkleg"><span><i class="kp"></i>코스피</span><span><i class="kq"></i>코스닥</span></div>
   <div id="fdesc" class="opts"></div>
 </header>
 <div class="rule" id="rule" style="display:none"></div>
@@ -97,25 +108,25 @@ const pct=(c,ch)=>{if(c==null||ch==null||c-ch===0)return '';const p=ch/(c-ch)*10
 const chg=(c,ch)=>ch==null?'':`<span class="${cls(ch)}">${ch>0?'+':''}${fmt(ch)}${pct(c,ch)}</span>`;
 // ===== 필터 정의: 새 필터는 이 배열에 추가 =====
 const FILTERS=[
-  {id:1,name:'1번 · 코스피 상승초입',desc:'2개월 거래량 < 1년 평균의 50% · 최근 3거래일 ≥ 2개월 평균의 200% · 외국인 1주 순매수 ≥ 거래량의 **3%** · 2개월 평균 거래대금 ≥ 50억 · 최근 10거래일 주가 0~20% 상승 · **코스피 5일선·20일선 둘 다 위** · 업종 상대강도 > 0(업종 20일 수익률이 시장 초과) · 공매도 비중 5일평균 < 20일평균(감소 중) · 우선주 제외  ▶ 매매: **당일 종가 매수(NXT 야간거래)** 또는 다음날 시가 매수 · 10거래일 보유 · 익절 +20% · 손절 없음 · **다음날 시가가 +5% 이상 갭상승하면 매수 보류**  ▶ 백테스트 2019~26(8년, 절대수익): 평균 +3.13% / 중앙값 +1.64% / 승률 55% (139건)  ▶ **학습(2019~22) +2.59% → 검증(2023~26) +3.54%** — 세 필터 중 유일하게 검증기간이 학습기간보다 좋습니다(과최적화 흔적 없음). 대신 수익률 자체는 가장 낮습니다',
+  {id:1,name:'1번 · 상승초입',mkt:'KOSPI',desc:'2개월 거래량 < 1년 평균의 50% · 최근 3거래일 ≥ 2개월 평균의 200% · 외국인 1주 순매수 ≥ 거래량의 **3%** · 2개월 평균 거래대금 ≥ 50억 · 최근 10거래일 주가 0~20% 상승 · **코스피 5일선·20일선 둘 다 위** · 업종 상대강도 > 0(업종 20일 수익률이 시장 초과) · 공매도 비중 5일평균 < 20일평균(감소 중) · 우선주 제외  ▶ 매매: **당일 종가 매수(NXT 야간거래)** 또는 다음날 시가 매수 · 10거래일 보유 · 익절 +20% · 손절 없음 · **다음날 시가가 +5% 이상 갭상승하면 매수 보류**  ▶ 백테스트 2019~26(8년, 절대수익): 평균 +3.13% / 중앙값 +1.64% / 승률 55% (139건)  ▶ **학습(2019~22) +2.59% → 검증(2023~26) +3.54%** — 세 필터 중 유일하게 검증기간이 학습기간보다 좋습니다(과최적화 흔적 없음). 대신 수익률 자체는 가장 낮습니다',
    rule:{hold:10,stop:null,target:20}, ruleText:'<em>당일 종가 매수</em>(NXT 야간거래, 실측 +3.57%) 또는 다음날 시가 매수(+3.44%) · <em>10거래일</em> 보유 후 종가 매도 · <em>+20%</em> 도달 시 익절 · 손절 <em>없음</em> · 다음날 시가로 살 때 <em>+5% 이상 갭상승이면 보류</em>',
    stats:{n:139, perMonth:1.5, win:55, pf:2.34, avg:3.13, years:'절대수익(당일 종가 매수 기준) · 2019 -7.4% / 2020 +6.9% / 2021 +2.8% / 2022 +4.1% / 2023 -2.7% / 2024 +0.7% / 2025 +4.8% / 2026 +5.3%'},
    fn:r=>r.mk==='KOSPI'&&r.r16!=null&&r.rw1!=null&&r.r16<50&&r.rw1>=200&&r.fw>0&&r.fw>=0.03*r.v5&&!r.pref&&(r.amt||0)>=50
         &&r.ret10!=null&&r.ret10>=0&&r.ret10<=20&&!!(raw.kospi&&raw.kospi.up20&&raw.kospi.up)
         &&r.rs!=null&&r.rs>0&&r.srDown===true&&r.disc!==true},
-  {id:2,name:'2번 · 코스피 조정매집',desc:'2개월 거래량 < 1년 평균의 30%(매우 잠잠) · 최근 3거래일 ≥ 2개월 평균의 200% · 외국인 1주 순매수 ≥ 거래량의 2% · 2개월 평균 거래대금 ≥ 3억 · 최근 3거래일 주가 **-5% 이하 급락**(투매 구간) · **최근 10거래일도 하락**(추세적 눌림) · **코스피 20일선 아래**(조정·하락 국면 전용) · **공매도 비중 5일평균 < 20일평균(공매도 감소 중)** · **최근 90일 내 유상증자·CB 공시 없음** · 우선주 제외  ▶ 매매: **다음날 시가 매수**(당일 종가 매수보다 유리 — 급락 직후라 시초에 더 빠짐) · 10거래일 보유 후 종가 매도 · 손절·익절 없음 · **시가 +5% 이상 갭상승 시 보류**  ▶ 백테스트 2019~26(8년, 절대수익): 평균 +16.49% / 중앙값 +9.14% / 승률 83% / PF 15.77 (123건, 신호 있는 8년 모두 플러스)  ▶ **학습(2019~22) +20.18% → 검증(2023~26) +6.81%**(34건, 승률 91%) — 실전 기대치는 검증 쪽으로 보십시오  ▶ 강세장에는 신호가 거의 없음 — 그 구간은 1번 필터가 담당',
+  {id:2,name:'2번 · 조정매집',mkt:'KOSPI',desc:'2개월 거래량 < 1년 평균의 30%(매우 잠잠) · 최근 3거래일 ≥ 2개월 평균의 200% · 외국인 1주 순매수 ≥ 거래량의 2% · 2개월 평균 거래대금 ≥ 3억 · 최근 3거래일 주가 **-5% 이하 급락**(투매 구간) · **최근 10거래일도 하락**(추세적 눌림) · **코스피 20일선 아래**(조정·하락 국면 전용) · **공매도 비중 5일평균 < 20일평균(공매도 감소 중)** · **최근 90일 내 유상증자·CB 공시 없음** · 우선주 제외  ▶ 매매: **다음날 시가 매수**(당일 종가 매수보다 유리 — 급락 직후라 시초에 더 빠짐) · 10거래일 보유 후 종가 매도 · 손절·익절 없음 · **시가 +5% 이상 갭상승 시 보류**  ▶ 백테스트 2019~26(8년, 절대수익): 평균 +16.49% / 중앙값 +9.14% / 승률 83% / PF 15.77 (123건, 신호 있는 8년 모두 플러스)  ▶ **학습(2019~22) +20.18% → 검증(2023~26) +6.81%**(34건, 승률 91%) — 실전 기대치는 검증 쪽으로 보십시오  ▶ 강세장에는 신호가 거의 없음 — 그 구간은 1번 필터가 담당',
    rule:{hold:10,stop:null,target:null}, ruleText:'다음날 <em>시가 매수</em> · <em>10거래일</em> 보유 후 종가 매도 (손절·익절 <em>없음</em> — 손절이 성과를 깎는다는 실측 결과)',
    stats:{n:123, perMonth:1.2, win:83, pf:15.77, avg:16.49, years:'절대수익 · 2019 +21.1% / 2020 +40.3% / 2021 +4.2% / 2022 +4.2% / 2023 +7.4% / 2024 +7.4% / 2025 +10.5% / 2026 신호없음'},
    fn:r=>r.mk==='KOSPI'&&r.r16!=null&&r.rw1!=null&&r.r16<30&&r.rw1>=200&&r.fw>0&&r.fw>=0.02*r.v5&&!r.pref&&(r.amt||0)>=3
         &&r.ret3!=null&&r.ret3<=-5&&r.ret10!=null&&r.ret10<=0&&!(raw.kospi&&raw.kospi.up20)
         &&r.srDown===true&&r.dilu!==true&&r.disc!==true},
-  {id:3,name:'3번 · 코스피 폭락반등',desc:'**최근 20거래일 주가 -20% 이하 폭락** · **당일 거래량 ≥ 직전 20일 평균의 2배**(투매 정점) · **외국인 60일 누적 순매수 ≥ 거래량의 1%**(장기 수급 유입) · 20일 평균 거래대금 ≥ 3억 · **코스피 60일선 아래**(시장도 무너진 국면) · 공매도 비중 5일평균 < 20일평균(감소 중) · 최근 90일 내 유상증자·CB 공시 없음 · 우선주 제외  ▶ 매매: **다음날 시가 매수** · **20거래일 보유** 후 종가 매도 · **손절·익절 없음**(손절을 넣으면 반등을 놓쳐 수익이 깎임 — 손절 -20% 적용 시 +20.0%→+15.9%)  ▶ 백테스트 2018~26(9년, 절대수익): 평균 +20.03% / 중앙값 +15.32% / 승률 78% / PF 10.07 (540건, **9개 연도 전부 플러스**)  ▶ **학습(2018~22) +22.95% → 검증(2023~26) +4.80%** — 실전 기대치는 검증 쪽으로 보십시오  ▶ ⚠ **폭락 전용 필터**: 540건 중 208건(39%)이 2020년 3월 코로나 폭락 한 달에 몰려 있고, 104개월 중 41개월(39%)에만 신호가 납니다. 강세장에는 거의 안 걸립니다  ▶ ⚠ 손절이 없어 한 종목에서 **-62.5%**(와이투솔루션, 2020-02-24)까지 맞은 적이 있습니다',
+  {id:3,name:'3번 · 폭락반등',mkt:'KOSPI',desc:'**최근 20거래일 주가 -20% 이하 폭락** · **당일 거래량 ≥ 직전 20일 평균의 2배**(투매 정점) · **외국인 60일 누적 순매수 ≥ 거래량의 1%**(장기 수급 유입) · 20일 평균 거래대금 ≥ 3억 · **코스피 60일선 아래**(시장도 무너진 국면) · 공매도 비중 5일평균 < 20일평균(감소 중) · 최근 90일 내 유상증자·CB 공시 없음 · 우선주 제외  ▶ 매매: **다음날 시가 매수** · **20거래일 보유** 후 종가 매도 · **손절·익절 없음**(손절을 넣으면 반등을 놓쳐 수익이 깎임 — 손절 -20% 적용 시 +20.0%→+15.9%)  ▶ 백테스트 2018~26(9년, 절대수익): 평균 +20.03% / 중앙값 +15.32% / 승률 78% / PF 10.07 (540건, **9개 연도 전부 플러스**)  ▶ **학습(2018~22) +22.95% → 검증(2023~26) +4.80%** — 실전 기대치는 검증 쪽으로 보십시오  ▶ ⚠ **폭락 전용 필터**: 540건 중 208건(39%)이 2020년 3월 코로나 폭락 한 달에 몰려 있고, 104개월 중 41개월(39%)에만 신호가 납니다. 강세장에는 거의 안 걸립니다  ▶ ⚠ 손절이 없어 한 종목에서 **-62.5%**(와이투솔루션, 2020-02-24)까지 맞은 적이 있습니다',
    rule:{hold:20,stop:null,target:null}, ruleText:'다음날 <em>시가 매수</em> · <em>20거래일</em> 보유 후 종가 매도 (손절·익절 <em>없음</em>)',
    stats:{n:540, perMonth:5.2, win:78, pf:10.07, avg:20.03, years:'절대수익 · 2018 +10.5% / 2019 +13.8% / 2020 +35.2% / 2021 +6.0% / 2022 +11.8% / 2023 +5.9% / 2024 +1.6% / 2025 +4.0% / 2026 +14.6%'},
    fn:r=>r.mk==='KOSPI'&&!r.pref&&r.ret20!=null&&r.ret20<=-20&&r.vs1!=null&&r.vs1>=2
         &&r.fw60!=null&&r.fw60>=1&&(r.amt20!=null?r.amt20:(r.amt||0))>=3
         &&!!(raw.kospi&&raw.kospi.up60===false)&&r.srDown===true&&r.dilu!==true&&r.disc!==true},
-  {id:4,name:'4번 · 코스닥 폭락반등',desc:'**코스닥 종목** · 최근 20거래일 주가 **-20% 이하 폭락** · **당일 거래량 ≥ 직전 20일 평균의 2배** · **외국인 60일 누적 순매수 ≥ 거래량의 1%** · 20일 평균 거래대금 ≥ **2억**(코스닥 기준으로 조정 — 코스피 3억과 같은 통과율) · **코스피 60일선 아래**(코스닥 지수가 아니라 코스피 지수를 봅니다 — 실측 +1.5% vs +8.2%) · 공매도 비중 5일평균 < 20일평균 · 최근 90일 내 유상증자·CB 공시 없음  ▶ 매매: **다음날 시가 매수** · **20거래일** 보유 후 종가 매도 · 손절·익절 없음  ▶ 백테스트 2021~26(6년, 절대수익, **상장폐지 128종목 포함**): 평균 +8.18% / 중앙값 +5.48% / 승률 62% / PF 2.83 (331건) · **학습(21~23) +4.09% → 검증(24~26) +11.52%**  ▶ ⚠ 코스닥은 부실 상장폐지가 잦습니다(2021~26년 128종목, 감사의견 거절 35건). 폐지 종목까지 넣어 실측한 값이며, 폐지 종목이 만든 신호 9건의 평균은 -2.5%였습니다  ▶ ⚠ 손절이 없어 한 종목에서 -46%까지 맞은 적이 있습니다',
+  {id:4,name:'4번 · 폭락반등',mkt:'KOSDAQ',desc:'**코스닥 종목** · 최근 20거래일 주가 **-20% 이하 폭락** · **당일 거래량 ≥ 직전 20일 평균의 2배** · **외국인 60일 누적 순매수 ≥ 거래량의 1%** · 20일 평균 거래대금 ≥ **2억**(코스닥 기준으로 조정 — 코스피 3억과 같은 통과율) · **코스피 60일선 아래**(코스닥 지수가 아니라 코스피 지수를 봅니다 — 실측 +1.5% vs +8.2%) · 공매도 비중 5일평균 < 20일평균 · 최근 90일 내 유상증자·CB 공시 없음  ▶ 매매: **다음날 시가 매수** · **20거래일** 보유 후 종가 매도 · 손절·익절 없음  ▶ 백테스트 2021~26(6년, 절대수익, **상장폐지 128종목 포함**): 평균 +8.18% / 중앙값 +5.48% / 승률 62% / PF 2.83 (331건) · **학습(21~23) +4.09% → 검증(24~26) +11.52%**  ▶ ⚠ 코스닥은 부실 상장폐지가 잦습니다(2021~26년 128종목, 감사의견 거절 35건). 폐지 종목까지 넣어 실측한 값이며, 폐지 종목이 만든 신호 9건의 평균은 -2.5%였습니다  ▶ ⚠ 손절이 없어 한 종목에서 -46%까지 맞은 적이 있습니다',
    rule:{hold:20,stop:null,target:null}, ruleText:'다음날 <em>시가 매수</em> · <em>20거래일</em> 보유 후 종가 매도 (손절·익절 <em>없음</em>)',
    stats:{n:331, perMonth:4.6, win:62, pf:2.83, avg:8.18, years:'절대수익 · 2021 -3.2% / 2022 +5.0% / 2023 +6.2% / 2024 +4.4% / 2025 신호없음 / 2026 +20.0%'},
    fn:r=>r.mk==='KOSDAQ'&&!r.pref&&r.ret20!=null&&r.ret20<=-20&&r.vs1!=null&&r.vs1>=2
@@ -125,7 +136,7 @@ const FILTERS=[
 let cur='all';  // 'all' = 하나라도 통과(OR), 숫자 = 해당 필터만
 function held(code){return positions().some(p=>p.code===code&&!p.sell)}
 function passes(r){if(held(r.ticker))return false; /* 보유 중(미매도) 종목은 매도 전까지 필터에서 제외 */ return cur==='all'?FILTERS.some(f=>f.fn(r)):FILTERS.find(f=>f.id===cur).fn(r)}
-function renderTabs(){$('#tabs').innerHTML=[`<button data-f="all" class="${cur==='all'?'on':''}">전체 <small>${view.rows.filter(r=>FILTERS.some(f=>f.fn(r))&&!held(r.ticker)).length}</small></button>`,...FILTERS.map(f=>`<button data-f="${f.id}" class="${cur===f.id?'on':''}">${f.name} <small>${view.rows.filter(r=>f.fn(r)&&!held(r.ticker)).length}</small></button>`),`<button data-f="pos" class="pos-tab ${cur==='pos'?'on':''}">보유 종목 <small>${positions().filter(p=>!p.sell).length}</small></button>`].join('');
+function renderTabs(){$('#tabs').innerHTML=[`<button data-f="all" class="${cur==='all'?'on':''}">전체 <small>${view.rows.filter(r=>FILTERS.some(f=>f.fn(r))&&!held(r.ticker)).length}</small></button>`,...FILTERS.map(f=>`<button data-f="${f.id}" class="mk-${f.mkt==='KOSDAQ'?'kq':'kp'} ${cur===f.id?'on':''}">${f.name} <small>${view.rows.filter(r=>f.fn(r)&&!held(r.ticker)).length}</small></button>`),`<button data-f="pos" class="pos-tab ${cur==='pos'?'on':''}">보유 종목 <small>${positions().filter(p=>!p.sell).length}</small></button>`].join('');
   document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{cur=b.dataset.f==='all'?'all':b.dataset.f==='pos'?'pos':+b.dataset.f;showInfo=false;render()});
   $('#fdesc').innerHTML=cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 필터의 규칙이 자동 적용됩니다 (1번: 10거래일·익절+20%·손절없음 / 2번: 10거래일·손절없음 / 3번: 20거래일·손절없음) · <button class="ghost mini" id="pinbtn">${getPin()===DEFAULT_PIN?'자동 동기화 중 (PIN 변경)':'PIN: '+getPin()+' (공유 중)'}</button>`:cur==='all'?'1·2·3번 필터 중 하나라도 해당하는 종목입니다. 각 필터 탭에서 기대 승률·PF와 매매 규칙을 확인하세요.':statsHtml(FILTERS.find(f=>f.id===cur));const rb=$('#rule');
   if(rb){const f=(typeof cur==='number')?FILTERS.find(x=>x.id===cur):null;
@@ -225,7 +236,7 @@ function render(){renderTabs();if(cur==='pos'){renderPositions();return}
   const cols=[['name','종목','l'],['hits','통과 필터'],['up','업종','l'],['streak','연속'],['ret3','3일'],['ret10','10일'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','3일평균'],['r16','2M/1Y'],['rw1','3일/2M'],['fw','외국인 1W'],['fwp','외인/거래량'],['amt','2M 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
   $('#tbl thead').innerHTML='<tr>'+cols.map(c=>`<th class="${c[2]||''} ${sortKey===c[0]?'on':''}" data-k="${c[0]}">${c[1]}${sortKey===c[0]?(desc?' ▼':' ▲'):''}</th>`).join('')+'</tr>';
   $('#tbl tbody').innerHTML=rows.map(r=>`<tr data-c="${r.ticker}" class="${sel===r.ticker?'sel':''}">
-    <td class="l name">${r.name} <span class="code">${r.ticker}${r.mk==='KOSDAQ'?' · 코스닥':''}</span></td>
+    <td class="l name">${r.name} <span class="code">${r.ticker}${r.mk==='KOSDAQ'?' <b class="kqtag">코스닥</b>':''}</span></td>
     <td class="l">${FILTERS.filter(f=>f.fn(r)).map(f=>`<span class="tag">${f.id}</span>`).join('')} <button class="ghost mini" data-buy="${r.ticker}">매수</button></td>
     <td class="l sc">${r.up||''}${r.rs!=null?` <small class="${r.rs>0?'pos':'neg'}">${r.rs>0?'+':''}${r.rs.toFixed(1)}%</small>`:''}</td><td>${r.streak?`<span class="${r.streak>=2?'hot':''}">${r.streak}일</span>`:''}</td><td class="${cls(r.ret3)}">${r.ret3==null?'':(r.ret3>0?'+':'')+r.ret3.toFixed(1)+'%'}</td><td class="${cls(r.ret10)}">${r.ret10==null?'':(r.ret10>0?'+':'')+r.ret10.toFixed(1)+'%'}</td>
     <td>${fmt(r.close)}</td><td>${chg(r.close,r.change)}</td>
