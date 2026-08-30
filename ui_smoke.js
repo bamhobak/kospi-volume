@@ -43,7 +43,8 @@ ctx.__rows = rowsJs;
 vm.runInContext('raw = __T; view = {dates: __T.dates, rows: __rows}; live = {prices:{}, updated:""};', ctx);
 
 let fail = 0;
-for (const cur of ['all', 'pos', 'kp', 'kq', 1, 2, 3, 4]) {
+const ids = vm.runInContext('FILTERS.map(f=>f.id)', ctx);
+for (const cur of ['pos', 'all', ...ids, 'done', 'kp', 'kq']) {
   try {
     vm.runInContext(`cur = ${typeof cur === 'number' ? cur : JSON.stringify(cur)}; render()`, ctx);
     let n = '-';
