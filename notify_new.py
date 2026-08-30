@@ -57,7 +57,7 @@ FILTERS = [
      and (r.get("amt20") if r.get("amt20") is not None else (r.get("amt") or 0)) >= 3
      and kospi.get("up60") is False
      and r.get("srDown") is True and r.get("dilu") is not True and r.get("disc") is not True),
-    (4, "4번 · 코스닥 폭락 반등 (20일 보유·손절 없음)",
+    (4, "4번 · 낙폭과대 (코스닥·20일 보유·손절 없음)",
      lambda r: r.get("mk") == "KOSDAQ" and not r["pref"]
      and r.get("ret20") is not None and r["ret20"] <= -20
      and r.get("vs1") is not None and r["vs1"] >= 2
