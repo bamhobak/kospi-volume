@@ -269,6 +269,17 @@ def load_debt_ratio():
     """종목별 최신 '공시된' 부채비율 (data/dart/financials.db).
        공시 시차를 지켜 아직 공개되지 않은 분기는 쓰지 않는다(1·3분기·반기 +60일, 사업보고서 +105일).
        연결(CFS) 우선, 없으면 별도(OFS). 재무가 없으면 None → 규칙은 통과로 처리."""
+    # 사이트(CI)에는 financials.db(181MB)가 없다 → collect_dart_fin.py 가 만든 스냅샷 CSV 를 먼저 본다
+    snap = DATA / "debt_ratio.csv"
+    if snap.exists():
+        out = {}
+        with open(snap, encoding="utf-8") as fh:
+            for r in csv.DictReader(fh):
+                try: out[r["ticker"]] = float(r["debt_ratio"])
+                except (TypeError, ValueError): pass
+        if out:
+            print(f"부채비율: {len(out):,}종목 (스냅샷 {snap.name})")
+            return out
     f = DATA / "dart" / "financials.db"
     if not f.exists(): return {}
     END = {"11013": "0331", "11012": "0630", "11014": "0930", "11011": "1231"}

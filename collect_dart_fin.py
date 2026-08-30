@@ -104,6 +104,26 @@ with ThreadPoolExecutor(W) as ex:
             print(f"진행 {n:,}/{len(JOBS):,} · {tot:,}행 · {el/60:.1f}분 경과 · 남은 예상 {(len(JOBS)-n)*el/max(n,1)/60:.1f}분", flush=True)
 con.commit()
 if quota: print("⚠ DART 일일 한도(020) 도달 — 내일 다시 실행하면 이어서 받습니다", flush=True)
+# ── 사이트용 스냅샷 (financials.db 는 181MB 라 리포지토리에 못 넣는다) ──
+# 규칙이 쓰는 건 '지금 공시된 최신 부채비율' 뿐이므로 작은 CSV 로 내보낸다.
+END = {"11013": "0331", "11012": "0630", "11014": "0930", "11011": "1231"}
+LG = {"11013": 60, "11012": 60, "11014": 60, "11011": 105}
+today = dt.datetime.now().strftime("%Y%m%d")
+best = {}
+for sc, y, rp, fs, eq, dbt in con.execute("""SELECT stock_code,year,reprt,fs_div,
+      max(CASE WHEN account='자본총계' THEN amount END), max(CASE WHEN account='부채총계' THEN amount END)
+      FROM fin GROUP BY 1,2,3,4"""):
+    if not sc or eq is None or dbt is None or eq == 0: continue
+    av = (dt.datetime.strptime(f"{y}{END[rp]}", "%Y%m%d") + dt.timedelta(days=LG[rp])).strftime("%Y%m%d")
+    if av > today: continue
+    k = (av, 0 if fs == "CFS" else 1)
+    if sc not in best or k > best[sc][0]: best[sc] = (k, round(dbt / abs(eq) * 100, 1))
+out = BASE / "data" / "debt_ratio.csv"
+with open(out, "w", encoding="utf-8", newline="") as fh:
+    fh.write("ticker,debt_ratio,as_of\n")
+    for sc, (k, v) in sorted(best.items()): fh.write(f"{sc},{v},{k[0]}\n")
+print(f"스냅샷 저장: {out.name} ({len(best):,}종목)", flush=True)
+
 r = con.execute("SELECT count(*), count(DISTINCT stock_code), min(year), max(year) FROM fin").fetchone()
 print(f"완료: {r[0]:,}행 · {r[1]:,}종목 · {r[2]}~{r[3]} · {(time.time()-t0)/60:.1f}분", flush=True)
 print("계정 종류:", [x[0] for x in con.execute("SELECT account, count(*) c FROM fin GROUP BY 1 ORDER BY c DESC LIMIT 20")], flush=True)
