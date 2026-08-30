@@ -187,6 +187,11 @@ const FILTERS=[
         &&r.fw60!=null&&r.fw60>=1&&(r.amt20!=null?r.amt20:0)>=2
         &&!!(raw.kospi&&raw.kospi.up60===false)&&(r.sr60==null||r.sr60<=-15)
         &&r.srDown===true&&r.dilu!==true&&r.disc!==true},
+  {id:'D2',name:'D2 · 거래량폭발(테스트)',mkt:'KOSDAQ',
+   desc:'⚠ **테스트용 임시 규칙입니다 — 백테스트로 검증하지 않았습니다.** 화면·알림·보유종목 흐름을 신호가 여러 건 있을 때 확인하려고 넣은 것이니, 실제 매매에 쓰지 마십시오.  ▶ 조건: 코스닥 · 당일 거래량 ≥ 직전 20일 평균의 3배 · 20일 평균 거래대금 ≥ 50억 · 우선주·불연속 제외',
+   rule:{hold:10,stop:null,target:null}, ruleText:'테스트용 — 매매 규칙 없음',
+   stats:{n:0, perMonth:0, win:0, pf:0, avg:0, years:'백테스트 없음 (테스트용 규칙)'},
+   fn:r=>r.mk==='KOSDAQ'&&!r.pref&&r.vs1!=null&&r.vs1>=3&&(r.amt20||0)>=50&&r.disc!==true},
 ];
 let cur='all';  // 'all' = 하나라도 통과(OR), 숫자 = 해당 필터만
 const LEGACY_ID={1:'P1',2:'P2',3:'P3',4:'D1'};       // 예전에 저장된 숫자 id 호환

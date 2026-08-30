@@ -67,6 +67,11 @@ FILTERS = [
      and kospi.get("up60") is False
      and (r.get("sr60") is None or r["sr60"] <= -15)
      and r.get("srDown") is True and r.get("dilu") is not True and r.get("disc") is not True),
+    ("D2", "D2 · 거래량폭발 (⚠ 테스트용 — 검증 안 된 규칙)",
+     lambda r: r.get("mk") == "KOSDAQ" and not r["pref"]
+     and r.get("vs1") is not None and r["vs1"] >= 3
+     and (r.get("amt20") or 0) >= 50
+     and r.get("disc") is not True),
 ]
 
 held = {p["code"] for p in (rpc("kospi_state_positions", {}) or [])}

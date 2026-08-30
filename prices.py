@@ -17,7 +17,8 @@ NAVER = {"User-Agent": "Mozilla/5.0"}
 TG_TOKEN, TG_CHAT = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
 HOLD_DAYS = 10
 RULES = {"P1": {"stop": None, "target": 0.20, "hold": 10}, "P2": {"stop": None, "target": None, "hold": 10},
-         "P3": {"stop": None, "target": None, "hold": 20}, "D1": {"stop": None, "target": None, "hold": 20}}
+         "P3": {"stop": None, "target": None, "hold": 20}, "D1": {"stop": None, "target": None, "hold": 20},
+         "D2": {"stop": None, "target": None, "hold": 10}}   # 테스트용
 LEGACY_ID = {1: "P1", 2: "P2", 3: "P3", 4: "D1"}      # 예전에 저장된 숫자 id 호환   # 필터별 청산 규칙
 DEFAULT_RULE = RULES["P1"]
 num = lambda s: float(str(s).replace(",", "")) if s not in (None, "") else None
