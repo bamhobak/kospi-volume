@@ -149,7 +149,7 @@ function renderTabs(){$('#tabs').innerHTML=[`<button data-f="all" class="${cur==
     cur=(f==='all'||f==='pos'||f==='kp'||f==='kq')?f:+f;
     if(f==='kp'||f==='kq'){sortKey='cap';desc=true}          /* 전체 종목은 시총 순 */
     showInfo=false;render()});
-  $('#fdesc').innerHTML=cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 필터의 규칙이 자동 적용됩니다 (1번: 10거래일·익절+20%·손절없음 / 2번: 10거래일·손절없음 / 3번: 20거래일·손절없음) · <button class="ghost mini" id="pinbtn">${getPin()===DEFAULT_PIN?'자동 동기화 중 (PIN 변경)':'PIN: '+getPin()+' (공유 중)'}</button>`:cur==='all'?'1·2·3번 필터 중 하나라도 해당하는 종목입니다. 각 필터 탭에서 기대 승률·PF와 매매 규칙을 확인하세요.':statsHtml(FILTERS.find(f=>f.id===cur));const rb=$('#rule');
+  $('#fdesc').innerHTML=cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 필터의 규칙이 자동 적용됩니다 (1번: 10거래일·익절+20%·손절없음 / 2번: 10거래일·손절없음 / 3번: 20거래일·손절없음) · <button class="ghost mini" id="pinbtn">${getPin()===DEFAULT_PIN?'자동 동기화 중 (PIN 변경)':'PIN: '+getPin()+' (공유 중)'}</button>`:cur==='all'?'1·2·3·4번 필터 중 하나라도 해당하는 종목입니다. 각 필터 탭에서 기대 승률·PF와 매매 규칙을 확인하세요.':(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 필터와 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));const rb=$('#rule');
   if(rb){const f=(typeof cur==='number')?FILTERS.find(x=>x.id===cur):null;
     if(f){rb.style.display='';rb.innerHTML=`<b>${f.name} 매매 규칙</b> <span>${f.ruleText}</span>`}else{rb.style.display='none'}}
   const pb=$('#pinbtn');if(pb)pb.onclick=setPin;[$('#infobtn'),$('#infobtn2')].forEach(ib=>{if(ib)ib.onclick=()=>{showInfo=!showInfo;renderTabs()}})}
