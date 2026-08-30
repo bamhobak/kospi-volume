@@ -64,8 +64,8 @@ jobs:
           path: |
             data/kosdaq.db
             data/kosdaq_short_recent.csv
-          key: kosdaq-db-${{ github.run_id }}
-          restore-keys: kosdaq-db-
+          key: kosdaq-db-v2-${{ github.run_id }}
+          restore-keys: kosdaq-db-v2-
       - name: collect kosdaq (최근 60거래일 누적 · 코스닥 필터용)
         # 캐시 미스면 푸시 빌드에서도 받는다. 코스닥 DB 는 리포지토리에 없어
         # 캐시가 유일한 출처이고, 비면 사이트에서 1,823종목이 통째로 사라진다.
@@ -80,7 +80,7 @@ jobs:
           path: |
             data/kosdaq.db
             data/kosdaq_short_recent.csv
-          key: kosdaq-db-${{ github.run_id }}
+          key: kosdaq-db-v2-${{ github.run_id }}
 
       - name: collect valuation (PER·PBR·PCR)
         if: github.event_name != 'push' && steps.td.outputs.trading == 'true'
