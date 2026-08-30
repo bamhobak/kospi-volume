@@ -36,25 +36,33 @@ def fwp(r):
 # 사이트 index.html 의 FILTERS 와 동일
 FILTERS = [
     (1, "1번 · 대형주 상승초입 (10일 보유·익절 +20%·손절 없음)",
-     lambda r: (r.get("streak") or 0) >= 1 and fwp(r) >= 3 and not r["pref"]
+     lambda r: r.get("mk") == "KOSPI" and (r.get("streak") or 0) >= 1 and fwp(r) >= 3 and not r["pref"]
      and (r.get("amt") or 0) >= 50 and r["a1"] / r["a6"] < 0.5
      and r.get("ret10") is not None and 0 <= r["ret10"] <= 20
      and bool(kospi.get("up20")) and bool(kospi.get("up"))
      and r.get("rs") is not None and r["rs"] > 0 and r.get("srDown") is True
      and r.get("disc") is not True),
     (2, "2번 · 조정 중 매집 (10일 보유·손절 없음)",
-     lambda r: (r.get("streak") or 0) >= 1 and fwp(r) >= 2 and not r["pref"]
+     lambda r: r.get("mk") == "KOSPI" and (r.get("streak") or 0) >= 1 and fwp(r) >= 2 and not r["pref"]
      and (r.get("amt") or 0) >= 3 and r["a1"] / r["a6"] < 0.3
      and r.get("ret3") is not None and r["ret3"] <= -5
      and r.get("ret10") is not None and r["ret10"] <= 0
      and not bool(kospi.get("up20"))
      and r.get("srDown") is True and r.get("dilu") is not True and r.get("disc") is not True),
     (3, "3번 · 폭락 반등 (20일 보유·손절 없음)",
-     lambda r: not r["pref"]
+     lambda r: r.get("mk") == "KOSPI" and not r["pref"]
      and r.get("ret20") is not None and r["ret20"] <= -20
      and r.get("vs1") is not None and r["vs1"] >= 2
      and r.get("fw60") is not None and r["fw60"] >= 1
      and (r.get("amt20") if r.get("amt20") is not None else (r.get("amt") or 0)) >= 3
+     and kospi.get("up60") is False
+     and r.get("srDown") is True and r.get("dilu") is not True and r.get("disc") is not True),
+    (4, "4번 · 코스닥 폭락 반등 (20일 보유·손절 없음)",
+     lambda r: r.get("mk") == "KOSDAQ" and not r["pref"]
+     and r.get("ret20") is not None and r["ret20"] <= -20
+     and r.get("vs1") is not None and r["vs1"] >= 2
+     and r.get("fw60") is not None and r["fw60"] >= 1
+     and (r.get("amt20") or 0) >= 2
      and kospi.get("up60") is False
      and r.get("srDown") is True and r.get("dilu") is not True and r.get("disc") is not True),
 ]
@@ -80,7 +88,7 @@ for fid, name, _ in FILTERS:
         r = info[t]
         chp = (r["ch"] / (r["c"] - r["ch"]) * 100) if r.get("c") and r.get("ch") and r["c"] != r["ch"] else 0
         lines.append(f"• <b>{r['n']}</b> ({t}) {r['c']:,}원 ({chp:+.1f}%)")
-        if fid == 3:
+        if fid in (3, 4):
             lines.append(f"   20일 {(r.get('ret20') or 0):+.1f}% · 외인 60일 {(r.get('fw60') or 0):+.1f}% · "
                          f"당일 거래량 {(r.get('vs1') or 0):.1f}배 · 거래대금 {(r.get('amt20') or r.get('amt') or 0):.0f}억")
         else:
@@ -96,8 +104,8 @@ if lines and prev_date:   # 첫 실행(비교 대상 없음)에는 보내지 않
              "• 1번: <b>지금 NXT 야간거래로 종가 매수</b>가 유리 (실측 +3.57% vs 다음날 시가 +3.44%)\n"
              "• 2번: <b>다음날 시가 매수</b>가 유리 (급락 직후라 시초에 더 빠짐)\n"
              "• 공통: 다음날 시가가 <b>+5% 이상 갭상승</b>이면 매수 보류\n"
-             "• 3번: <b>다음날 시가 매수</b> · <b>20거래일</b> 보유 (폭락 반등 — 흔들려도 손절 금지)\n"
-             "• 보유: 1·2번 10거래일 / 3번 20거래일 · 손절 없음 · 1번만 +20% 익절")
+             "• 3·4번: <b>다음날 시가 매수</b> · <b>20거래일</b> 보유 (폭락 반등 — 흔들려도 손절 금지)\n"
+             "• 보유: 1·2번 10거래일 / 3·4번 20거래일 · 손절 없음 · 1번만 +20% 익절")
     telegram(f"🆕 <b>신규 편입 종목</b> ({last_date[4:6]}/{last_date[6:]} 기준 · 코스피 {kmark})"
              + "".join(lines) + guide
              + f"\n\nhttps://bamhobak.github.io/kospi-volume/")

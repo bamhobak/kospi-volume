@@ -129,14 +129,16 @@ def upjong_rs(con, up, dates):
             for g, dd in gret.items() if len(dd) >= 15}
 
 def short_flags(dates):
-    """최근 공매도 비중 5일평균 < 20일평균 여부 (data/short_recent.csv)"""
-    f = DATA / "short_recent.csv"
-    if not f.exists(): return {}
+    """최근 공매도 비중 5일평균 < 20일평균 여부 (short_recent.csv + kosdaq_short_recent.csv)"""
     by = {}
-    with open(f, encoding="utf-8") as fh:
-        for r in csv.DictReader(fh):
-            try: by.setdefault(r["ticker"], []).append((r["date"], float(r["short_ratio"])))
-            except (TypeError, ValueError): pass
+    for name in ("short_recent.csv", "kosdaq_short_recent.csv"):
+        f = DATA / name
+        if not f.exists(): continue
+        with open(f, encoding="utf-8") as fh:
+            for r in csv.DictReader(fh):
+                try: by.setdefault(r["ticker"], []).append((r["date"], float(r["short_ratio"])))
+                except (TypeError, ValueError): pass
+    if not by: return {}
     out = {}
     for t, v in by.items():
         v.sort()
@@ -145,6 +147,21 @@ def short_flags(dates):
         a5, a20 = sum(s5) / len(s5), sum(s20) / len(s20)
         out[t] = {"sr5": round(a5, 2), "sr20": round(a20, 2), "srDown": a5 < a20}
     return out
+
+def load_kosdaq(dates):
+    """코스닥 최근 구간 (data/kosdaq.db) — 없으면 빈 목록.
+       코스닥 필터는 최근 60거래일이면 계산되므로 전체 이력을 커밋하지 않는다."""
+    db = DATA / "kosdaq.db"
+    if not db.exists(): return []
+    try:
+        c = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=120)
+        c.row_factory = sqlite3.Row
+        r = c.execute("SELECT * FROM daily WHERE date >= ? ORDER BY ticker, date", (dates[0],)).fetchall()
+        c.close()
+        print(f"코스닥 {len(r):,}행 · {len({x['ticker'] for x in r})}종목")
+        return list(r)
+    except Exception as e:
+        print("코스닥 로드 실패:", str(e)[:80]); return []
 
 def dilution_flags(last_date, days=90):
     """최근 days일 내 유상증자·CB 공시 종목 (data/dilution_recent.csv)"""
@@ -168,6 +185,7 @@ def build_site():
     if not dates:
         json.dump({"dates": [], "rows": [], "updated": ""}, open(SITE / "data" / "table.json", "w", encoding="utf-8")); return
     rows = con.execute("SELECT * FROM daily WHERE date >= ? ORDER BY ticker, date", (dates[0],)).fetchall()
+    rows = list(rows) + load_kosdaq(dates)
     TRET = theme_returns(con, TH, dates[-1]) if TH else {}
     RS = upjong_rs(con, UP, dates) if UP else {}
     SF = short_flags(dates)
@@ -221,7 +239,7 @@ def build_site():
         vs1 = round(vol_all[-1] / a20p, 2) if len(vol_all) >= 21 and a20p else None   # 당일 거래량 배수
         v60, f60 = vol_all[-60:], fr_all[-60:]               # 외국인 60일 누적 순매수 비중(%)
         fw60 = (round(sum(x or 0 for x in f60) / sum(v60) * 100, 2)
-                if len(v60) >= 60 and len(f60) >= 60 and sum(v60) else None)
+                if len(v60) >= 55 and len(f60) >= 55 and sum(v60) else None)
         amt20 = round(avg(amt_all[-20:]) / 1e8, 2) if len(amt_all) >= 20 else None    # 20일 평균 거래대금(억)
         # 가격 불연속(액면분할·병합 등 미조정) 감지: 상하한가 ±30% 라 32% 초과 변동은 물리적으로 불가능
         rec = closes[-26:]

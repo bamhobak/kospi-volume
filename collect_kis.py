@@ -52,12 +52,24 @@ con.execute("CREATE TABLE IF NOT EXISTS done(mode TEXT, ticker TEXT, n INTEGER, 
 con.commit()
 done = {r[0] for r in con.execute("SELECT ticker FROM done WHERE mode=?", (MODE,))}
 
-corp = json.load(open(BASE / "data" / "dart" / "corp_code.json", encoding="utf-8"))
-c2 = sqlite3.connect(f"file:{BASE/'data'/'kospi.db'}?mode=ro", uri=True)
-codes = [r[0] for r in c2.execute("SELECT DISTINCT ticker FROM daily WHERE market='KOSPI'")]
+MKT = arg("--market", "KOSPI")               # KOSPI | KOSDAQ | DELISTED
+SRC = BASE / "data" / {"KOSPI": "kospi.db", "KOSDAQ": "kosdaq.db",
+                       "DELISTED_KD": "delisted_kd.db"}.get(MKT, "delisted.db")
+c2 = sqlite3.connect(f"file:{SRC}?mode=ro", uri=True)
+if MKT == "DELISTED_KD":                      # 폐지 코스닥: 목록 CSV 로 한정
+    import csv as _csv
+    codes = [r["Symbol"] for r in _csv.DictReader(open(BASE / "data" / "kosdaq_delisted.csv", encoding="utf-8"))]
+elif MKT == "DELISTED":                       # 상장폐지 종목 DB엔 market 컬럼이 없음
+    codes = [r[0] for r in c2.execute("SELECT DISTINCT ticker FROM daily")]
+elif MKT == "KOSPI":
+    codes = [r[0] for r in c2.execute("SELECT DISTINCT ticker FROM daily WHERE market=?", (MKT,))]
+else:                                         # 거래 불가 종목까지 긁을 필요 없음
+    codes = [r[0] for r in c2.execute(
+        "SELECT ticker FROM daily WHERE market=? AND volume>0 AND close>0 "
+        f"GROUP BY ticker HAVING avg(volume*close)/1e8 >= {float(arg('--min-amt','1'))}", (MKT,))]
 c2.close()
 todo = [t for t in sorted(codes) if t not in done]
-log.info(f"[{MODE}] 대상 {len(todo)}종목 (완료 {len(done)}) · {FROM}~ · 워커 {W}")
+log.info(f"[{MODE}/{MKT}] 대상 {len(todo)}종목 (완료 {len(done)}) · {FROM}~ · 워커 {W}")
 
 TOKEN = kis.get_token()
 lock = threading.Lock(); last = [0.0]
