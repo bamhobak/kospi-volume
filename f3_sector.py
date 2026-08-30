@@ -158,3 +158,10 @@ for lab, m in (("현행 3번", F3), ("+ 업종 -20%↓", BEST)):
     ym = x.date.str[:6].nunique()
     print(f"- {lab}: {len(x)}건 / 104개월 · 신호 있는 달 {ym}개월({ym/104*100:.0f}%) · 월평균 {len(x)/104:.1f}건")
 log("완료")
+
+# 배포본 P3 (업종 60일 -10% 이하, 데이터 없으면 통과) 거래 목록 저장
+_m=(F3 & (~HAS | (D.sret60 <= -10))).fillna(False)
+_x=D[_m].copy(); _x["r"]=_x.f20-_x.cost
+_x=_x[np.isfinite(_x.r)]
+_x[["date","ticker","name","grp","y","sret60","r"]].to_csv("data/kp_f3_sector_trades.csv",index=False,encoding="utf-8-sig")
+print(f"배포본 P3 거래 {len(_x)}건 -> data/kp_f3_sector_trades.csv")
