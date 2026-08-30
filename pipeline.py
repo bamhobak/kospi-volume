@@ -199,26 +199,32 @@ def fill_valuation(table):
         r.update({k: x for k, x in v.items() if x is not None}); n += 1
     print(f"밸류에이션: {len(V):,}종목 로드 · {n:,}종목 매칭")
 
-def fill_sr60(table, up_kospi, r60_kospi):
+def fill_sr60(table, up_kospi=None, r60_kospi=None):
     """종목마다 '소속 업종의 60일 수익률'(sr60) 을 채운다.
-       코스피는 sector.csv 업종 + 이미 계산한 r60_kospi, 코스닥은 industry.csv 로 직접 집계.
-       업종 회원이 5종목 미만이면 None (필터는 None 을 통과로 처리)."""
+       정의를 백테스트와 통일: **industry.csv(KRX 표준산업분류) + 소속 종목 60일 수익률의 중앙값**,
+       코스피·코스닥 각각 자기 시장 안에서만 집계, 회원 5종목 미만 업종은 None.
+       (예전에는 코스피만 sector.csv + 평균을 썼는데, 그러면 사이트와 백테스트 임계값이 어긋난다.
+        규칙은 sr60 이 None 이면 '차단' 한다 — 업종을 모르는 종목이 최악 손실을 만들었기 때문.)"""
     IND = load_industry()
-    agg = {}
+    agg = {"KOSPI": {}, "KOSDAQ": {}}
     for r in table:
-        if r.get("mk") != "KOSDAQ" or r.get("ret60") is None: continue
+        if r.get("ret60") is None: continue
         g = IND.get(r["t"])
-        if g: agg.setdefault(g, []).append(r["ret60"])
-    kq = {g: round(sum(v) / len(v), 2) for g, v in agg.items() if len(v) >= 5}
+        if not g or g == "기타": continue
+        agg[r.get("mk") or "KOSPI"].setdefault(g, []).append(r["ret60"])
+    med = {}
+    for mk, by in agg.items():
+        for g, v in by.items():
+            if len(v) < 5: continue
+            v = sorted(v); n = len(v)
+            med[(mk, g)] = round(v[n // 2] if n % 2 else (v[n // 2 - 1] + v[n // 2]) / 2, 2)
     n = 0
     for r in table:
-        if r.get("mk") == "KOSDAQ":
-            g = IND.get(r["t"]); r["up"] = r.get("up") or g
-            r["sr60"] = kq.get(g)
-        else:
-            r["sr60"] = r60_kospi.get(up_kospi.get(r["t"]))
+        g = IND.get(r["t"])
+        if g: r["up"] = r.get("up") or g
+        r["sr60"] = med.get(((r.get("mk") or "KOSPI"), g))
         if r["sr60"] is not None: n += 1
-    print(f"업종 60일 수익률: 코스피 {len(r60_kospi)}업종 · 코스닥 {len(kq)}업종 · 종목 {n:,}개 매칭")
+    print(f"업종 60일 수익률(중앙값·회원5+): {len(med)}업종 · 종목 {n:,}개 매칭")
 
 def load_kosdaq(dates):
     """코스닥 최근 구간 (data/kosdaq.db) — 없으면 빈 목록.
@@ -234,6 +240,62 @@ def load_kosdaq(dates):
         return list(r)
     except Exception as e:
         print("코스닥 로드 실패:", str(e)[:80]); return []
+
+def ret2y_map(dates, back=500):
+    """2년(기본 500거래일) 전 종가 대비 수익률 — 기준은 창의 첫 날이 아니라 **최신 거래일** — P4 의 '장기 과열 배제' 조건용.
+       전체 창(STOCK_DAYS=300)을 늘리면 종목별 JSON 이 배로 커지므로,
+       필요한 '그 시점 종가' 만 코스피/코스닥 DB 에서 따로 읽는다.
+       그 날짜에 거래가 없던 종목은 전후 10거래일 중 가장 이른 값을 쓴다."""
+    out = {}
+    for db, ro in ((collect.DB, False), (DATA / "kosdaq.db", True)):
+        try:
+            if ro and not Path(db).exists(): continue
+            c = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=120)
+            ds = [r[0] for r in c.execute(
+                "SELECT DISTINCT date FROM daily WHERE date<=? ORDER BY date DESC LIMIT ?", (dates[-1], back))]
+            if len(ds) < back * 0.8: c.close(); continue      # 이력이 짧으면 건너뜀(조건 통과 처리)
+            lo = ds[-1]; hi = ds[max(len(ds) - 11, 0)]
+            for t, d, cl in c.execute(
+                    "SELECT ticker,date,close FROM daily WHERE date BETWEEN ? AND ? AND close>0 ORDER BY ticker,date",
+                    (lo, hi)):
+                if t not in out: out[t] = cl
+            c.close()
+        except Exception as e:
+            print("2년 전 종가 조회 실패:", str(e)[:80])
+    return out
+
+
+def load_debt_ratio():
+    """종목별 최신 '공시된' 부채비율 (data/dart/financials.db).
+       공시 시차를 지켜 아직 공개되지 않은 분기는 쓰지 않는다(1·3분기·반기 +60일, 사업보고서 +105일).
+       연결(CFS) 우선, 없으면 별도(OFS). 재무가 없으면 None → 규칙은 통과로 처리."""
+    f = DATA / "dart" / "financials.db"
+    if not f.exists(): return {}
+    END = {"11013": "0331", "11012": "0630", "11014": "0930", "11011": "1231"}
+    LAG = {"11013": 60, "11012": 60, "11014": 60, "11011": 105}
+    today = collect.datetime.now().strftime("%Y%m%d")
+    try:
+        c = sqlite3.connect(f"file:{f}?mode=ro", uri=True, timeout=300)
+        rows = c.execute("""SELECT stock_code, year, reprt, fs_div,
+              max(CASE WHEN account='자본총계' THEN amount END),
+              max(CASE WHEN account='부채총계' THEN amount END)
+            FROM fin GROUP BY stock_code, year, reprt, fs_div""").fetchall()
+        c.close()
+    except Exception as e:
+        print("재무 로드 실패:", str(e)[:80]); return {}
+    best = {}
+    for sc, y, rp, fs, eq, dbt in rows:
+        if not sc or eq is None or dbt is None or eq == 0: continue
+        end = collect.datetime.strptime(f"{y}{END[rp]}", "%Y%m%d")
+        av = (end + collect.timedelta(days=LAG[rp])).strftime("%Y%m%d")
+        if av > today: continue                       # 아직 공시 전
+        key = (av, 0 if fs == "CFS" else 1)
+        if sc not in best or key > best[sc][0]:
+            best[sc] = (key, round(dbt / abs(eq) * 100, 1))
+    out = {k: v[1] for k, v in best.items()}
+    print(f"부채비율: {len(out):,}종목 (공시 시차 반영)")
+    return out
+
 
 def dilution_flags(last_date, days=90):
     """최근 days일 내 유상증자·CB 공시 종목 (data/dilution_recent.csv)"""
@@ -263,6 +325,8 @@ def build_site():
     R60 = upjong_ret60(con, UP, dates) if UP else {}      # 업종 60일 수익률(3번 필터용)
     SF = short_flags(dates)
     DILU = dilution_flags(dates[-1])
+    C2Y = ret2y_map(dates)
+    DBT = load_debt_ratio()
     con.close()
     idx = {d: i for i, d in enumerate(dates)}
     by = {}
@@ -287,6 +351,7 @@ def build_site():
         amt1 = avg(amt_all[-q0:-W_SURGE])   # 잠잠창 일평균 거래대금(원)
         # 1번 필터 연속 신호 일수: k일 전 기준으로 조건 충족 여부를 계산해 연속 True 개수
         fr_all = [x[6] for x in s["rows"] if x[3] is not None]     # 외국인 순매수(거래량 있는 행과 정렬 맞춤)
+        og_all = [x[5] for x in s["rows"] if x[3] is not None]     # 기관 순매수(같은 정렬)
         def cond(k):
             v = vol_all[:len(vol_all) - k] if k else vol_all
             f = fr_all[:len(fr_all) - k] if k else fr_all
@@ -319,17 +384,46 @@ def build_site():
         fw60 = (round(sum(x or 0 for x in f60) / sum(v60) * 100, 2)
                 if len(v60) >= 55 and len(f60) >= 55 and sum(v60) else None)
         amt20 = round(avg(amt_all[-20:]) / 1e8, 2) if len(amt_all) >= 20 else None    # 20일 평균 거래대금(억)
+        v20 = sum(vol_all[-20:])
+        ow20 = (round(sum(x or 0 for x in og_all[-20:]) / v20 * 100, 2)      # 기관 20일 누적 순매수 비중(%)
+                if len(vol_all) >= 20 and len(og_all) >= 20 and v20 else None)
         # 가격 불연속(액면분할·병합 등 미조정) 감지: 상하한가 ±30% 라 32% 초과 변동은 물리적으로 불가능
         rec = closes[-26:]
         disc = any(rec[i-1] and not (0.68 < rec[i] / rec[i-1] < 1.32) for i in range(1, len(rec)))
+        # ── P4(조용한 신고가)용 지표 ────────────────────────────
+        hi250 = max(closes[-250:]) if len(closes) >= 60 else None            # 52주 신고가
+        fromhi = round((closes[-1] / hi250 - 1) * 100, 2) if hi250 else None  # 신고가 대비(%)
+        f5 = fr_all[-5:]; v5 = vol_all[-5:]
+        fw5 = (round(sum(x or 0 for x in f5) / sum(v5) * 100, 2)
+               if len(f5) >= 5 and sum(v5) else None)                         # 외국인 5일 순매수 비중
+        if len(closes) >= 21:
+            dr = [closes[i] / closes[i-1] - 1 for i in range(len(closes) - 20, len(closes)) if closes[i-1]]
+            mu = sum(dr) / len(dr) if dr else 0
+            vol20 = round((sum((x - mu) ** 2 for x in dr) / len(dr)) ** 0.5 * 100, 2) if dr else None
+        else: vol20 = None                                                    # 20일 일간변동성(%)
+        c2y = C2Y.get(s["ticker"])
+        ret2y = round((closes[-1] / c2y - 1) * 100, 2) if c2y else None       # 2년 수익률
+        # 작전주 배제용: 최근 1년 중 20일선 위에서 보낸 날의 비율 + 1년 수익률.
+        # 둘 다 극단이면(오래 눌림 없이 오르며 대폭 상승) 2023-04 SG증권 사태형 종목이다.
+        ret250 = round((closes[-1] / closes[-251] - 1) * 100, 2) if len(closes) >= 251 and closes[-251] else None
+        above20 = None
+        if len(closes) >= 80:
+            n = min(250, len(closes) - 19)
+            hit = 0
+            for i in range(len(closes) - n, len(closes)):
+                ma = sum(closes[i - 19:i + 1]) / 20
+                if closes[i] > ma: hit += 1
+            above20 = round(hit / n * 100, 1)
         table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2], "streak": streak, "ret3": ret3, "ret10": ret10,
-                      "ret20": ret20, "ret60": ret60, "r1m": r1m, "r3m": r3m, "r6m": r6m, "r1y": r1y, "vs1": vs1, "fw60": fw60, "amt20": amt20, "disc": disc,
+                      "ret20": ret20, "ret60": ret60, "fromhi": fromhi, "fw5": fw5, "vol20": vol20, "ret2y": ret2y, "ret250": ret250, "above20": above20, "r1m": r1m, "r3m": r3m, "r6m": r6m, "r1y": r1y, "vs1": vs1, "fw60": fw60, "amt20": amt20, "ow20": ow20, "disc": disc,
                       "aw": aw, "a1": a1, "a6": a6 if n6 >= W_BASE // 2 else None,
                       "amt": round(amt1 / 1e8, 2) if amt1 else None, "cap": s.get("cap"), "pref": s["ticker"][-1] != "0", "mk": s.get("mkt", "KOSPI"),
                       "up": UP.get(s["ticker"]), "rs": RS.get(UP.get(s["ticker"])),
                       "sr": (SF.get(s["ticker"]) or {}).get("sr5"),
+                      "sr20": (SF.get(s["ticker"]) or {}).get("sr20"),
                       "srDown": (SF.get(s["ticker"]) or {}).get("srDown"),
                       "dilu": s["ticker"] in DILU,
+                      "dbt": DBT.get(s["ticker"]),
                       "th": sorted(TH.get(s["ticker"], []), key=lambda g: -TRET.get(g, 0))[:6]})
         json.dump({"ticker": s["ticker"], "name": s["name"], "dates": dates, "rows": s["rows"]},
                   open(SITE / "data" / "stock" / f"{s['ticker']}.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))

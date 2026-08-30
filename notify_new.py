@@ -35,13 +35,19 @@ def fwp(r):
 
 # 사이트 index.html 의 FILTERS 와 동일
 FILTERS = [
-    ("P1", "P1 · 상승초입 (코스피·10일 보유·익절 +20%·손절 없음)",
-     lambda r: r.get("mk") == "KOSPI" and (r.get("streak") or 0) >= 1 and fwp(r) >= 3 and not r["pref"]
-     and (r.get("amt") or 0) >= 50 and r["a1"] / r["a6"] < 0.5
-     and r.get("ret10") is not None and 0 <= r["ret10"] <= 20
-     and bool(kospi.get("up20")) and bool(kospi.get("up"))
-     and r.get("rs") is not None and r["rs"] > 0 and r.get("srDown") is True
-     and r.get("disc") is not True),
+    ("P1", "P1 · 조용한 신고가 (코스피·40일 보유·손절 -15%)",
+     lambda r: r.get("mk") == "KOSPI" and not r["pref"]
+     and r.get("fromhi") is not None and r["fromhi"] >= -10
+     and r.get("a1") and r.get("a6") and r.get("aw")
+     and r["a1"] / r["a6"] * 100 < 120 and r["aw"] / r["a1"] * 100 <= 120
+     and r.get("fw5") is not None and r["fw5"] >= 3
+     and r.get("fw60") is not None and r["fw60"] >= 1
+     and r.get("vol20") is not None and r["vol20"] <= 2
+     and r.get("sr20") is not None and r["sr20"] <= 0.5
+     and r.get("ret20") is not None and r["ret20"] <= 5
+     and (r.get("amt20") or 0) >= 200
+     and not ((r.get("above20") or 0) > 70 and (r.get("ret250") or 0) > 120)
+     and r.get("dilu") is not True and r.get("disc") is not True),
     ("P2", "P2 · 조정매집 (코스피·10일 보유·손절 없음)",
      lambda r: r.get("mk") == "KOSPI" and (r.get("streak") or 0) >= 1 and fwp(r) >= 2 and not r["pref"]
      and (r.get("amt") or 0) >= 3 and r["a1"] / r["a6"] < 0.3
@@ -56,7 +62,7 @@ FILTERS = [
      and r.get("fw60") is not None and r["fw60"] >= 1
      and (r.get("amt20") if r.get("amt20") is not None else (r.get("amt") or 0)) >= 3
      and kospi.get("up60") is False
-     and (r.get("sr60") is None or r["sr60"] <= -10)
+     and (r.get("sr60") is not None and r["sr60"] <= -10)
      and r.get("srDown") is True and r.get("dilu") is not True and r.get("disc") is not True),
     ("D1", "D1 · 낙폭과대 (코스닥·20일 보유·손절 없음)",
      lambda r: r.get("mk") == "KOSDAQ" and not r["pref"]
@@ -65,8 +71,11 @@ FILTERS = [
      and r.get("fw60") is not None and r["fw60"] >= 1
      and (r.get("amt20") or 0) >= 2
      and kospi.get("up60") is False
-     and (r.get("sr60") is None or r["sr60"] <= -15)
-     and r.get("srDown") is True and r.get("dilu") is not True and r.get("disc") is not True),
+     and (r.get("sr60") is not None and r["sr60"] <= -20)
+     and r.get("srDown") is True and (r.get("dbt") is None or r["dbt"] <= 200)
+     and r.get("ow20") is not None and r["ow20"] >= 0
+     and (r.get("c") or 0) >= 1000
+     and r.get("dilu") is not True and r.get("disc") is not True),
 ]
 
 held = {p["code"] for p in (rpc("kospi_state_positions", {}) or [])}

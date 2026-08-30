@@ -88,6 +88,37 @@ jobs:
         env: { TZ: Asia/Seoul }
         run: python collect_valuation.py --workers 8
 
+      # DART 재무(financials.db, 181MB)는 리포지토리에 못 넣어 캐시로 이어붙인다.
+      # 분기 보고서는 자주 안 바뀌므로 월요일에만 최근 2년치를 갱신한다(약 2~3분).
+      - name: restore financials cache
+        id: fincache
+        uses: actions/cache/restore@v4
+        with:
+          path: data/dart/financials.db
+          key: dart-fin-v1-${{ github.run_id }}
+          restore-keys: dart-fin-v1-
+      - name: collect DART financials (월 1회 갱신)
+        if: github.event_name != 'push' && (steps.td.outputs.trading == 'true' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        env:
+          TZ: Asia/Seoul
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+        run: |
+          DOW=$(date +%u)
+          if [ ! -f data/dart/financials.db ]; then
+            echo "재무 DB 없음 → 전체 수집(약 4분)"; python collect_dart_fin.py --workers 4
+          elif [ "$DOW" = "1" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "월요일 → 최근 2년 갱신"; python collect_dart_fin.py --workers 4 --refresh --refresh-years 2
+          else
+            echo "오늘은 재무 갱신 안 함 (요일=$DOW)"
+          fi
+      - name: save financials cache
+        if: hashFiles('data/dart/financials.db') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: data/dart/financials.db
+          key: dart-fin-v1-${{ github.run_id }}
+
       - name: collect extra (공매도·희석공시 최근분)
         if: github.event_name != 'push' && steps.td.outputs.trading == 'true'
         continue-on-error: true

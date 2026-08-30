@@ -65,7 +65,9 @@ header{height:52px;padding:0 18px;flex-wrap:nowrap;gap:16px}
           border:1px solid var(--line);color:var(--mut);font-size:11px;white-space:nowrap}
 .mktstate i{width:6px;height:6px;border-radius:999px;background:var(--org);display:inline-block}
 .mktstate b{color:var(--txt)}
-.shell{display:flex;height:calc(100% - 52px);min-height:0}
+body{display:flex;flex-direction:column;height:100%}
+header{flex:none}
+.shell{display:flex;flex:1;min-height:0}
 .rail{width:212px;flex:none;background:#0b0d10;border-right:1px solid var(--line);
       display:flex;flex-direction:column;padding:14px 10px;gap:15px;overflow-y:auto}
 .rail .k{color:var(--dim);font-size:10px;font-weight:700;letter-spacing:.08em;padding:0 8px 4px}
@@ -137,7 +139,19 @@ td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400
 .empty{color:var(--mut);text-align:center;margin-top:120px}
 #close{display:none;margin-left:auto}
 @media (max-width:900px){
-  .rail{display:none}
+  /* 레일을 숨기면 규칙 탭에 아예 접근할 수 없다 → 가로 스크롤 띠로 전환 */
+  .shell{flex-direction:column}
+  .rail{width:auto;flex:none;flex-direction:row;align-items:stretch;gap:6px;
+        padding:8px 10px;overflow-x:auto;overflow-y:hidden;
+        border-right:0;border-bottom:1px solid var(--line);-webkit-overflow-scrolling:touch}
+  .rail::-webkit-scrollbar{height:0}
+  .rail .k{display:none}
+  .rail .grp{flex-direction:row;gap:6px}
+  .rail .grp+.grp{border-left:1px solid var(--line);padding-left:6px}
+  .rail .it{white-space:nowrap;padding:8px 11px;font-size:12px}
+  .rail .it .n{margin-left:7px}
+  .rail .it .bar{height:12px}
+  .main{min-height:0;flex:1}
   .wrap{grid-template-columns:1fr;padding:10px}.rule{margin:10px 10px 0;font-size:12px}
   header{padding:10px 12px}header h1{width:100%}
   .side{position:fixed;inset:0;z-index:20;border-radius:0;background:var(--panel);transform:translateY(100%);transition:transform .25s}
@@ -176,38 +190,68 @@ const pct=(c,ch)=>{if(c==null||ch==null||c-ch===0)return '';const p=ch/(c-ch)*10
 const chg=(c,ch)=>ch==null?'':`<span class="${cls(ch)}">${ch>0?'+':''}${fmt(ch)}${pct(c,ch)}</span>`;
 // ===== 필터 정의: 새 필터는 이 배열에 추가 =====
 const FILTERS=[
-  {id:'P1',name:'P1 · 상승초입',mkt:'KOSPI',desc:'2개월 거래량 < 1년 평균의 50% · 최근 3거래일 ≥ 2개월 평균의 200% · 외국인 1주 순매수 ≥ 거래량의 **3%** · 2개월 평균 거래대금 ≥ 50억 · 최근 10거래일 주가 0~20% 상승 · **코스피 5일선·20일선 둘 다 위** · 업종 상대강도 > 0(업종 20일 수익률이 시장 초과) · 공매도 비중 5일평균 < 20일평균(감소 중) · 우선주 제외  ▶ 매매: **당일 종가 매수(NXT 야간거래)** 또는 다음날 시가 매수 · 10거래일 보유 · 익절 +20% · 손절 없음 · **다음날 시가가 +5% 이상 갭상승하면 매수 보류**  ▶ 백테스트 2019~26(8년, 절대수익): 평균 +3.13% / 중앙값 +1.64% / 승률 55% (139건)  ▶ **학습(2019~22) +2.59% → 검증(2023~26) +3.54%** — 세 필터 중 유일하게 검증기간이 학습기간보다 좋습니다(과최적화 흔적 없음). 대신 수익률 자체는 가장 낮습니다',
-   rule:{hold:10,stop:null,target:20}, ruleText:'<em>당일 종가 매수</em>(NXT 야간거래, 실측 +3.57%) 또는 다음날 시가 매수(+3.44%) · <em>10거래일</em> 보유 후 종가 매도 · <em>+20%</em> 도달 시 익절 · 손절 <em>없음</em> · 다음날 시가로 살 때 <em>+5% 이상 갭상승이면 보류</em>',
-   stats:{n:125, perMonth:2.8, win:55, pf:1.8, avg:2.6, years:'**검증기간(2023~26) 기준** · 2023 -2.8% / 2024 +1.8% / 2025 +3.8% / 2026 +4.3%  —  참고: 전체기간 208건 평균 +2.08% · 승률 52%'},
-   fn:r=>r.mk==='KOSPI'&&r.r16!=null&&r.rw1!=null&&r.r16<50&&r.rw1>=200&&r.fw>0&&r.fw>=0.03*r.v5&&!r.pref&&(r.amt||0)>=50
-        &&r.ret10!=null&&r.ret10>=0&&r.ret10<=20&&!!(raw.kospi&&raw.kospi.up20&&raw.kospi.up)
-        &&r.rs!=null&&r.rs>0&&r.srDown===true&&r.disc!==true},
-  {id:'P2',name:'P2 · 조정매집',mkt:'KOSPI',desc:'2개월 거래량 < 1년 평균의 30%(매우 잠잠) · 최근 3거래일 ≥ 2개월 평균의 200% · 외국인 1주 순매수 ≥ 거래량의 2% · 2개월 평균 거래대금 ≥ 3억 · 최근 3거래일 주가 **-5% 이하 급락**(투매 구간) · **최근 10거래일도 하락**(추세적 눌림) · **코스피 20일선 아래**(조정·하락 국면 전용) · **공매도 비중 5일평균 < 20일평균(공매도 감소 중)** · **최근 90일 내 유상증자·CB 공시 없음** · 우선주 제외  ▶ 매매: **다음날 시가 매수**(당일 종가 매수보다 유리 — 급락 직후라 시초에 더 빠짐) · 10거래일 보유 후 종가 매도 · 손절·익절 없음 · **시가 +5% 이상 갭상승 시 보류**  ▶ 백테스트 2019~26(8년, 절대수익): 평균 +16.49% / 중앙값 +9.14% / 승률 83% / PF 15.77 (123건, 신호 있는 8년 모두 플러스)  ▶ **학습(2019~22) +20.18% → 검증(2023~26) +6.81%**(34건, 승률 91%) — 실전 기대치는 검증 쪽으로 보십시오  ▶ 강세장에는 신호가 거의 없음 — 그 구간은 1번 필터가 담당',
+  {id:'P1',name:'P1 · 조용한 신고가',mkt:'KOSPI',desc:'**52주 신고가 10% 이내**(고점 부근에서 조용히 버티는 종목) · **장기 거래량 침체**(2개월 평균 < 1년 평균의 120%) · **단기 거래량도 조용**(최근 3거래일 ≤ 2개월 평균의 120% — 급등·테마 배제) · **외국인 5일 순매수 ≥ 거래량의 3%** · **외국인 60일 누적 순매수 ≥ 1%**(장기 수급 유입) · **20일 변동성 ≤ 2%**(저변동) · **공매도 비중 20일평균 ≤ 0.5%**(공매도 표적 아님) · **최근 20거래일 상승률 ≤ 5%**(이미 달린 종목 배제) · **지속상승 배제**(최근 1년 중 20일선 위에서 보낸 날이 70% 초과 **이면서** 1년 수익률 120% 초과인 종목 제외 — 아래 경고 참조) · 20일 평균 거래대금 ≥ **200억**(대형주 한정 — 유동성·안전성) · 최근 90일 내 유상증자·CB 공시 없음 · 우선주 제외  ▶ 매매: **다음날 시가 매수** · **40거래일(약 2개월) 보유** 후 종가 매도 · 손절 **-15%**(선택 — 발동률 9%, 검증 +5.44%→+5.30%로 거의 손해 없이 최악을 -22%→-15%로 줄입니다) · 익절 없음  ▶ 백테스트 2018~26(9년, 절대수익, **상장폐지 종목 포함**): 278건 평균 **+6.97%** / 중앙값 +5.36% / 승률 72% / PF 4.42 / 최악 -22.2%  ▶ **학습(2018~22) +9.32% → 검증(2023~26) +5.44%**(169건, 승률 69%, PF 3.45) — 실전 기대치는 검증 쪽으로 보십시오  ▶ **이 규칙의 존재 이유**: P2·P3·D1 은 모두 하락장 전용이라 상승장에 신호가 없었습니다. P1 은 **검증기간 상승장에서 94건 +7.40%**(같은 국면에 아무 종목이나 사면 +0.05%)로, 상승장을 담당합니다. 하락장에서도 75건 +3.00% 로 버팁니다  ▶ ⚠ **2023년 4월 SG증권 사태 교훈**: 대성홀딩스·삼천리 등 CFD 반대매매로 무더기 하한가를 맞은 종목들은 수년간 저변동·저공매도로 조용히 신고가를 갱신해 왔고, 그게 정확히 이 규칙의 프로필이었습니다. 실측상 45건 평균 **-39.6%**. **지속상승 배제** 조건이 이 종목들을 전부 걸러냅니다(최악 -88%→-28%). 처음엔 「2년 수익률 ≤ 100%」를 썼으나 신호를 12% 잃어, 같은 종목을 막으면서 손실이 3%뿐인 현재 조건으로 교체했습니다(검증 +2.88%→+3.34%)  ▶ ⚠ **신호가 드뭅니다** — 월평균 2.7건이고 검증기간 44개월 중 16개월에만 신호가 났습니다. 2019·2022·2026년은 0건입니다. 조건을 강화해 거래를 1/7로 줄인 결과이며(2,017건→278건), 그 대가로 승률 52%→72%·PF 1.89→4.42·최대낙폭 11%→4%를 얻었습니다  ▶ ⚠ 강세 막바지에는 약합니다: 2025년(코스피 +75.7%) 9건 **-9.0%**. 변동성이 폭발하는 국면에서는 조건 자체가 거의 성립하지 않습니다',
+   alloc:{pct:12,max:7},
+   rule:{hold:40,stop:15,target:null}, ruleText:'다음날 <em>시가 매수</em> · <em>40거래일</em> 보유 후 종가 매도 · 손절 <em>-15%</em>(선택) · 익절 <em>없음</em>',
+   stats:{n:169, perMonth:3.8, win:69, pf:3.45, avg:5.44, years:'**검증기간(2023~26) 기준** · 2023 +9.3%(23건) / 2024 +5.8%(137건) / 2025 -9.0%(9건) / 2026 신호없음  —  상승장 94건 **+7.40%** · 하락장 75건 +3.00%  —  참고: 전체기간 278건 평균 +6.97% · 승률 72%'},
+   fn:r=>r.mk==='KOSPI'&&!r.pref&&r.fromhi!=null&&r.fromhi>=-10
+        &&r.r16!=null&&r.r16<120&&r.rw1!=null&&r.rw1<=120
+        &&r.fw5!=null&&r.fw5>=3&&r.fw60!=null&&r.fw60>=1
+        &&r.vol20!=null&&r.vol20<=2&&r.sr20!=null&&r.sr20<=0.5
+        &&r.ret20!=null&&r.ret20<=5&&(r.amt20!=null?r.amt20:0)>=200
+        &&!(r.above20!=null&&r.above20>70&&r.ret250!=null&&r.ret250>120)
+        &&r.dilu!==true&&r.disc!==true},
+  {id:'P2',name:'P2 · 조정매집',mkt:'KOSPI',desc:'2개월 거래량 < 1년 평균의 30%(매우 잠잠) · 최근 3거래일 ≥ 2개월 평균의 200% · 외국인 1주 순매수 ≥ 거래량의 2% · 2개월 평균 거래대금 ≥ 3억 · 최근 3거래일 주가 **-5% 이하 급락**(투매 구간) · **최근 10거래일도 하락**(추세적 눌림) · **코스피 20일선 아래**(조정·하락 국면 전용) · **공매도 비중 5일평균 < 20일평균(공매도 감소 중)** · **최근 90일 내 유상증자·CB 공시 없음** · 우선주 제외  ▶ 매매: **다음날 시가 매수**(당일 종가 매수보다 유리 — 급락 직후라 시초에 더 빠짐) · 10거래일 보유 후 종가 매도 · 손절·익절 없음 · **시가 +5% 이상 갭상승 시 보류**  ▶ 백테스트 2019~26(8년, 절대수익): 평균 +16.49% / 중앙값 +9.14% / 승률 83% / PF 15.77 (123건, 신호 있는 8년 모두 플러스)  ▶ **학습(2019~22) +20.18% → 검증(2023~26) +6.81%**(34건, 승률 91%) — 실전 기대치는 검증 쪽으로 보십시오  ▶ 강세장에는 신호가 거의 없음 — 그 구간은 P1(조용한 신고가) 가 담당',
+   alloc:{pct:15,max:2},
    rule:{hold:10,stop:null,target:null}, ruleText:'다음날 <em>시가 매수</em> · <em>10거래일</em> 보유 후 종가 매도 (손절·익절 <em>없음</em> — 손절이 성과를 깎는다는 실측 결과)',
    stats:{n:34, perMonth:0.8, win:94, pf:49.09, avg:8.48, years:'**검증기간(2023~26) 기준** · 2023 +7.7% / 2024 +8.2% / 2025 +6.3% / 2026 +22.3%  —  참고: 전체기간 129건 평균 +15.07% · 승률 78%'},
    fn:r=>r.mk==='KOSPI'&&r.r16!=null&&r.rw1!=null&&r.r16<30&&r.rw1>=200&&r.fw>0&&r.fw>=0.02*r.v5&&!r.pref&&(r.amt||0)>=3
         &&r.ret3!=null&&r.ret3<=-5&&r.ret10!=null&&r.ret10<=0&&!(raw.kospi&&raw.kospi.up20)
         &&r.srDown===true&&r.dilu!==true&&r.disc!==true},
-  {id:'P3',name:'P3 · 폭락반등',mkt:'KOSPI',desc:'**최근 20거래일 주가 -20% 이하 폭락** · **당일 거래량 ≥ 직전 20일 평균의 2배**(투매 정점) · **외국인 60일 누적 순매수 ≥ 거래량의 1%**(장기 수급 유입) · 20일 평균 거래대금 ≥ 3억 · **코스피 60일선 아래**(시장도 무너진 국면) · **소속 업종의 60일 수익률 -10% 이하**(업종까지 무너졌을 때 — 업종 평균을 구할 수 없는 종목은 통과) · 공매도 비중 5일평균 < 20일평균(감소 중) · 최근 90일 내 유상증자·CB 공시 없음 · 우선주 제외  ▶ 매매: **다음날 시가 매수** · **20거래일 보유** 후 종가 매도 · **손절·익절 없음**(손절을 넣으면 반등을 놓쳐 수익이 깎임 — 손절 -20% 적용 시 +20.0%→+15.9%)  ▶ 백테스트 2018~26(9년, 절대수익, **상장폐지 77종목 포함**): 평균 **+22.82%** / 중앙값 +16.82% / 승률 82% / PF 14.28 (474건)  ▶ **학습(2018~22) +24.77% → 검증(2023~26) +9.36%** — 실전 기대치는 검증 쪽으로 보십시오  ▶ ⚠ **폭락 전용 필터**: 540건 중 208건(39%)이 2020년 3월 코로나 폭락 한 달에 몰려 있고, 104개월 중 41개월(39%)에만 신호가 납니다. 강세장에는 거의 안 걸립니다  ▶ ⚠ 손절이 없어 한 종목에서 **-62.5%**(와이투솔루션, 2020-02-24)까지 맞은 적이 있습니다',
+  {id:'P3',name:'P3 · 폭락반등',mkt:'KOSPI',desc:'**최근 20거래일 주가 -20% 이하 폭락** · **당일 거래량 ≥ 직전 20일 평균의 2배**(투매 정점) · **외국인 60일 누적 순매수 ≥ 거래량의 1%**(장기 수급 유입) · 20일 평균 거래대금 ≥ 3억 · **코스피 60일선 아래**(시장도 무너진 국면) · **소속 업종의 60일 수익률 -10% 이하**(업종까지 무너졌을 때 · KRX 표준산업분류 기준 소속 종목 60일 수익률의 **중앙값**, 회원 5종목 이상) · **업종을 알 수 없는 종목은 제외**(예전엔 통과시켰는데, 최악 손실 -76%가 바로 그런 종목이었습니다) · 공매도 비중 5일평균 < 20일평균(감소 중) · 최근 90일 내 유상증자·CB 공시 없음 · 우선주 제외  ▶ 매매: **다음날 시가 매수** · **20거래일 보유** 후 종가 매도 · **손절·익절 없음**(손절을 넣으면 반등을 놓쳐 수익이 깎임 — 손절 -20% 적용 시 +20.0%→+15.9%)  ▶ 백테스트 2018~26(9년, 절대수익, **상장폐지 77종목 포함**): 389건 평균 **+23.56%** / 중앙값 +16.88% / 승률 84% / PF 18.36  ▶ **학습(2018~22) +26.18% → 검증(2023~26) +9.20%**(60건, 승률 67%, PF 4.01, 최악 -23.8%) — 실전 기대치는 검증 쪽으로 보십시오  ▶ ⚠ **폭락 전용 규칙**: 389건 중 187건(48%)이 2020년에 몰려 있고, 104개월 중 30개월에만 신호가 납니다. 검증기간(44개월)은 60건입니다  ▶ **업종 조건 강화(2026-09-01)**: **업종을 알 수 없는 종목을 제외**하자 검증 +6.59%→**+9.20%**, PF 2.56→**4.01**, 최악 **-76%→-23.8%** 로 개선됐습니다. 예전 최악 -76% 손실이 바로 업종 미상 종목이었습니다. 업종 임계를 -15% 까지 조이면 건당 +14.36% 로 더 좋지만 검증 표본이 33건·7개월로 줄어, 월 단위 신뢰구간 하한이 +0.5% 로 -10%(+0.8%)와 사실상 같아 채택하지 않았습니다',
+   alloc:{pct:5,max:3},
    rule:{hold:20,stop:null,target:null}, ruleText:'다음날 <em>시가 매수</em> · <em>20거래일</em> 보유 후 종가 매도 (손절·익절 <em>없음</em>)',
-   stats:{n:60, perMonth:1.4, win:67, pf:3.47, avg:9.36, years:'**검증기간(2023~26) 기준** · 2023 -2.8% / 2024 +5.9% / 2026 +20.1%  —  참고: 전체기간 474건 평균 +22.82% · 승률 82%'},
+   stats:{n:60, perMonth:1.4, win:67, pf:4.01, avg:9.20, years:'**검증기간(2023~26) 기준** · 2023 +8.9%(11건) / 2024 +3.7%(30건) / 2025 +2.6%(2건) / 2026 +19.8%(17건)  —  참고: 전체기간 389건 평균 +23.56% · 승률 84% · 최악 -36.2%'},
    fn:r=>r.mk==='KOSPI'&&!r.pref&&r.ret20!=null&&r.ret20<=-20&&r.vs1!=null&&r.vs1>=2
         &&r.fw60!=null&&r.fw60>=1&&(r.amt20!=null?r.amt20:(r.amt||0))>=3
-        &&!!(raw.kospi&&raw.kospi.up60===false)&&(r.sr60==null||r.sr60<=-10)
+        &&!!(raw.kospi&&raw.kospi.up60===false)&&r.sr60!=null&&r.sr60<=-10
         &&r.srDown===true&&r.dilu!==true&&r.disc!==true},
-  {id:'D1',name:'D1 · 낙폭과대',mkt:'KOSDAQ',desc:'**코스닥 종목** · 최근 20거래일 주가 **-20% 이하 폭락** · **당일 거래량 ≥ 직전 20일 평균의 2배** · **외국인 60일 누적 순매수 ≥ 거래량의 1%** · 20일 평균 거래대금 ≥ **2억**(코스닥 기준으로 조정 — 코스피 3억과 같은 통과율) · **코스피 60일선 아래**(코스닥 지수가 아니라 코스피 지수를 봅니다 — 실측 +1.5% vs +8.2%) · **소속 업종(표준산업분류)의 60일 수익률 -15% 이하**(업종 평균을 구할 수 없는 종목은 통과) · 공매도 비중 5일평균 < 20일평균 · 최근 90일 내 유상증자·CB 공시 없음  ▶ 매매: **다음날 시가 매수** · **20거래일** 보유 후 종가 매도 · 손절·익절 없음  ▶ 백테스트 2018~26(9년, 절대수익, **상장폐지 166종목 포함**): 평균 **+25.64%** / 중앙값 +18.64% / 승률 85% / PF 17.14 (771건) · **학습(21~23) +4.09% → 검증(24~26) +11.52%**  ▶ ⚠ 코스닥은 부실 상장폐지가 잦습니다(2018~26년 166종목, 감사의견 거절 다수). 폐지 종목까지 넣어 실측한 값이며, 폐지 종목이 만든 신호 9건의 평균은 -2.5%였습니다  ▶ ⚠ 손절이 없어 한 종목에서 -46%까지 맞은 적이 있습니다',
+  {id:'D1',name:'D1 · 낙폭과대',mkt:'KOSDAQ',desc:'**코스닥 종목** · 최근 20거래일 주가 **-20% 이하 폭락** · **당일 거래량 ≥ 직전 20일 평균의 2배** · **외국인 60일 누적 순매수 ≥ 거래량의 1%** · 20일 평균 거래대금 ≥ **2억**(코스닥 기준으로 조정 — 코스피 3억과 같은 통과율) · **주가 ≥ 1,000원**(부실 폐지 방어 — 아래 참조) · **기관 20일 누적 순매수 ≥ 0**(기관이 팔지 않는 종목만) · **부채비율 ≤ 200%**(DART 재무, 공시 시차 반영 — 재무가 없으면 통과) · **코스피 60일선 아래**(코스닥 지수가 아니라 코스피 지수를 봅니다 — 실측 +1.5% vs +8.2%) · **소속 업종(표준산업분류)의 60일 수익률 -20% 이하**(중앙값 기준, 회원 5종목 이상) · **업종을 알 수 없는 종목은 제외** · 공매도 비중 5일평균 < 20일평균 · 최근 90일 내 유상증자·CB 공시 없음  ▶ 매매: **다음날 시가 매수** · **20거래일** 보유 후 종가 매도 · 손절·익절 없음  ▶ 백테스트 2018~26(9년, 절대수익, **상장폐지 493종목 포함**): 249건 평균 **+30.96%** / 중앙값 +23.26% / 승률 92% / PF 48.13 · **학습(2018~22) +32.25% → 검증(2023~26) +24.03%**(39건, 승률 92%, PF 24.30, 하위5% -7.0%, 최악 -23.8%)  ▶ ⚠ **부실 폐지 방어**: 2018~26년 코스닥 폐지 493종목 중 **진짜 부실은 199종목(40%)**이고 나머지는 SPAC 합병·펀드 만기·자진상장폐지(주주 손실 없음, 직전 1년 중앙 +20%)였습니다. 부실 199종목의 폐지 직전 주가 중앙값은 **63원**(1년 -96%)이라 **주가 1,000원 하한**이 이들의 신호를 **69% 걸러냅니다**(129종목→60종목). 대가는 정상 신호의 2%뿐이고 검증 수익은 오히려 +14.09%→**+15.06%**로 올랐습니다. ※ 거래대금 상향은 역효과였습니다(50억으로 올리면 폐지 비중이 3.6%→5.7%로 되레 증가 — 정상 신호만 깎임)  ▶ **기관 조건 추가(2026-09-01)**: 기관 20일 순매수 ≥ 0 을 얹어 거래를 824건→344건(42%)으로 줄였더니 검증 수익 +15.31%→**+20.54%**, 중앙값 +8.59%→**+16.76%**, 승률 70%→**84%**, PF 6.37→**13.89**, 최악 -39%→**-23.8%** 로 모두 개선됐습니다. 폭락 반등에서 외국인만이 아니라 **기관도 등을 돌리지 않았는지**가 갈림길이었습니다  ▶ ⚠ **신호가 매우 드뭅니다** — 검증기간 44개월 중 6개월에만 신호가 났고 45건뿐입니다(2021·2025년 사실상 0건). 안정성을 택한 대가입니다  ▶ ⚠ 손절이 없어 한 종목에서 -25.4%까지 맞은 적이 있습니다',
+   alloc:{pct:5,max:3},
    rule:{hold:20,stop:null,target:null}, ruleText:'다음날 <em>시가 매수</em> · <em>20거래일</em> 보유 후 종가 매도 (손절·익절 <em>없음</em>)',
-   stats:{n:151, perMonth:3.4, win:70, pf:5.6, avg:15.91, years:'**검증기간(2023~26) 기준** · 2023 +38.3% / 2024 +6.9% / 2026 +20.0%  —  참고: 전체기간 771건 평균 +25.64% · 승률 85%'},
+   stats:{n:39, perMonth:0.9, win:92, pf:24.30, avg:24.03, years:'**검증기간(2023~26) 기준** · 2024 +5.2%(13건) / 2026 +33.5%(26건) (2023·2025 신호 없음)  —  참고: 전체기간 249건 평균 +30.96% · 승률 92% · 최악 -24.6%'},
    fn:r=>r.mk==='KOSDAQ'&&!r.pref&&r.ret20!=null&&r.ret20<=-20&&r.vs1!=null&&r.vs1>=2
         &&r.fw60!=null&&r.fw60>=1&&(r.amt20!=null?r.amt20:0)>=2
-        &&!!(raw.kospi&&raw.kospi.up60===false)&&(r.sr60==null||r.sr60<=-15)
-        &&r.srDown===true&&r.dilu!==true&&r.disc!==true},
+        &&!!(raw.kospi&&raw.kospi.up60===false)&&r.sr60!=null&&r.sr60<=-20
+        &&r.srDown===true&&r.dilu!==true&&r.disc!==true
+        &&r.close!=null&&r.close>=1000&&r.ow20!=null&&r.ow20>=0
+        &&(r.dbt==null||r.dbt<=200)},
 ];
 let cur='all';  // 'all' = 하나라도 통과(OR), 숫자 = 해당 필터만
-const LEGACY_ID={1:'P1',2:'P2',3:'P3',4:'D1'};       // 예전에 저장된 숫자 id 호환
+const LEGACY_ID={1:'P0',2:'P2',3:'P3',4:'P1'};       // 예전에 저장된 숫자 id 호환 (옛 4번=현 P1)
+// 폐기된 규칙 — 이미 매수한 종목이 원래 매매규칙을 잃지 않도록 남겨둔다.
+// 옛 P1(상승초입)은 2026-08-31 폐기: 상승장에서 지수(+4.44%)보다 못 벌었음(+2.08%).
+// 'P1' 이라는 이름은 새 규칙(조용한 신고가)이 물려받았으므로, 옛 규칙 이력은 'P0' 로 분리해 보관한다.
+const RETIRED={P0:{name:'P0 · 옛 상승초입 (폐기)',mkt:'KOSPI',rule:{hold:10,stop:null,target:20}}};
 const normId=v=>LEGACY_ID[v]||v;
 const fcode=id=>normId(id);
-const fOf=id=>FILTERS.find(x=>x.id===normId(id));
+const fOf=id=>FILTERS.find(x=>x.id===normId(id))||RETIRED[normId(id)]||null;
+/* 2026-09-01 이름 정리: 옛 P1(상승초입) 이력을 P0 으로, 옛 P4(조용한 신고가) 이력을 P1 로 옮긴다.
+   같은 'P1' 이름 아래 성격이 다른 두 규칙의 성적이 섞이는 것을 막기 위한 일회성 변환. */
+(function migrateIds(){
+  try{
+    if(localStorage.getItem('idmig_v1'))return;
+    const raw=localStorage.getItem('positions');
+    if(raw){
+      const ps=JSON.parse(raw);
+      ps.forEach(p=>{if(Array.isArray(p.filters))p.filters=p.filters.map(f=>{
+        const v=String(f);
+        return (v==='P1'||v==='1')?'P0':(v==='P4'||v==='4')?'P1':f})});
+      localStorage.setItem('positions',JSON.stringify(ps));
+    }
+    localStorage.setItem('idmig_v1','1');
+  }catch(e){}
+})();
 function held(code){return positions().some(p=>p.code===code&&!p.sell)}
 function passes(r){
   if(cur==='done')return false;
@@ -240,7 +284,7 @@ function renderTabs(){
   /* 시장 조건으로 오늘 열린 규칙과 그 근거를 한 줄로 */
   if(K.close!=null){
     const open=[];
-    if(K.up&&K.up20)open.push('P1');
+    open.push('P1');            // P1(조용한 신고가) 는 지수 국면과 무관 (상승·하락 양쪽 실측)
     if(!K.up20)open.push('P2');
     if(K.up60===false)open.push('P3','D1');
     const ma=[`5일선 ${K.up?'위':'아래'}`,`20일선 ${K.up20?'위':'아래'}`,
@@ -248,9 +292,9 @@ function renderTabs(){
     $('#mktstate').innerHTML=`<i style="background:${open.length?'var(--org)':'var(--faint)'}"></i>`
       +`코스피 ${ma} → ${open.length?`오늘 열린 규칙 <b>${open.join('·')}</b>`:'<b>열린 규칙 없음</b>'}`;
   }else $('#mktstate').innerHTML='';
-  $('#fdesc').innerHTML=cur==='done'?'매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요.':cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (P1: 10거래일·익절+20%·손절없음 / P2: 10거래일·손절없음 / P3·D1: 20거래일·손절없음) · <button class="ghost mini" id="pinbtn">${getPin()===DEFAULT_PIN?'자동 동기화 중 (PIN 변경)':'PIN: '+getPin()+' (공유 중)'}</button>`:cur==='all'?'P1·P2·P3(코스피)·D1(코스닥) 규칙 중 하나라도 해당하는 종목입니다. 각 규칙 탭에서 기대 승률·PF와 매매 규칙을 확인하세요.':(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));const rb=$('#rule');
+  $('#fdesc').innerHTML=cur==='done'?'매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요.':cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (P1: 40거래일·손절 -15% / P2: 10거래일·손절없음 / P3·D1: 20거래일·손절없음) · <button class="ghost mini" id="pinbtn">${getPin()===DEFAULT_PIN?'자동 동기화 중 (PIN 변경)':'PIN: '+getPin()+' (공유 중)'}</button>`:cur==='all'?'P1·P2·P3(코스피)·D1(코스닥) 규칙 중 하나라도 해당하는 종목입니다. 각 규칙 탭에서 기대 승률·PF와 매매 규칙을 확인하세요.'+`<br><b style="color:var(--acc)">투입 비중</b> 계좌 100 기준 한 종목에 — ${FILTERS.map(f=>`<b>${f.id}</b> ${f.alloc.pct}(최대 ${f.alloc.max}종목)`).join(' · ')}`:(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));const rb=$('#rule');
   if(rb){const f=FILTERS.find(x=>x.id===cur)||null;
-    if(f){rb.style.display='';rb.innerHTML=`<b>${f.name} 매매 규칙</b> <span>${f.ruleText}</span>`}else{rb.style.display='none'}}
+    if(f){rb.style.display='';rb.innerHTML=`<b>${f.name} 매매 규칙</b> <span>${f.ruleText}</span>`+(f.alloc?`<small><b style="color:var(--acc)">투입 비중</b> 계좌가 100이면 <b>한 종목에 ${f.alloc.pct}</b> · 이 규칙으로 <b>최대 ${f.alloc.max}종목</b>(최대 ${f.alloc.pct*f.alloc.max}) — 네 규칙 합쳐 실측 평균 7종목·투자율 81%, 검증 연 +6.0%·최대낙폭 11%</small>`:'')}else{rb.style.display='none'}}
   const qb=$('#q');if(qb&&!qb.dataset.b){qb.dataset.b='1';
     qb.oninput=()=>{query=qb.value;rowLimit=100;render()}}
   const pb=$('#pinbtn');if(pb)pb.onclick=setPin;[$('#infobtn'),$('#infobtn2')].forEach(ib=>{if(ib)ib.onclick=()=>{showInfo=!showInfo;renderTabs()}})}
@@ -264,14 +308,12 @@ function whyCells(r,f){
   const C={dn:'var(--dn)',up:'var(--up)'};
   const T={
     P3:[['20일 낙폭',pctTxt(r.ret20),C.dn,'기준 −20%↓'],['당일 거래량',(r.vs1??0).toFixed(1)+'배',C.up,'기준 2배↑'],
+        ['외국인 60일',pctTxt(r.fw60),C.up,'기준 1%↑'],['업종 60일',pctTxt(r.sr60),C.dn,'기준 −20%↓'],
+        ['코스피 60일선',kospiDown?'아래':'위',C.dn,'시장 조건']],
+    D1:[['부채비율',r.dbt==null?'-':Math.round(r.dbt)+'%',C.dn,'기준 200%↓'],['기관 20일',r.ow20==null?'-':r.ow20.toFixed(1)+'%',C.up,'기준 0%↑'],['20일 낙폭',pctTxt(r.ret20),C.dn,'기준 −20%↓'],['당일 거래량',(r.vs1??0).toFixed(1)+'배',C.up,'기준 2배↑'],
         ['외국인 60일',pctTxt(r.fw60),C.up,'기준 1%↑'],['업종 60일',pctTxt(r.sr60),C.dn,'기준 −10%↓'],
         ['코스피 60일선',kospiDown?'아래':'위',C.dn,'시장 조건']],
-    D1:[['20일 낙폭',pctTxt(r.ret20),C.dn,'기준 −20%↓'],['당일 거래량',(r.vs1??0).toFixed(1)+'배',C.up,'기준 2배↑'],
-        ['외국인 60일',pctTxt(r.fw60),C.up,'기준 1%↑'],['업종 60일',pctTxt(r.sr60),C.dn,'기준 −15%↓'],
-        ['코스피 60일선',kospiDown?'아래':'위',C.dn,'시장 조건']],
-    P1:[['10일 등락',pctTxt(r.ret10),C.up,'기준 0~20%'],['3일/2개월 거래량',Math.round(r.rw1||0)+'%',C.up,'기준 200%↑'],
-        ['외인/거래량',r.fwp==null?'—':r.fwp.toFixed(1)+'%',C.up,'기준 3%↑'],
-        ['2M/1Y 거래량',Math.round(r.r16||0)+'%',C.dn,'기준 50%↓'],['거래대금',(r.amt??0)+'억',C.up,'기준 50억↑']],
+    P1:[['52주 신고가 대비',r.fromhi==null?'-':r.fromhi.toFixed(1)+'%',C.up,'기준 -10%↑'],['외국인 5일',r.fw5==null?'-':r.fw5.toFixed(1)+'%',C.up,'기준 3%↑'],['20일 변동성',r.vol20==null?'-':r.vol20.toFixed(1)+'%',C.dn,'기준 2%↓'],['공매도 비중',r.sr20==null?'-':r.sr20.toFixed(2)+'%',C.dn,'기준 0.5%↓'],['20일선 위 비율',r.above20==null?'-':r.above20.toFixed(0)+'%',C.dn,'1년수익 120%↑면 70% 이하'],['1년 수익률',r.ret250==null?'-':Math.round(r.ret250)+'%',C.dn,'20일선위 70%↑면 120% 이하'],['2M/1Y 거래량',Math.round(r.r16||0)+'%',C.dn,'기준 120%↓'],['거래대금',(r.amt20??0)+'억',C.up,'기준 200억↑']],
     D2:[['당일 거래량',(r.vs1??0).toFixed(1)+'배',C.up,'기준 3배↑'],
         ['거래대금',(r.amt20??0).toFixed(0)+'억',C.up,'기준 50억↑'],
         ['20일 등락',pctTxt(r.ret20),r.ret20>=0?C.up:C.dn,'조건 없음'],
@@ -316,7 +358,7 @@ function renderCards(rows){
       </div>
       <div class="warn">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ind)" stroke-width="2" stroke-linecap="round" style="flex:none"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
-        <span>${f.rule.stop?'손절 '+f.rule.stop+'%':'손절이 없습니다 — 보유기간을 끝까지 채우는 것이 규칙입니다'}. 기대 승률 ${f.stats.win}% · 건당 ${f.stats.avg>0?'+':''}${f.stats.avg}%</span>
+        <span>${f.rule.stop?'손절 -'+f.rule.stop+'%':'손절이 없습니다 — 보유기간을 끝까지 채우는 것이 규칙입니다'}. 기대 승률 ${f.stats.win}% · 건당 ${f.stats.avg>0?'+':''}${f.stats.avg}%</span>
       </div></div>`}).join('');
   document.querySelectorAll('#cards .sig').forEach(el=>el.onclick=()=>{sel=el.dataset.c;render();showStock(sel)});
   document.querySelectorAll('#cards [data-buy]').forEach(b=>b.onclick=e=>{e.stopPropagation();
@@ -427,7 +469,7 @@ function prep(){const n=7,D=raw.dates,k=Math.max(0,D.length-n);view.dates=D.slic
   view.rows=raw.rows.map(r=>{const vols=r.v.slice(k),valid=vols.filter(x=>x!=null);const sum=a=>a.slice(k).reduce((x,y)=>x+(y||0),0);
     const prev=vols.slice(0,-1).filter(x=>x!=null),last=vols[vols.length-1];const avg=valid.length?valid.reduce((a,b)=>a+b,0)/valid.length:0;
     const ratio=(prev.length&&last!=null&&prev.reduce((a,b)=>a+b,0))?last/(prev.reduce((a,b)=>a+b,0)/prev.length)*100:null;
-    return {ticker:r.t,name:r.n,close:r.c,change:r.ch,foreign_ratio:r.fr,vols,avg,total:valid.reduce((a,b)=>a+b,0),ratio,indiv:sum(r.i),organ:sum(r.o),frgn:sum(r.f),amt:r.amt,cap:r.cap,r1m:r.r1m,r3m:r.r3m,r6m:r.r6m,r1y:r.r1y,per:r.per,pbr:r.pbr,pcr:r.pcr,dy:r.dy,pref:r.pref,fw:r.f.slice(-5).reduce((x,y)=>x+(y||0),0),v5:r.v.slice(-5).reduce((x,y)=>x+(y||0),0),fwp:(()=>{const v=r.v.slice(-5).reduce((x,y)=>x+(y||0),0),f=r.f.slice(-5).reduce((x,y)=>x+(y||0),0);return v?f/v*100:null})(),streak:r.streak||0,ret3:r.ret3,ret10:r.ret10,ret20:r.ret20,sr60:r.sr60,vs1:r.vs1,fw60:r.fw60,amt20:r.amt20,disc:r.disc,up:r.up,rs:r.rs,sr:r.sr,srDown:r.srDown,dilu:r.dilu,th:r.th||[],mk:r.mk||'KOSPI',aw:r.aw,a1:r.a1,a6:r.a6,r16:(r.a1&&r.a6)?r.a1/r.a6*100:null,rw1:(r.aw&&r.a1)?r.aw/r.a1*100:null,last:last??-1,chpct:(r.c&&r.ch!=null&&r.c-r.ch)?r.ch/(r.c-r.ch)*100:-999}})}
+    return {ticker:r.t,name:r.n,close:r.c,change:r.ch,foreign_ratio:r.fr,vols,avg,total:valid.reduce((a,b)=>a+b,0),ratio,indiv:sum(r.i),organ:sum(r.o),frgn:sum(r.f),amt:r.amt,cap:r.cap,r1m:r.r1m,r3m:r.r3m,r6m:r.r6m,r1y:r.r1y,per:r.per,pbr:r.pbr,pcr:r.pcr,dy:r.dy,pref:r.pref,fw:r.f.slice(-5).reduce((x,y)=>x+(y||0),0),v5:r.v.slice(-5).reduce((x,y)=>x+(y||0),0),fwp:(()=>{const v=r.v.slice(-5).reduce((x,y)=>x+(y||0),0),f=r.f.slice(-5).reduce((x,y)=>x+(y||0),0);return v?f/v*100:null})(),streak:r.streak||0,ret3:r.ret3,ret10:r.ret10,ret20:r.ret20,sr60:r.sr60,vs1:r.vs1,fw60:r.fw60,amt20:r.amt20,disc:r.disc,fromhi:r.fromhi,fw5:r.fw5,vol20:r.vol20,ret2y:r.ret2y,ret250:r.ret250,above20:r.above20,sr20:r.sr20,ow20:r.ow20,dbt:r.dbt,up:r.up,rs:r.rs,sr:r.sr,srDown:r.srDown,dilu:r.dilu,th:r.th||[],mk:r.mk||'KOSPI',aw:r.aw,a1:r.a1,a6:r.a6,r16:(r.a1&&r.a6)?r.a1/r.a6*100:null,rw1:(r.aw&&r.a1)?r.aw/r.a1*100:null,last:last??-1,chpct:(r.c&&r.ch!=null&&r.c-r.ch)?r.ch/(r.c-r.ch)*100:-999}})}
 function val(r,k){if(k==='hits')return FILTERS.filter(f=>f.fn(r)).length;if(k.startsWith('d:'))return r.vols[+k.slice(2)]??-1;return r[k]??-1}
 const isCardView=()=>cur==='all'||FILTERS.some(f=>f.id===cur);   /* 규칙·매수대기는 카드, 조회는 표 */
 function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);renderPositions();return}
