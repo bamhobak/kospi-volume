@@ -1,0 +1,241 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;500;700;900&family=IBM+Plex+Mono:wght@500;600&display=swap">
+  <style>
+    body{margin:0;font-family:'Gothic A1',Pretendard,-apple-system,'Malgun Gothic',sans-serif;
+         font-size:13px;background:#08090b;color:#f4f6f9;-webkit-font-smoothing:antialiased}
+    a{color:#5eead4}a:hover{color:#5eead4}
+    .n{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+    .k{color:#565c66;font-size:10px;font-weight:700;letter-spacing:.08em}
+  </style>
+</helmet>
+
+<div style="width:1440px;height:900px;display:flex;flex-direction:column;background:#08090b;overflow:hidden">
+
+  <!-- 상단 바 -->
+  <div style="display:flex;align-items:center;gap:18px;padding:0 20px;height:52px;flex:none;
+              background:#0e1013;border-bottom:1px solid #23272e">
+    <div style="font-family:'Gothic A1';font-weight:900;font-size:16px;letter-spacing:-.8px">
+      밤호박 <span style="color:#5eead4">종목 선별기</span></div>
+    <div style="width:1px;height:18px;background:#23272e"></div>
+    <div style="display:flex;align-items:baseline;gap:7px">
+      <span style="color:#565c66;font-size:11px;font-weight:700">KOSPI</span>
+      <span class="n" style="font-size:14px;font-weight:600;color:#fb7185">6,788.88</span>
+      <span class="n" style="font-size:11px;color:#fb7185;opacity:.75">+0.42%</span></div>
+    <div style="display:flex;align-items:baseline;gap:7px">
+      <span style="color:#565c66;font-size:11px;font-weight:700">KOSDAQ</span>
+      <span class="n" style="font-size:14px;font-weight:600;color:#fb7185">838.41</span>
+      <span class="n" style="font-size:11px;color:#fb7185;opacity:.75">+0.19%</span></div>
+    <div style="display:flex;align-items:center;gap:7px;padding:4px 11px;border-radius:0px;
+                background:#15181d;border:1px solid #23272e">
+      <span style="width:6px;height:6px;border-radius:999px;background:#4ade80;display:inline-block"></span>
+      <span style="color:#7d848f;font-size:11px">코스피 60일선 <b style="color:#f4f6f9">아래</b> · P3·D1 활성</span></div>
+    <div style="flex-grow:1"></div>
+    <span class="n" style="color:#565c66;font-size:11px">08-30 18:30 갱신</span>
+  </div>
+
+  <div style="display:flex;flex-grow:1;min-height:0">
+
+    <!-- 좌측 레일 (A안) -->
+    <div style="width:212px;flex:none;background:#0b0d10;border-right:1px solid #23272e;
+                display:flex;flex-direction:column;padding:14px 10px;gap:15px;overflow:hidden">
+
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div class="k" style="padding:0 8px 4px">오늘 할 일</div>
+        <div style="display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:0px;
+                    background:#15181d;border:1px solid #fb718555">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fb7185" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-9M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>
+          <span style="font-weight:600">보유 종목</span><span style="flex-grow:1"></span>
+          <span class="n" style="font-weight:700;color:#fb7185">8</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:0px;
+                    background:#15181d;border:1px solid #23272e">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7d848f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg>
+          <span style="font-weight:600;color:#7d848f">매수 대기</span><span style="flex-grow:1"></span>
+          <span class="n" style="font-weight:700;color:#565c66">0</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:9px 10px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#565c66" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <span style="color:#565c66">완료</span><span style="flex-grow:1"></span>
+          <span class="n" style="color:#565c66">0</span></div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div class="k" style="padding:0 8px 4px">규칙</div>
+        <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:0px;">
+          <span style="width:5px;height:15px;border-radius:2px;background:#5eead4;opacity:.35"></span>
+          <span class="n" style="font-weight:700;font-size:11px;color:#5eead4;width:20px">P1</span>
+          <span style="color:#7d848f">상승초입</span><span style="flex-grow:1"></span>
+          <span class="n" style="color:#565c66">0</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:0px;">
+          <span style="width:5px;height:15px;border-radius:2px;background:#5eead4;opacity:.35"></span>
+          <span class="n" style="font-weight:700;font-size:11px;color:#5eead4;width:20px">P2</span>
+          <span style="color:#7d848f">조정매집</span><span style="flex-grow:1"></span>
+          <span class="n" style="color:#565c66">0</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:0px;">
+          <span style="width:5px;height:15px;border-radius:2px;background:#5eead4;opacity:.35"></span>
+          <span class="n" style="font-weight:700;font-size:11px;color:#5eead4;width:20px">P3</span>
+          <span style="color:#7d848f">폭락반등</span><span style="flex-grow:1"></span>
+          <span class="n" style="color:#565c66">0</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:0px;background:#2b2405;border:1px solid #ffd60a88">
+          <span style="width:5px;height:15px;border-radius:2px;background:#ffd60a"></span>
+          <span class="n" style="font-weight:700;font-size:11px;color:#ffd60a;width:20px">D1</span>
+          <span style="color:#f4f6f9;font-weight:600">낙폭과대</span><span style="flex-grow:1"></span>
+          <span class="n" style="color:#ffd60a;font-weight:700">1</span></div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div class="k" style="padding:0 8px 4px">조회</div>
+        <div style="display:flex;align-items:center;gap:9px;padding:8px 10px">
+          <span style="width:5px;height:15px;border-radius:2px;background:#5eead4;opacity:.25"></span>
+          <span style="color:#7d848f">코스피 전체</span><span style="flex-grow:1"></span>
+          <span class="n" style="color:#565c66">944</span></div>
+        <div style="display:flex;align-items:center;gap:9px;padding:8px 10px">
+          <span style="width:5px;height:15px;border-radius:2px;background:#ffd60a;opacity:.25"></span>
+          <span style="color:#7d848f">코스닥 전체</span><span style="flex-grow:1"></span>
+          <span class="n" style="color:#565c66">1,823</span></div>
+      </div>
+
+      <div style="flex-grow:1"></div>
+      <div style="padding:11px;border-radius:0px;background:#15181d;border:1px solid #23272e">
+        <div class="k" style="margin-bottom:7px">업종 60일 최약</div>
+        <div style="display:flex;flex-direction:column;gap:5px;font-size:11px">
+          <div style="display:flex;justify-content:space-between"><span style="color:#7d848f">전자장비와기기</span><span class="n" style="color:#60a5fa">-26.1%</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:#7d848f">복합기업</span><span class="n" style="color:#60a5fa">-23.5%</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:#7d848f">자동차</span><span class="n" style="color:#60a5fa">-22.6%</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 본문: 규칙 헤더 + 신호 카드 (C안) -->
+    <div style="flex-grow:1;min-width:0;display:flex;flex-direction:column;padding:18px 20px;gap:14px;overflow:hidden">
+
+      <div style="display:flex;align-items:flex-start;gap:16px;flex:none">
+        <div style="flex-grow:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:9px">
+            <span class="n" style="font-size:11px;font-weight:700;color:#08090b;background:#ffd60a;
+                                   border-radius:0px;padding:2px 7px">D1</span>
+            <span style="font-family:'Gothic A1';font-weight:900;font-size:20px;letter-spacing:-.8px">낙폭과대</span>
+            <span style="color:#565c66;font-size:12px">코스닥 · 20거래일 보유 · 손절 없음</span>
+          </div>
+          <div style="color:#7d848f;font-size:12px;margin-top:5px;line-height:1.55;text-wrap:pretty">
+            20거래일 −20% 이상 폭락 · 당일 거래량 직전 20일 평균의 2배 · 외국인 60일 누적 순매수 1%↑ ·
+            코스피 60일선 아래 · 소속 업종 60일 −15% 이하
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex:none">
+          <div style="background:#15181d;border:1px solid #23272e;border-radius:0px;padding:8px 13px;text-align:center;min-width:74px">
+            <div class="n" style="color:#4ade80;font-size:17px;font-weight:700;line-height:1.15">70%</div>
+            <div style="color:#565c66;font-size:10px;margin-top:2px">승률</div></div><div style="background:#15181d;border:1px solid #23272e;border-radius:0px;padding:8px 13px;text-align:center;min-width:74px">
+            <div class="n" style="color:#f4f6f9;font-size:17px;font-weight:700;line-height:1.15">5.18</div>
+            <div style="color:#565c66;font-size:10px;margin-top:2px">PF</div></div><div style="background:#15181d;border:1px solid #23272e;border-radius:0px;padding:8px 13px;text-align:center;min-width:74px">
+            <div class="n" style="color:#fb7185;font-size:17px;font-weight:700;line-height:1.15">+13.4%</div>
+            <div style="color:#565c66;font-size:10px;margin-top:2px">건당 수익</div></div><div style="background:#15181d;border:1px solid #23272e;border-radius:0px;padding:8px 13px;text-align:center;min-width:74px">
+            <div class="n" style="color:#7d848f;font-size:17px;font-weight:700;line-height:1.15">2.9</div>
+            <div style="color:#565c66;font-size:10px;margin-top:2px">월평균 건</div></div>
+        </div>
+      </div>
+
+      <!-- 신호 카드 -->
+      <div style="background:#0e1013;border:1px solid #23272e;border-left:3px solid #ffd60a;
+                  border-radius:0px;padding:19px 21px;display:flex;flex-direction:column;gap:17px;flex:none">
+
+        <div style="display:flex;align-items:flex-start;gap:14px">
+          <div style="flex-grow:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
+              <span style="font-family:'Gothic A1';font-weight:900;font-size:19px;letter-spacing:-.8px">코이즈</span>
+              <span class="n" style="color:#565c66;font-size:12px">121850</span>
+            </div>
+            <div style="color:#7d848f;font-size:12px">코스닥 · 반도체 제조업 · 시총 812억</div>
+          </div>
+          <div style="text-align:right;flex:none">
+            <div class="n" style="font-size:23px;font-weight:700;line-height:1.1">557<span style="font-size:13px;color:#7d848f;font-weight:500">원</span></div>
+            <div class="n" style="color:#fb7185;font-size:12px;margin-top:2px">+17 (+3.2%)</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="k" style="margin-bottom:9px">왜 걸렸나</div>
+          <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px">
+            <div style="background:#15181d;border-radius:0px;padding:11px 12px">
+              <div style="color:#565c66;font-size:10px;margin-bottom:5px">20일 낙폭</div>
+              <div class="n" style="color:#60a5fa;font-size:16px;font-weight:700">−31.4%</div>
+              <div style="color:#3a3f47;font-size:10px;margin-top:3px">기준 −20%↓</div></div><div style="background:#15181d;border-radius:0px;padding:11px 12px">
+              <div style="color:#565c66;font-size:10px;margin-bottom:5px">당일 거래량</div>
+              <div class="n" style="color:#fb7185;font-size:16px;font-weight:700">4.1배</div>
+              <div style="color:#3a3f47;font-size:10px;margin-top:3px">기준 2배↑</div></div><div style="background:#15181d;border-radius:0px;padding:11px 12px">
+              <div style="color:#565c66;font-size:10px;margin-bottom:5px">외국인 60일</div>
+              <div class="n" style="color:#fb7185;font-size:16px;font-weight:700">+2.4%</div>
+              <div style="color:#3a3f47;font-size:10px;margin-top:3px">기준 1%↑</div></div><div style="background:#15181d;border-radius:0px;padding:11px 12px">
+              <div style="color:#565c66;font-size:10px;margin-bottom:5px">업종 60일</div>
+              <div class="n" style="color:#60a5fa;font-size:16px;font-weight:700">−24.0%</div>
+              <div style="color:#3a3f47;font-size:10px;margin-top:3px">기준 −15%↓</div></div><div style="background:#15181d;border-radius:0px;padding:11px 12px">
+              <div style="color:#565c66;font-size:10px;margin-bottom:5px">코스피 60일선</div>
+              <div class="n" style="color:#60a5fa;font-size:16px;font-weight:700">아래</div>
+              <div style="color:#3a3f47;font-size:10px;margin-top:3px">시장 조건 충족</div></div>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;background:#15181d;border-radius:0px;padding:14px 18px">
+          <div style="flex-grow:1"><div class="k" style="margin-bottom:4px">매수</div>
+            <div style="font-weight:600">8/31 시가</div></div>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#3a3f47" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin:0 16px"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          <div style="flex-grow:1"><div class="k" style="margin-bottom:4px">보유</div>
+            <div style="font-weight:600">20거래일 · 손절 없음</div></div>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#3a3f47" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin:0 16px"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          <div style="flex-grow:1"><div class="k" style="margin-bottom:4px">매도</div>
+            <div style="font-weight:600">9/26 종가</div></div>
+          <div style="flex:none;margin-left:18px">
+            <span style="background:#5eead4;color:#ffffff;border-radius:0px;padding:10px 22px;
+                         font-weight:700;display:inline-block">매수 기록</span></div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:9px;color:#565c66;font-size:11px;line-height:1.5">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffd60a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+          <span>D1은 손절이 없습니다. 20거래일 동안 −46%까지 내려간 적이 있고, 그걸 견뎠을 때의 성적이 위 숫자입니다.</span>
+        </div>
+      </div>
+
+      <!-- 보유 요약 -->
+      <div style="background:#0e1013;border:1px solid #23272e;border-radius:0px;padding:15px 19px;flex:none">
+        <div style="display:flex;align-items:center;margin-bottom:12px">
+          <span class="k">보유 종목</span><span style="flex-grow:1"></span>
+          <span class="n" style="color:#7d848f;font-size:11px">평가손익 <b style="color:#fb7185">+142만원</b></span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px">
+          <div style="background:#15181d;border-radius:0px;padding:11px 12px;display:flex;align-items:center;gap:8px">
+            <span style="width:4px;height:24px;border-radius:2px;background:#5eead4"></span>
+            <div style="min-width:0;flex-grow:1">
+              <div style="font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">일신석재</div>
+              <div style="color:#565c66;font-size:10px;margin-top:1px">P3 · 11일차</div></div>
+            <span class="n" style="font-weight:700;color:#fb7185">+5.2%</span></div><div style="background:#15181d;border-radius:0px;padding:11px 12px;display:flex;align-items:center;gap:8px">
+            <span style="width:4px;height:24px;border-radius:2px;background:#ffd60a"></span>
+            <div style="min-width:0;flex-grow:1">
+              <div style="font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">디케이티</div>
+              <div style="color:#565c66;font-size:10px;margin-top:1px">D1 · 4일차</div></div>
+            <span class="n" style="font-weight:700;color:#60a5fa">−2.8%</span></div><div style="background:#15181d;border-radius:0px;padding:11px 12px;display:flex;align-items:center;gap:8px">
+            <span style="width:4px;height:24px;border-radius:2px;background:#5eead4"></span>
+            <div style="min-width:0;flex-grow:1">
+              <div style="font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">HL만도</div>
+              <div style="color:#565c66;font-size:10px;margin-top:1px">P1 · 매도 도래</div></div>
+            <span class="n" style="font-weight:700;color:#fb7185">+8.4%</span></div><div style="background:#15181d;border-radius:0px;padding:11px 12px;display:flex;align-items:center;gap:8px">
+            <span style="width:4px;height:24px;border-radius:2px;background:#ffd60a"></span>
+            <div style="min-width:0;flex-grow:1">
+              <div style="font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">코이즈</div>
+              <div style="color:#565c66;font-size:10px;margin-top:1px">D1 · 2일차</div></div>
+            <span class="n" style="font-weight:700;color:#fb7185">+1.4%</span></div>
+        </div>
+      </div>
+
+      <div style="flex-grow:1"></div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
