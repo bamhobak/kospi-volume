@@ -137,17 +137,34 @@ body.detail .shell{height:100%}body.detail .wrap{padding:10px;grid-template-colu
 body.detail .side{display:flex;height:100%;border-radius:0}
 body.detail #close{display:none}
 th[draggable]{cursor:grab;user-select:none}th.dragover{box-shadow:inset 3px 0 0 var(--acc)}
+/* 열 너비 조절 — 머리글 오른쪽 끝 손잡이. 폭을 하나라도 정하면 표는 fixed 로 고정된다 */
+th{padding-right:16px}
+th .rz{position:absolute;right:0;top:0;bottom:0;width:11px;cursor:col-resize;touch-action:none;z-index:4}
+th .rz::after{content:'';position:absolute;right:4px;top:6px;bottom:6px;width:2px;background:var(--line)}
+th .rz:hover::after,th .rz.on::after{background:var(--acc);top:0;bottom:0}
+#tbl.fixed{table-layout:fixed}
+#tbl.fixed th,#tbl.fixed td{overflow:hidden;text-overflow:ellipsis}
 .colbtn{margin-left:auto}
-.colmenu{position:absolute;right:18px;z-index:30;background:var(--panel2);border:1px solid var(--line);padding:12px;max-width:640px;box-shadow:0 8px 24px #000a}
-.colmenu .colhd{display:flex;align-items:center;gap:10px;color:var(--mut);font-size:11px;margin-bottom:9px}
-.colmenu .colgrid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:6px 14px}
-.colitem{display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;white-space:nowrap;
-  padding:5px 9px;border:1px solid var(--line);background:#0b0d10;color:var(--dim)}
-.colitem input{-webkit-appearance:auto;appearance:auto;width:13px;height:13px;margin:0;accent-color:var(--acc);cursor:pointer}
-.colitem.on{background:var(--panel2);border-color:var(--acc);color:var(--txt);font-weight:600}
-.colitem .st{margin-left:auto;font-size:10px;color:var(--dim)}
-.colitem.on .st{color:var(--acc)}
-@media (max-width:900px){.colmenu{right:8px;left:8px;max-width:none}.colmenu .colgrid{grid-template-columns:repeat(2,1fr)}}
+.colmenu{position:absolute;right:18px;z-index:30;background:var(--panel2);border:1px solid var(--line);
+  padding:14px 16px;width:min(720px,calc(100vw - 40px));box-shadow:0 8px 24px #000a}
+.colmenu .colhd{display:flex;align-items:center;gap:10px;color:var(--mut);font-size:11px;
+  margin-bottom:10px;padding-bottom:9px;border-bottom:1px solid var(--line)}
+.colmenu .colgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:1px 8px}
+/* 항목은 테두리 없이 — 체크박스 + 이름만. 켜짐은 글자 밝기로 구분한다 */
+.colitem{display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;
+  padding:6px 8px;color:var(--dim);min-width:0;border-radius:0}
+.colitem:hover{background:#ffffff0d}
+.colitem input[type=checkbox]{flex:none;-webkit-appearance:auto;appearance:auto;
+  width:14px;height:14px;margin:0;padding:0;background:none;border:0;accent-color:var(--acc);cursor:pointer}
+.colitem .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.colitem.on{color:var(--txt)}
+.colmenu .colft{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;
+  border-top:1px solid var(--line);color:var(--mut);font-size:11px}
+.colmenu .sp{margin-left:auto}
+button.prim{background:var(--acc);border:1px solid var(--acc);color:#04120d;font-weight:700}
+@media (max-width:900px){th .rz{width:18px}th{padding-right:20px}
+  .colmenu{right:8px;left:8px;width:auto}
+  .colmenu .colgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .side h2{margin:0;font-size:18px}.side .sub{color:var(--mut);font-size:12px;margin-top:2px}
 .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .kpi div{background:var(--panel2);border-radius:0;padding:10px}
@@ -437,11 +454,13 @@ function statsHtml(f){const t=f.stats;
   <div style="margin-top:4px;color:var(--mut)">연도별 순수익 — ${t.years}</div>`}
 // ===== 보유 종목(포지션) — localStorage =====
 let POS=(()=>{try{return JSON.parse(localStorage.getItem('positions')||'[]')}catch(e){return []}})();
-let COLCFG=null;                       /* {order:[key...], hidden:[key...]} — 조회 표 컬럼 배치 */
+let COLCFG=null;         /* {order:[key...], hidden:[key...], w:{key:px}} — 조회 표 컬럼 배치 */
+let RESIZED_AT=0;        /* 열 너비를 끈 직후의 클릭은 정렬로 치지 않는다 */
 function loadColCfg(){
   if(COLCFG)return COLCFG;
   try{COLCFG=JSON.parse(localStorage.getItem('colcfg')||'null')}catch(e){COLCFG=null}
-  if(!COLCFG||!Array.isArray(COLCFG.order))COLCFG={order:null,hidden:[]};
+  if(!COLCFG||!Array.isArray(COLCFG.order))COLCFG={order:null,hidden:[],w:{}};
+  if(!COLCFG.w)COLCFG.w={};
   return COLCFG;
 }
 function saveColCfg(){
@@ -463,13 +482,41 @@ function applyColCfg(cols){
   const hid=new Set(c.hidden||[]);
   return out.filter(x=>!hid.has(x[0]));
 }
+/* 저장된 열 너비를 colgroup 으로 적용한다. 저장 안 된 열은 지금 렌더된 자연 폭을 그대로 쓴다
+   (fixed 로 바뀌는 순간 표 모양이 튀지 않게). 폭이 하나도 없으면 원래대로 자동 레이아웃. */
+function clearColWidths(){
+  const t=$('#tbl'); if(!t)return;
+  const old=t.querySelector('colgroup'); if(old)old.remove();
+  t.classList.remove('fixed'); t.style.width='';
+}
+function applyColWidths(cols){
+  const t=$('#tbl'); if(!t)return;
+  clearColWidths();
+  const w=loadColCfg().w||{};
+  if(!cols.some(c=>w[c[0]]))return;
+  const nat=natWidths();
+  const cg=document.createElement('colgroup'); let sum=0;
+  cols.forEach(c=>{const px=w[c[0]]||nat[c[0]]||90;
+    const el=document.createElement('col'); el.style.width=px+'px'; sum+=px; cg.appendChild(el)});
+  t.insertBefore(cg,t.firstChild); t.classList.add('fixed'); t.style.width=sum+'px';
+}
+function natWidths(){
+  const o={}; document.querySelectorAll('#tbl thead th').forEach(th=>{
+    o[th.dataset.k]=Math.max(48,Math.round(th.getBoundingClientRect().width))}); return o;
+}
 function colMenu(cols){
   const c=loadColCfg(),hid=new Set(c.hidden||[]);
   const items=cols.map(x=>{const on=!hid.has(x[0]);
-    return `<label class="colitem ${on?'on':''}"><input type="checkbox" data-col="${x[0]}" ${on?'checked':''}>`
-      +`<span>${x[1]}</span><span class="st">${on?'표시':'숨김'}</span></label>`}).join('');
-  return `<div class="colmenu" id="colmenu"><div class="colhd">보이는 열 선택 · 머리글을 끌어 순서를 바꿉니다
-    <button class="ghost mini" id="colreset">초기화</button></div><div class="colgrid">${items}</div></div>`;
+    return `<label class="colitem ${on?'on':''}" title="${x[1]}"><input type="checkbox" data-col="${x[0]}" ${on?'checked':''}>`
+      +`<span class="nm">${x[1]}</span></label>`}).join('');
+  return `<div class="colmenu" id="colmenu"><div class="colhd">볼 열을 모두 고른 뒤 <b>적용</b>을 누르세요 · 머리글을 끌면 순서, 오른쪽 끝을 끌면 너비가 바뀝니다
+    <span class="sp"></span><button class="ghost mini" id="colall">전체</button>
+    <button class="ghost mini" id="colnone">해제</button></div>
+    <div class="colgrid">${items}</div>
+    <div class="colft"><span id="colcnt"></span><span class="sp"></span>
+    <button class="ghost mini" id="colreset">초기화</button>
+    <button class="ghost mini" id="colcancel">취소</button>
+    <button class="mini prim" id="colapply">적용</button></div></div>`;
 }
 function positions(){return POS}
 const DEFAULT_PIN='bh-e0997ecc2798';  // 기본 공유 키(자동 동기화). PIN 버튼으로 변경 가능
@@ -518,6 +565,7 @@ async function renderPositions(){
   const MOB=isMobile();
   const cols=['종목','규칙','매수일','매수가','수량','매수금액','현재가','수익률','평가손익','보유일','고점','손절/익절선','신호 유지','상태','매도가/손익',''];
   const KEEP=MOB?[0,1,7,8,13,15]:cols.map((_,i)=>i);   /* 모바일: 종목·규칙·수익률·손익·상태·삭제만 */
+  clearColWidths();   /* 조회 표에서 정한 열 너비가 보유 종목 표에 남지 않게 */
   $('#tbl thead').innerHTML='<tr>'+cols.map((c,i)=>KEEP.includes(i)?`<th class="${[0,1,2,13,15].includes(i)?'l':''}">${c}</th>`:'').join('')+'</tr>';
   if(!ps.length){$('#tbl tbody').innerHTML=`<tr><td colspan="16" class="l" style="color:var(--mut);padding:30px">${DONE?'매도 완료된 종목이 없습니다. 보유 종목 탭에서 「매도」를 기록하면 여기로 옵니다.':'보유 종목이 없습니다. 종목 행의 「매수」 버튼으로 추가하세요.'}</td></tr>`;$('#status').textContent='보유 0종목';return}
   const rows=await Promise.all(ps.map(async p=>{let d=null;try{d=await (await fetch(`data/stock/${p.code}.json?v=${raw.updated}`)).json()}catch(e){}
@@ -606,7 +654,7 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
   {const fd=$('#fdesc');
    if(fd&&fd.insertAdjacentHTML&&!(fd.innerHTML||'').includes('colbtn'))
      fd.insertAdjacentHTML('beforeend',' <button class="ghost mini colbtn" id="colbtn">열 설정</button><span id="colwrap"></span>');}
-  $('#tbl thead').innerHTML='<tr>'+cols.map(c=>`<th class="${c[2]||''} ${sortKey===c[0]?'on':''}" data-k="${c[0]}" draggable="true">${c[1]}${sortKey===c[0]?(desc?' ▼':' ▲'):''}</th>`).join('')+'</tr>';
+  $('#tbl thead').innerHTML='<tr>'+cols.map(c=>`<th class="${c[2]||''} ${sortKey===c[0]?'on':''}" data-k="${c[0]}" draggable="true">${c[1]}${sortKey===c[0]?(desc?' ▼':' ▲'):''}<span class="rz"></span></th>`).join('')+'</tr>';
   const total=rows.length,shown=rows.slice(0,rowLimit);rowTotal=total;
   /* 셀을 컬럼 id 로 만들어 cols 순서대로 출력한다 — 모바일 축약 시 머리글과 어긋나지 않게 */
   const cellOf=(r)=>({
@@ -643,6 +691,36 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
     foreign_ratio:`<td class="sc">${r.foreign_ratio==null?'':r.foreign_ratio.toFixed(1)+'%'}</td>`});
   $('#tbl tbody').innerHTML=shown.map(r=>{const C=cellOf(r);
     return `<tr data-c="${r.ticker}" class="${sel===r.ticker?'sel':''}">`+cols.map(c=>C[c[0]]||'<td></td>').join('')+'</tr>'}).join('');
+  applyColWidths(cols);
+  /* 머리글 오른쪽 끝을 끌어 너비 조절 (마우스·터치 공용 pointer 이벤트) → 동기화 저장 */
+  (function(){
+    const t=$('#tbl'); if(!t)return;
+    document.querySelectorAll('#tbl thead th').forEach((th,idx)=>{
+      const g=th.querySelector('.rz'); if(!g)return;
+      g.ondragstart=e=>{e.preventDefault();e.stopPropagation();return false};
+      g.onclick=e=>{e.stopPropagation()};
+      g.onpointerdown=e=>{
+        e.preventDefault(); e.stopPropagation();
+        const k=th.dataset.k;
+        const w=Object.assign(natWidths(),loadColCfg().w||{});
+        cols.forEach(c=>{if(!w[c[0]])w[c[0]]=90});
+        COLCFG=Object.assign(loadColCfg(),{w:w}); applyColWidths(cols);   /* 먼저 fixed 로 전환 */
+        const cg=t.querySelector('colgroup'), col=cg?cg.children[idx]:null;
+        const x0=e.clientX, w0=w[k];
+        g.classList.add('on'); th.draggable=false;
+        const sum=()=>cols.reduce((a,c)=>a+(w[c[0]]||90),0);
+        const mv=ev=>{const nw=Math.max(48,Math.round(w0+ev.clientX-x0));
+          w[k]=nw; if(col)col.style.width=nw+'px'; t.style.width=sum()+'px'};
+        const up=()=>{
+          document.removeEventListener('pointermove',mv); document.removeEventListener('pointerup',up);
+          document.removeEventListener('pointercancel',up);
+          g.classList.remove('on'); th.draggable=true; RESIZED_AT=Date.now();
+          COLCFG=Object.assign(loadColCfg(),{w:w}); saveColCfg()};
+        document.addEventListener('pointermove',mv); document.addEventListener('pointerup',up);
+        document.addEventListener('pointercancel',up);
+      };
+    });
+  })();
   /* 머리글 드래그로 순서 변경 → localStorage + 원격 동기화 */
   (function(){
     let src=null;
@@ -657,7 +735,7 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
         const full=ALLCOLS.map(c=>c[0]).filter(k=>!order.includes(k));   /* 숨긴 열은 뒤에 보존 */
         const i=order.indexOf(src),j=order.indexOf(dst);
         order.splice(i,1); order.splice(j,0,src);
-        COLCFG={order:order.concat(full),hidden:hid}; saveColCfg(); render()};
+        COLCFG=Object.assign(loadColCfg(),{order:order.concat(full),hidden:hid}); saveColCfg(); render()};
       th.ondragend=()=>document.querySelectorAll('#tbl thead th').forEach(x=>x.classList.remove('dragover'));
     });
   })();
@@ -666,17 +744,26 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
    if(btn&&wrap){btn.onclick=()=>{
      if(wrap.innerHTML){wrap.innerHTML='';return}
      wrap.innerHTML=colMenu(ALLCOLS);
-     wrap.querySelectorAll('input[data-col]').forEach(cb=>cb.onchange=()=>{
-       const lb=cb.closest('.colitem');
-       if(lb){lb.classList.toggle('on',cb.checked);const st=lb.querySelector('.st');if(st)st.textContent=cb.checked?'표시':'숨김'}
-       const c=loadColCfg(),h=new Set(c.hidden||[]);
-       cb.checked?h.delete(cb.dataset.col):h.add(cb.dataset.col);
-       COLCFG={order:c.order,hidden:[...h]}; saveColCfg(); render()});
-     const rb=wrap.querySelector('#colreset');
-     if(rb)rb.onclick=()=>{COLCFG={order:null,hidden:[]};saveColCfg();render()};
+     const boxes=[...wrap.querySelectorAll('input[data-col]')];
+     const paint=()=>{boxes.forEach(cb=>{const lb=cb.closest('.colitem');
+         if(lb)lb.classList.toggle('on',cb.checked)});
+       const cnt=wrap.querySelector('#colcnt');
+       if(cnt)cnt.textContent=boxes.length+'개 중 '+boxes.filter(b=>b.checked).length+'개 표시';};
+     /* 체크는 화면에만 반영하고, 적용을 눌러야 저장하고 다시 그린다 */
+     boxes.forEach(cb=>cb.onchange=paint); paint();
+     const on=(id,fn)=>{const el=wrap.querySelector(id); if(el)el.onclick=fn};
+     on('#colall',()=>{boxes.forEach(b=>b.checked=true);paint()});
+     on('#colnone',()=>{boxes.forEach((b,i)=>b.checked=(i===0));paint()});   /* 종목명은 남긴다 */
+     on('#colcancel',()=>{wrap.innerHTML=''});
+     on('#colreset',()=>{COLCFG={order:null,hidden:[],w:{}};saveColCfg();wrap.innerHTML='';render()});
+     on('#colapply',()=>{
+       const h=boxes.filter(b=>!b.checked).map(b=>b.dataset.col);
+       COLCFG=Object.assign(loadColCfg(),{hidden:h}); saveColCfg(); wrap.innerHTML=''; render()});
    }}}
   $('#status').textContent=`갱신 ${raw.updated||''}`;
-  document.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortKey===k)desc=!desc;else{sortKey=k;desc=k!=='name'}rowLimit=100;render()});
+  document.querySelectorAll('th').forEach(th=>th.onclick=()=>{
+    if(Date.now()-RESIZED_AT<400)return;              /* 너비를 끈 직후의 클릭은 무시 */
+    const k=th.dataset.k;if(sortKey===k)desc=!desc;else{sortKey=k;desc=k!=='name'}rowLimit=100;render()});
   if(total>shown.length)$('#tbl tbody').innerHTML+=`<tr><td colspan="40" style="text-align:center;padding:16px;color:var(--dim)">`
     +`${shown.length.toLocaleString()} / ${total.toLocaleString()} — 아래로 스크롤하면 더 불러옵니다</td></tr>`;
   document.querySelectorAll('tbody tr[data-c]').forEach(tr=>tr.onclick=()=>{sel=tr.dataset.c;render();showStock(sel)});
