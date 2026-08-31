@@ -437,6 +437,15 @@ def build_site():
         ret250 = round((closes[-1] / closes[-251] - 1) * 100, 2) if len(closes) >= 251 and closes[-251] else None
         ma20 = avg(closes[-20:]) if len(closes) >= 20 else None
         dma20 = round((closes[-1] / ma20 - 1) * 100, 2) if ma20 else None   # 20일선 이격도(%)
+        # 60일 최대낙폭: 최근 60거래일 각 시점의 '그 시점 기준 60일 고점 대비 되돌림' 중 최저.
+        # 얼마나 깊게 무너졌는지를 잰다(20일선 이격이 재는 '속도'와 다른 축).
+        mdd60 = None
+        if len(closes) >= 90:
+            worst = 0.0
+            for i in range(len(closes) - 60, len(closes)):
+                hi = max(closes[max(i - 59, 0):i + 1])
+                if hi: worst = min(worst, (closes[i] / hi - 1) * 100)
+            mdd60 = round(worst, 2)
         above20 = None
         if len(closes) >= 80:
             n = min(250, len(closes) - 19)
@@ -446,7 +455,7 @@ def build_site():
                 if closes[i] > ma: hit += 1
             above20 = round(hit / n * 100, 1)
         table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2], "streak": streak, "ret3": ret3, "ret10": ret10,
-                      "ret20": ret20, "ret60": ret60, "fromhi": fromhi, "fw5": fw5, "vol20": vol20, "ret2y": ret2y, "ret250": ret250, "above20": above20, "dma20": dma20, "r1m": r1m, "r3m": r3m, "r6m": r6m, "r1y": r1y, "vs1": vs1, "fw60": fw60, "amt20": amt20, "ow20": ow20, "disc": disc,
+                      "ret20": ret20, "ret60": ret60, "fromhi": fromhi, "fw5": fw5, "vol20": vol20, "ret2y": ret2y, "ret250": ret250, "above20": above20, "dma20": dma20, "mdd60": mdd60, "r1m": r1m, "r3m": r3m, "r6m": r6m, "r1y": r1y, "vs1": vs1, "fw60": fw60, "amt20": amt20, "ow20": ow20, "disc": disc,
                       "aw": aw, "a1": a1, "a6": a6 if n6 >= W_BASE // 2 else None,
                       "amt": round(amt1 / 1e8, 2) if amt1 else None, "cap": s.get("cap"), "pref": s["ticker"][-1] != "0", "mk": s.get("mkt", "KOSPI"),
                       "up": UP.get(s["ticker"]), "rs": RS.get(UP.get(s["ticker"])),

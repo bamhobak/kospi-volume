@@ -68,6 +68,7 @@ FILTERS = [
      lambda r: r.get("mk") == "KOSPI" and not r["pref"]
      and (r.get("sr60") is not None and r["sr60"] <= -20)
      and r.get("dma20") is not None and r["dma20"] <= -10
+     and r.get("mdd60") is not None and r["mdd60"] <= -40
      and r.get("srDown") is True
      and (r.get("amt20") or 0) >= 10 and (r.get("c") or 0) >= 1000
      and r.get("dilu") is not True and r.get("disc") is not True),
