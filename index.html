@@ -89,7 +89,7 @@ header{flex:none}
 .rail .sec .row{display:flex;justify-content:space-between;font-size:11px;margin-top:5px}
 .main{flex-grow:1;min-width:0;display:flex;flex-direction:column;min-height:0}
 .fdesc{padding:12px 18px 0;color:var(--mut);font-size:12px}
-.wrap{display:grid;grid-template-columns:1fr 470px;gap:14px;padding:12px 18px 14px;flex-grow:1;min-height:0}
+.wrap{display:grid;grid-template-columns:1fr;gap:14px;padding:12px 18px 14px;flex-grow:1;min-height:0}
 .cards{overflow:auto;display:flex;flex-direction:column;gap:12px;min-height:0}
 .sig{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--acc);
      padding:19px 21px;display:flex;flex-direction:column;gap:17px}
@@ -129,7 +129,20 @@ td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400
 .pos{color:var(--up)}.neg{color:var(--dn)}
 .pct{font-size:11px;opacity:.85;margin-left:3px}
 .hot{background:#fb718522;color:#fb7185;border-radius:0;padding:2px 6px;font-weight:600}
-.side{padding:16px;display:flex;flex-direction:column;gap:12px;overflow:auto}
+/* 상세 패널은 기본으로 숨긴다 — 목록의 '상세' 버튼이 새 창(?detail=코드)으로 띄운다 */
+.side{display:none;padding:16px;flex-direction:column;gap:12px;overflow:auto}
+body.detail header,body.detail .rail,body.detail #fdesc,body.detail .rule,
+body.detail #tblcard,body.detail #cards{display:none!important}
+body.detail .shell{height:100%}body.detail .wrap{padding:10px;grid-template-columns:1fr}
+body.detail .side{display:flex;height:100%;border-radius:0}
+body.detail #close{display:none}
+th[draggable]{cursor:grab;user-select:none}th.dragover{box-shadow:inset 3px 0 0 var(--acc)}
+.colbtn{margin-left:auto}
+.colmenu{position:absolute;right:18px;z-index:30;background:var(--panel2);border:1px solid var(--line);padding:12px;max-width:640px;box-shadow:0 8px 24px #000a}
+.colmenu .colhd{display:flex;align-items:center;gap:10px;color:var(--mut);font-size:11px;margin-bottom:9px}
+.colmenu .colgrid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:6px 14px}
+.colitem{display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;white-space:nowrap}
+@media (max-width:900px){.colmenu{right:8px;left:8px;max-width:none}.colmenu .colgrid{grid-template-columns:repeat(2,1fr)}}
 .side h2{margin:0;font-size:18px}.side .sub{color:var(--mut);font-size:12px;margin-top:2px}
 .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .kpi div{background:var(--panel2);border-radius:0;padding:10px}
@@ -161,8 +174,8 @@ td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400
   .mkt{font-size:12px}
   .mktstate{font-size:10px;padding:3px 8px;white-space:normal}
   #q{flex:1 1 100%;min-width:0}
-  .side{position:fixed;inset:0;z-index:20;border-radius:0;background:var(--panel);transform:translateY(100%);transition:transform .25s}
-  .side.open{transform:none}#close{display:inline-block}
+  body:not(.detail) .side.open{position:fixed;inset:0;z-index:20;border-radius:0;background:var(--panel);display:flex}
+  body:not(.detail) .side.open #close{display:inline-block}
   .kpi{grid-template-columns:repeat(2,1fr)}.chart{height:190px}
   /* 표: 페이지는 가로로 안 밀리되(html overflow-x:hidden) 표 안에서만 가로 스크롤한다.
      글자를 세로로 쪼개면 안 되므로 nowrap 유지. 조회 탭(컬럼 31개)은 이 스크롤로 본다.
@@ -418,12 +431,45 @@ function statsHtml(f){const t=f.stats;
   <div style="margin-top:4px;color:var(--mut)">연도별 순수익 — ${t.years}</div>`}
 // ===== 보유 종목(포지션) — localStorage =====
 let POS=(()=>{try{return JSON.parse(localStorage.getItem('positions')||'[]')}catch(e){return []}})();
+let COLCFG=null;                       /* {order:[key...], hidden:[key...]} — 조회 표 컬럼 배치 */
+function loadColCfg(){
+  if(COLCFG)return COLCFG;
+  try{COLCFG=JSON.parse(localStorage.getItem('colcfg')||'null')}catch(e){COLCFG=null}
+  if(!COLCFG||!Array.isArray(COLCFG.order))COLCFG={order:null,hidden:[]};
+  return COLCFG;
+}
+function saveColCfg(){
+  try{localStorage.setItem('colcfg',JSON.stringify(COLCFG))}catch(e){}
+  pushRemote();                        /* 포지션과 같은 PIN 상태에 함께 저장 → 다른 기기와 동기화 */
+}
+/* 저장된 순서를 현재 컬럼 목록에 적용한다. 새로 생긴 컬럼은 원래 자리에 남긴다. */
+function applyColCfg(cols){
+  const c=loadColCfg();
+  let out=cols;
+  if(c.order&&c.order.length){
+    const by={};cols.forEach(x=>by[x[0]]=x);
+    const seen=new Set();
+    out=[];
+    c.order.forEach(k=>{if(by[k]&&!seen.has(k)){out.push(by[k]);seen.add(k)}});
+    /* 저장 이후 새로 생긴 열은 뒤에 원래 순서대로 붙인다 (앞의 순서를 밀지 않는다) */
+    cols.forEach(x=>{if(!seen.has(x[0]))out.push(x)});
+  }
+  const hid=new Set(c.hidden||[]);
+  return out.filter(x=>!hid.has(x[0]));
+}
+function colMenu(cols){
+  const c=loadColCfg(),hid=new Set(c.hidden||[]);
+  const items=cols.map(x=>`<label class="colitem"><input type="checkbox" data-col="${x[0]}" ${hid.has(x[0])?'':'checked'}> ${x[1]}</label>`).join('');
+  return `<div class="colmenu" id="colmenu"><div class="colhd">보이는 열 선택 · 머리글을 끌어 순서를 바꿉니다
+    <button class="ghost mini" id="colreset">초기화</button></div><div class="colgrid">${items}</div></div>`;
+}
 function positions(){return POS}
 const DEFAULT_PIN='bh-e0997ecc2798';  // 기본 공유 키(자동 동기화). PIN 버튼으로 변경 가능
 function getPin(){try{return localStorage.getItem('pin')||DEFAULT_PIN}catch(e){return DEFAULT_PIN}}
 async function rpc(fn,body){const r=await fetch(`${SB.url}/rest/v1/rpc/${fn}`,{method:'POST',headers:{apikey:SB.key,Authorization:'Bearer '+SB.key,'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error(fn+' '+r.status);const t=await r.text();return t?JSON.parse(t):null}
-async function pullRemote(){const pin=getPin();if(!pin||!window.SB)return;try{const d=await rpc('kospi_state_get',{p_pin:pin});if(d&&Array.isArray(d.positions)&&d.positions.length){POS=d.positions;try{localStorage.setItem('positions',JSON.stringify(POS))}catch(e){}}else if(POS.length){await pushRemote()}}catch(e){console.warn('sync pull',e)}}
-async function pushRemote(){const pin=getPin();if(!pin||!window.SB)return;try{await rpc('kospi_state_set',{p_pin:pin,p_data:{positions:POS}})}catch(e){alert('서버 저장 실패: '+e.message)}}
+async function pullRemote(){const pin=getPin();if(!pin||!window.SB)return;try{const d=await rpc('kospi_state_get',{p_pin:pin});if(d&&d.colcfg&&Array.isArray(d.colcfg.hidden)){COLCFG=d.colcfg;try{localStorage.setItem('colcfg',JSON.stringify(COLCFG))}catch(e){}}
+    if(d&&Array.isArray(d.positions)&&d.positions.length){POS=d.positions;try{localStorage.setItem('positions',JSON.stringify(POS))}catch(e){}}else if(POS.length){await pushRemote()}}catch(e){console.warn('sync pull',e)}}
+async function pushRemote(){const pin=getPin();if(!pin||!window.SB)return;try{await rpc('kospi_state_set',{p_pin:pin,p_data:{positions:POS,colcfg:COLCFG}})}catch(e){alert('서버 저장 실패: '+e.message)}}
 function savePositions(a){POS=a;try{localStorage.setItem('positions',JSON.stringify(a))}catch(e){};pushRemote()}
 async function setPin(){const cur_=getPin();const v=prompt('기기 간 공유용 PIN (4자 이상). 기본값이면 모든 기기가 자동 공유됩니다. 남과 분리하고 싶을 때만 바꾸세요.',cur_===DEFAULT_PIN?'':cur_);if(v==null)return;const pin=v.trim();if(pin.length<4){if(pin===''){try{localStorage.removeItem('pin')}catch(e){};await pullRemote();render();return}alert('4자 이상 입력하세요');return}
   try{localStorage.setItem('pin',pin)}catch(e){}
@@ -513,7 +559,16 @@ let raw={dates:[],rows:[]},view={dates:[],rows:[]},sortKey='last',desc=true,sel=
 /* 가로/세로 전환으로 모바일 여부가 바뀌면 표 컬럼을 다시 구성한다 */
 let _mob=null;
 if(typeof window!=='undefined')window.addEventListener('resize',()=>{const m=isMobile();if(_mob!==null&&m!==_mob)render();_mob=m});
-async function load(){await pullRemote();raw=await (await fetch('data/table.json?v='+Date.now())).json();prep();render();mktBadge()}
+const DETAIL=(()=>{try{const m=/[?&]detail=([0-9A-Za-z]+)/.exec(location.search||'');return m?m[1]:null}catch(e){return null}})();
+async function load(){
+  if(DETAIL){                       /* 새 창 상세 모드: 헤더·목록 숨기고 종목 하나만 */
+    document.body.classList.add('detail');
+    raw=await (await fetch('data/table.json?v='+Date.now())).json(); prep();
+    const r=raw.rows.find(x=>x.t===DETAIL);
+    document.title=(r?r.n+' · ':'')+'상세 · 밤호박 종목 선별기';
+    await showStock(DETAIL); return;
+  }
+  await pullRemote();raw=await (await fetch('data/table.json?v='+Date.now())).json();prep();render();mktBadge()}
 function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none';return}
   /* 지수는 값만 보여준다. 이평선은 규칙 활성 여부와 함께 상태 칩에서 한 번에 안내한다.
      코스닥 20일선은 어떤 규칙도 쓰지 않아 표시하지 않는다 (D1 도 코스피 60일선을 본다). */
@@ -538,8 +593,12 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
   rows.sort((a,b)=>{const x=val(a,sortKey),y=val(b,sortKey);return (typeof x==='string')?(desc?y.localeCompare(x):x.localeCompare(y)):(desc?y-x:x-y)});
   const browse=(cur==='kp'||cur==='kq');   /* 조회 전용 — 매수 버튼 없음 */
   /* 조회 탭은 컬럼을 줄이지 않는다 — 표 안에서 가로 스크롤하고 종목명은 CSS 로 고정 */
-  const cols=[['name','종목','l'],...(browse?[]:[['hits','통과 규칙']]),['cap','시가총액'],['r1m','1개월'],['r3m','3개월'],['r6m','6개월'],['r1y','1년'],['per','PER'],['pbr','PBR'],['pcr','PCR'],['up','업종','l'],['sr60','업종 60일'],['streak','연속'],['ret3','3일'],['ret10','10일'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','3일평균'],['r16','2M/1Y'],['rw1','3일/2M'],['fw','외국인 1W'],['fwp','외인/거래량'],['amt','2M 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
-  $('#tbl thead').innerHTML='<tr>'+cols.map(c=>`<th class="${c[2]||''} ${sortKey===c[0]?'on':''}" data-k="${c[0]}">${c[1]}${sortKey===c[0]?(desc?' ▼':' ▲'):''}</th>`).join('')+'</tr>';
+  let cols=[['name','종목','l'],...(browse?[]:[['hits','통과 규칙']]),['cap','시가총액'],['r1m','1개월'],['r3m','3개월'],['r6m','6개월'],['r1y','1년'],['detail','상세'],['per','PER'],['pbr','PBR'],['pcr','PCR'],['up','업종','l'],['sr60','업종 60일'],['streak','연속'],['ret3','3일'],['ret10','10일'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','3일평균'],['r16','2M/1Y'],['rw1','3일/2M'],['fw','외국인 1W'],['fwp','외인/거래량'],['amt','2M 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
+  const ALLCOLS=cols; cols=applyColCfg(cols);
+  {const fd=$('#fdesc');
+   if(fd&&fd.insertAdjacentHTML&&!(fd.innerHTML||'').includes('colbtn'))
+     fd.insertAdjacentHTML('beforeend',' <button class="ghost mini colbtn" id="colbtn">열 설정</button><span id="colwrap"></span>');}
+  $('#tbl thead').innerHTML='<tr>'+cols.map(c=>`<th class="${c[2]||''} ${sortKey===c[0]?'on':''}" data-k="${c[0]}" draggable="true">${c[1]}${sortKey===c[0]?(desc?' ▼':' ▲'):''}</th>`).join('')+'</tr>';
   const total=rows.length,shown=rows.slice(0,rowLimit);rowTotal=total;
   /* 셀을 컬럼 id 로 만들어 cols 순서대로 출력한다 — 모바일 축약 시 머리글과 어긋나지 않게 */
   const cellOf=(r)=>({
@@ -550,6 +609,8 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
     r3m:`<td class="${cls(r.r3m)}">${r.r3m==null?'':(r.r3m>0?'+':'')+r.r3m.toFixed(1)+'%'}</td>`,
     r6m:`<td class="${cls(r.r6m)}">${r.r6m==null?'':(r.r6m>0?'+':'')+r.r6m.toFixed(1)+'%'}</td>`,
     r1y:`<td class="${cls(r.r1y)}">${r.r1y==null?'':(r.r1y>0?'+':'')+r.r1y.toFixed(1)+'%'}</td>`,
+    detail:`<td><button class="ghost mini" data-detail="${r.ticker}">상세</button></td>`,
+    detail:`<td><button class="ghost mini" data-detail="${r.ticker}">상세</button></td>`,
     per:`<td class="sc">${r.per==null?'':r.per.toFixed(2)}</td>`,
     pbr:`<td class="sc">${r.pbr==null?'':r.pbr.toFixed(2)}</td>`,
     pcr:`<td class="sc">${r.pcr==null?'':r.pcr.toFixed(2)}</td>`,
@@ -575,6 +636,41 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
     foreign_ratio:`<td class="sc">${r.foreign_ratio==null?'':r.foreign_ratio.toFixed(1)+'%'}</td>`});
   $('#tbl tbody').innerHTML=shown.map(r=>{const C=cellOf(r);
     return `<tr data-c="${r.ticker}" class="${sel===r.ticker?'sel':''}">`+cols.map(c=>C[c[0]]||'<td></td>').join('')+'</tr>'}).join('');
+  /* 머리글 드래그로 순서 변경 → localStorage + 원격 동기화 */
+  (function(){
+    let src=null;
+    document.querySelectorAll('#tbl thead th').forEach(th=>{
+      th.ondragstart=e=>{src=th.dataset.k;e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',src)}catch(_){}};
+      th.ondragover=e=>{e.preventDefault();th.classList.add('dragover')};
+      th.ondragleave=()=>th.classList.remove('dragover');
+      th.ondrop=e=>{e.preventDefault();th.classList.remove('dragover');
+        const dst=th.dataset.k; if(!src||src===dst)return;
+        const order=cols.map(c=>c[0]);
+        const hid=(loadColCfg().hidden||[]);
+        const full=ALLCOLS.map(c=>c[0]).filter(k=>!order.includes(k));   /* 숨긴 열은 뒤에 보존 */
+        const i=order.indexOf(src),j=order.indexOf(dst);
+        order.splice(i,1); order.splice(j,0,src);
+        COLCFG={order:order.concat(full),hidden:hid}; saveColCfg(); render()};
+      th.ondragend=()=>document.querySelectorAll('#tbl thead th').forEach(x=>x.classList.remove('dragover'));
+    });
+  })();
+  /* 열 설정 메뉴 */
+  {const btn=$('#colbtn'),wrap=$('#colwrap');
+   if(btn&&wrap){btn.onclick=()=>{
+     if(wrap.innerHTML){wrap.innerHTML='';return}
+     wrap.innerHTML=colMenu(ALLCOLS);
+     wrap.querySelectorAll('input[data-col]').forEach(cb=>cb.onchange=()=>{
+       const c=loadColCfg(),h=new Set(c.hidden||[]);
+       cb.checked?h.delete(cb.dataset.col):h.add(cb.dataset.col);
+       COLCFG={order:c.order,hidden:[...h]}; saveColCfg(); render()});
+     const rb=wrap.querySelector('#colreset');
+     if(rb)rb.onclick=()=>{COLCFG={order:null,hidden:[]};saveColCfg();render()};
+   }}}
+  /* 상세 버튼 → 새 창 */
+  document.querySelectorAll('[data-detail]').forEach(b=>b.onclick=e=>{
+    e.stopPropagation();
+    const u=location.pathname+'?detail='+b.dataset.detail;
+    window.open(u,'detail_'+b.dataset.detail,'width=560,height=920,scrollbars=yes');});
   $('#status').textContent=`갱신 ${raw.updated||''}`;
   document.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortKey===k)desc=!desc;else{sortKey=k;desc=k!=='name'}rowLimit=100;render()});
   if(total>shown.length)$('#tbl tbody').innerHTML+=`<tr><td colspan="40" style="text-align:center;padding:16px;color:var(--dim)">`
