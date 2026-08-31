@@ -146,16 +146,16 @@ th .rz:hover::after,th .rz.on::after{background:var(--acc);top:0;bottom:0}
 #tbl.fixed th,#tbl.fixed td{overflow:hidden;text-overflow:ellipsis}
 .colbtn{margin-left:auto}
 .colmenu{position:absolute;right:18px;z-index:30;background:var(--panel2);border:1px solid var(--line);
-  padding:14px 16px;width:min(720px,calc(100vw - 40px));box-shadow:0 8px 24px #000a}
+  padding:14px 16px;width:min(780px,calc(100vw - 40px));box-shadow:0 8px 24px #000a}
 .colmenu .colhd{display:flex;align-items:center;gap:10px;color:var(--mut);font-size:11px;
   margin-bottom:10px;padding-bottom:9px;border-bottom:1px solid var(--line)}
-.colmenu .colgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:1px 8px}
-/* 항목은 테두리 없이 — 체크박스 + 이름만. 켜짐은 글자 밝기로 구분한다 */
-.colitem{display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;
-  padding:6px 8px;color:var(--dim);min-width:0;border-radius:0}
+.colmenu .colgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1px 4px}
+/* 체크 영역은 최소로 — 남는 폭은 전부 열 이름에 준다. 켜짐은 글자 밝기로 구분 */
+.colitem{display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer;
+  padding:5px 4px;color:var(--dim);min-width:0;border-radius:0}
 .colitem:hover{background:#ffffff0d}
 .colitem input[type=checkbox]{flex:none;-webkit-appearance:auto;appearance:auto;
-  width:14px;height:14px;margin:0;padding:0;background:none;border:0;accent-color:var(--acc);cursor:pointer}
+  width:12px;height:12px;margin:0;padding:0;background:none;border:0;accent-color:var(--acc);cursor:pointer}
 .colitem .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .colitem.on{color:var(--txt)}
 .colmenu .colft{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;
