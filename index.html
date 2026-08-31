@@ -164,10 +164,17 @@ td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400
   .side{position:fixed;inset:0;z-index:20;border-radius:0;background:var(--panel);transform:translateY(100%);transition:transform .25s}
   .side.open{transform:none}#close{display:inline-block}
   .kpi{grid-template-columns:repeat(2,1fr)}.chart{height:190px}
-  /* 표: 폭에 맞춰 줄바꿈 허용 (컬럼 수는 JS 가 모바일용으로 줄인다) */
-  .tblwrap{overflow-x:hidden}
-  table{white-space:normal;table-layout:fixed;width:100%}
-  td,th{padding:7px 5px;font-size:11px;word-break:break-word;overflow-wrap:anywhere}
+  /* 표: 페이지는 가로로 안 밀리되(html overflow-x:hidden) 표 안에서만 가로 스크롤한다.
+     글자를 세로로 쪼개면 안 되므로 nowrap 유지. 조회 탭(컬럼 31개)은 이 스크롤로 본다.
+     대신 종목명 열은 왼쪽에 고정해 무엇을 보는 중인지 놓치지 않게 한다. */
+  .tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{white-space:nowrap;table-layout:auto;width:auto;min-width:100%}
+  td,th{padding:7px 6px;font-size:11px}
+  th:first-child,td:first-child{position:sticky;left:0;z-index:3;
+      background:var(--panel);box-shadow:1px 0 0 var(--line);max-width:120px;
+      overflow:hidden;text-overflow:ellipsis}
+  thead th:first-child{z-index:4;background:var(--panel2)}
+  tr.sel td:first-child{background:var(--panel2)}
   .card{min-width:0}
 }
 </style></head><body>
@@ -518,9 +525,8 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
   showTable(true);
   rows.sort((a,b)=>{const x=val(a,sortKey),y=val(b,sortKey);return (typeof x==='string')?(desc?y.localeCompare(x):x.localeCompare(y)):(desc?y-x:x-y)});
   const browse=(cur==='kp'||cur==='kq');   /* 조회 전용 — 매수 버튼 없음 */
-  const MOB=isMobile();
-  const cols=MOB?[['name','종목','l'],['cap','시총'],['close','종가'],['chpct','전일비'],['r1m','1개월'],['pbr','PBR']]
-   :[['name','종목','l'],...(browse?[]:[['hits','통과 규칙']]),['cap','시가총액'],['r1m','1개월'],['r3m','3개월'],['r6m','6개월'],['r1y','1년'],['per','PER'],['pbr','PBR'],['pcr','PCR'],['up','업종','l'],['sr60','업종 60일'],['streak','연속'],['ret3','3일'],['ret10','10일'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','3일평균'],['r16','2M/1Y'],['rw1','3일/2M'],['fw','외국인 1W'],['fwp','외인/거래량'],['amt','2M 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
+  /* 조회 탭은 컬럼을 줄이지 않는다 — 표 안에서 가로 스크롤하고 종목명은 CSS 로 고정 */
+  const cols=[['name','종목','l'],...(browse?[]:[['hits','통과 규칙']]),['cap','시가총액'],['r1m','1개월'],['r3m','3개월'],['r6m','6개월'],['r1y','1년'],['per','PER'],['pbr','PBR'],['pcr','PCR'],['up','업종','l'],['sr60','업종 60일'],['streak','연속'],['ret3','3일'],['ret10','10일'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','3일평균'],['r16','2M/1Y'],['rw1','3일/2M'],['fw','외국인 1W'],['fwp','외인/거래량'],['amt','2M 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
   $('#tbl thead').innerHTML='<tr>'+cols.map(c=>`<th class="${c[2]||''} ${sortKey===c[0]?'on':''}" data-k="${c[0]}">${c[1]}${sortKey===c[0]?(desc?' ▼':' ▲'):''}</th>`).join('')+'</tr>';
   const total=rows.length,shown=rows.slice(0,rowLimit);rowTotal=total;
   /* 셀을 컬럼 id 로 만들어 cols 순서대로 출력한다 — 모바일 축약 시 머리글과 어긋나지 않게 */
