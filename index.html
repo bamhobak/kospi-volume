@@ -12,7 +12,7 @@
 *{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--txt);font-family:'Gothic A1',Pretendard,-apple-system,"Malgun Gothic",sans-serif;font-size:13px;overflow:hidden}
 header{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
 header h1{font-size:16px;margin:0 8px 0 0;font-weight:900;letter-spacing:-.8px;white-space:nowrap}header h1 span{color:var(--acc)}
-input,select{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:0;padding:8px 12px;font-size:14px;outline:none;-webkit-appearance:none}
+input:not([type=checkbox]),select{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:0;padding:8px 12px;font-size:14px;outline:none;-webkit-appearance:none}
 input:focus{border-color:var(--acc)}input{flex:1;min-width:120px}
 button{background:var(--acc);border:0;color:#08090b;border-radius:0;padding:8px 14px;font-weight:600;cursor:pointer;font-size:13px}
 button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
@@ -141,7 +141,12 @@ th[draggable]{cursor:grab;user-select:none}th.dragover{box-shadow:inset 3px 0 0 
 .colmenu{position:absolute;right:18px;z-index:30;background:var(--panel2);border:1px solid var(--line);padding:12px;max-width:640px;box-shadow:0 8px 24px #000a}
 .colmenu .colhd{display:flex;align-items:center;gap:10px;color:var(--mut);font-size:11px;margin-bottom:9px}
 .colmenu .colgrid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:6px 14px}
-.colitem{display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;white-space:nowrap}
+.colitem{display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;white-space:nowrap;
+  padding:5px 9px;border:1px solid var(--line);background:#0b0d10;color:var(--dim)}
+.colitem input{-webkit-appearance:auto;appearance:auto;width:13px;height:13px;margin:0;accent-color:var(--acc);cursor:pointer}
+.colitem.on{background:var(--panel2);border-color:var(--acc);color:var(--txt);font-weight:600}
+.colitem .st{margin-left:auto;font-size:10px;color:var(--dim)}
+.colitem.on .st{color:var(--acc)}
 @media (max-width:900px){.colmenu{right:8px;left:8px;max-width:none}.colmenu .colgrid{grid-template-columns:repeat(2,1fr)}}
 .side h2{margin:0;font-size:18px}.side .sub{color:var(--mut);font-size:12px;margin-top:2px}
 .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
@@ -459,7 +464,9 @@ function applyColCfg(cols){
 }
 function colMenu(cols){
   const c=loadColCfg(),hid=new Set(c.hidden||[]);
-  const items=cols.map(x=>`<label class="colitem"><input type="checkbox" data-col="${x[0]}" ${hid.has(x[0])?'':'checked'}> ${x[1]}</label>`).join('');
+  const items=cols.map(x=>{const on=!hid.has(x[0]);
+    return `<label class="colitem ${on?'on':''}"><input type="checkbox" data-col="${x[0]}" ${on?'checked':''}>`
+      +`<span>${x[1]}</span><span class="st">${on?'표시':'숨김'}</span></label>`}).join('');
   return `<div class="colmenu" id="colmenu"><div class="colhd">보이는 열 선택 · 머리글을 끌어 순서를 바꿉니다
     <button class="ghost mini" id="colreset">초기화</button></div><div class="colgrid">${items}</div></div>`;
 }
@@ -610,7 +617,6 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
     r6m:`<td class="${cls(r.r6m)}">${r.r6m==null?'':(r.r6m>0?'+':'')+r.r6m.toFixed(1)+'%'}</td>`,
     r1y:`<td class="${cls(r.r1y)}">${r.r1y==null?'':(r.r1y>0?'+':'')+r.r1y.toFixed(1)+'%'}</td>`,
     detail:`<td><button class="ghost mini" data-detail="${r.ticker}">상세</button></td>`,
-    detail:`<td><button class="ghost mini" data-detail="${r.ticker}">상세</button></td>`,
     per:`<td class="sc">${r.per==null?'':r.per.toFixed(2)}</td>`,
     pbr:`<td class="sc">${r.pbr==null?'':r.pbr.toFixed(2)}</td>`,
     pcr:`<td class="sc">${r.pcr==null?'':r.pcr.toFixed(2)}</td>`,
@@ -660,17 +666,14 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
      if(wrap.innerHTML){wrap.innerHTML='';return}
      wrap.innerHTML=colMenu(ALLCOLS);
      wrap.querySelectorAll('input[data-col]').forEach(cb=>cb.onchange=()=>{
+       const lb=cb.closest('.colitem');
+       if(lb){lb.classList.toggle('on',cb.checked);const st=lb.querySelector('.st');if(st)st.textContent=cb.checked?'표시':'숨김'}
        const c=loadColCfg(),h=new Set(c.hidden||[]);
        cb.checked?h.delete(cb.dataset.col):h.add(cb.dataset.col);
        COLCFG={order:c.order,hidden:[...h]}; saveColCfg(); render()});
      const rb=wrap.querySelector('#colreset');
      if(rb)rb.onclick=()=>{COLCFG={order:null,hidden:[]};saveColCfg();render()};
    }}}
-  /* 상세 버튼 → 새 창 */
-  document.querySelectorAll('[data-detail]').forEach(b=>b.onclick=e=>{
-    e.stopPropagation();
-    const u=location.pathname+'?detail='+b.dataset.detail;
-    window.open(u,'detail_'+b.dataset.detail,'width=560,height=920,scrollbars=yes');});
   $('#status').textContent=`갱신 ${raw.updated||''}`;
   document.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortKey===k)desc=!desc;else{sortKey=k;desc=k!=='name'}rowLimit=100;render()});
   if(total>shown.length)$('#tbl tbody').innerHTML+=`<tr><td colspan="40" style="text-align:center;padding:16px;color:var(--dim)">`
@@ -682,6 +685,13 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
       if(isCardView()||cur==='pos'||cur==='done'||rowLimit>=rowTotal)return;
       if(tw.scrollTop+tw.clientHeight>=tw.scrollHeight-320){rowLimit+=100;render()}
     })}
+  /* 상세 버튼 → 새 창. tbody 를 innerHTML+= 로 다시 만든 뒤에 붙여야 핸들러가 살아남는다 */
+  document.querySelectorAll('[data-detail]').forEach(b=>b.onclick=e=>{
+    e.preventDefault();e.stopPropagation();
+    const base=location.href.split('?')[0].split('#')[0];
+    const w=window.open(base+'?detail='+b.dataset.detail,'detail_'+b.dataset.detail,
+                        'width=560,height=920,scrollbars=yes,resizable=yes');
+    if(w)w.focus(); else alert('팝업이 차단되었습니다. 브라우저에서 이 사이트의 팝업을 허용해주세요.');});
   document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=e=>{e.stopPropagation();const r=view.rows.find(x=>x.ticker===b.dataset.buy);addPosition(r.ticker,r.name,r.close)});
 }
 async function showStock(code){
