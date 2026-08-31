@@ -651,6 +651,8 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
   const browse=(cur==='kp'||cur==='kq');   /* 조회 전용 — 매수 버튼 없음 */
   /* 조회 탭은 컬럼을 줄이지 않는다 — 표 안에서 가로 스크롤하고 종목명은 CSS 로 고정 */
   let cols=[['name','종목','l'],...(browse?[]:[['hits','통과 규칙']]),['cap','시가총액'],['r1m','1개월'],['r3m','3개월'],['r6m','6개월'],['r1y','1년'],['detail','상세'],['per','PER'],['pbr','PBR'],['pcr','PCR'],['up','업종','l'],['sr60','업종 60일'],['streak','연속'],['ret3','3일'],['ret10','10일'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','3일평균'],['r16','2M/1Y'],['rw1','3일/2M'],['fw','외국인 1W'],['fwp','외인/거래량'],['amt','2M 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
+  /* 모바일에선 '상세' 열을 뺀다 — 팝업 새 창이 모바일에서 쓸모없고, 행을 누르면 어차피 상세가 열린다 */
+  if(isMobile())cols=cols.filter(c=>c[0]!=='detail');
   const ALLCOLS=cols; cols=applyColCfg(cols);
   {const fd=$('#fdesc');
    if(fd&&fd.insertAdjacentHTML&&!(fd.innerHTML||'').includes('colbtn'))
