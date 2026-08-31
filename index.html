@@ -359,12 +359,13 @@ function passes(r){
   if(cur==='kq')return r.mk==='KOSDAQ';
   /* 그 규칙으로 이미 산 종목은 그 탭에서 감춘다(기존과 동일).
      다른 규칙에 새로 걸린 경우에만 남기고 '어느 규칙으로 보유 중' 인지 배지로 알린다. */
-  if(cur==='all')return FILTERS.some(f=>f.fn(r))&&!held(r.ticker);
+  /* 매수 대기 탭도 같은 기준 — '아직 그 규칙으로 사지 않은' 규칙에 걸리면 남긴다 */
+  if(cur==='all')return FILTERS.some(f=>f.fn(r)&&!heldBy(r.ticker,f.id));
   if(heldBy(r.ticker,cur))return false;
   return FILTERS.find(f=>f.id===cur).fn(r)}
 function renderTabs(){
   const nrow=(f,cls,label,n,extra='')=>`<div class="it ${cls} ${cur===f?'on':''}" data-f="${f}">${extra}<span>${label}</span><span class="n">${n}</span></div>`;
-  const wait=view.rows.filter(r=>FILTERS.some(f=>f.fn(r))&&!held(r.ticker)).length;
+  const wait=view.rows.filter(r=>FILTERS.some(f=>f.fn(r)&&!heldBy(r.ticker,f.id))).length;
   const rules=FILTERS.map(f=>nrow(f.id,f.mkt==='KOSDAQ'?'kq':'',f.name.split(' · ')[1],
       view.rows.filter(r=>f.fn(r)&&!heldBy(r.ticker,f.id)).length,   /* 목록과 같은 기준 */
       `<span class="bar"></span><span class="rid">${f.id}</span>`)).join('');

@@ -109,10 +109,21 @@ FILTERS = [
      and kospi.get("up60") is False),
 ]
 
-held = {p["code"] for p in (rpc("kospi_state_positions", {}) or [])}
+LEGACY_ID = {1: "P0", 2: "P2", 3: "P3", 4: "P1"}          # 예전 숫자 id 호환
+POSI = rpc("kospi_state_positions", {}) or []
+# 종목별 "어느 규칙으로 샀는지". 같은 규칙에 다시 걸린 건 새 신호가 아니지만,
+# 다른 규칙에 걸린 건 추가 매수 후보라 따로 알린다.
+held_by = {}
+for _p in POSI:
+    held_by.setdefault(_p["code"], set()).update(
+        str(LEGACY_ID.get(f, f)) for f in (_p.get("filters") or []))
+held = set(held_by)
+pos_name = {_p["code"]: _p.get("name", _p["code"]) for _p in POSI}
+pos_price = {_p["code"]: _p.get("price") for _p in POSI}
 cur = {}
 for fid, name, fn in FILTERS:
-    cur[str(fid)] = sorted(r["t"] for r in rows if fn(r) and r["t"] not in held)
+    cur[str(fid)] = sorted(r["t"] for r in rows
+                           if fn(r) and str(fid) not in held_by.get(r["t"], set()))
 
 prev_state = rpc("kospi_state_get", {"p_pin": "__filters__"}) or {}
 prev = prev_state.get("filters", {})
@@ -129,7 +140,13 @@ for fid, name, _ in FILTERS:
     for t in new:
         r = info[t]
         chp = (r["ch"] / (r["c"] - r["ch"]) * 100) if r.get("c") and r.get("ch") and r["c"] != r["ch"] else 0
-        lines.append(f"• <b>{r['n']}</b> ({t}) {r['c']:,}원 ({chp:+.1f}%)")
+        mark = ""
+        if t in held_by:                       # 다른 규칙으로 이미 보유 중 → 추가 매수 후보
+            by = "·".join(sorted(held_by[t])) or "보유"
+            bp = pos_price.get(t)
+            pl = f" · {(r['c']/float(bp)-1)*100:+.1f}%" if bp else ""
+            mark = f"  🔁 <b>{by} 로 보유 중</b>{pl}"
+        lines.append(f"• <b>{r['n']}</b> ({t}) {r['c']:,}원 ({chp:+.1f}%){mark}")
         if fid == "P6":
             lines.append(f"   25일선 괴리 {(r.get('dev25') or 0):+.1f}% · 업종 60일 "
                          f"{(r.get('sr60') or 0):+.1f}% · 거래대금 {(r.get('amt20') or r.get('amt') or 0):.0f}억")
@@ -156,7 +173,8 @@ if lines and prev_date:   # 첫 실행(비교 대상 없음)에는 보내지 않
              "• P3·D1: <b>다음날 시가 매수</b> · <b>20거래일</b> 보유 (폭락 반등 — 흔들려도 손절 금지)\n"
              "• P6: <b>다음날 시가 매수</b> · <b>5거래일</b> 보유 · 손절 <b>-10%</b> (깊은 이격)\n"
              "• P5: <b>다음날 시가 매수</b> · <b>10거래일</b> 보유 (자사주 취득 공시)\n"
-             "• 보유: P1·P2·P5 10거래일 / P3·D1 20거래일 · 손절 없음 · 1번만 +20% 익절")
+             "• 보유: P1·P2·P5 10거래일 / P3·D1 20거래일 · 손절 없음 · 1번만 +20% 익절\n"
+             "• 🔁 표시는 <b>다른 규칙으로 이미 보유 중</b>인 종목입니다 — 추가 매수는 한 종목 비중을 두 배로 만드니 한도를 확인하세요")
     telegram(f"🆕 <b>신규 편입 종목</b> ({last_date[4:6]}/{last_date[6:]} 기준 · 코스피 {kmark})"
              + "".join(lines) + guide
              + f"\n\nhttps://bamhobak.github.io/kospi-volume/")
