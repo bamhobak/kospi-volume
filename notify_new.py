@@ -64,7 +64,7 @@ FILTERS = [
      and kospi.get("up60") is False
      and (r.get("sr60") is not None and r["sr60"] <= -10)
      and r.get("srDown") is True and r.get("dilu") is not True and r.get("disc") is not True),
-    ("P5", "P5 · 업종붕괴 이탈 (코스피·5일 보유·손절 -15%)",
+    ("P4", "P4 · 업종붕괴 이탈 (코스피·5일 보유·손절 -15%)",
      lambda r: r.get("mk") == "KOSPI" and not r["pref"]
      and (r.get("sr60") is not None and r["sr60"] <= -20)
      and r.get("dma20") is not None and r["dma20"] <= -10
