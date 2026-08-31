@@ -435,6 +435,8 @@ def build_site():
         # 작전주 배제용: 최근 1년 중 20일선 위에서 보낸 날의 비율 + 1년 수익률.
         # 둘 다 극단이면(오래 눌림 없이 오르며 대폭 상승) 2023-04 SG증권 사태형 종목이다.
         ret250 = round((closes[-1] / closes[-251] - 1) * 100, 2) if len(closes) >= 251 and closes[-251] else None
+        ma20 = avg(closes[-20:]) if len(closes) >= 20 else None
+        dma20 = round((closes[-1] / ma20 - 1) * 100, 2) if ma20 else None   # 20일선 이격도(%)
         above20 = None
         if len(closes) >= 80:
             n = min(250, len(closes) - 19)
@@ -444,7 +446,7 @@ def build_site():
                 if closes[i] > ma: hit += 1
             above20 = round(hit / n * 100, 1)
         table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2], "streak": streak, "ret3": ret3, "ret10": ret10,
-                      "ret20": ret20, "ret60": ret60, "fromhi": fromhi, "fw5": fw5, "vol20": vol20, "ret2y": ret2y, "ret250": ret250, "above20": above20, "r1m": r1m, "r3m": r3m, "r6m": r6m, "r1y": r1y, "vs1": vs1, "fw60": fw60, "amt20": amt20, "ow20": ow20, "disc": disc,
+                      "ret20": ret20, "ret60": ret60, "fromhi": fromhi, "fw5": fw5, "vol20": vol20, "ret2y": ret2y, "ret250": ret250, "above20": above20, "dma20": dma20, "r1m": r1m, "r3m": r3m, "r6m": r6m, "r1y": r1y, "vs1": vs1, "fw60": fw60, "amt20": amt20, "ow20": ow20, "disc": disc,
                       "aw": aw, "a1": a1, "a6": a6 if n6 >= W_BASE // 2 else None,
                       "amt": round(amt1 / 1e8, 2) if amt1 else None, "cap": s.get("cap"), "pref": s["ticker"][-1] != "0", "mk": s.get("mkt", "KOSPI"),
                       "up": UP.get(s["ticker"]), "rs": RS.get(UP.get(s["ticker"])),

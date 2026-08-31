@@ -64,6 +64,13 @@ FILTERS = [
      and kospi.get("up60") is False
      and (r.get("sr60") is not None and r["sr60"] <= -10)
      and r.get("srDown") is True and r.get("dilu") is not True and r.get("disc") is not True),
+    ("P5", "P5 · 업종붕괴 이탈 (코스피·5일 보유·손절 -15%)",
+     lambda r: r.get("mk") == "KOSPI" and not r["pref"]
+     and (r.get("sr60") is not None and r["sr60"] <= -20)
+     and r.get("dma20") is not None and r["dma20"] <= -10
+     and r.get("srDown") is True
+     and (r.get("amt20") or 0) >= 10 and (r.get("c") or 0) >= 1000
+     and r.get("dilu") is not True and r.get("disc") is not True),
     ("D2", "D2 · 저PBR 낙폭 (코스닥·40일 보유·손절 없음)",
      lambda r: r.get("mk") == "KOSDAQ" and not r["pref"]
      and r.get("pbrd") is not None and r["pbrd"] <= 0.5

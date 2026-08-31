@@ -254,6 +254,14 @@ const FILTERS=[
         &&r.ow20!=null&&r.ow20>=0&&r.srDown===true
         &&(r.amt20!=null?r.amt20:0)>=5&&r.close!=null&&r.close>=1000
         &&r.dilu!==true&&r.disc!==true},
+  {id:'P5',name:'P5 · 업종붕괴 이탈',mkt:'KOSPI',desc:'**코스피 종목** · **소속 업종의 60일 수익률 -20% 이하**(업종 전체가 무너진 국면 · KRX 표준산업분류 중앙값, 회원 5종목 이상) · **20일선 이격 -10% 이하**(20일 이동평균보다 10% 넘게 떨어진 종목) · 공매도 비중 5일평균 < 20일평균 · 20일 평균 거래대금 ≥ 10억 · 주가 ≥ 1,000원 · 최근 90일 내 유상증자·CB 공시 없음 · 우선주 제외  ▶ 매매: **다음날 시가 매수** · **5거래일 보유** 후 종가 매도 · **손절 -15%**  ▶ 백테스트 2018~26(9년, 절대수익, **상장폐지 종목 포함**): 4,339건 평균 **+5.74%** / 중앙값 +4.88% / 승률 65% / PF 2.73  ▶ **학습(2018~22) +6.32% → 검증(2023~26) +3.99%**(1,070건, 승률 61%, PF 2.42, 최악 -15.9%) · 월 단위 신뢰구간 +2.0~+5.1%  ▶ **왜 5일인가**: 1~60일을 전수 검증했더니 일당 수익이 4~5일에서 정점(+0.98%)이고, **12~25일 구간은 신뢰구간 하한이 음수**로 내려갑니다. 40일도 양수지만 일당 수익이 1/3입니다  ▶ **손절이 꼭 필요합니다**: 손절 없이 두면 최악이 **-51.4%**(서울가스, 2023-04 SG증권 사태)까지 갑니다. -15% 손절은 수익을 +4.50%→+3.99%로만 깎으면서 최악을 -15.9%로 자릅니다(발동률 9%)  ▶ ⚠ **다른 규칙과 같은 시기에 터집니다**: D1 신호일의 100%, D2의 93%, P3의 78%에서 함께 신호가 났고, 보유일의 71%는 다른 규칙도 보유 중입니다. 분산이 아니라 **같은 폭락 국면을 더 촘촘히 먹는 규칙**입니다  ▶ ⚠ 신호가 몰립니다 — 104개월 중 45개월에만 나고, 월 최대 2,185건입니다. 4,339건 중 2,211건이 2020년 한 해에 몰려 있습니다  ▶ ⚠ 2023년은 +1.5%(82건)로 거의 0이었습니다',
+   alloc:{pct:3,max:4},
+   rule:{hold:5,stop:15,target:null}, ruleText:'다음날 <em>시가 매수</em> · <em>5거래일</em> 보유 후 종가 매도 · 손절 <em>-15%</em>',
+   stats:{n:1070, perMonth:24.3, win:61, pf:2.42, avg:3.99, years:'**검증기간(2023~26) 기준** · 2023 +1.5%(82건) / 2024 +3.5%(227건) / 2025 +5.4%(19건) / 2026 +4.4%(742건)  —  참고: 전체기간 4,339건 평균 +5.74% · 승률 65%'},
+   fn:r=>r.mk==='KOSPI'&&!r.pref&&r.sr60!=null&&r.sr60<=-20
+        &&r.dma20!=null&&r.dma20<=-10&&r.srDown===true
+        &&(r.amt20!=null?r.amt20:0)>=10&&r.close!=null&&r.close>=1000
+        &&r.dilu!==true&&r.disc!==true},
 ];
 let cur='all';  // 'all' = 하나라도 통과(OR), 숫자 = 해당 필터만
 const LEGACY_ID={1:'P0',2:'P2',3:'P3',4:'P1'};       // 예전에 저장된 숫자 id 호환 (옛 4번=현 P1)
@@ -314,13 +322,13 @@ function renderTabs(){
     const open=[];
     open.push('P1');            // P1(조용한 신고가) 는 지수 국면과 무관 (상승·하락 양쪽 실측)
     if(!K.up20)open.push('P2');
-    if(K.up60===false)open.push('P3','D1','D2');
+    if(K.up60===false)open.push('P3','P5','D1','D2');
     const ma=[`5일선 ${K.up?'위':'아래'}`,`20일선 ${K.up20?'위':'아래'}`,
               K.up60==null?null:`60일선 ${K.up60?'위':'아래'}`].filter(Boolean).join(' · ');
     $('#mktstate').innerHTML=`<i style="background:${open.length?'var(--org)':'var(--faint)'}"></i>`
       +`코스피 ${ma} → ${open.length?`오늘 열린 규칙 <b>${open.join('·')}</b>`:'<b>열린 규칙 없음</b>'}`;
   }else $('#mktstate').innerHTML='';
-  $('#fdesc').innerHTML=cur==='done'?'매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요.':cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (P1: 40거래일·손절 -15% / P2: 10거래일 / P3·D1: 20거래일 / D2: 40거래일, 모두 손절없음) · <button class="ghost mini" id="pinbtn">${getPin()===DEFAULT_PIN?'자동 동기화 중 (PIN 변경)':'PIN: '+getPin()+' (공유 중)'}</button>`:cur==='all'?'P1·P2·P3(코스피)·D1·D2(코스닥) 규칙 중 하나라도 해당하는 종목입니다. 각 규칙 탭에서 기대 승률·PF와 매매 규칙을 확인하세요.'+`<br><b style="color:var(--acc)">투입 비중</b> 계좌 100 기준 한 종목에 — ${FILTERS.map(f=>`<b>${f.id}</b> ${f.alloc.pct}(최대 ${f.alloc.max}종목)`).join(' · ')}`:(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));const rb=$('#rule');
+  $('#fdesc').innerHTML=cur==='done'?'매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요.':cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (P1: 40거래일·손절-15% / P5: 5거래일·손절-15% / P2: 10거래일 / P3·D1: 20거래일 / D2: 40거래일) · <button class="ghost mini" id="pinbtn">${getPin()===DEFAULT_PIN?'자동 동기화 중 (PIN 변경)':'PIN: '+getPin()+' (공유 중)'}</button>`:cur==='all'?'P1·P2·P3·P5(코스피)·D1·D2(코스닥) 규칙 중 하나라도 해당하는 종목입니다. 각 규칙 탭에서 기대 승률·PF와 매매 규칙을 확인하세요.'+`<br><b style="color:var(--acc)">투입 비중</b> 계좌 100 기준 한 종목에 — ${FILTERS.map(f=>`<b>${f.id}</b> ${f.alloc.pct}(최대 ${f.alloc.max}종목)`).join(' · ')}`:(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));const rb=$('#rule');
   if(rb){const f=FILTERS.find(x=>x.id===cur)||null;
     if(f){rb.style.display='';rb.innerHTML=`<b>${f.name} 매매 규칙</b> <span>${f.ruleText}</span>`+(f.alloc?`<small><b style="color:var(--acc)">투입 비중</b> 계좌가 100이면 <b>한 종목에 ${f.alloc.pct}</b> · 이 규칙으로 <b>최대 ${f.alloc.max}종목</b>(최대 ${f.alloc.pct*f.alloc.max}) — 네 규칙 합쳐 실측 평균 7종목·투자율 81%, 검증 연 +6.0%·최대낙폭 11%</small>`:'')}else{rb.style.display='none'}}
   const qb=$('#q');if(qb&&!qb.dataset.b){qb.dataset.b='1';
@@ -338,6 +346,7 @@ function whyCells(r,f){
     P3:[['20일 낙폭',pctTxt(r.ret20),C.dn,'기준 −20%↓'],['당일 거래량',(r.vs1??0).toFixed(1)+'배',C.up,'기준 2배↑'],
         ['외국인 60일',pctTxt(r.fw60),C.up,'기준 1%↑'],['업종 60일',pctTxt(r.sr60),C.dn,'기준 −20%↓'],
         ['코스피 60일선',kospiDown?'아래':'위',C.dn,'시장 조건']],
+    P5:[['업종 60일',pctTxt(r.sr60),C.dn,'기준 -20%↓'],['20일선 이격',r.dma20==null?'-':(r.dma20>0?'+':'')+r.dma20.toFixed(1)+'%',C.dn,'기준 -10%↓'],['거래대금',(r.amt20??0)+'억',C.up,'기준 10억↑'],['종가',fmt(r.close),C.up,'기준 1,000원↑']],
     D2:[['PBR',r.pbrd==null?'-':r.pbrd.toFixed(2),C.dn,'기준 0.50↓'],['20일 등락',pctTxt(r.ret20),C.dn,'기준 -10%↓'],['당일 거래량',r.vs1==null?'-':r.vs1.toFixed(1)+'배',C.up,'기준 2배↑'],['업종 60일',pctTxt(r.sr60),C.dn,'기준 -10%↓'],['기관 20일',r.ow20==null?'-':r.ow20.toFixed(1)+'%',C.up,'기준 0%↑'],['거래대금',(r.amt20??0)+'억',C.up,'기준 5억↑']],
     D1:[['부채비율',r.dbt==null?'-':Math.round(r.dbt)+'%',C.dn,'기준 200%↓'],['기관 20일',r.ow20==null?'-':r.ow20.toFixed(1)+'%',C.up,'기준 0%↑'],['20일 낙폭',pctTxt(r.ret20),C.dn,'기준 −20%↓'],['당일 거래량',(r.vs1??0).toFixed(1)+'배',C.up,'기준 2배↑'],
         ['외국인 60일',pctTxt(r.fw60),C.up,'기준 1%↑'],['업종 60일',pctTxt(r.sr60),C.dn,'기준 −10%↓'],
@@ -512,7 +521,7 @@ function prep(){const n=7,D=raw.dates,k=Math.max(0,D.length-n);view.dates=D.slic
   view.rows=raw.rows.map(r=>{const vols=r.v.slice(k),valid=vols.filter(x=>x!=null);const sum=a=>a.slice(k).reduce((x,y)=>x+(y||0),0);
     const prev=vols.slice(0,-1).filter(x=>x!=null),last=vols[vols.length-1];const avg=valid.length?valid.reduce((a,b)=>a+b,0)/valid.length:0;
     const ratio=(prev.length&&last!=null&&prev.reduce((a,b)=>a+b,0))?last/(prev.reduce((a,b)=>a+b,0)/prev.length)*100:null;
-    return {ticker:r.t,name:r.n,close:r.c,change:r.ch,foreign_ratio:r.fr,vols,avg,total:valid.reduce((a,b)=>a+b,0),ratio,indiv:sum(r.i),organ:sum(r.o),frgn:sum(r.f),amt:r.amt,cap:r.cap,r1m:r.r1m,r3m:r.r3m,r6m:r.r6m,r1y:r.r1y,per:r.per,pbr:r.pbr,pcr:r.pcr,dy:r.dy,pref:r.pref,fw:r.f.slice(-5).reduce((x,y)=>x+(y||0),0),v5:r.v.slice(-5).reduce((x,y)=>x+(y||0),0),fwp:(()=>{const v=r.v.slice(-5).reduce((x,y)=>x+(y||0),0),f=r.f.slice(-5).reduce((x,y)=>x+(y||0),0);return v?f/v*100:null})(),streak:r.streak||0,ret3:r.ret3,ret10:r.ret10,ret20:r.ret20,sr60:r.sr60,vs1:r.vs1,fw60:r.fw60,amt20:r.amt20,disc:r.disc,fromhi:r.fromhi,fw5:r.fw5,vol20:r.vol20,ret2y:r.ret2y,ret250:r.ret250,above20:r.above20,sr20:r.sr20,ow20:r.ow20,dbt:r.dbt,pbrd:r.pbrd,up:r.up,rs:r.rs,sr:r.sr,srDown:r.srDown,dilu:r.dilu,th:r.th||[],mk:r.mk||'KOSPI',aw:r.aw,a1:r.a1,a6:r.a6,r16:(r.a1&&r.a6)?r.a1/r.a6*100:null,rw1:(r.aw&&r.a1)?r.aw/r.a1*100:null,last:last??-1,chpct:(r.c&&r.ch!=null&&r.c-r.ch)?r.ch/(r.c-r.ch)*100:-999}})}
+    return {ticker:r.t,name:r.n,close:r.c,change:r.ch,foreign_ratio:r.fr,vols,avg,total:valid.reduce((a,b)=>a+b,0),ratio,indiv:sum(r.i),organ:sum(r.o),frgn:sum(r.f),amt:r.amt,cap:r.cap,r1m:r.r1m,r3m:r.r3m,r6m:r.r6m,r1y:r.r1y,per:r.per,pbr:r.pbr,pcr:r.pcr,dy:r.dy,pref:r.pref,fw:r.f.slice(-5).reduce((x,y)=>x+(y||0),0),v5:r.v.slice(-5).reduce((x,y)=>x+(y||0),0),fwp:(()=>{const v=r.v.slice(-5).reduce((x,y)=>x+(y||0),0),f=r.f.slice(-5).reduce((x,y)=>x+(y||0),0);return v?f/v*100:null})(),streak:r.streak||0,ret3:r.ret3,ret10:r.ret10,ret20:r.ret20,sr60:r.sr60,vs1:r.vs1,fw60:r.fw60,amt20:r.amt20,disc:r.disc,fromhi:r.fromhi,fw5:r.fw5,vol20:r.vol20,ret2y:r.ret2y,ret250:r.ret250,above20:r.above20,sr20:r.sr20,ow20:r.ow20,dbt:r.dbt,pbrd:r.pbrd,dma20:r.dma20,up:r.up,rs:r.rs,sr:r.sr,srDown:r.srDown,dilu:r.dilu,th:r.th||[],mk:r.mk||'KOSPI',aw:r.aw,a1:r.a1,a6:r.a6,r16:(r.a1&&r.a6)?r.a1/r.a6*100:null,rw1:(r.aw&&r.a1)?r.aw/r.a1*100:null,last:last??-1,chpct:(r.c&&r.ch!=null&&r.c-r.ch)?r.ch/(r.c-r.ch)*100:-999}})}
 function val(r,k){if(k==='hits')return FILTERS.filter(f=>f.fn(r)).length;if(k.startsWith('d:'))return r.vols[+k.slice(2)]??-1;return r[k]??-1}
 const isMobile=()=>(typeof window!=='undefined'&&window.innerWidth<=900);
 const isCardView=()=>cur==='all'||FILTERS.some(f=>f.id===cur);   /* 규칙·매수대기는 카드, 조회는 표 */
