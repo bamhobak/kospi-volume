@@ -13,7 +13,7 @@
 header{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
 header h1{font-size:16px;margin:0 8px 0 0;font-weight:900;letter-spacing:-.8px;white-space:nowrap}header h1 span{color:var(--acc)}
 input:not([type=checkbox]),select{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:0;padding:8px 12px;font-size:14px;outline:none;-webkit-appearance:none}
-input:focus{border-color:var(--acc)}input{flex:1;min-width:120px}
+input:focus{border-color:var(--acc)}input:not([type=checkbox]){flex:1;min-width:120px}
 button{background:var(--acc);border:0;color:#08090b;border-radius:0;padding:8px 14px;font-weight:600;cursor:pointer;font-size:13px}
 button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
 #q{flex:none;width:180px;padding:6px 10px;font-size:12px;border-radius:0}
@@ -151,11 +151,12 @@ th .rz:hover::after,th .rz.on::after{background:var(--acc);top:0;bottom:0}
   margin-bottom:10px;padding-bottom:9px;border-bottom:1px solid var(--line)}
 .colmenu .colgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1px 4px}
 /* 체크 영역은 최소로 — 남는 폭은 전부 열 이름에 준다. 켜짐은 글자 밝기로 구분 */
-.colitem{display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer;
-  padding:5px 4px;color:var(--dim);min-width:0;border-radius:0}
+.colitem{display:flex;align-items:center;gap:7px;font-size:12.5px;cursor:pointer;
+  padding:5px 6px;color:var(--dim);min-width:0;border-radius:0}
 .colitem:hover{background:#ffffff0d}
 .colitem input[type=checkbox]{flex:none;-webkit-appearance:auto;appearance:auto;
-  width:12px;height:12px;margin:0;padding:0;background:none;border:0;accent-color:var(--acc);cursor:pointer}
+  width:13px;height:13px;min-width:0;max-width:13px;margin:0;padding:0;background:none;border:0;
+  accent-color:var(--acc);cursor:pointer}
 .colitem .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .colitem.on{color:var(--txt)}
 .colmenu .colft{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;
