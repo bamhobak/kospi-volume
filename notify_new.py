@@ -58,7 +58,7 @@ FILTERS = [
     ("P3", "P3 · 폭락반등 (코스피·20일 보유·손절 없음)",
      lambda r: r.get("mk") == "KOSPI" and not r["pref"]
      and r.get("ret20") is not None and r["ret20"] <= -20
-     and r.get("vs1") is not None and r["vs1"] >= 2
+     and r.get("vs1") is not None and r["vs1"] >= 1.5
      and r.get("fw60") is not None and r["fw60"] >= 1
      and (r.get("amt20") if r.get("amt20") is not None else (r.get("amt") or 0)) >= 3
      and kospi.get("up60") is False
@@ -86,7 +86,7 @@ FILTERS = [
     ("D1", "D1 · 낙폭과대 (코스닥·20일 보유·손절 없음)",
      lambda r: r.get("mk") == "KOSDAQ" and not r["pref"]
      and r.get("ret20") is not None and r["ret20"] <= -20
-     and r.get("vs1") is not None and r["vs1"] >= 2
+     and r.get("vs1") is not None and r["vs1"] >= 1.5
      and r.get("fw60") is not None and r["fw60"] >= 1
      and (r.get("amt20") or 0) >= 2
      and kospi.get("up60") is False
