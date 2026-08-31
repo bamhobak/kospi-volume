@@ -350,19 +350,23 @@ function held(code){return positions().some(p=>p.code===code&&!p.sell)}
 function heldPos(code){return positions().find(p=>p.code===code&&!p.sell)||null}
 function heldDays(p){try{const a=new Date(p.date.slice(0,4),+p.date.slice(4,6)-1,p.date.slice(6,8));
   return Math.max(0,Math.round((Date.now()-a)/864e5))}catch(e){return null}}
+/* 그 규칙으로 이미 산 종목인가 — 같은 규칙 탭에서는 감추고, 다른 규칙에 걸렸을 때만 보여준다 */
+function heldBy(code,rid){const p=heldPos(code);
+  return !!(p&&(p.filters||[]).some(f=>normId(f)===normId(rid)))}
 function passes(r){
   if(cur==='done')return false;
   if(cur==='kp')return r.mk==='KOSPI';        /* 전체 종목 탭은 보유 여부와 무관하게 다 보여준다 */
   if(cur==='kq')return r.mk==='KOSDAQ';
-  /* 규칙 탭은 보유 중이어도 감추지 않는다 — 카드에 '보유 중' 으로 표시해 중복 매수를 막는다.
-     다만 '매수 대기' 탭은 이름 그대로 아직 안 산 것만 남긴다. */
-  return cur==='all'?(FILTERS.some(f=>f.fn(r))&&!held(r.ticker))
-                    :FILTERS.find(f=>f.id===cur).fn(r)}
+  /* 그 규칙으로 이미 산 종목은 그 탭에서 감춘다(기존과 동일).
+     다른 규칙에 새로 걸린 경우에만 남기고 '어느 규칙으로 보유 중' 인지 배지로 알린다. */
+  if(cur==='all')return FILTERS.some(f=>f.fn(r))&&!held(r.ticker);
+  if(heldBy(r.ticker,cur))return false;
+  return FILTERS.find(f=>f.id===cur).fn(r)}
 function renderTabs(){
   const nrow=(f,cls,label,n,extra='')=>`<div class="it ${cls} ${cur===f?'on':''}" data-f="${f}">${extra}<span>${label}</span><span class="n">${n}</span></div>`;
   const wait=view.rows.filter(r=>FILTERS.some(f=>f.fn(r))&&!held(r.ticker)).length;
   const rules=FILTERS.map(f=>nrow(f.id,f.mkt==='KOSDAQ'?'kq':'',f.name.split(' · ')[1],
-      view.rows.filter(r=>f.fn(r)).length,      /* 목록과 같게 — 보유 중도 센다 */
+      view.rows.filter(r=>f.fn(r)&&!heldBy(r.ticker,f.id)).length,   /* 목록과 같은 기준 */
       `<span class="bar"></span><span class="rid">${f.id}</span>`)).join('');
   $('#rail').innerHTML=
     `<div class="grp">`
@@ -443,7 +447,8 @@ function renderCards(rows){
             <span class="code" style="color:var(--dim);font-size:12px">${r.ticker}</span>
             <span class="tag ${kq?'kq':''}">${f.id}</span>${(()=>{const hp=heldPos(r.ticker);if(!hp)return '';
               const dd=heldDays(hp),pl=hp.price?((r.close/hp.price-1)*100):null;
-              return `<span class="tag hold" title="${hp.date} 에 ${fmt(hp.price)}원으로 매수 기록됨">보유 중${dd!=null?' '+dd+'일':''}${pl!=null?' · '+(pl>0?'+':'')+pl.toFixed(1)+'%':''}</span>`})()}</div>
+              const by=(hp.filters||[]).map(normId).join('·');
+              return `<span class="tag hold" title="${hp.date} 에 ${fmt(hp.price)}원으로 매수 기록됨 — 지금 이 규칙에 다시 걸렸습니다">${by?by+'로 ':''}보유 중${dd!=null?' '+dd+'일':''}${pl!=null?' · '+(pl>0?'+':'')+pl.toFixed(1)+'%':''}</span>`})()}</div>
           <div style="color:var(--mut);font-size:12px">${kq?'코스닥':'코스피'}${r.up?' · '+r.up:''}${r.cap?' · 시총 '+(r.cap>=10000?(r.cap/10000).toFixed(1)+'조':fmt(r.cap)+'억'):''}</div>
         </div>
         <div style="text-align:right;flex:none">
