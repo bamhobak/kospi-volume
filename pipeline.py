@@ -308,6 +308,23 @@ def load_debt_ratio():
     return out
 
 
+def load_pbr_dart():
+    """DART 기준 PBR = 시가총액 / 자본총계. 발행주식수·자본총계 모두 '공시된' 값만 쓴다.
+       (data/valuation.csv 의 pbr 은 FnGuide 현재 스냅샷이라 백테스트와 정의가 다르다 —
+        규칙은 이 함수가 만드는 값을 쓴다.) 스냅샷 CSV 우선, 없으면 DB."""
+    snap = DATA / "pbr_dart.csv"
+    if snap.exists():
+        out = {}
+        with open(snap, encoding="utf-8") as fh:
+            for r in csv.DictReader(fh):
+                try: out[r["ticker"]] = (float(r["shares"]), float(r["equity"]))
+                except (TypeError, ValueError): pass
+        if out:
+            print(f"PBR 재료(주식수·자본총계): {len(out):,}종목")
+            return out
+    return {}
+
+
 def dilution_flags(last_date, days=90):
     """최근 days일 내 유상증자·CB 공시 종목 (data/dilution_recent.csv)"""
     f = DATA / "dilution_recent.csv"
@@ -338,6 +355,7 @@ def build_site():
     DILU = dilution_flags(dates[-1])
     C2Y = ret2y_map(dates)
     DBT = load_debt_ratio()
+    PB = load_pbr_dart()
     con.close()
     idx = {d: i for i, d in enumerate(dates)}
     by = {}
@@ -435,6 +453,7 @@ def build_site():
                       "srDown": (SF.get(s["ticker"]) or {}).get("srDown"),
                       "dilu": s["ticker"] in DILU,
                       "dbt": DBT.get(s["ticker"]),
+                      "pbrd": (lambda v: round(last[1] * v[0] / v[1], 3) if (v and v[1] and last[1]) else None)(PB.get(s["ticker"])),
                       "th": sorted(TH.get(s["ticker"], []), key=lambda g: -TRET.get(g, 0))[:6]})
         json.dump({"ticker": s["ticker"], "name": s["name"], "dates": dates, "rows": s["rows"]},
                   open(SITE / "data" / "stock" / f"{s['ticker']}.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
