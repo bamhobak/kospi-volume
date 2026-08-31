@@ -139,25 +139,36 @@ td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400
 .empty{color:var(--mut);text-align:center;margin-top:120px}
 #close{display:none;margin-left:auto}
 @media (max-width:900px){
-  /* 레일을 숨기면 규칙 탭에 아예 접근할 수 없다 → 가로 스크롤 띠로 전환 */
+  /* 모바일은 가로 스크롤을 만들지 않는다 — 모든 것을 줄바꿈하고 세로로만 스크롤한다.
+     레일은 숨기지 않고(규칙 탭 접근 불가) 여러 줄로 감싼다. 표는 컬럼을 줄여 폭에 맞춘다. */
+  html,body{overflow-x:hidden;max-width:100%}
   .shell{flex-direction:column}
-  .rail{width:auto;flex:none;flex-direction:row;align-items:stretch;gap:6px;
-        padding:8px 10px;overflow-x:auto;overflow-y:hidden;
-        border-right:0;border-bottom:1px solid var(--line);-webkit-overflow-scrolling:touch}
-  .rail::-webkit-scrollbar{height:0}
+  .rail{width:auto;flex:none;flex-direction:row;flex-wrap:wrap;align-items:stretch;gap:5px;
+        padding:8px 10px;overflow:visible;
+        border-right:0;border-bottom:1px solid var(--line)}
   .rail .k{display:none}
-  .rail .grp{flex-direction:row;gap:6px}
-  .rail .grp+.grp{border-left:1px solid var(--line);padding-left:6px}
-  .rail .it{white-space:nowrap;padding:8px 11px;font-size:12px}
-  .rail .it .n{margin-left:7px}
-  .rail .it .bar{height:12px}
-  .main{min-height:0;flex:1}
-  .wrap{grid-template-columns:1fr;padding:10px}.rule{margin:10px 10px 0;font-size:12px}
-  header{padding:10px 12px}header h1{width:100%}
+  .rail .grp{flex-direction:row;flex-wrap:wrap;gap:5px;width:100%}
+  .rail .grp+.grp{border-left:0;border-top:1px dashed var(--line);padding-top:6px}
+  .rail .it{white-space:nowrap;padding:7px 9px;font-size:12px;flex:0 0 auto}
+  .rail .it .n{margin-left:6px}
+  .rail .it .bar{height:11px}
+  .main{min-height:0;flex:1;min-width:0}
+  .wrap{grid-template-columns:1fr;padding:10px;min-width:0}
+  .rule{margin:10px 10px 0;font-size:12px}
+  /* 헤더: 한 줄에 다 못 넣으면 줄바꿈 */
+  header{height:auto;padding:9px 12px;flex-wrap:wrap;gap:8px}
+  header h1{width:auto;font-size:15px}
+  .mkt{font-size:12px}
+  .mktstate{font-size:10px;padding:3px 8px;white-space:normal}
+  #q{flex:1 1 100%;min-width:0}
   .side{position:fixed;inset:0;z-index:20;border-radius:0;background:var(--panel);transform:translateY(100%);transition:transform .25s}
   .side.open{transform:none}#close{display:inline-block}
   .kpi{grid-template-columns:repeat(2,1fr)}.chart{height:190px}
-  td,th{padding:8px 7px;font-size:12px}
+  /* 표: 폭에 맞춰 줄바꿈 허용 (컬럼 수는 JS 가 모바일용으로 줄인다) */
+  .tblwrap{overflow-x:hidden}
+  table{white-space:normal;table-layout:fixed;width:100%}
+  td,th{padding:7px 5px;font-size:11px;word-break:break-word;overflow-wrap:anywhere}
+  .card{min-width:0}
 }
 </style></head><body>
 <header>
@@ -431,8 +442,10 @@ async function renderPositions(){
   }
   let live={updated:'',prices:{}};try{const d=await rpc('kospi_state_get',{p_pin:'__prices__'});if(d&&d.prices)live=d}catch(e){}
   const lastD=raw.dates[raw.dates.length-1];
+  const MOB=isMobile();
   const cols=['종목','규칙','매수일','매수가','수량','매수금액','현재가','수익률','평가손익','보유일','고점','손절/익절선','신호 유지','상태','매도가/손익',''];
-  $('#tbl thead').innerHTML='<tr>'+cols.map((c,i)=>`<th class="${[0,1,2,13,15].includes(i)?'l':''}">${c}</th>`).join('')+'</tr>';
+  const KEEP=MOB?[0,1,7,8,13,15]:cols.map((_,i)=>i);   /* 모바일: 종목·규칙·수익률·손익·상태·삭제만 */
+  $('#tbl thead').innerHTML='<tr>'+cols.map((c,i)=>KEEP.includes(i)?`<th class="${[0,1,2,13,15].includes(i)?'l':''}">${c}</th>`:'').join('')+'</tr>';
   if(!ps.length){$('#tbl tbody').innerHTML=`<tr><td colspan="16" class="l" style="color:var(--mut);padding:30px">${DONE?'매도 완료된 종목이 없습니다. 보유 종목 탭에서 「매도」를 기록하면 여기로 옵니다.':'보유 종목이 없습니다. 종목 행의 「매수」 버튼으로 추가하세요.'}</td></tr>`;$('#status').textContent='보유 0종목';return}
   const rows=await Promise.all(ps.map(async p=>{let d=null;try{d=await (await fetch(`data/stock/${p.code}.json?v=${raw.updated}`)).json()}catch(e){}
     /* 종목 JSON 이 없거나 깨져도 표 전체가 죽지 않게 방어 */
@@ -452,14 +465,23 @@ async function renderPositions(){
     else if(ret!=null&&ret>0&&streak>=4){st='🔥 추가매수 고려 (이익 중 + 4일 연속 신호)';sc='pos'}
     return {p,now,hi,days,line,tgt,ret,st,sc,streak,rule}}));
   const pr=p=>(p.sell/p.price-1)*100;
-  $('#tbl tbody').innerHTML=rows.map(({p,now,hi,days,line,tgt,ret,st,sc,streak,rule})=>`<tr>
-    <td class="l name">${p.name} <span class="code">${p.code}</span></td>
-    <td class="l">${(p.filters||[]).map(f=>{const ff=fOf(f);return `<span class="tag ${ff&&ff.mkt==='KOSDAQ'?'kq':''}">${fcode(f)}</span>`}).join('')||'<span class="code">-</span>'}</td>
-    <td class="l">${md(p.date)}</td><td>${fmt(p.price)}</td><td>${p.qty?fmt(p.qty)+'주':''}</td><td>${p.qty?kor(p.price*p.qty)+'원':''}</td><td>${fmt(now)}${(()=>{const lv=live.prices[p.code];const d=lv&&lv.at?lv.at.slice(0,10).replace(/-/g,''):'';return (lv&&lv.now&&d>lastD)?`<div class="code">${lv.at.slice(11,16)} ${lv.status==='OPEN'?'장중':'마감'}</div>`:`<div class="code">${md(lastD)} 종가</div>`})()}</td>
-    <td class="${cls(ret)}">${ret==null?'':(ret>0?'+':'')+ret.toFixed(1)+'%'}</td><td class="${cls(ret)}">${p.qty&&now?kor((now-p.price)*p.qty,1)+'원':''}</td><td>${days}일</td><td>${fmt(hi)}</td><td>${line?'손절 '+fmt(line):''}${tgt?'익절 '+fmt(tgt):''}</td>
-    <td>${streak?`<span class="${streak>=4?'hot':''}">${streak}일</span>`:'-'}</td><td class="l ${sc}" style="font-weight:600">${st}</td>
-    <td class="${p.sell?cls(pr(p)):''}">${p.sell?fmt(p.sell)+' ('+(pr(p)>0?'+':'')+pr(p).toFixed(1)+'%'+(p.qty?' · '+kor((p.sell-p.price)*p.qty,1)+'원':'')+')':''}</td>
-    <td class="l">${p.sell?'':`<button class="ghost mini" data-sell="${p.id}">매도</button>`} <button class="ghost mini" data-del="${p.id}">삭제</button></td></tr>`).join('');
+  /* 셀을 배열로 만들어 KEEP 인덱스만 출력한다 — 모바일에서 머리글과 어긋나지 않게 */
+  $('#tbl tbody').innerHTML=rows.map(({p,now,hi,days,line,tgt,ret,st,sc,streak,rule})=>{
+    const nowCell=`${fmt(now)}${(()=>{const lv=live.prices[p.code];const d=lv&&lv.at?lv.at.slice(0,10).replace(/-/g,''):'';return (lv&&lv.now&&d>lastD)?`<div class="code">${lv.at.slice(11,16)} ${lv.status==='OPEN'?'장중':'마감'}</div>`:`<div class="code">${md(lastD)} 종가</div>`})()}`;
+    const cells=[
+      `<td class="l name">${p.name} <span class="code">${p.code}</span></td>`,
+      `<td class="l">${(p.filters||[]).map(f=>{const ff=fOf(f);return `<span class="tag ${ff&&ff.mkt==='KOSDAQ'?'kq':''}">${fcode(f)}</span>`}).join('')||'<span class="code">-</span>'}</td>`,
+      `<td class="l">${md(p.date)}</td>`,`<td>${fmt(p.price)}</td>`,`<td>${p.qty?fmt(p.qty)+'주':''}</td>`,
+      `<td>${p.qty?kor(p.price*p.qty)+'원':''}</td>`,`<td>${nowCell}</td>`,
+      `<td class="${cls(ret)}">${ret==null?'':(ret>0?'+':'')+ret.toFixed(1)+'%'}</td>`,
+      `<td class="${cls(ret)}">${p.qty&&now?kor((now-p.price)*p.qty,1)+'원':''}</td>`,
+      `<td>${days}일</td>`,`<td>${fmt(hi)}</td>`,
+      `<td>${line?'손절 '+fmt(line):''}${tgt?'익절 '+fmt(tgt):''}</td>`,
+      `<td>${streak?`<span class="${streak>=4?'hot':''}">${streak}일</span>`:'-'}</td>`,
+      `<td class="l ${sc}" style="font-weight:600">${st}</td>`,
+      `<td class="${p.sell?cls(pr(p)):''}">${p.sell?fmt(p.sell)+' ('+(pr(p)>0?'+':'')+pr(p).toFixed(1)+'%'+(p.qty?' · '+kor((p.sell-p.price)*p.qty,1)+'원':'')+')':''}</td>`,
+      `<td class="l">${p.sell?'':`<button class="ghost mini" data-sell="${p.id}">매도</button>`} <button class="ghost mini" data-del="${p.id}">삭제</button></td>`];
+    return '<tr>'+KEEP.map(i=>cells[i]).join('')+'</tr>'}).join('');
   const open_=rows.filter(r=>!r.p.sell);const avg=open_.length?open_.reduce((a,r)=>a+(r.ret||0),0)/open_.length:0;
   const closed=rows.filter(r=>r.p.sell);const realized=closed.reduce((a,r)=>a+pr(r.p),0);
   const inv=open_.reduce((a,r)=>a+(r.p.qty||0)*r.p.price,0),pnl=open_.reduce((a,r)=>a+((r.p.qty&&r.now)?(r.now-r.p.price)*r.p.qty:0),0);
@@ -469,6 +491,9 @@ async function renderPositions(){
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{if(!confirm('삭제할까요?'))return;savePositions(positions().filter(x=>x.id!=b.dataset.del));render()});
 }
 let raw={dates:[],rows:[]},view={dates:[],rows:[]},sortKey='last',desc=true,sel=null,charts=[];
+/* 가로/세로 전환으로 모바일 여부가 바뀌면 표 컬럼을 다시 구성한다 */
+let _mob=null;
+if(typeof window!=='undefined')window.addEventListener('resize',()=>{const m=isMobile();if(_mob!==null&&m!==_mob)render();_mob=m});
 async function load(){await pullRemote();raw=await (await fetch('data/table.json?v='+Date.now())).json();prep();render();mktBadge()}
 function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none';return}
   /* 지수는 값만 보여준다. 이평선은 규칙 활성 여부와 함께 상태 칩에서 한 번에 안내한다.
@@ -482,6 +507,7 @@ function prep(){const n=7,D=raw.dates,k=Math.max(0,D.length-n);view.dates=D.slic
     const ratio=(prev.length&&last!=null&&prev.reduce((a,b)=>a+b,0))?last/(prev.reduce((a,b)=>a+b,0)/prev.length)*100:null;
     return {ticker:r.t,name:r.n,close:r.c,change:r.ch,foreign_ratio:r.fr,vols,avg,total:valid.reduce((a,b)=>a+b,0),ratio,indiv:sum(r.i),organ:sum(r.o),frgn:sum(r.f),amt:r.amt,cap:r.cap,r1m:r.r1m,r3m:r.r3m,r6m:r.r6m,r1y:r.r1y,per:r.per,pbr:r.pbr,pcr:r.pcr,dy:r.dy,pref:r.pref,fw:r.f.slice(-5).reduce((x,y)=>x+(y||0),0),v5:r.v.slice(-5).reduce((x,y)=>x+(y||0),0),fwp:(()=>{const v=r.v.slice(-5).reduce((x,y)=>x+(y||0),0),f=r.f.slice(-5).reduce((x,y)=>x+(y||0),0);return v?f/v*100:null})(),streak:r.streak||0,ret3:r.ret3,ret10:r.ret10,ret20:r.ret20,sr60:r.sr60,vs1:r.vs1,fw60:r.fw60,amt20:r.amt20,disc:r.disc,fromhi:r.fromhi,fw5:r.fw5,vol20:r.vol20,ret2y:r.ret2y,ret250:r.ret250,above20:r.above20,sr20:r.sr20,ow20:r.ow20,dbt:r.dbt,pbrd:r.pbrd,up:r.up,rs:r.rs,sr:r.sr,srDown:r.srDown,dilu:r.dilu,th:r.th||[],mk:r.mk||'KOSPI',aw:r.aw,a1:r.a1,a6:r.a6,r16:(r.a1&&r.a6)?r.a1/r.a6*100:null,rw1:(r.aw&&r.a1)?r.aw/r.a1*100:null,last:last??-1,chpct:(r.c&&r.ch!=null&&r.c-r.ch)?r.ch/(r.c-r.ch)*100:-999}})}
 function val(r,k){if(k==='hits')return FILTERS.filter(f=>f.fn(r)).length;if(k.startsWith('d:'))return r.vols[+k.slice(2)]??-1;return r[k]??-1}
+const isMobile=()=>(typeof window!=='undefined'&&window.innerWidth<=900);
 const isCardView=()=>cur==='all'||FILTERS.some(f=>f.id===cur);   /* 규칙·매수대기는 카드, 조회는 표 */
 function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);renderPositions();return}
   const q=query.trim().toLowerCase();const D=view.dates;
@@ -492,17 +518,45 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
   showTable(true);
   rows.sort((a,b)=>{const x=val(a,sortKey),y=val(b,sortKey);return (typeof x==='string')?(desc?y.localeCompare(x):x.localeCompare(y)):(desc?y-x:x-y)});
   const browse=(cur==='kp'||cur==='kq');   /* 조회 전용 — 매수 버튼 없음 */
-  const cols=[['name','종목','l'],...(browse?[]:[['hits','통과 규칙']]),['cap','시가총액'],['r1m','1개월'],['r3m','3개월'],['r6m','6개월'],['r1y','1년'],['per','PER'],['pbr','PBR'],['pcr','PCR'],['up','업종','l'],['sr60','업종 60일'],['streak','연속'],['ret3','3일'],['ret10','10일'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','3일평균'],['r16','2M/1Y'],['rw1','3일/2M'],['fw','외국인 1W'],['fwp','외인/거래량'],['amt','2M 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
+  const MOB=isMobile();
+  const cols=MOB?[['name','종목','l'],['cap','시총'],['close','종가'],['chpct','전일비'],['r1m','1개월'],['pbr','PBR']]
+   :[['name','종목','l'],...(browse?[]:[['hits','통과 규칙']]),['cap','시가총액'],['r1m','1개월'],['r3m','3개월'],['r6m','6개월'],['r1y','1년'],['per','PER'],['pbr','PBR'],['pcr','PCR'],['up','업종','l'],['sr60','업종 60일'],['streak','연속'],['ret3','3일'],['ret10','10일'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','3일평균'],['r16','2M/1Y'],['rw1','3일/2M'],['fw','외국인 1W'],['fwp','외인/거래량'],['amt','2M 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
   $('#tbl thead').innerHTML='<tr>'+cols.map(c=>`<th class="${c[2]||''} ${sortKey===c[0]?'on':''}" data-k="${c[0]}">${c[1]}${sortKey===c[0]?(desc?' ▼':' ▲'):''}</th>`).join('')+'</tr>';
   const total=rows.length,shown=rows.slice(0,rowLimit);rowTotal=total;
-  $('#tbl tbody').innerHTML=shown.map(r=>`<tr data-c="${r.ticker}" class="${sel===r.ticker?'sel':''}">
-    <td class="l name">${r.name} <span class="code">${r.ticker}</span></td>
-    ${browse?'':`<td class="l">${FILTERS.filter(f=>f.fn(r)).map(f=>`<span class="tag ${f.mkt==='KOSDAQ'?'kq':''}">${f.id}</span>`).join('')} <button class="ghost mini" data-buy="${r.ticker}">매수</button></td>`}
-    <td class="sc">${r.cap==null?'':(r.cap>=10000?(r.cap/10000).toFixed(1)+'조':fmt(r.cap)+'억')}</td>${['r1m','r3m','r6m','r1y'].map(k=>`<td class="${cls(r[k])}">${r[k]==null?'':(r[k]>0?'+':'')+r[k].toFixed(1)+'%'}</td>`).join('')}${['per','pbr','pcr'].map(k=>`<td class="sc">${r[k]==null?'':r[k].toFixed(2)}</td>`).join('')}<td class="l sc">${r.up||''}${r.rs!=null?` <small class="${r.rs>0?'pos':'neg'}">${r.rs>0?'+':''}${r.rs.toFixed(1)}%</small>`:''}</td><td class="${cls(r.sr60)}">${r.sr60==null?'':(r.sr60>0?'+':'')+r.sr60.toFixed(1)+'%'}</td><td>${r.streak?`<span class="${r.streak>=2?'hot':''}">${r.streak}일</span>`:''}</td><td class="${cls(r.ret3)}">${r.ret3==null?'':(r.ret3>0?'+':'')+r.ret3.toFixed(1)+'%'}</td><td class="${cls(r.ret10)}">${r.ret10==null?'':(r.ret10>0?'+':'')+r.ret10.toFixed(1)+'%'}</td>
-    <td>${fmt(r.close)}</td><td>${chg(r.close,r.change)}</td>
-    <td class="name">${kor(r.last<0?null:r.last)}</td><td>${kor(r.avg)}</td><td>${r.ratio==null?'':(r.ratio>=200?`<span class="hot">${Math.round(r.ratio)}%</span>`:Math.round(r.ratio)+'%')}</td>
-    <td class="sc">${kor(r.a6)}</td><td class="sc">${kor(r.a1)}</td><td class="sc">${kor(r.aw)}</td><td class="sc">${r.r16==null?'':Math.round(r.r16)+'%'}</td><td>${r.rw1==null?'':(r.rw1>=th2?`<span class="hot">${Math.round(r.rw1)}%</span>`:Math.round(r.rw1)+'%')}</td><td class="${cls(r.fw)}">${kor(r.fw,1)}</td><td class="${cls(r.fwp)}">${r.fwp==null?'':r.fwp.toFixed(1)+'%'}</td><td class="sc">${r.amt==null?'':r.amt+'억'}</td>
-    <td class="${cls(r.indiv)}">${kor(r.indiv,1)}</td><td class="${cls(r.organ)}">${kor(r.organ,1)}</td><td class="${cls(r.frgn)}">${kor(r.frgn,1)}</td><td>${r.foreign_ratio??''}%</td></tr>`).join('');
+  /* 셀을 컬럼 id 로 만들어 cols 순서대로 출력한다 — 모바일 축약 시 머리글과 어긋나지 않게 */
+  const cellOf=(r)=>({
+    name:`<td class="l name">${r.name} <span class="code">${r.ticker}</span></td>`,
+    hits:`<td class="l">${FILTERS.filter(f=>f.fn(r)).map(f=>`<span class="tag ${f.mkt==='KOSDAQ'?'kq':''}">${f.id}</span>`).join('')} <button class="ghost mini" data-buy="${r.ticker}">매수</button></td>`,
+    cap:`<td class="sc">${r.cap==null?'':(r.cap>=10000?(r.cap/10000).toFixed(1)+'조':fmt(r.cap)+'억')}</td>`,
+    r1m:`<td class="${cls(r.r1m)}">${r.r1m==null?'':(r.r1m>0?'+':'')+r.r1m.toFixed(1)+'%'}</td>`,
+    r3m:`<td class="${cls(r.r3m)}">${r.r3m==null?'':(r.r3m>0?'+':'')+r.r3m.toFixed(1)+'%'}</td>`,
+    r6m:`<td class="${cls(r.r6m)}">${r.r6m==null?'':(r.r6m>0?'+':'')+r.r6m.toFixed(1)+'%'}</td>`,
+    r1y:`<td class="${cls(r.r1y)}">${r.r1y==null?'':(r.r1y>0?'+':'')+r.r1y.toFixed(1)+'%'}</td>`,
+    per:`<td class="sc">${r.per==null?'':r.per.toFixed(2)}</td>`,
+    pbr:`<td class="sc">${r.pbr==null?'':r.pbr.toFixed(2)}</td>`,
+    pcr:`<td class="sc">${r.pcr==null?'':r.pcr.toFixed(2)}</td>`,
+    up:`<td class="l sc">${r.up||''}${r.rs!=null?` <small class="${r.rs>0?'pos':'neg'}">${r.rs>0?'+':''}${r.rs.toFixed(1)}</small>`:''}</td>`,
+    sr60:`<td class="${cls(r.sr60)}">${r.sr60==null?'':(r.sr60>0?'+':'')+r.sr60.toFixed(1)+'%'}</td>`,
+    streak:`<td>${r.streak?`<span class="${r.streak>=4?'hot':''}">${r.streak}일</span>`:''}</td>`,
+    ret3:`<td class="${cls(r.ret3)}">${r.ret3==null?'':(r.ret3>0?'+':'')+r.ret3.toFixed(1)+'%'}</td>`,
+    ret10:`<td class="${cls(r.ret10)}">${r.ret10==null?'':(r.ret10>0?'+':'')+r.ret10.toFixed(1)+'%'}</td>`,
+    close:`<td>${fmt(r.close)}</td>`,
+    chpct:`<td>${chg(r.close,r.change)}</td>`,
+    last:`<td class="name">${kor(r.last<0?null:r.last)}</td>`,
+    avg:`<td>${kor(r.avg)}</td>`,
+    ratio:`<td>${r.ratio==null?'':(r.ratio>=200?`<span class="hot">${Math.round(r.ratio)}%</span>`:Math.round(r.ratio)+'%')}</td>`,
+    a6:`<td class="sc">${kor(r.a6)}</td>`,a1:`<td class="sc">${kor(r.a1)}</td>`,aw:`<td class="sc">${kor(r.aw)}</td>`,
+    r16:`<td class="sc">${r.r16==null?'':Math.round(r.r16)+'%'}</td>`,
+    rw1:`<td>${r.rw1==null?'':(r.rw1>=200?`<span class="hot">${Math.round(r.rw1)}%</span>`:Math.round(r.rw1)+'%')}</td>`,
+    fw:`<td class="${cls(r.fw)}">${kor(r.fw,1)}</td>`,
+    fwp:`<td class="${cls(r.fwp)}">${r.fwp==null?'':r.fwp.toFixed(1)+'%'}</td>`,
+    amt:`<td class="sc">${r.amt==null?'':r.amt+'억'}</td>`,
+    indiv:`<td class="${cls(r.indiv)}">${kor(r.indiv,1)}</td>`,
+    organ:`<td class="${cls(r.organ)}">${kor(r.organ,1)}</td>`,
+    frgn:`<td class="${cls(r.frgn)}">${kor(r.frgn,1)}</td>`,
+    foreign_ratio:`<td class="sc">${r.foreign_ratio==null?'':r.foreign_ratio.toFixed(1)+'%'}</td>`});
+  $('#tbl tbody').innerHTML=shown.map(r=>{const C=cellOf(r);
+    return `<tr data-c="${r.ticker}" class="${sel===r.ticker?'sel':''}">`+cols.map(c=>C[c[0]]||'<td></td>').join('')+'</tr>'}).join('');
   $('#status').textContent=`갱신 ${raw.updated||''}`;
   document.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortKey===k)desc=!desc;else{sortKey=k;desc=k!=='name'}rowLimit=100;render()});
   if(total>shown.length)$('#tbl tbody').innerHTML+=`<tr><td colspan="40" style="text-align:center;padding:16px;color:var(--dim)">`
