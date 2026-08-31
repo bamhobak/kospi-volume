@@ -2,6 +2,7 @@
 """일일 파이프라인용 보조 데이터 (최근 구간만) — GitHub Actions 에서도 동작
    ① 공매도 비중 최근 40거래일 → data/short_recent.csv
    ② 유상증자·CB 공시 최근 120일 → data/dilution_recent.csv
+   ③ 자사주 직접취득 결정 최근 120일 → data/buyback_recent.csv (P5 규칙용, 같은 스윕에서 추출)
    둘 다 작아서 리포지토리에 커밋 가능. 과거 전체는 로컬 DB(백테스트용)에만 둔다.
 사용: python collect_daily_extra.py   (KIS_APP_KEY/KIS_APP_SECRET/DART_API_KEY 환경변수 또는 .env)
 """
@@ -81,7 +82,8 @@ def dilution_recent():
     K = env("DART_API_KEY")
     if not K: log.warning("DART 키 없음 — 공시 건너뜀"); return
     pats = ("유상증자결정", "전환사채권발행결정", "신주인수권부사채권발행결정")
-    rows, bgn = [], (today - dt.timedelta(days=130)).strftime("%Y%m%d")
+    rows, bb_rows = [], []          # bb = 자사주 직접취득 (신탁·정정 제외) — P5 규칙 재료
+    bgn = (today - dt.timedelta(days=130)).strftime("%Y%m%d")
     for cls in ("Y", "K"):          # 유가증권 + 코스닥
       for off in (0, 65, 130):      # 3개월 제한 → 구간 분할
           b = (today - dt.timedelta(days=130 - off)).strftime("%Y%m%d")
@@ -99,6 +101,9 @@ def dilution_recent():
                   nm = (x.get("report_nm") or "").replace(" ", "")
                   if any(p in nm for p in pats) and x.get("stock_code"):
                       rows.append((x["rcept_dt"], x["stock_code"], x.get("report_nm", "")[:60]))
+                  if ("자기주식취득결정" in nm and "신탁" not in nm and "정정" not in nm
+                          and x.get("stock_code")):
+                      bb_rows.append((x["rcept_dt"], x["stock_code"], x.get("report_nm", "")[:60]))
               if page >= int(d.get("total_page") or 1): break
               page += 1
     out = BASE / "data" / "dilution_recent.csv"
@@ -106,6 +111,11 @@ def dilution_recent():
         w = csv.writer(fh); w.writerow(["rcept_dt", "ticker", "report_nm"])
         w.writerows(sorted(set(rows)))
     log.info(f"희석 공시 저장: {out.name} ({len(set(rows)):,}건)")
+    outb = BASE / "data" / "buyback_recent.csv"
+    with open(outb, "w", encoding="utf-8", newline="") as fh:
+        w = csv.writer(fh); w.writerow(["rcept_dt", "ticker", "report_nm"])
+        w.writerows(sorted(set(bb_rows)))
+    log.info(f"자사주 공시 저장: {outb.name} ({len(set(bb_rows)):,}건)")
 
 if "--dart-only" not in sys.argv: short_recent()
 if "--kis-only" not in sys.argv: dilution_recent()

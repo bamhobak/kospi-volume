@@ -19,6 +19,7 @@ HOLD_DAYS = 10
 RULES = {"P1": {"stop": 0.15, "target": None, "hold": 40}, "P4": {"stop": 0.15, "target": None, "hold": 5}, "P2": {"stop": None, "target": None, "hold": 10},
          "P3": {"stop": None, "target": None, "hold": 20}, "D1": {"stop": None, "target": None, "hold": 20},
          "D2": {"stop": None, "target": None, "hold": 40},
+         "P5": {"stop": None, "target": None, "hold": 10},   # 자사주 낙폭 (2026-08-31)
          # 옛 P1(상승초입)은 2026-08-31 폐기. 이름을 새 규칙이 물려받아 이력은 P0 으로 분리 보관.
          "P0": {"stop": None, "target": 0.20, "hold": 10}}
 LEGACY_ID = {1: "P0", 2: "P2", 3: "P3", 4: "P1"}      # 예전에 저장된 숫자 id 호환   # 필터별 청산 규칙

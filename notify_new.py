@@ -95,6 +95,11 @@ FILTERS = [
      and r.get("ow20") is not None and r["ow20"] >= 0
      and (r.get("c") or 0) >= 1000
      and r.get("dilu") is not True and r.get("disc") is not True),
+
+    ("P5", "P5 · 자사주 낙폭 (공통·10일 보유)",
+     lambda r: not r["pref"] and r.get("bb") is True
+     and r.get("r3m") is not None and r["r3m"] <= -20
+     and kospi.get("up60") is False),
 ]
 
 held = {p["code"] for p in (rpc("kospi_state_positions", {}) or [])}
@@ -118,7 +123,10 @@ for fid, name, _ in FILTERS:
         r = info[t]
         chp = (r["ch"] / (r["c"] - r["ch"]) * 100) if r.get("c") and r.get("ch") and r["c"] != r["ch"] else 0
         lines.append(f"• <b>{r['n']}</b> ({t}) {r['c']:,}원 ({chp:+.1f}%)")
-        if fid in ("P3", "D1"):
+        if fid == "P5":
+            lines.append(f"   당일 자사주 직접취득 결정 공시 · 60일 {(r.get('r3m') or 0):+.1f}% · "
+                         f"거래대금 {(r.get('amt20') or r.get('amt') or 0):.0f}억")
+        elif fid in ("P3", "D1"):
             lines.append(f"   20일 {(r.get('ret20') or 0):+.1f}% · 외인 60일 {(r.get('fw60') or 0):+.1f}% · "
                          f"당일 거래량 {(r.get('vs1') or 0):.1f}배 · 거래대금 {(r.get('amt20') or r.get('amt') or 0):.0f}억"
                          + (f" · 업종 60일 {r['sr60']:+.1f}%" if r.get('sr60') is not None else ""))
@@ -136,7 +144,8 @@ if lines and prev_date:   # 첫 실행(비교 대상 없음)에는 보내지 않
              "• P2: <b>다음날 시가 매수</b>가 유리 (급락 직후라 시초에 더 빠짐)\n"
              "• 공통: 다음날 시가가 <b>+5% 이상 갭상승</b>이면 매수 보류\n"
              "• P3·D1: <b>다음날 시가 매수</b> · <b>20거래일</b> 보유 (폭락 반등 — 흔들려도 손절 금지)\n"
-             "• 보유: P1·P2 10거래일 / P3·D1 20거래일 · 손절 없음 · 1번만 +20% 익절")
+             "• P5: <b>다음날 시가 매수</b> · <b>10거래일</b> 보유 (자사주 취득 공시)\n"
+             "• 보유: P1·P2·P5 10거래일 / P3·D1 20거래일 · 손절 없음 · 1번만 +20% 익절")
     telegram(f"🆕 <b>신규 편입 종목</b> ({last_date[4:6]}/{last_date[6:]} 기준 · 코스피 {kmark})"
              + "".join(lines) + guide
              + f"\n\nhttps://bamhobak.github.io/kospi-volume/")

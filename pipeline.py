@@ -336,6 +336,18 @@ def dilution_flags(last_date, days=90):
             if d0 <= r["rcept_dt"] <= last_date: out.add(r["ticker"])
     return out
 
+def buyback_flags(last_date):
+    """마지막 거래일에 자사주 직접취득 결정을 공시한 종목 (data/buyback_recent.csv).
+       P5 규칙: 진입은 '공시 다음 거래일 시가'로 실측했으므로 당일 공시만 켠다 —
+       사이트는 18:30 에 갱신되고 사용자는 다음날 아침에 사므로 시점이 정확히 맞는다."""
+    f = DATA / "buyback_recent.csv"
+    if not f.exists(): return set()
+    out = set()
+    with open(f, encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            if r["rcept_dt"] == last_date: out.add(r["ticker"])
+    return out
+
 def build_site():
     (SITE / "data" / "stock").mkdir(parents=True, exist_ok=True)
     for f in (SITE / "data" / "stock").glob("*.json"): f.unlink()
@@ -353,6 +365,7 @@ def build_site():
     R60 = upjong_ret60(con, UP, dates) if UP else {}      # 업종 60일 수익률(3번 필터용)
     SF = short_flags(dates)
     DILU = dilution_flags(dates[-1])
+    BB = buyback_flags(dates[-1])
     C2Y = ret2y_map(dates)
     DBT = load_debt_ratio()
     PB = load_pbr_dart()
@@ -463,6 +476,7 @@ def build_site():
                       "sr20": (SF.get(s["ticker"]) or {}).get("sr20"),
                       "srDown": (SF.get(s["ticker"]) or {}).get("srDown"),
                       "dilu": s["ticker"] in DILU,
+                      "bb": s["ticker"] in BB,
                       "dbt": DBT.get(s["ticker"]),
                       "pbrd": (lambda v: round(last[1] * v[0] / v[1], 3) if (v and v[1] and last[1]) else None)(PB.get(s["ticker"])),
                       "th": sorted(TH.get(s["ticker"], []), key=lambda g: -TRET.get(g, 0))[:6]})
