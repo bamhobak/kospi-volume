@@ -572,7 +572,12 @@ function addPosition(code,name,close){const last=raw.dates[raw.dates.length-1];
   const price=+prompt(`${name} 매수가 (원)`,close);if(!price)return;
   const qty=+(prompt(`${name} 매수 수량 (주)`,'')||0);
   const row=view.rows.find(x=>x.ticker===code);const filters=row?FILTERS.filter(f=>f.fn(row)).map(f=>f.id):[];
-  const a=positions();a.push({code,name,date:date.replace(/\D/g,''),price,qty,filters,id:Date.now()});savePositions(a);cur='pos';render()}
+  const a=positions();a.push({code,name,date:date.replace(/\D/g,''),price,qty,filters,id:Date.now()});savePositions(a);
+  if(DETAIL){                    /* 상세 새 창에는 목록 화면이 없다 — 알리고 원래 창을 갱신 */
+    alert(`${name} 매수 기록 완료 (${price.toLocaleString()}원)`+(filters.length?` · 통과 규칙 ${filters.join('·')}`:' · 규칙 통과 없음'));
+    try{if(window.opener&&!window.opener.closed)window.opener.location.reload()}catch(e){}
+    showStock(code); return}
+  cur='pos';render()}
 async function renderPositions(){
   const DONE=cur==='done';
   const rid=p=>normId((p.filters||[])[0])||'-';          // 매수 당시 규칙 (첫 번째)
@@ -826,12 +831,17 @@ async function showStock(code){
   $('#side').innerHTML=`<div style="display:flex;align-items:flex-start"><div><h2>${d.name} <span style="color:var(--mut);font-size:13px">${d.ticker}</span></h2><div class="sub">종가 <b style="color:var(--txt)">${fmt(L.close)}</b> ${chg(L.close,L.change)} · ${md(L.date)} 기준 · 외국인 보유 ${L.fr}%</div>
   ${(()=>{const row=raw.rows.find(x=>x.t===d.ticker);if(!row)return '';const TR=raw.themeRet||{};
     const tags=(row.th||[]).map(g=>`<span class="thtag ${(TR[g]||0)>0?'up':''}">${g}${TR[g]!=null?` <b>${TR[g]>0?'+':''}${TR[g]}%</b>`:''}</span>`).join('');
-    return (row.up||tags)?`<div class="themes">${row.up?`<span class="thtag sector">${row.up}</span>`:''}${tags}</div>`:''})()}</div><button class="ghost" id="close">닫기</button></div>
+    return (row.up||tags)?`<div class="themes">${row.up?`<span class="thtag sector">${row.up}</span>`:''}${tags}</div>`:''})()}</div><div style="display:flex;gap:6px;flex:none">${(()=>{const hp=heldPos(d.ticker);
+    return hp?`<button class="ghost" id="buyhere" title="이미 보유 중입니다 — 추가 매수를 기록합니다">추가 매수</button>`
+             :`<button id="buyhere" title="규칙에 걸리지 않아도 직접 매수를 기록할 수 있습니다">매수 기록</button>`})()}<button class="ghost" id="close">닫기</button></div></div>
   <div class="kpi"><div><small>최근 거래량</small><b>${kor(L.volume)}</b></div><div><small>개인 누적(${rows.length}일)</small><b class="${cls(sum('indiv'))}">${kor(sum('indiv'),1)}</b></div><div><small>기관 누적</small><b class="${cls(sum('organ'))}">${kor(sum('organ'),1)}</b></div><div><small>외국인 누적</small><b class="${cls(sum('frgn'))}">${kor(sum('frgn'),1)}</b></div></div>
   <div class="legend"><span><i style="background:#5eead4"></i>거래량</span><span><i style="background:#f4f6f9"></i>종가</span></div><div class="chart"><canvas id="c1"></canvas></div>
   <div class="legend"><span><i style="background:var(--ind)"></i>개인</span><span><i style="background:var(--org)"></i>기관</span><span><i style="background:var(--frg)"></i>외국인</span><span style="margin-left:auto">일별 순매수</span></div><div class="chart"><canvas id="c2"></canvas></div>
   <div class="legend"><span style="margin-left:auto">누적 순매수</span></div><div class="chart"><canvas id="c3"></canvas></div>`;
   $('#side').classList.add('open');$('#close').onclick=()=>$('#side').classList.remove('open');
+  {const bb=$('#buyhere');
+   if(bb)bb.onclick=()=>{const row=view.rows.find(x=>x.ticker===d.ticker);
+     addPosition(d.ticker,d.name,row?row.close:(L?L.close:0))};}
   charts.forEach(c=>c.destroy());charts=[];
   const grid={color:'#23272e'},tick={color:'#7d848f',font:{size:10}};
   const base={responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.dataset.label==='종가'?c.raw.toLocaleString():kor(c.raw,1)}`}}},scales:{x:{grid:{display:false},ticks:{...tick,maxTicksLimit:8}}}};
