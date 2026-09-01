@@ -79,7 +79,9 @@ if positions:
         days = len([x for x in rows if x[0] < today]) + (1 if live_today else 0)   # 매수일 포함 보유 거래일수
         hi = max([price] + [x[1] for x in rows] + ([lv["high"]] if live_today and lv.get("high") else []))
         fids = [LEGACY_ID.get(f, f) for f in (p.get("filters") or [])]
-        rule = next((RULES[f] for f in fids if f in RULES), DEFAULT_RULE)
+        rule = next((RULES[f] for f in fids if f in RULES), None)
+        if rule is None:      # 규칙 없이 직접 등록한 종목 — 남의 청산규칙으로 알림을 보내지 않는다
+            continue
         line = price * (1 - rule["stop"]) if rule["stop"] else None
         tgt = price * (1 + rule["target"]) if rule["target"] else None
         now = lv["now"]; ret = (now / price - 1) * 100

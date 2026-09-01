@@ -161,6 +161,7 @@ th .rz:hover::after,th .rz.on::after{background:var(--acc);top:0;bottom:0}
 .colitem.on{color:var(--txt)}
 /* 이미 보유 중인 종목 표시 — 규칙 카드·조회 표 공용 */
 .tag.hold{background:#3a2a00;border-color:var(--ind);color:var(--ind);font-weight:700}
+.pdet{margin-left:8px;vertical-align:middle;opacity:.75}.pdet:hover{opacity:1}
 .colmenu .colft{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;
   border-top:1px solid var(--line);color:var(--mut);font-size:11px}
 .colmenu .sp{margin-left:auto}
@@ -603,53 +604,63 @@ async function renderPositions(){
   let live={updated:'',prices:{}};try{const d=await rpc('kospi_state_get',{p_pin:'__prices__'});if(d&&d.prices)live=d}catch(e){}
   const lastD=raw.dates[raw.dates.length-1];
   const MOB=isMobile();
-  const cols=['종목','규칙','매수일','매수가','수량','매수금액','현재가','수익률','평가손익','보유일','고점','손절/익절선','신호 유지','상태','매도가/손익',''];
+  const cols=['종목','규칙','매수일','매수가','수량','매수금액','현재가','수익률','평가손익','보유일','고점|매수 후 최고가 — 매수가와 매수일 이후 일별 종가, 오늘 실시간 고가 중 최댓값','손절/익절선','신호 유지','상태','매도가/손익',''];
   const KEEP=MOB?[0,1,7,8,13,15]:cols.map((_,i)=>i);   /* 모바일: 종목·규칙·수익률·손익·상태·삭제만 */
   clearColWidths();   /* 조회 표에서 정한 열 너비가 보유 종목 표에 남지 않게 */
-  $('#tbl thead').innerHTML='<tr>'+cols.map((c,i)=>KEEP.includes(i)?`<th class="${[0,1,2,13,15].includes(i)?'l':''}">${c}</th>`:'').join('')+'</tr>';
+  $('#tbl thead').innerHTML='<tr>'+cols.map((c,i)=>{if(!KEEP.includes(i))return '';
+    const[t,tip]=c.split('|');
+    return `<th class="${[0,1,2,13,15].includes(i)?'l':''}"${tip?` title="${tip}" style="cursor:help"`:''}>${t}</th>`}).join('')+'</tr>';
   if(!ps.length){$('#tbl tbody').innerHTML=`<tr><td colspan="16" class="l" style="color:var(--mut);padding:30px">${DONE?'매도 완료된 종목이 없습니다. 보유 종목 탭에서 「매도」를 기록하면 여기로 옵니다.':'보유 종목이 없습니다. 종목 행의 「매수」 버튼으로 추가하세요.'}</td></tr>`;$('#status').textContent='보유 0종목';return}
   const rows=await Promise.all(ps.map(async p=>{let d=null;try{d=await (await fetch(`data/stock/${p.code}.json?v=${raw.updated}`)).json()}catch(e){}
     /* 종목 JSON 이 없거나 깨져도 표 전체가 죽지 않게 방어 */
     const rs=(d&&Array.isArray(d.rows)&&Array.isArray(d.dates))
       ?d.rows.map(x=>({date:d.dates[x[0]],close:x[1]})).filter(x=>x.date>=p.date):[];
-    const lv=live.prices[p.code];const lvDate=lv&&lv.at?lv.at.slice(0,10).replace(/-/g,''):'';const useLive=lv&&lv.now&&lvDate>lastD&&lvDate>=p.date;
+    const lv=live.prices[p.code];const lvDate=lv&&lv.at?lv.at.slice(0,10).replace(/-/g,''):'';
+    /* 5분마다 수집하는 실시간 시세가 일봉만큼 최신이면 그쪽을 쓴다(현재가·수익률·평가손익·고점) */
+    const useLive=!!(lv&&lv.now&&lvDate&&lvDate>=lastD&&lvDate>=p.date);
+    const newDay=useLive&&lvDate>lastD;      /* 일봉에 아직 없는 날이면 보유일 +1 */
     const now=useLive?lv.now:(rs.length?rs[rs.length-1].close:null);
-    const hi=Math.max(p.price,...rs.map(x=>x.close),useLive&&lv.high?lv.high:0);const days=rs.length+(useLive?1:0);
-    const rule=((p.filters||[]).map(fOf).find(Boolean)||FILTERS[0]).rule;
-    const line=rule.stop?p.price*(1-rule.stop/100):null;const tgt=rule.target?p.price*(1+rule.target/100):null;
+    const hi=Math.max(p.price,...rs.map(x=>x.close),useLive&&lv.high?lv.high:0);const days=rs.length+(newDay?1:0);
+    /* 규칙 없이 직접 등록한 종목은 청산 규칙이 없다 — 남의 규칙을 갖다 쓰지 않는다 */
+    const rf=(p.filters||[]).map(fOf).find(Boolean);
+    const rule=rf?rf.rule:null;
+    const line=(rule&&rule.stop)?p.price*(1-rule.stop/100):null;
+    const tgt=(rule&&rule.target)?p.price*(1+rule.target/100):null;
     const ret=now?(now/p.price-1)*100:null;
     const tr_=raw.rows.find(x=>x.t===p.code);const streak=tr_?tr_.streak||0:0;
     let st='보유',sc='';if(p.sell){st='매도 완료';sc='sc'}
+    else if(!rule){st='-';sc='none'}                       /* 규칙 없는 매수 — 판정하지 않는다 */
     else if(line&&now!=null&&now<=line){st='🛑 손절선 이탈';sc='pos'}
     else if(tgt&&now!=null&&now>=tgt){st='🎯 익절 도달 (+'+rule.target+'%)';sc='pos'}
     else if(days>=rule.hold){st='⏰ '+rule.hold+'일 도래 (매도)';sc='pos'}
     else if(ret!=null&&ret>0&&streak>=4){st='🔥 추가매수 고려 (이익 중 + 4일 연속 신호)';sc='pos'}
-    return {p,now,hi,days,line,tgt,ret,st,sc,streak,rule}}));
+    return {p,now,hi,days,line,tgt,ret,st,sc,streak,rule,useLive,lvDate}}));
   const pr=p=>(p.sell/p.price-1)*100;
   /* 셀을 배열로 만들어 KEEP 인덱스만 출력한다 — 모바일에서 머리글과 어긋나지 않게 */
-  $('#tbl tbody').innerHTML=rows.map(({p,now,hi,days,line,tgt,ret,st,sc,streak,rule})=>{
-    const nowCell=`${fmt(now)}${(()=>{const lv=live.prices[p.code];const d=lv&&lv.at?lv.at.slice(0,10).replace(/-/g,''):'';return (lv&&lv.now&&d>lastD)?`<div class="code">${lv.at.slice(11,16)} ${lv.status==='OPEN'?'장중':'마감'}</div>`:`<div class="code">${md(lastD)} 종가</div>`})()}`;
+  $('#tbl tbody').innerHTML=rows.map(({p,now,hi,days,line,tgt,ret,st,sc,streak,rule,useLive,lvDate})=>{
+    const nowCell=`${fmt(now)}${(()=>{const lv=live.prices[p.code];return useLive?`<div class="code">${md(lvDate)} ${lv.at.slice(11,16)} ${lv.status==='OPEN'?'장중':'마감'}</div>`:`<div class="code">${md(lastD)} 종가</div>`})()}`;
     const cells=[
-      `<td class="l name">${p.name} <span class="code">${p.code}</span></td>`,
+      `<td class="l name">${p.name} <span class="code">${p.code}</span>`
+        +`${MOB?'':` <button class="ghost mini pdet" data-detail="${p.code}">상세</button>`}</td>`,
       `<td class="l">${(p.filters||[]).map(f=>{const ff=fOf(f);return `<span class="tag ${ff&&ff.mkt==='KOSDAQ'?'kq':''}">${fcode(f)}</span>`}).join('')||'<span class="code">-</span>'}</td>`,
       `<td class="l">${md(p.date)}</td>`,`<td>${fmt(p.price)}</td>`,`<td>${p.qty?fmt(p.qty)+'주':''}</td>`,
       `<td>${p.qty?kor(p.price*p.qty)+'원':''}</td>`,`<td>${nowCell}</td>`,
       `<td class="${cls(ret)}">${ret==null?'':(ret>0?'+':'')+ret.toFixed(1)+'%'}</td>`,
       `<td class="${cls(ret)}">${p.qty&&now?kor((now-p.price)*p.qty,1)+'원':''}</td>`,
       `<td>${days}일</td>`,`<td>${fmt(hi)}</td>`,
-      `<td>${line?'손절 '+fmt(line):''}${tgt?'익절 '+fmt(tgt):''}</td>`,
+      `<td>${rule?`${line?'손절 '+fmt(line):''}${tgt?'익절 '+fmt(tgt):''}`||'-':'<span class="code">-</span>'}</td>`,
       `<td>${streak?`<span class="${streak>=4?'hot':''}">${streak}일</span>`:'-'}</td>`,
-      `<td class="l ${sc}" style="font-weight:600">${st}</td>`,
+      `<td class="l ${sc==='none'?'':sc}" style="font-weight:600">${sc==='none'?'<span class="code">-</span>':st}</td>`,
       `<td class="${p.sell?cls(pr(p)):''}">${p.sell?fmt(p.sell)+' ('+(pr(p)>0?'+':'')+pr(p).toFixed(1)+'%'+(p.qty?' · '+kor((p.sell-p.price)*p.qty,1)+'원':'')+')':''}</td>`,
       `<td class="l">${p.sell?'':`<button class="ghost mini" data-sell="${p.id}">매도</button>`} <button class="ghost mini" data-del="${p.id}">삭제</button></td>`];
-    return '<tr>'+KEEP.map(i=>cells[i]).join('')+'</tr>'}).join('');
+    return `<tr data-pc="${p.code}" class="${sel===p.code?'sel':''}">`+KEEP.map(i=>cells[i]).join('')+'</tr>'}).join('');
   const open_=rows.filter(r=>!r.p.sell);const avg=open_.length?open_.reduce((a,r)=>a+(r.ret||0),0)/open_.length:0;
   const closed=rows.filter(r=>r.p.sell);const realized=closed.reduce((a,r)=>a+pr(r.p),0);
   const inv=open_.reduce((a,r)=>a+(r.p.qty||0)*r.p.price,0),pnl=open_.reduce((a,r)=>a+((r.p.qty&&r.now)?(r.now-r.p.price)*r.p.qty:0),0);
   $('#status').textContent=DONE?`매도 완료 ${closed.length}건 · 합산 수익률 ${realized>0?'+':''}${realized.toFixed(1)}% · 건당 평균 ${closed.length?(realized/closed.length>0?'+':'')+(realized/closed.length).toFixed(2):'0'}%`:`보유 ${open_.length}종목 평균 ${avg>0?'+':''}${avg.toFixed(1)}%${inv?` · 매수금액 ${kor(inv)}원 · 평가손익 ${kor(pnl,1)}원`:''}${closed.length?` · 매도 완료 ${closed.length}건 합산 ${realized>0?'+':''}${realized.toFixed(1)}%`:''} · 장중 시세 ${live.updated?live.updated.slice(5)+' 갱신 (평일 09~16시 5분 간격)':'없음'}`;
-  document.querySelectorAll('[data-sell]').forEach(b=>b.onclick=()=>{const a=positions();const p=a.find(x=>x.id==b.dataset.sell);const r=rows.find(r=>r.p.id==p.id);
+  document.querySelectorAll('[data-sell]').forEach(b=>b.onclick=e=>{e.stopPropagation();const a=positions();const p=a.find(x=>x.id==b.dataset.sell);const r=rows.find(r=>r.p.id==p.id);
     const sell=+prompt(`${p.name} 매도가 (원)`,r.now||p.price);if(!sell)return;p.sell=sell;p.sellDate=raw.dates[raw.dates.length-1];savePositions(a);render()});
-  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{if(!confirm('삭제할까요?'))return;savePositions(positions().filter(x=>x.id!=b.dataset.del));render()});
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=e=>{e.stopPropagation();if(!confirm('삭제할까요?'))return;savePositions(positions().filter(x=>x.id!=b.dataset.del));render()});
 }
 let raw={dates:[],rows:[]},view={dates:[],rows:[]},sortKey='last',desc=true,sel=null,charts=[];
 /* 가로/세로 전환으로 모바일 여부가 바뀌면 표 컬럼을 다시 구성한다 */
@@ -817,6 +828,15 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
     })}
   /* 상세 버튼 → 새 창. tbody 를 innerHTML+= 로 다시 만든 뒤에 붙여야 핸들러가 살아남는다 */
   document.querySelectorAll('[data-detail]').forEach(b=>b.onclick=e=>{
+    e.preventDefault();e.stopPropagation();
+    const base=location.href.split('?')[0].split('#')[0];
+    const w=window.open(base+'?detail='+b.dataset.detail,'detail_'+b.dataset.detail,
+                        'width=560,height=920,scrollbars=yes,resizable=yes');
+    if(w)w.focus(); else alert('팝업이 차단되었습니다. 브라우저에서 이 사이트의 팝업을 허용해주세요.');});
+  /* 행을 누르면 상세 패널이 열린다 — 모바일에서는 이 패널이 전체 화면(새 탭처럼)이다 */
+  document.querySelectorAll('tbody tr[data-pc]').forEach(tr=>tr.onclick=()=>{
+    sel=tr.dataset.pc;render();showStock(sel)});
+  document.querySelectorAll('.pdet[data-detail]').forEach(b=>b.onclick=e=>{
     e.preventDefault();e.stopPropagation();
     const base=location.href.split('?')[0].split('#')[0];
     const w=window.open(base+'?detail='+b.dataset.detail,'detail_'+b.dataset.detail,
