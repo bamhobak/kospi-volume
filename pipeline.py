@@ -429,6 +429,11 @@ def build_site():
         v20 = sum(vol_all[-20:])
         ow20 = (round(sum(x or 0 for x in og_all[-20:]) / v20 * 100, 2)      # 기관 20일 누적 순매수 비중(%)
                 if len(vol_all) >= 20 and len(og_all) >= 20 and v20 else None)
+        fw20 = (round(sum(x or 0 for x in fr_all[-20:]) / v20 * 100, 2)      # 외국인 20일 누적 순매수 비중(%) — P7
+                if len(vol_all) >= 20 and len(fr_all) >= 20 and v20 else None)
+        v60s, o60 = sum(v60), og_all[-60:]                                   # 기관 60일 누적 순매수 비중(%) — P7
+        ow60 = (round(sum(x or 0 for x in o60) / v60s * 100, 2)
+                if len(v60) >= 55 and len(o60) >= 55 and v60s else None)
         # 가격 불연속(액면분할·병합 등 미조정) 감지: 상하한가 ±30% 라 32% 초과 변동은 물리적으로 불가능
         rec = closes[-26:]
         disc = any(rec[i-1] and not (0.68 < rec[i] / rec[i-1] < 1.32) for i in range(1, len(rec)))
@@ -470,7 +475,7 @@ def build_site():
                 if closes[i] > ma: hit += 1
             above20 = round(hit / n * 100, 1)
         table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2], "streak": streak, "ret3": ret3, "ret10": ret10,
-                      "ret20": ret20, "ret60": ret60, "fromhi": fromhi, "fw5": fw5, "vol20": vol20, "ret2y": ret2y, "ret250": ret250, "above20": above20, "dev25": dev25, "dma20": dma20, "mdd60": mdd60, "r1m": r1m, "r3m": r3m, "r6m": r6m, "r1y": r1y, "vs1": vs1, "fw60": fw60, "amt20": amt20, "ow20": ow20, "disc": disc,
+                      "ret20": ret20, "ret60": ret60, "fromhi": fromhi, "fw5": fw5, "vol20": vol20, "ret2y": ret2y, "ret250": ret250, "above20": above20, "fw20": fw20, "ow60": ow60, "dev25": dev25, "dma20": dma20, "mdd60": mdd60, "r1m": r1m, "r3m": r3m, "r6m": r6m, "r1y": r1y, "vs1": vs1, "fw60": fw60, "amt20": amt20, "ow20": ow20, "disc": disc,
                       "aw": aw, "a1": a1, "a6": a6 if n6 >= W_BASE // 2 else None,
                       "amt": round(amt1 / 1e8, 2) if amt1 else None, "cap": s.get("cap"), "pref": s["ticker"][-1] != "0", "mk": s.get("mkt", "KOSPI"),
                       "up": UP.get(s["ticker"]), "rs": RS.get(UP.get(s["ticker"])),

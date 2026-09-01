@@ -33,6 +33,7 @@ const RULES: Record<string, { stop: number | null; target: number | null; hold: 
   P4: { stop: 0.15, target: null, hold: 5 },
   P5: { stop: null, target: null, hold: 10 },
   P6: { stop: 0.10, target: null, hold: 5 },
+  P7: { stop: null, target: null, hold: 60 },
   D1: { stop: null, target: null, hold: 20 },
   D2: { stop: null, target: null, hold: 40 },
   P0: { stop: null, target: 0.20, hold: 10 },   // 폐기된 옛 P1 — 이력 보존용

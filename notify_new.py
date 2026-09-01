@@ -96,6 +96,16 @@ FILTERS = [
      and (r.get("c") or 0) >= 1000
      and r.get("dilu") is not True and r.get("disc") is not True),
 
+    ("P7", "P7 · 외인 매집 (코스피·60일 보유·상승장)",
+     lambda r: r.get("mk") == "KOSPI" and not r["pref"]
+     and kospi.get("up60") is True
+     and r.get("cap") is not None and 10000 <= r["cap"] < 100000
+     and r.get("fw20") is not None and r["fw20"] >= 1
+     and r.get("ow60") is not None and r["ow60"] < 0.4
+     and (r.get("a1") and r.get("a6") and 100 <= r["a1"] / r["a6"] * 100 < 150)
+     and r.get("fromhi") is not None and r["fromhi"] >= -15
+     and r.get("dilu") is not True and r.get("disc") is not True),
+
     ("P6", "P6 · 깊은 이격 (코스피·5일 보유·손절 -10%)",
      lambda r: r.get("mk") == "KOSPI" and not r["pref"]
      and r.get("dev25") is not None and r["dev25"] <= -25
@@ -147,7 +157,11 @@ for fid, name, _ in FILTERS:
             pl = f" · {(r['c']/float(bp)-1)*100:+.1f}%" if bp else ""
             mark = f"  🔁 <b>{by} 로 보유 중</b>{pl}"
         lines.append(f"• <b>{r['n']}</b> ({t}) {r['c']:,}원 ({chp:+.1f}%){mark}")
-        if fid == "P6":
+        if fid == "P7":
+            lines.append(f"   외인 20일 {(r.get('fw20') or 0):+.1f}% · 기관 60일 "
+                         f"{(r.get('ow60') or 0):+.1f}% · 고점대비 {(r.get('fromhi') or 0):+.1f}% · "
+                         f"시총 {(r.get('cap') or 0)/10000:.1f}조")
+        elif fid == "P6":
             lines.append(f"   25일선 괴리 {(r.get('dev25') or 0):+.1f}% · 업종 60일 "
                          f"{(r.get('sr60') or 0):+.1f}% · 거래대금 {(r.get('amt20') or r.get('amt') or 0):.0f}억")
         elif fid == "P5":
@@ -171,6 +185,7 @@ if lines and prev_date:   # 첫 실행(비교 대상 없음)에는 보내지 않
              "• P2: <b>다음날 시가 매수</b>가 유리 (급락 직후라 시초에 더 빠짐)\n"
              "• 공통: 다음날 시가가 <b>+5% 이상 갭상승</b>이면 매수 보류\n"
              "• P3·D1: <b>다음날 시가 매수</b> · <b>20거래일</b> 보유 (폭락 반등 — 흔들려도 손절 금지)\n"
+             "• P7: <b>다음날 시가 매수</b> · <b>60거래일</b> 보유 (상승장 전용 · 손절 없음)\n"
              "• P6: <b>다음날 시가 매수</b> · <b>5거래일</b> 보유 · 손절 <b>-10%</b> (깊은 이격)\n"
              "• P5: <b>다음날 시가 매수</b> · <b>10거래일</b> 보유 (자사주 취득 공시)\n"
              "• 보유: P1·P2·P5 10거래일 / P3·D1 20거래일 · 손절 없음 · 1번만 +20% 익절\n"
