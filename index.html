@@ -693,7 +693,12 @@ async function load(){
     document.title=(r?r.n+' · ':'')+'상세 · 밤호박 종목 선별기';
     await showStock(DETAIL); return;
   }
-  await pullRemote();raw=await (await fetch('data/table.json?v='+Date.now())).json();prep();render();
+  await pullRemote();raw=await (await fetch('data/table.json?v='+Date.now())).json();prep();
+  /* 첫 화면: 매수 대기가 비어 있으면 보유 종목 탭으로 연다 — 빈 목록보다 내 종목이 쓸모 있다.
+     (매수 대기 = 아직 그 규칙으로 사지 않은 규칙에 걸린 종목) */
+  if(cur==='all'&&!view.rows.some(r=>FILTERS.some(f=>f.fn(r)&&!heldBy(r.ticker,f.id)))
+     &&positions().some(p=>!p.sell))cur='pos';
+  render();
   await pullLive();mktBadge();
   /* 열어둔 화면도 10분마다 지수·현재가를 따라가게 한다 */
   setInterval(async()=>{await pullLive();mktBadge();
