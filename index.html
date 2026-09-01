@@ -485,7 +485,7 @@ function renderCards(rows){
   document.querySelectorAll('#cards .sig').forEach(el=>el.onclick=()=>{sel=el.dataset.c;render();showStock(sel)});
   document.querySelectorAll('#cards [data-buy]').forEach(b=>b.onclick=e=>{e.stopPropagation();
     const r=view.rows.find(x=>x.ticker===b.dataset.buy);addPosition(r.ticker,r.name,r.close)});
-  $('#status').textContent=`갱신 ${raw.updated||''}`}
+  renderStatus()}
 function statsHtml(f){const t=f.stats;
   const cards=`<div class="stats">
     <span class="s-item" title="기대 승률 — **검증기간(2023~26)** ${t.n}건 중 수익으로 끝난 비율. 규칙을 만들 때 보지 않은 구간이라 실전에 가장 가깝습니다. 손절이 없으므로 보유기간을 끝까지 채웠을 때 기준입니다."><b>${t.win}%</b></span>
@@ -666,17 +666,7 @@ async function renderPositions(){
   const open_=rows.filter(r=>!r.p.sell);const avg=open_.length?open_.reduce((a,r)=>a+(r.ret||0),0)/open_.length:0;
   const closed=rows.filter(r=>r.p.sell);const realized=closed.reduce((a,r)=>a+pr(r.p),0);
   const inv=open_.reduce((a,r)=>a+(r.p.qty||0)*r.p.price,0),pnl=open_.reduce((a,r)=>a+((r.p.qty&&r.now)?(r.now-r.p.price)*r.p.qty:0),0);
-  {const g=(k,v,c='')=>`<span class="sgrp"><i>${k}</i><b class="${c}">${v}</b></span>`;
-   const per=closed.length?realized/closed.length:0;
-   $('#status').innerHTML = DONE
-     ? g('매도 완료',closed.length+'건')
-       +g('합산 수익률',(realized>0?'+':'')+realized.toFixed(1)+'%',cls(realized))
-       +g('건당 평균',(per>0?'+':'')+per.toFixed(2)+'%',cls(per))
-     : g('보유',open_.length+'종목')
-       +g('평균',(avg>0?'+':'')+avg.toFixed(1)+'%',cls(avg))
-       +(inv?g('매수금액',kor(inv)+'원')+g('평가손익',kor(pnl,1)+'원',cls(pnl)):'')
-       +(closed.length?g('완료',closed.length+'건 '+(realized>0?'+':'')+realized.toFixed(1)+'%',cls(realized)):'')
-       +g('장중 시세',live.updated?live.updated.slice(5):'없음',live.updated?'':'off');}
+  renderStatus();
   /* 행을 누르면 상세 패널이 열린다 — 모바일에서는 이 패널이 전체 화면(새 탭처럼)이다 */
   document.querySelectorAll('tbody tr[data-pc]').forEach(tr=>tr.onclick=()=>{
     sel=tr.dataset.pc;render();showStock(sel)});
@@ -711,6 +701,31 @@ async function load(){
 let LIVE={updated:'',prices:{},index:null};      /* 10분마다 갱신되는 실시간 스냅샷 */
 async function pullLive(){try{const d=await rpc('kospi_state_get',{p_pin:'__prices__'});
   if(d&&d.prices)LIVE=d}catch(e){}}
+/* 헤더 상태줄 — 어느 탭에 있든 같은 값을 보여준다 (보유 요약 + 갱신 시각) */
+function renderStatus(){
+  const el=$('#status'); if(!el)return;
+  const g=(k,v,c='')=>`<span class="sgrp"><i>${k}</i><b class="${c}">${v}</b></span>`;
+  const ps=positions(),open_=ps.filter(p=>!p.sell),closed=ps.filter(p=>p.sell);
+  const lastD=(raw.dates&&raw.dates.length)?raw.dates[raw.dates.length-1]:'';
+  /* 현재가: 10분 간격 실시간값이 일봉만큼 최신이면 그것, 아니면 마지막 종가 */
+  const nowOf=p=>{const lv=(LIVE.prices||{})[p.code];
+    const d=lv&&lv.at?lv.at.slice(0,10).replace(/-/g,''):'';
+    if(lv&&lv.now&&d&&d>=lastD)return lv.now;
+    const r=(raw.rows||[]).find(x=>x.t===p.code);return r?r.c:null};
+  let inv=0,pnl=0;const rets=[];
+  open_.forEach(p=>{const now=nowOf(p);
+    if(p.qty&&p.price)inv+=p.price*p.qty;
+    if(p.qty&&now)pnl+=(now-p.price)*p.qty;
+    if(now&&p.price)rets.push((now/p.price-1)*100)});
+  const avg=rets.length?rets.reduce((a,b)=>a+b,0)/rets.length:0;
+  const realized=closed.reduce((a,p)=>a+(p.sell/p.price-1)*100,0);
+  el.innerHTML=g('보유',open_.length+'종목')
+    +(rets.length?g('평균',(avg>0?'+':'')+avg.toFixed(1)+'%',cls(avg)):'')
+    +(inv?g('매수금액',kor(inv)+'원')+g('평가손익',kor(pnl,1)+'원',cls(pnl)):'')
+    +(closed.length?g('완료',closed.length+'건 '+(realized>0?'+':'')+realized.toFixed(1)+'%',cls(realized)):'')
+    +g('장중 시세',LIVE.updated?LIVE.updated.slice(5):'없음',LIVE.updated?'':'off')
+    +g('데이터',(raw.updated||'').slice(5)||'—');
+}
 function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none';return}
   /* 지수는 값만 보여준다. 이평선은 규칙 활성 여부와 함께 상태 칩에서 한 번에 안내한다.
      코스닥 20일선은 어떤 규칙도 쓰지 않아 표시하지 않는다 (D1 도 코스피 60일선을 본다). */
@@ -855,7 +870,7 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
        const h=boxes.filter(b=>!b.checked).map(b=>b.dataset.col);
        COLCFG=Object.assign(loadColCfg(),{hidden:h}); saveColCfg(); wrap.innerHTML=''; render()});
    }}}
-  $('#status').textContent=`갱신 ${raw.updated||''}`;
+  renderStatus();
   document.querySelectorAll('th').forEach(th=>th.onclick=()=>{
     if(Date.now()-RESIZED_AT<400)return;              /* 너비를 끈 직후의 클릭은 무시 */
     const k=th.dataset.k;if(sortKey===k)desc=!desc;else{sortKey=k;desc=k!=='name'}rowLimit=100;render()});
