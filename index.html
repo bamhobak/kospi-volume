@@ -831,9 +831,8 @@ async function showStock(code){
   $('#side').innerHTML=`<div style="display:flex;align-items:flex-start"><div><h2>${d.name} <span style="color:var(--mut);font-size:13px">${d.ticker}</span></h2><div class="sub">종가 <b style="color:var(--txt)">${fmt(L.close)}</b> ${chg(L.close,L.change)} · ${md(L.date)} 기준 · 외국인 보유 ${L.fr}%</div>
   ${(()=>{const row=raw.rows.find(x=>x.t===d.ticker);if(!row)return '';const TR=raw.themeRet||{};
     const tags=(row.th||[]).map(g=>`<span class="thtag ${(TR[g]||0)>0?'up':''}">${g}${TR[g]!=null?` <b>${TR[g]>0?'+':''}${TR[g]}%</b>`:''}</span>`).join('');
-    return (row.up||tags)?`<div class="themes">${row.up?`<span class="thtag sector">${row.up}</span>`:''}${tags}</div>`:''})()}</div><div style="display:flex;gap:6px;flex:none">${(()=>{const hp=heldPos(d.ticker);
-    return hp?`<button class="ghost" id="buyhere" title="이미 보유 중입니다 — 추가 매수를 기록합니다">추가 매수</button>`
-             :`<button id="buyhere" title="규칙에 걸리지 않아도 직접 매수를 기록할 수 있습니다">매수 기록</button>`})()}<button class="ghost" id="close">닫기</button></div></div>
+    return (row.up||tags)?`<div class="themes">${row.up?`<span class="thtag sector">${row.up}</span>`:''}${tags}</div>`:''})()}</div><div style="display:flex;gap:6px;flex:none;align-items:flex-start">${(()=>{const hp=heldPos(d.ticker);
+    return `<button class="ghost mini" id="buyhere" title="${hp?'이미 보유 중입니다 — 추가 매수를 기록합니다':'규칙에 걸리지 않아도 직접 매수를 기록할 수 있습니다'}">${hp?'추가 매수':'매수'}</button>`})()}<button class="ghost mini" id="close">닫기</button></div></div>
   <div class="kpi"><div><small>최근 거래량</small><b>${kor(L.volume)}</b></div><div><small>개인 누적(${rows.length}일)</small><b class="${cls(sum('indiv'))}">${kor(sum('indiv'),1)}</b></div><div><small>기관 누적</small><b class="${cls(sum('organ'))}">${kor(sum('organ'),1)}</b></div><div><small>외국인 누적</small><b class="${cls(sum('frgn'))}">${kor(sum('frgn'),1)}</b></div></div>
   <div class="legend"><span><i style="background:#5eead4"></i>거래량</span><span><i style="background:#f4f6f9"></i>종가</span></div><div class="chart"><canvas id="c1"></canvas></div>
   <div class="legend"><span><i style="background:var(--ind)"></i>개인</span><span><i style="background:var(--org)"></i>기관</span><span><i style="background:var(--frg)"></i>외국인</span><span style="margin-left:auto">일별 순매수</span></div><div class="chart"><canvas id="c2"></canvas></div>
