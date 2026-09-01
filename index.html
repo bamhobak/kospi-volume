@@ -644,7 +644,7 @@ async function renderPositions(){
         +`${MOB?'':` <button class="ghost mini pdet" data-detail="${p.code}">상세</button>`}</td>`,
       `<td class="l">${(p.filters||[]).map(f=>{const ff=fOf(f);return `<span class="tag ${ff&&ff.mkt==='KOSDAQ'?'kq':''}">${fcode(f)}</span>`}).join('')||'<span class="code">-</span>'}</td>`,
       `<td class="l">${md(p.date)}</td>`,`<td>${fmt(p.price)}</td>`,`<td>${p.qty?fmt(p.qty)+'주':''}</td>`,
-      `<td>${p.qty?kor(p.price*p.qty)+'원':''}</td>`,`<td>${nowCell}</td>`,
+      `<td>${p.qty?kor(p.price*p.qty)+'원':''}</td>`,`<td class="${cls(ret)}">${nowCell}</td>`,
       `<td class="${cls(ret)}">${ret==null?'':(ret>0?'+':'')+ret.toFixed(1)+'%'}</td>`,
       `<td class="${cls(ret)}">${p.qty&&now?kor((now-p.price)*p.qty,1)+'원':''}</td>`,
       `<td>${days}일</td>`,`<td>${fmt(hi)}</td>`,
