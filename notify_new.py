@@ -35,7 +35,7 @@ def fwp(r):
 
 # 사이트 index.html 의 FILTERS 와 동일
 FILTERS = [
-    ("P1", "P1 · 조용한 신고가 (코스피·40일 보유·손절 -15%)",
+    ("P1", "조용한 신고가 (코스피·40일 보유·손절 -15%)",
      lambda r: r.get("mk") == "KOSPI" and not r["pref"]
      and r.get("fromhi") is not None and r["fromhi"] >= -10
      and r.get("a1") and r.get("a6") and r.get("aw")
@@ -48,14 +48,14 @@ FILTERS = [
      and (r.get("amt20") or 0) >= 200
      and not ((r.get("above20") or 0) > 70 and (r.get("ret250") or 0) > 120)
      and r.get("dilu") is not True and r.get("disc") is not True),
-    ("P2", "P2 · 조정매집 (코스피·10일 보유·손절 없음)",
+    ("P2", "조정매집 (코스피·10일 보유·손절 없음)",
      lambda r: r.get("mk") == "KOSPI" and (r.get("streak") or 0) >= 1 and fwp(r) >= 2 and not r["pref"]
      and (r.get("amt") or 0) >= 3 and r["a1"] / r["a6"] < 0.3
      and r.get("ret3") is not None and r["ret3"] <= -5
      and r.get("ret10") is not None and r["ret10"] <= 0
      and not bool(kospi.get("up20"))
      and r.get("srDown") is True and r.get("dilu") is not True and r.get("disc") is not True),
-    ("P3", "P3 · 폭락반등 (코스피·20일 보유·손절 없음)",
+    ("P3", "폭락반등 (코스피·20일 보유·손절 없음)",
      lambda r: r.get("mk") == "KOSPI" and not r["pref"]
      and r.get("ret20") is not None and r["ret20"] <= -20
      and r.get("vs1") is not None and r["vs1"] >= 1.5
@@ -64,7 +64,7 @@ FILTERS = [
      and kospi.get("up60") is False
      and (r.get("sr60") is not None and r["sr60"] <= -10)
      and r.get("srDown") is True and r.get("dilu") is not True and r.get("disc") is not True),
-    ("P4", "P4 · 업종붕괴 이탈 (코스피·5일 보유·손절 -15%)",
+    ("P4", "업종붕괴 이탈 (코스피·5일 보유·손절 -15%)",
      lambda r: r.get("mk") == "KOSPI" and not r["pref"]
      and (r.get("sr60") is not None and r["sr60"] <= -20)
      and r.get("dma20") is not None and r["dma20"] <= -10
@@ -72,7 +72,7 @@ FILTERS = [
      and r.get("srDown") is True
      and (r.get("amt20") or 0) >= 10 and (r.get("c") or 0) >= 1000
      and r.get("dilu") is not True and r.get("disc") is not True),
-    ("D2", "D2 · 저PBR 낙폭 (코스닥·40일 보유·손절 없음)",
+    ("D2", "저PBR 낙폭 (코스닥·40일 보유·손절 없음)",
      lambda r: r.get("mk") == "KOSDAQ" and not r["pref"]
      and r.get("pbrd") is not None and r["pbrd"] <= 0.5
      and r.get("ret20") is not None and r["ret20"] <= -10
@@ -83,7 +83,7 @@ FILTERS = [
      and r.get("srDown") is True
      and (r.get("amt20") or 0) >= 5 and (r.get("c") or 0) >= 1000
      and r.get("dilu") is not True and r.get("disc") is not True),
-    ("D1", "D1 · 낙폭과대 (코스닥·20일 보유·손절 없음)",
+    ("D1", "낙폭과대 (코스닥·20일 보유·손절 없음)",
      lambda r: r.get("mk") == "KOSDAQ" and not r["pref"]
      and r.get("ret20") is not None and r["ret20"] <= -20
      and r.get("vs1") is not None and r["vs1"] >= 1.5
@@ -96,7 +96,7 @@ FILTERS = [
      and (r.get("c") or 0) >= 1000
      and r.get("dilu") is not True and r.get("disc") is not True),
 
-    ("P7", "P7 · 외인 매집 (코스피·60일 보유·상승장)",
+    ("P7", "외인 매집 (코스피·60일 보유·상승장)",
      lambda r: r.get("mk") == "KOSPI" and not r["pref"]
      and kospi.get("up60") is True
      and r.get("cap") is not None and 10000 <= r["cap"] < 100000
@@ -106,14 +106,14 @@ FILTERS = [
      and r.get("fromhi") is not None and r["fromhi"] >= -15
      and r.get("dilu") is not True and r.get("disc") is not True),
 
-    ("P6", "P6 · 깊은 이격 (코스피·5일 보유·손절 -10%)",
+    ("P6", "깊은 이격 (코스피·5일 보유·손절 -10%)",
      lambda r: r.get("mk") == "KOSPI" and not r["pref"]
      and r.get("dev25") is not None and r["dev25"] <= -25
      and r.get("sr60") is not None and r["sr60"] <= -20
      and (r.get("amt20") or 0) >= 10 and (r.get("c") or 0) >= 1000
      and r.get("dilu") is not True and r.get("disc") is not True),
 
-    ("P5", "P5 · 자사주 낙폭 (공통·10일 보유)",
+    ("P5", "자사주 낙폭 (공통·10일 보유)",
      lambda r: not r["pref"] and r.get("bb") is True
      and r.get("r3m") is not None and r["r3m"] <= -20
      and kospi.get("up60") is False),
@@ -181,14 +181,15 @@ for fid, name, _ in FILTERS:
 
 if lines and prev_date:   # 첫 실행(비교 대상 없음)에는 보내지 않음
     guide = ("\n\n💡 <b>매수 안내</b>\n"
-             "• P1: <b>지금 NXT 야간거래로 종가 매수</b>가 유리 (실측 +3.57% vs 다음날 시가 +3.44%)\n"
-             "• P2: <b>다음날 시가 매수</b>가 유리 (급락 직후라 시초에 더 빠짐)\n"
+             "• 조용한 신고가: <b>지금 NXT 야간거래로 종가 매수</b>가 유리 (실측 +3.57% vs 다음날 시가 +3.44%)\n"
+             "• 조정매집: <b>다음날 시가 매수</b>가 유리 (급락 직후라 시초에 더 빠짐)\n"
              "• 공통: 다음날 시가가 <b>+5% 이상 갭상승</b>이면 매수 보류\n"
-             "• P3·D1: <b>다음날 시가 매수</b> · <b>20거래일</b> 보유 (폭락 반등 — 흔들려도 손절 금지)\n"
-             "• P7: <b>다음날 시가 매수</b> · <b>60거래일</b> 보유 (상승장 전용 · 손절 없음)\n"
-             "• P6: <b>다음날 시가 매수</b> · <b>5거래일</b> 보유 · 손절 <b>-10%</b> (깊은 이격)\n"
-             "• P5: <b>다음날 시가 매수</b> · <b>10거래일</b> 보유 (자사주 취득 공시)\n"
-             "• 보유: P1·P2·P5 10거래일 / P3·D1 20거래일 · 손절 없음 · 1번만 +20% 익절\n"
+             "• 폭락반등·낙폭과대: <b>다음날 시가 매수</b> · <b>20거래일</b> 보유 (폭락 반등 — 흔들려도 손절 금지)\n"
+             "• 외인 매집: <b>다음날 시가 매수</b> · <b>60거래일</b> 보유 (상승장 전용 · 손절 없음)\n"
+             "• 깊은 이격: <b>다음날 시가 매수</b> · <b>5거래일</b> 보유 · 손절 <b>-10%</b> (깊은 이격)\n"
+             "• 자사주 낙폭: <b>다음날 시가 매수</b> · <b>10거래일</b> 보유 (자사주 취득 공시)\n"
+             "• 보유기간은 규칙마다 다릅니다 — 위 안내 참고 · 손절 없음 · 1번만 +20% 익절\n"
+             "• 규칙 번호(P1·D1…)는 화면에서 순서를 바꾸면 달라지므로 알림은 이름으로 적습니다\n"
              "• 🔁 표시는 <b>다른 규칙으로 이미 보유 중</b>인 종목입니다 — 추가 매수는 한 종목 비중을 두 배로 만드니 한도를 확인하세요")
     telegram(f"🆕 <b>신규 편입 종목</b> ({last_date[4:6]}/{last_date[6:]} 기준 · 코스피 {kmark})"
              + "".join(lines) + guide

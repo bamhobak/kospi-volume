@@ -96,6 +96,9 @@ header{flex:none}
 /* 발현 장세는 왼쪽 세로 막대 색으로 — 상승장 붉은색, 하락장 파란색.
    글자는 회색 그대로 두어 목록이 균질하게 읽힌다.
    시장 구분(코스피/코스닥)은 규칙 코드 색이 계속 담당한다(.it.kq .rid). */
+/* 규칙 행은 끌어서 순서를 바꿀 수 있다 */
+.rail .it[data-rule]{cursor:grab}.rail .it[data-rule]:active{cursor:grabbing}
+.rail .it.rdrag{box-shadow:inset 0 3px 0 var(--acc)}
 .rail .it.rg-up .bar{background:var(--up)}
 .rail .it.rg-down .bar{background:var(--dn)}
 .rail .it.kq .rid{color:var(--ind)}
@@ -312,7 +315,7 @@ const FILTERS=[
         &&(r.amt20!=null?r.amt20:0)>=10&&r.close!=null&&r.close>=1000
         &&r.dilu!==true&&r.disc!==true},
 
-  {id:'P7',regime:'up',name:'P7 · 외인 매집',mkt:'KOSPI',desc:'**코스피 종목** · **코스피 60일선 위**(상승·횡보장에서만 열립니다) · **시가총액 1~10조**(초대형주는 제외 — 아래 참조) · **외국인 20일 누적 순매수 ≥ 거래량의 1%** · **기관 60일 누적 순매수 < 거래량의 0.4%**(기관이 살수록 성적이 나빴습니다 — 아래 참조) · **최근 2개월 평균 거래량이 1년 평균의 100~150%**(평소 수준 근처 · 극단적으로 늘거나 줄면 제외) · **52주 고점 대비 -15% 이내** · 최근 90일 내 유상증자·CB 공시 없음 · 우선주 제외  ▶ 매매: **다음날 시가 매수** · **60거래일 보유** 후 종가 매도 · 손절·익절 없음  ▶ **우리 규칙 중 유일하게 상승장에서 도는 두 번째 규칙**입니다(P1 에 이어). P2~P6·D1·D2 는 모두 코스피 60일선 아래에서만 열리므로, 규칙이 조용한 상승장 구간을 이 규칙이 채웁니다  ▶ 백테스트 2018~26(9년, 절대수익, **상장폐지 종목 포함**): 471건 평균 **+7.91%** / 중앙값 +2.1% / 승률 55% · **학습(2018~22) +6.54% → 검증(2023~26) +8.91%** · 월 단위 신뢰구간 **+4.9~+11.0%** · **2025~26 대세상승을 통째로 빼도 +6.46%**(신뢰구간 +2.7~+10.1%)  ▶ **같은 조건의 다른 종목보다 나은가**: 같은 날 같은 유니버스(상승장·코스피·시총 1~10조) 평균 대비 **초과수익 +3.43%**이고, **2018~26 여덟 해 모두 초과가 플러스**였습니다(최저 2019년 +1.0%). 학습 +3.42% · 검증 +3.43% · 붐 제외 +4.20% 로 구간별 편차도 거의 없습니다  ▶ **왜 초대형주를 빼는가**: 시총 10조 이상만 따로 재면 대세상승을 제외했을 때 +1.49%(신뢰구간 -3.0~+5.9%)로 무너집니다. 지수를 끌어올린 초대형주는 이미 올라서 추가로 먹을 게 없었습니다. 1~10조 구간이 +6.46% 로 확실히 낫습니다  ▶ **왜 기관이 사면 빼는가**: 학습구간에서 기관 60일 순매수를 4등분했더니 가장 적게 산 구간이 초과 +7.10%, 가장 많이 산 구간이 +0.02% 였습니다. 외국인은 사는 쪽이 좋고 기관은 반대라는 뜻입니다. 이 조건 하나로 학습구간 신뢰구간이 음수에서 양수로 바뀌었습니다  ▶ **왜 60일인가**: 20·30·40·50·60일을 모두 재봤더니 길수록 단조롭게 좋아집니다(20일 +4.2% → 60일 +7.9%). 40일은 학습구간 신뢰구간이 0을 걸쳐 탈락했고 60일만 절대·초과 × 4구간 = 8셀을 전부 통과했습니다  ▶ ⚠ **손절이 도움이 안 됩니다**: 손절 없음 +7.91% · -25% 손절 +6.43% · -10% 손절 +4.26%. 60일 보유 중 -10% 정도의 출렁임은 흔해서 회복될 것까지 잘라냅니다. 대신 **최악이 -47.0%** 입니다 — 감당이 어려우면 -25% 손절로 1.5%p 를 내고 자를 수 있습니다  ▶ ⚠ **자금이 오래 묶입니다** — 60거래일은 약 3개월이고, 그 사이 시장이 하락장으로 바뀌기도 합니다(보유 중 코스피 60일선 아래였던 날 평균 21%)  ▶ ⚠ 승률 55%·중앙값 +2.1% 로, 자주 크게 이기는 규칙이 아니라 **평균이 조금씩 쌓이는 규칙**입니다  ▶ ⚠ **통계는 실거래 기준입니다** — 같은 종목이 보유기간 안에 다시 신호를 내도 재진입할 수 없으므로 그런 중복 신호를 뺀 건수·수익률입니다(원신호 5,144건 → 실거래 471건)',
+  {id:'P7',regime:'up',name:'P7 · 외인 매집',mkt:'KOSPI',desc:'**코스피 종목** · **코스피 60일선 위**(상승·횡보장에서만 열립니다) · **시가총액 1~10조**(초대형주는 제외 — 아래 참조) · **외국인 20일 누적 순매수 ≥ 거래량의 1%** · **기관 60일 누적 순매수 < 거래량의 0.4%**(기관이 살수록 성적이 나빴습니다 — 아래 참조) · **최근 2개월 평균 거래량이 1년 평균의 100~150%**(평소 수준 근처 · 극단적으로 늘거나 줄면 제외) · **52주 고점 대비 -15% 이내** · 최근 90일 내 유상증자·CB 공시 없음 · 우선주 제외  ▶ 매매: **다음날 시가 매수** · **60거래일 보유** 후 종가 매도 · 손절·익절 없음  ▶ **우리 규칙 중 유일하게 상승장에서 도는 두 번째 규칙**입니다(P1 에 이어). 나머지 규칙은 모두 코스피 60일선 아래에서만 열리므로, 규칙이 조용한 상승장 구간을 이 규칙이 채웁니다  ▶ 백테스트 2018~26(9년, 절대수익, **상장폐지 종목 포함**): 471건 평균 **+7.91%** / 중앙값 +2.1% / 승률 55% · **학습(2018~22) +6.54% → 검증(2023~26) +8.91%** · 월 단위 신뢰구간 **+4.9~+11.0%** · **2025~26 대세상승을 통째로 빼도 +6.46%**(신뢰구간 +2.7~+10.1%)  ▶ **같은 조건의 다른 종목보다 나은가**: 같은 날 같은 유니버스(상승장·코스피·시총 1~10조) 평균 대비 **초과수익 +3.43%**이고, **2018~26 여덟 해 모두 초과가 플러스**였습니다(최저 2019년 +1.0%). 학습 +3.42% · 검증 +3.43% · 붐 제외 +4.20% 로 구간별 편차도 거의 없습니다  ▶ **왜 초대형주를 빼는가**: 시총 10조 이상만 따로 재면 대세상승을 제외했을 때 +1.49%(신뢰구간 -3.0~+5.9%)로 무너집니다. 지수를 끌어올린 초대형주는 이미 올라서 추가로 먹을 게 없었습니다. 1~10조 구간이 +6.46% 로 확실히 낫습니다  ▶ **왜 기관이 사면 빼는가**: 학습구간에서 기관 60일 순매수를 4등분했더니 가장 적게 산 구간이 초과 +7.10%, 가장 많이 산 구간이 +0.02% 였습니다. 외국인은 사는 쪽이 좋고 기관은 반대라는 뜻입니다. 이 조건 하나로 학습구간 신뢰구간이 음수에서 양수로 바뀌었습니다  ▶ **왜 60일인가**: 20·30·40·50·60일을 모두 재봤더니 길수록 단조롭게 좋아집니다(20일 +4.2% → 60일 +7.9%). 40일은 학습구간 신뢰구간이 0을 걸쳐 탈락했고 60일만 절대·초과 × 4구간 = 8셀을 전부 통과했습니다  ▶ ⚠ **손절이 도움이 안 됩니다**: 손절 없음 +7.91% · -25% 손절 +6.43% · -10% 손절 +4.26%. 60일 보유 중 -10% 정도의 출렁임은 흔해서 회복될 것까지 잘라냅니다. 대신 **최악이 -47.0%** 입니다 — 감당이 어려우면 -25% 손절로 1.5%p 를 내고 자를 수 있습니다  ▶ ⚠ **자금이 오래 묶입니다** — 60거래일은 약 3개월이고, 그 사이 시장이 하락장으로 바뀌기도 합니다(보유 중 코스피 60일선 아래였던 날 평균 21%)  ▶ ⚠ 승률 55%·중앙값 +2.1% 로, 자주 크게 이기는 규칙이 아니라 **평균이 조금씩 쌓이는 규칙**입니다  ▶ ⚠ **통계는 실거래 기준입니다** — 같은 종목이 보유기간 안에 다시 신호를 내도 재진입할 수 없으므로 그런 중복 신호를 뺀 건수·수익률입니다(원신호 5,144건 → 실거래 471건)',
    alloc:{pct:4,max:5},
    rule:{hold:60,stop:null,target:null}, ruleText:'다음날 <em>시가 매수</em> · <em>60거래일</em> 보유 후 종가 매도 (손절·익절 <em>없음</em>)',
    stats:{n:273, perMonth:5.8, win:56, pf:2.31, avg:8.91, years:'**검증기간(2023~26) · 실거래 기준** · 2023 +5.6%(63건) / 2024 +7.3%(47건) / 2025 +11.1%(104건) / 2026 +9.9%(59건)  —  참고: 전체기간 471건 평균 +7.91% · 승률 55% (상장폐지 종목 포함)'},
@@ -352,7 +355,42 @@ const LEGACY_ID={1:'P0',2:'P2',3:'P3',4:'P1'};       // 아주 예전(2026-08 �
 // 'P1' 이라는 이름은 새 규칙(조용한 신고가)이 물려받았으므로, 옛 규칙 이력은 'P0' 로 분리해 보관한다.
 const RETIRED={P0:{name:'P0 · 옛 상승초입 (폐기)',mkt:'KOSPI',rule:{hold:10,stop:null,target:20}}};
 const normId=v=>LEGACY_ID[v]||v;
-const fcode=id=>normId(id);
+/* ── 규칙 표시 순서 ────────────────────────────────────────────
+   화면에 보이는 번호(P1·D1…)는 '순서에서 계산한' 표시용 값이고,
+   저장·조회에 쓰는 식별자(f.id)는 절대 바뀌지 않는다.
+   번호를 실제로 바꾸면 과거 매매 이력이 다른 규칙에 붙어 성적이 뒤섞인다. */
+let RORDER=null, RDRAG_AT=0;
+function loadROrder(){
+  if(RORDER)return RORDER;
+  try{RORDER=JSON.parse(localStorage.getItem('rorder')||'null')}catch(e){RORDER=null}
+  if(!RORDER||typeof RORDER!=='object')RORDER={};
+  return RORDER;
+}
+function saveROrder(){try{localStorage.setItem('rorder',JSON.stringify(RORDER))}catch(e){};pushRemote()}
+/* 시장별로 저장된 순서대로 정렬. 순서에 없는(새로 생긴) 규칙은 뒤에 붙는다. */
+function ordered(mkt){
+  const base=FILTERS.filter(f=>f.mkt===mkt);
+  const ord=(loadROrder()||{})[mkt];
+  if(!Array.isArray(ord)||!ord.length)return base;
+  const by={};base.forEach(f=>by[f.id]=f);
+  const out=[],seen=new Set();
+  ord.forEach(id=>{if(by[id]&&!seen.has(id)){out.push(by[id]);seen.add(id)}});
+  base.forEach(f=>{if(!seen.has(f.id))out.push(f)});
+  return out;
+}
+const orderedAll=()=>ordered('KOSPI').concat(ordered('KOSDAQ'));
+/* 표시 번호 — 순서에서 계산한다. 폐기 규칙(P0)처럼 목록에 없으면 원래 코드 그대로. */
+function codeOf(id){
+  const nid=normId(id);
+  for(const mkt of ['KOSPI','KOSDAQ']){
+    const i=ordered(mkt).findIndex(f=>f.id===nid);
+    if(i>=0)return (mkt==='KOSPI'?'P':'D')+(i+1);
+  }
+  return nid;
+}
+const fcode=id=>codeOf(id);
+/* 설명문 안의 규칙 참조(P4·D1…)도 현재 표시 번호로 바꿔 준다 */
+const descOf=f=>String(f.desc||'').replace(/(^|[^A-Za-z0-9])([PD][0-9])(?![0-9A-Za-z])/g,(m,pre,c)=>pre+codeOf(c));
 const fOf=id=>FILTERS.find(x=>x.id===normId(id))||RETIRED[normId(id)]||null;
 /* 2026-09-01 이름 정리: 폐기된 옛 P1(상승초입) 이력을 P0 으로 옮긴다.
    같은 'P1' 이름 아래 성격이 다른 두 규칙의 성적이 섞이는 것을 막기 위한 일회성 변환.
@@ -390,12 +428,13 @@ function passes(r){
   if(heldBy(r.ticker,cur))return false;
   return FILTERS.find(f=>f.id===cur).fn(r)}
 function renderTabs(){
-  const nrow=(f,cls,label,n,extra='')=>`<div class="it ${cls} ${cur===f?'on':''}" data-f="${f}">${extra}<span>${label}</span><span class="n">${n}</span></div>`;
+  const nrow=(f,cls,label,n,extra='',attr='')=>`<div class="it ${cls} ${cur===f?'on':''}" data-f="${f}"${attr}>${extra}<span>${label}</span><span class="n">${n}</span></div>`;
   const wait=view.rows.filter(r=>FILTERS.some(f=>f.fn(r)&&!heldBy(r.ticker,f.id))).length;
   /* 규칙 이름에 발현 장세를 색조로 — 상승장은 붉은기, 하락장은 푸른기 */
-  const rules=FILTERS.map(f=>nrow(f.id,(f.mkt==='KOSDAQ'?'kq ':'')+'rg-'+(f.regime||'down'),f.name.split(' · ')[1],
+  const rules=orderedAll().map(f=>nrow(f.id,(f.mkt==='KOSDAQ'?'kq ':'')+'rg-'+(f.regime||'down'),f.name.split(' · ')[1],
       view.rows.filter(r=>f.fn(r)&&!heldBy(r.ticker,f.id)).length,   /* 목록과 같은 기준 */
-      `<span class="bar"></span><span class="rid">${f.id}</span>`)).join('');
+      `<span class="bar"></span><span class="rid">${codeOf(f.id)}</span>`,
+      ` draggable="true" data-rule="${f.mkt}"`)).join('');
   $('#rail').innerHTML=
     `<div class="grp">`
     + nrow('pos','pos','보유 종목',positions().filter(p=>!p.sell).length)
@@ -406,7 +445,31 @@ function renderTabs(){
     + nrow('kp','','코스피 전체',view.rows.filter(r=>r.mk==='KOSPI').length,'<span class="bar"></span>')
     + nrow('kq','kq','코스닥 전체',view.rows.filter(r=>r.mk==='KOSDAQ').length,'<span class="bar"></span>') + `</div>`
     ;
-  document.querySelectorAll('#rail .it').forEach(b=>b.onclick=()=>{const f=b.dataset.f;
+  /* 규칙 행을 끌어 순서 변경 — 코스피↔코스닥은 서로 넘어가지 못한다.
+     바뀌는 건 '보이는 번호'뿐이고 저장되는 식별자(f.id)는 그대로다. */
+  (function(){
+    let src=null;
+    document.querySelectorAll('#rail .it[data-rule]').forEach(el=>{
+      el.ondragstart=e=>{src=el.dataset.f;RDRAG_AT=0;
+        e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',src)}catch(_){}};
+      el.ondragover=e=>{const a=fOf(src),b=fOf(el.dataset.f);
+        if(a&&b&&a.mkt===b.mkt){e.preventDefault();el.classList.add('rdrag')}};
+      el.ondragleave=()=>el.classList.remove('rdrag');
+      el.ondrop=e=>{e.preventDefault();el.classList.remove('rdrag');
+        const dst=el.dataset.f; if(!src||src===dst)return;
+        const a=fOf(src),b=fOf(dst); if(!a||!b||a.mkt!==b.mkt)return;   /* 시장이 다르면 무시 */
+        const ids=ordered(a.mkt).map(f=>f.id);
+        const i=ids.indexOf(src),j=ids.indexOf(dst);
+        if(i<0||j<0)return;
+        ids.splice(i,1); ids.splice(j,0,src);
+        RORDER=Object.assign(loadROrder(),{[a.mkt]:ids}); saveROrder();
+        RDRAG_AT=Date.now(); render()};
+      el.ondragend=()=>document.querySelectorAll('#rail .it').forEach(x=>x.classList.remove('rdrag'));
+    });
+  })();
+  document.querySelectorAll('#rail .it').forEach(b=>b.onclick=()=>{
+    if(Date.now()-RDRAG_AT<400)return;            /* 순서를 끈 직후의 클릭은 탭 이동이 아니다 */
+    const f=b.dataset.f;
     cur=f;
     rowLimit=100;
     if(f==='kp'||f==='kq'){sortKey='cap';desc=true}          /* 전체 종목은 시총 순 */
@@ -473,9 +536,9 @@ function renderCards(rows){
           <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
             <span class="nm">${r.name}</span>
             <span class="code" style="color:var(--dim);font-size:12px">${r.ticker}</span>
-            <span class="tag ${kq?'kq':''}">${f.id}</span>${(()=>{const hp=heldPos(r.ticker);if(!hp)return '';
+            <span class="tag ${kq?'kq':''}">${codeOf(f.id)}</span>${(()=>{const hp=heldPos(r.ticker);if(!hp)return '';
               const dd=heldDays(hp),pl=hp.price?((r.close/hp.price-1)*100):null;
-              const by=(hp.filters||[]).map(normId).join('·');
+              const by=(hp.filters||[]).map(codeOf).join('·');
               return `<span class="tag hold" title="${hp.date} 에 ${fmt(hp.price)}원으로 매수 기록됨 — 지금 이 규칙에 다시 걸렸습니다">${by?by+'로 ':''}보유 중${dd!=null?' '+dd+'일':''}${pl!=null?' · '+(pl>0?'+':'')+pl.toFixed(1)+'%':''}</span>`})()}</div>
           <div style="color:var(--mut);font-size:12px">${kq?'코스닥':'코스피'}${r.up?' · '+r.up:''}${r.cap?' · 시총 '+(r.cap>=10000?(r.cap/10000).toFixed(1)+'조':fmt(r.cap)+'억'):''}</div>
         </div>
@@ -512,7 +575,7 @@ function statsHtml(f){const t=f.stats;
     <span class="s-item info-card" id="infobtn2" title="규칙 상세 조건과 연도별 성적 보기">${showInfo?'✕':'ⓘ'}</span></div>`;
   if(!showInfo) return cards;
   return cards+`
-  <div style="margin-top:6px">${f.desc}</div>
+  <div style="margin-top:6px">${descOf(f)}</div>
   <div style="margin-top:4px;color:var(--mut)">연도별 순수익 — ${t.years}</div>`}
 // ===== 보유 종목(포지션) — localStorage =====
 let POS=(()=>{try{return JSON.parse(localStorage.getItem('positions')||'[]')}catch(e){return []}})();
@@ -585,8 +648,9 @@ const DEFAULT_PIN='bh-e0997ecc2798';  // 기본 공유 키(자동 동기화). PI
 function getPin(){try{return localStorage.getItem('pin')||DEFAULT_PIN}catch(e){return DEFAULT_PIN}}
 async function rpc(fn,body){const r=await fetch(`${SB.url}/rest/v1/rpc/${fn}`,{method:'POST',headers:{apikey:SB.key,Authorization:'Bearer '+SB.key,'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error(fn+' '+r.status);const t=await r.text();return t?JSON.parse(t):null}
 async function pullRemote(){const pin=getPin();if(!pin||!window.SB)return;try{const d=await rpc('kospi_state_get',{p_pin:pin});if(d&&d.colcfg&&Array.isArray(d.colcfg.hidden)){COLCFG=d.colcfg;try{localStorage.setItem('colcfg',JSON.stringify(COLCFG))}catch(e){}}
+    if(d&&d.rorder&&typeof d.rorder==='object'){RORDER=d.rorder;try{localStorage.setItem('rorder',JSON.stringify(RORDER))}catch(e){}}
     if(d&&Array.isArray(d.positions)&&d.positions.length){POS=d.positions;try{localStorage.setItem('positions',JSON.stringify(POS))}catch(e){}}else if(POS.length){await pushRemote()}}catch(e){console.warn('sync pull',e)}}
-async function pushRemote(){const pin=getPin();if(!pin||!window.SB)return;try{await rpc('kospi_state_set',{p_pin:pin,p_data:{positions:POS,colcfg:COLCFG}})}catch(e){alert('서버 저장 실패: '+e.message)}}
+async function pushRemote(){const pin=getPin();if(!pin||!window.SB)return;try{await rpc('kospi_state_set',{p_pin:pin,p_data:{positions:POS,colcfg:COLCFG,rorder:RORDER}})}catch(e){alert('서버 저장 실패: '+e.message)}}
 function savePositions(a){POS=a;try{localStorage.setItem('positions',JSON.stringify(a))}catch(e){};pushRemote()}
 async function setPin(){const cur_=getPin();const v=prompt('기기 간 공유용 PIN (4자 이상). 기본값이면 모든 기기가 자동 공유됩니다. 남과 분리하고 싶을 때만 바꾸세요.',cur_===DEFAULT_PIN?'':cur_);if(v==null)return;const pin=v.trim();if(pin.length<4){if(pin===''){try{localStorage.removeItem('pin')}catch(e){};await pullRemote();render();return}alert('4자 이상 입력하세요');return}
   try{localStorage.setItem('pin',pin)}catch(e){}
@@ -617,11 +681,16 @@ async function renderPositions(){
       const f=k==='전체'?null:fOf(k), kq=f&&f.mkt==='KOSDAQ';
       const avg=list.reduce((a,p)=>a+ret(p),0)/list.length, sum=list.reduce((a,p)=>a+pnl(p),0);
       return `<span class="dchip ${on?'on':''} ${kq?'kq':''}" data-r="${k}">`
-        +`<b>${k}</b><span class="c">${list.length}건</span>`
+        +`<b>${k==='전체'?k:codeOf(k)}</b><span class="c">${list.length}건</span>`
         +`<span class="${avg>0?'pos':'neg'}">${avg>0?'+':''}${avg.toFixed(1)}%</span>`
         +`<span class="${sum>0?'pos':'neg'}">${sum?kor(sum,1)+'원':'—'}</span></span>`};
+    /* 칩도 레일과 같은 순서로 — 목록에 없는 옛 규칙(P0 등)은 뒤에 */
+    const ordIds=orderedAll().map(f=>f.id);
+    const keys=Object.keys(by).sort((x,y)=>{
+      const a_=ordIds.indexOf(normId(x)),b_=ordIds.indexOf(normId(y));
+      return (a_<0?99:a_)-(b_<0?99:b_)||String(x).localeCompare(String(y))});
     const chips=[chip('전체',all,doneRule===null)].concat(
-      Object.keys(by).sort().map(k=>chip(k,by[k],doneRule===k))).join('');
+      keys.map(k=>chip(k,by[k],doneRule===k))).join('');
     $('#fdesc').innerHTML=`<div class="dsum">${chips}</div>`;
     document.querySelectorAll('.dchip').forEach(el=>el.onclick=()=>{
       doneRule=el.dataset.r==='전체'?null:el.dataset.r;render()});
@@ -809,7 +878,7 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
   /* 셀을 컬럼 id 로 만들어 cols 순서대로 출력한다 — 모바일 축약 시 머리글과 어긋나지 않게 */
   const cellOf=(r)=>({
     name:`<td class="l name">${r.name} <span class="code">${r.ticker}</span></td>`,
-    hits:`<td class="l">${FILTERS.filter(f=>f.fn(r)).map(f=>`<span class="tag ${f.mkt==='KOSDAQ'?'kq':''}">${f.id}</span>`).join('')}${heldPos(r.ticker)?'<span class="tag hold">보유</span>':''} <button class="ghost mini" data-buy="${r.ticker}">매수</button></td>`,
+    hits:`<td class="l">${orderedAll().filter(f=>f.fn(r)).map(f=>`<span class="tag ${f.mkt==='KOSDAQ'?'kq':''}">${codeOf(f.id)}</span>`).join('')}${heldPos(r.ticker)?'<span class="tag hold">보유</span>':''} <button class="ghost mini" data-buy="${r.ticker}">매수</button></td>`,
     cap:`<td class="sc">${r.cap==null?'':(r.cap>=10000?(r.cap/10000).toFixed(1)+'조':fmt(r.cap)+'억')}</td>`,
     r1m:`<td class="${cls(r.r1m)}">${r.r1m==null?'':(r.r1m>0?'+':'')+r.r1m.toFixed(1)+'%'}</td>`,
     r3m:`<td class="${cls(r.r3m)}">${r.r3m==null?'':(r.r3m>0?'+':'')+r.r3m.toFixed(1)+'%'}</td>`,

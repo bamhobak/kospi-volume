@@ -39,6 +39,12 @@ const RULES: Record<string, { stop: number | null; target: number | null; hold: 
   P0: { stop: null, target: 0.20, hold: 10 },   // 폐기된 옛 P1 — 이력 보존용
 };
 const LEGACY: Record<string, string> = { "1": "P0", "2": "P2", "3": "P3", "4": "P1" };
+// 알림에는 내부 id 대신 이름을 쓴다 — 화면의 번호는 사용자가 순서를 바꾸면 달라지기 때문
+const RNAME: Record<string, string> = {
+  P1: "조용한 신고가", P2: "조정매집", P3: "폭락반등", P4: "업종붕괴 이탈",
+  P5: "자사주 낙폭", P6: "깊은 이격", P7: "외인 매집",
+  D1: "낙폭과대", D2: "저PBR 낙폭", P0: "옛 상승초입(폐기)",
+};
 
 const num = (s: unknown): number | null => {
   if (s === null || s === undefined) return null;
@@ -185,25 +191,25 @@ Deno.serve(async (req) => {
         if (line && now <= line && !sent.has(`${id}:stop`)) {
           await telegram(`🛑 <b>${nm}</b> 손절선 이탈 (-${(rule.stop! * 100).toFixed(0)}%)\n` +
             `현재가 ${fmt(now)} (매수 ${fmt(price)}, ${ret >= 0 ? "+" : ""}${ret.toFixed(1)}%)\n` +
-            `손절선 ${fmt(line)} · 보유 ${days}거래일 · 규칙 ${rid}`);
+            `손절선 ${fmt(line)} · 보유 ${days}거래일 · 규칙 ${RNAME[rid] ?? rid}`);
           sent.add(`${id}:stop`); fired++;
         }
         if (tgt && now >= tgt && !sent.has(`${id}:target`)) {
           await telegram(`🎯 <b>${nm}</b> 익절 목표 도달 (+${(rule.target! * 100).toFixed(0)}%)\n` +
-            `현재가 ${fmt(now)} (매수 ${fmt(price)}, +${ret.toFixed(1)}%)\n보유 ${days}거래일 · 규칙 ${rid}`);
+            `현재가 ${fmt(now)} (매수 ${fmt(price)}, +${ret.toFixed(1)}%)\n보유 ${days}거래일 · 규칙 ${RNAME[rid] ?? rid}`);
           sent.add(`${id}:target`); fired++;
         }
         // 매수 후 3거래일 넘게 이익 중이면 한 번 알린다 (prices.py 와 같은 조건)
         if (days >= 3 && ret > 0 && !sent.has(`${id}:add`)) {
           await telegram(`🔥 <b>${nm}</b> 추가매수 고려 — 매수 후 ${days}거래일째 이익 중 (+${ret.toFixed(1)}%)
 ` +
-            `현재가 ${fmt(now)} (매수 ${fmt(price)}) · 규칙 ${rid}`);
+            `현재가 ${fmt(now)} (매수 ${fmt(price)}) · 규칙 ${RNAME[rid] ?? rid}`);
           sent.add(`${id}:add`); fired++;
         }
         if (days >= rule.hold && !sent.has(`${id}:hold`)) {
           await telegram(`⏰ <b>${nm}</b> 보유 ${days}거래일째 — 규칙상 매도일\n` +
             `현재가 ${fmt(now)} (매수 ${fmt(price)}, ${ret >= 0 ? "+" : ""}${ret.toFixed(1)}%)\n` +
-            `고점 ${fmt(hi)} · 규칙 ${rid} (${rule.hold}거래일 보유)`);
+            `고점 ${fmt(hi)} · 규칙 ${RNAME[rid] ?? rid} (${rule.hold}거래일 보유)`);
           sent.add(`${id}:hold`); fired++;
         }
       }
