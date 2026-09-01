@@ -177,6 +177,13 @@ Deno.serve(async (req) => {
             `현재가 ${fmt(now)} (매수 ${fmt(price)}, +${ret.toFixed(1)}%)\n보유 ${days}거래일 · 규칙 ${rid}`);
           sent.add(`${id}:target`); fired++;
         }
+        // 매수 후 3거래일 넘게 이익 중이면 한 번 알린다 (prices.py 와 같은 조건)
+        if (days >= 3 && ret > 0 && !sent.has(`${id}:add`)) {
+          await telegram(`🔥 <b>${nm}</b> 추가매수 고려 — 매수 후 ${days}거래일째 이익 중 (+${ret.toFixed(1)}%)
+` +
+            `현재가 ${fmt(now)} (매수 ${fmt(price)}) · 규칙 ${rid}`);
+          sent.add(`${id}:add`); fired++;
+        }
         if (days >= rule.hold && !sent.has(`${id}:hold`)) {
           await telegram(`⏰ <b>${nm}</b> 보유 ${days}거래일째 — 규칙상 매도일\n` +
             `현재가 ${fmt(now)} (매수 ${fmt(price)}, ${ret >= 0 ? "+" : ""}${ret.toFixed(1)}%)\n` +
