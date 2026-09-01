@@ -638,7 +638,7 @@ async function renderPositions(){
   const pr=p=>(p.sell/p.price-1)*100;
   /* 셀을 배열로 만들어 KEEP 인덱스만 출력한다 — 모바일에서 머리글과 어긋나지 않게 */
   $('#tbl tbody').innerHTML=rows.map(({p,now,hi,days,line,tgt,ret,st,sc,streak,rule,useLive,lvDate})=>{
-    const nowCell=`${fmt(now)}${(()=>{const lv=live.prices[p.code];return useLive?`<div class="code">${md(lvDate)} ${lv.at.slice(11,16)} ${lv.status==='OPEN'?'장중':'마감'}</div>`:`<div class="code">${md(lastD)} 종가</div>`})()}`;
+    const nowCell=fmt(now);
     const cells=[
       `<td class="l name">${p.name} <span class="code">${p.code}</span>`
         +`${MOB?'':` <button class="ghost mini pdet" data-detail="${p.code}">상세</button>`}</td>`,
@@ -658,6 +658,15 @@ async function renderPositions(){
   const closed=rows.filter(r=>r.p.sell);const realized=closed.reduce((a,r)=>a+pr(r.p),0);
   const inv=open_.reduce((a,r)=>a+(r.p.qty||0)*r.p.price,0),pnl=open_.reduce((a,r)=>a+((r.p.qty&&r.now)?(r.now-r.p.price)*r.p.qty:0),0);
   $('#status').textContent=DONE?`매도 완료 ${closed.length}건 · 합산 수익률 ${realized>0?'+':''}${realized.toFixed(1)}% · 건당 평균 ${closed.length?(realized/closed.length>0?'+':'')+(realized/closed.length).toFixed(2):'0'}%`:`보유 ${open_.length}종목 평균 ${avg>0?'+':''}${avg.toFixed(1)}%${inv?` · 매수금액 ${kor(inv)}원 · 평가손익 ${kor(pnl,1)}원`:''}${closed.length?` · 매도 완료 ${closed.length}건 합산 ${realized>0?'+':''}${realized.toFixed(1)}%`:''} · 장중 시세 ${live.updated?live.updated.slice(5)+' 갱신 (평일 09~16시 5분 간격)':'없음'}`;
+  /* 행을 누르면 상세 패널이 열린다 — 모바일에서는 이 패널이 전체 화면(새 탭처럼)이다 */
+  document.querySelectorAll('tbody tr[data-pc]').forEach(tr=>tr.onclick=()=>{
+    sel=tr.dataset.pc;render();showStock(sel)});
+  document.querySelectorAll('.pdet[data-detail]').forEach(b=>b.onclick=e=>{
+    e.preventDefault();e.stopPropagation();
+    const base=location.href.split('?')[0].split('#')[0];
+    const w=window.open(base+'?detail='+b.dataset.detail,'detail_'+b.dataset.detail,
+                        'width=560,height=920,scrollbars=yes,resizable=yes');
+    if(w)w.focus(); else alert('팝업이 차단되었습니다. 브라우저에서 이 사이트의 팝업을 허용해주세요.');});
   document.querySelectorAll('[data-sell]').forEach(b=>b.onclick=e=>{e.stopPropagation();const a=positions();const p=a.find(x=>x.id==b.dataset.sell);const r=rows.find(r=>r.p.id==p.id);
     const sell=+prompt(`${p.name} 매도가 (원)`,r.now||p.price);if(!sell)return;p.sell=sell;p.sellDate=raw.dates[raw.dates.length-1];savePositions(a);render()});
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=e=>{e.stopPropagation();if(!confirm('삭제할까요?'))return;savePositions(positions().filter(x=>x.id!=b.dataset.del));render()});
@@ -828,15 +837,6 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
     })}
   /* 상세 버튼 → 새 창. tbody 를 innerHTML+= 로 다시 만든 뒤에 붙여야 핸들러가 살아남는다 */
   document.querySelectorAll('[data-detail]').forEach(b=>b.onclick=e=>{
-    e.preventDefault();e.stopPropagation();
-    const base=location.href.split('?')[0].split('#')[0];
-    const w=window.open(base+'?detail='+b.dataset.detail,'detail_'+b.dataset.detail,
-                        'width=560,height=920,scrollbars=yes,resizable=yes');
-    if(w)w.focus(); else alert('팝업이 차단되었습니다. 브라우저에서 이 사이트의 팝업을 허용해주세요.');});
-  /* 행을 누르면 상세 패널이 열린다 — 모바일에서는 이 패널이 전체 화면(새 탭처럼)이다 */
-  document.querySelectorAll('tbody tr[data-pc]').forEach(tr=>tr.onclick=()=>{
-    sel=tr.dataset.pc;render();showStock(sel)});
-  document.querySelectorAll('.pdet[data-detail]').forEach(b=>b.onclick=e=>{
     e.preventDefault();e.stopPropagation();
     const base=location.href.split('?')[0].split('#')[0];
     const w=window.open(base+'?detail='+b.dataset.detail,'detail_'+b.dataset.detail,
