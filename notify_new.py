@@ -97,7 +97,7 @@ FILTERS = [
      and (r.get("c") or 0) >= 1000
      and r.get("dilu") is not True and r.get("disc") is not True),
 
-    ("P7", "외인 매집 (코스피·60일 보유·상승장)",
+    ("P7", "외인 매집 (코스피·60일 보유·상승장·내부자)",
      lambda r: r.get("mk") == "KOSPI" and not r["pref"]
      and kospi.get("up60") is True
      and r.get("cap") is not None and 10000 <= r["cap"] < 100000
@@ -105,6 +105,7 @@ FILTERS = [
      and r.get("ow60") is not None and r["ow60"] < 0.4
      and (r.get("a1") and r.get("a6") and 100 <= r["a1"] / r["a6"] * 100 < 150)
      and r.get("fromhi") is not None and r["fromhi"] >= -15
+     and (r.get("ins60") or 0) > 0
      and r.get("dilu") is not True and r.get("disc") is not True),
 
     ("P6", "깊은 이격 (코스피·5일 보유·손절 -10%·하락장)",

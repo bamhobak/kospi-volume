@@ -3,6 +3,7 @@
    ① 공매도 비중 최근 40거래일 → data/short_recent.csv
    ② 유상증자·CB 공시 최근 120일 → data/dilution_recent.csv
    ③ 자사주 직접취득 결정 최근 120일 → data/buyback_recent.csv (P5 규칙용, 같은 스윕에서 추출)
+   ④ 임원·주요주주 소유상황보고 최근 130일 → data/insider_recent.csv (P7 규칙용)
    둘 다 작아서 리포지토리에 커밋 가능. 과거 전체는 로컬 DB(백테스트용)에만 둔다.
 사용: python collect_daily_extra.py   (KIS_APP_KEY/KIS_APP_SECRET/DART_API_KEY 환경변수 또는 .env)
 """
@@ -117,5 +118,42 @@ def dilution_recent():
         w.writerows(sorted(set(bb_rows)))
     log.info(f"자사주 공시 저장: {outb.name} ({len(set(bb_rows)):,}건)")
 
+def insider_recent():
+    """임원·주요주주 특정증권등 소유상황보고서 최근 130일 → data/insider_recent.csv
+       P7 규칙의 ins60(최근 60거래일 내부자 신고 건수) 재료.
+       공시 전체 DB(disclosures.db, 194MB)는 러너에 없으므로 최근분만 매일 받는다.
+       지분공시는 pblntf_ty='D' 이고 DART 는 조회구간을 3개월로 제한하므로 나눠 받는다."""
+    K = env("DART_API_KEY")
+    if not K: log.warning("DART 키 없음 — 내부자 공시 건너뜀"); return
+    rows = []
+    for cls in ("Y", "K"):
+        for off in (0, 65, 130):
+            b = (today - dt.timedelta(days=130 - off)).strftime("%Y%m%d")
+            e = (today - dt.timedelta(days=max(0, 130 - off - 65))).strftime("%Y%m%d")
+            page = 1
+            while page <= 60:
+                try:
+                    d = requests.get("https://opendart.fss.or.kr/api/list.json",
+                        params={"crtfc_key": K, "bgn_de": b, "end_de": e, "corp_cls": cls,
+                                "pblntf_ty": "D", "page_no": page, "page_count": 100},
+                        timeout=30).json()
+                except Exception as ex_:
+                    log.warning(f"DART 지분공시 {b}~{e} p{page}: {str(ex_)[:40]}"); break
+                if d.get("status") != "000": break
+                for x in d.get("list") or []:
+                    nm = (x.get("report_nm") or "").replace(" ", "")
+                    # 정정본은 원본과 중복되므로 제외. 거래계획보고서는 실제 변동이 아니다.
+                    if ("임원" in nm and "소유상황" in nm and "정정" not in nm
+                            and x.get("stock_code")):
+                        rows.append((x["rcept_dt"], x["stock_code"], (x.get("flr_nm") or "")[:40]))
+                if page >= int(d.get("total_page") or 1): break
+                page += 1
+    out = BASE / "data" / "insider_recent.csv"
+    with open(out, "w", encoding="utf-8", newline="") as fh:
+        w = csv.writer(fh); w.writerow(["rcept_dt", "ticker", "reporter"])
+        w.writerows(sorted(set(rows)))
+    log.info(f"내부자 공시 저장: {out.name} ({len(set(rows)):,}건)")
+
 if "--dart-only" not in sys.argv: short_recent()
 if "--kis-only" not in sys.argv: dilution_recent()
+if "--kis-only" not in sys.argv: insider_recent()

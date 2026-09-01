@@ -148,7 +148,7 @@ jobs:
       - name: commit monthly csv
         run: |
           git config user.name "kospi-bot"; git config user.email "bot@users.noreply.github.com"
-          git add data/20*.csv data/short_recent.csv data/dilution_recent.csv data/buyback_recent.csv data/sector.csv data/industry.csv data/valuation.csv
+          git add data/20*.csv data/short_recent.csv data/dilution_recent.csv data/buyback_recent.csv data/insider_recent.csv data/sector.csv data/industry.csv data/valuation.csv
           git diff --cached --quiet || (git commit -m "data: $(TZ=Asia/Seoul date +%Y-%m-%d)" && git pull --rebase && git push)
       - uses: actions/upload-pages-artifact@v3
         with: { path: site }

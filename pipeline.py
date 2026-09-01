@@ -348,6 +348,21 @@ def buyback_flags(last_date):
             if r["rcept_dt"] == last_date: out.add(r["ticker"])
     return out
 
+def insider_counts(dates, n=60):
+    """최근 n거래일 안에 임원·주요주주 소유상황보고가 몇 건 있었나 (종목별).
+       P7 규칙이 쓴다 — 정보 우위 주체가 움직인 종목만 남기는 필터.
+       공시 전체 DB 는 러너에 없으므로 collect_daily_extra.py 가 받아 둔
+       data/insider_recent.csv(최근 130일) 를 쓴다."""
+    f = DATA / "insider_recent.csv"
+    if not f.exists(): return {}
+    lo = dates[max(0, len(dates) - n)]          # n거래일 전 날짜
+    out = {}
+    with open(f, encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            if r["rcept_dt"] >= lo:
+                out[r["ticker"]] = out.get(r["ticker"], 0) + 1
+    return out
+
 def build_site():
     (SITE / "data" / "stock").mkdir(parents=True, exist_ok=True)
     for f in (SITE / "data" / "stock").glob("*.json"): f.unlink()
@@ -366,6 +381,7 @@ def build_site():
     SF = short_flags(dates)
     DILU = dilution_flags(dates[-1])
     BB = buyback_flags(dates[-1])
+    INS = insider_counts(dates)
     C2Y = ret2y_map(dates)
     DBT = load_debt_ratio()
     PB = load_pbr_dart()
@@ -484,6 +500,7 @@ def build_site():
                       "srDown": (SF.get(s["ticker"]) or {}).get("srDown"),
                       "dilu": s["ticker"] in DILU,
                       "bb": s["ticker"] in BB,
+                      "ins60": INS.get(s["ticker"], 0),
                       "dbt": DBT.get(s["ticker"]),
                       "pbrd": (lambda v: round(last[1] * v[0] / v[1], 3) if (v and v[1] and last[1]) else None)(PB.get(s["ticker"])),
                       "th": sorted(TH.get(s["ticker"], []), key=lambda g: -TRET.get(g, 0))[:6]})

@@ -22,3 +22,6 @@ data/delisted_kd.db
 supabase/cron.sql
 supabase/_*.sql
 prices_local.log
+data/dart/insider.db
+insider_collect.log
+insider_task.log
