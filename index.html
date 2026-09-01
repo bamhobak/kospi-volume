@@ -610,7 +610,7 @@ async function renderPositions(){
       doneRule=el.dataset.r==='전체'?null:el.dataset.r;render()});
     if(doneRule)ps=ps.filter(p=>rid(p)===doneRule);
   }
-  await pullLive(); const live=LIVE;
+  await pullLive(false); const live=LIVE;   /* 탭 전환마다 새로 받지 않는다 — 접속 시와 10분 주기에만 갱신 */
   const lastD=raw.dates[raw.dates.length-1];
   const MOB=isMobile();
   const cols=['종목','규칙','매수일','매수가','수량','매수금액','현재가','수익률','평가손익','보유일','고점|매수 후 최고가 — 매수가와 매수일 이후 일별 종가, 오늘 실시간 고가 중 최댓값','손절/익절선','신호 유지','상태','매도가/손익',''];
@@ -704,8 +704,24 @@ async function load(){
   setInterval(async()=>{await pullLive();mktBadge();
     if(cur==='pos'||cur==='done')render()},600000)}
 let LIVE={updated:'',prices:{},index:null};      /* 10분마다 갱신되는 실시간 스냅샷 */
-async function pullLive(){try{const d=await rpc('kospi_state_get',{p_pin:'__prices__'});
-  if(d&&d.prices)LIVE=d}catch(e){}}
+/* 시세를 새로 받아온다.
+   네이버 API 는 브라우저 출처를 403 으로 막기 때문에 페이지가 직접 못 받는다 —
+   Supabase Edge Function 이 서버에서 받아 저장하고 돌려준다(접속할 때마다 최신).
+   함수가 실패하면 마지막으로 저장된 값이라도 읽어 화면이 비지 않게 한다. */
+async function pullLive(fresh){
+  if(fresh!==false&&window.SB){
+    try{
+      const r=await fetch(`${SB.url}/functions/v1/prices`,{method:'POST',
+        headers:{apikey:SB.key,Authorization:'Bearer '+SB.key,'Content-Type':'application/json'},
+        body:'{}'});
+      if(r.ok){const d=await r.json();
+        if(d&&d.prices&&!d.error){LIVE=d;return true}}
+    }catch(e){console.warn('시세 갱신 실패 — 저장값 사용',e)}
+  }
+  try{const d=await rpc('kospi_state_get',{p_pin:'__prices__'});
+    if(d&&d.prices)LIVE=d}catch(e){}
+  return false;
+}
 /* 헤더 상태줄 — 어느 탭에 있든 같은 값을 보여준다 (보유 요약 + 갱신 시각) */
 function renderStatus(){
   const el=$('#status'); if(!el)return;

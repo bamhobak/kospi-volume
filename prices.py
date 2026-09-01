@@ -3,7 +3,8 @@
 - 신호: 필터별 — 1번 10일·익절20%(손절 없음) / 2번 10일(손절 없음)
 - 알림 중복 방지: Supabase '__alerts__' 에 보낸 키 기록
 - 텔레그램: 환경변수 TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (GitHub Secrets) 없으면 알림 생략
-(GitHub Actions에서 평일 장중 10분마다 실행, push 시 설정 확인 핑)
+(평일 장중 10분마다 실행 — PC 작업 스케줄러 'BamhobakPricesLive' 가 주 경로,
+ GitHub Actions 예약은 유실이 잦아 보조. push 시 설정 확인 핑)
 """
 import re, os, csv, sys, time, datetime as dt
 from pathlib import Path
@@ -14,7 +15,17 @@ js = (BASE / "assets" / "sb.js").read_text(encoding="utf-8")
 URL = re.search(r"url:'([^']+)'", js).group(1); KEY = re.search(r"key:'([^']+)'", js).group(1)
 H = {"apikey": KEY, "Authorization": f"Bearer {KEY}", "Content-Type": "application/json"}
 NAVER = {"User-Agent": "Mozilla/5.0"}
-TG_TOKEN, TG_CHAT = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
+def _env(k):
+    """환경변수 우선, 없으면 .env (로컬 작업 스케줄러 실행용 — Actions 에는 Secrets 가 있다)"""
+    v = os.environ.get(k)
+    if v: return v
+    f = BASE / ".env"
+    if f.exists():
+        for ln in f.read_text(encoding="utf-8").splitlines():
+            if ln.startswith(k + "="): return ln.split("=", 1)[1].strip()
+    return None
+
+TG_TOKEN, TG_CHAT = _env("TELEGRAM_BOT_TOKEN"), _env("TELEGRAM_CHAT_ID")
 HOLD_DAYS = 10
 RULES = {"P1": {"stop": 0.15, "target": None, "hold": 40}, "P4": {"stop": 0.15, "target": None, "hold": 5}, "P2": {"stop": None, "target": None, "hold": 10},
          "P3": {"stop": None, "target": None, "hold": 20}, "D1": {"stop": None, "target": None, "hold": 20},
