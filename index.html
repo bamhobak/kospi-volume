@@ -93,10 +93,11 @@ header{flex:none}
 .rail .it.pos{border-color:#f8717155}.rail .it.pos.on{border-color:var(--up)}.rail .it.pos.on .n{color:var(--up)}
 .rail .it.done.on{border-color:var(--org)}.rail .it.done.on .n{color:var(--org)}
 .rail .it .rid{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:11px;width:20px;color:var(--acc)}
-/* 발현 장세 색조 — 회색 기준에서 살짝만. 켜진 행은 원래대로 밝게 둔다 */
-.rail .it.rg-up{color:#9d8891}.rail .it.rg-down{color:#7f8a9c}
-.rail .it.rg-up:hover{color:#c39aa4}.rail .it.rg-down:hover{color:#93a4bd}
-.rail .it.rg-up.on,.rail .it.rg-down.on{color:var(--txt)}
+/* 발현 장세는 왼쪽 세로 막대 색으로 — 상승장 붉은색, 하락장 파란색.
+   글자는 회색 그대로 두어 목록이 균질하게 읽힌다.
+   시장 구분(코스피/코스닥)은 규칙 코드 색이 계속 담당한다(.it.kq .rid). */
+.rail .it.rg-up .bar{background:var(--up)}
+.rail .it.rg-down .bar{background:var(--dn)}
 .rail .it.kq .rid{color:var(--ind)}
 .rail .sec{padding:11px;background:var(--panel2);border:1px solid var(--line)}
 .rail .sec .row{display:flex;justify-content:space-between;font-size:11px;margin-top:5px}
