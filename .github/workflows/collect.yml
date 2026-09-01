@@ -1,7 +1,12 @@
 name: collect-and-deploy
 on:
   schedule:
-    - cron: "30 9 * * 1-5"   # 18:30 KST (UTC+9) 평일
+    # GitHub 의 예약 실행은 부하에 따라 수 시간 지연되거나 유실된다(실측 최대 7h41m,
+    # 2026-08-31 월요일치 유실). 그래서 하루 세 번 걸어두고, 받을 게 없으면
+    # is_trading_day.py 가 false 를 내어 스스로 빠진다(중복 수집 없음).
+    - cron: "30 9 * * 1-5"    # 18:30 KST 평일 — 본 수집
+    - cron: "30 12 * * 1-5"   # 21:30 KST 평일 — 1차 보충
+    - cron: "0 22 * * 0-4"    # 다음날 07:00 KST — 2차 보충(전날치 놓쳤을 때)
   workflow_dispatch:
     inputs:
       force:
@@ -24,9 +29,10 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install -r requirements.txt
-      # 주말·공휴일(설날·추석 등)엔 수집하지 않는다. cron 의 1-5 는 월~금만 거를 뿐
-      # 공휴일은 못 거른다 — 코스피 지수에 오늘 봉이 있는지로 판정한다.
-      - name: 영업일 판정
+      # 코스피 지수의 최신 거래일이 우리가 가진 최신 거래일보다 앞서면 수집한다.
+      # '오늘 장이 열렸나' 가 아니라 '못 받은 날이 있나' 로 보기 때문에,
+      # 실행이 자정을 넘겨 지연돼도 전날치를 정상적으로 받아온다.
+      - name: 수집 필요 판정 (못 받은 거래일이 있는가)
         id: td
         env: { TZ: Asia/Seoul }
         run: |
