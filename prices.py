@@ -57,8 +57,22 @@ for c in codes:
     except Exception as e:
         print("실패", c, e)
     time.sleep(0.2)
-rpc("kospi_state_set", {"p_pin": "__prices__", "p_data": {"updated": now_kst.strftime("%Y-%m-%d %H:%M"), "prices": prices}})
-print("저장:", now_kst.strftime("%H:%M"), {c: p["now"] for c, p in prices.items()})
+# 2-b) 코스피·코스닥 지수 (화면 배지용 — 규칙 판정에는 쓰지 않는다. 규칙은 종가 기준)
+index = {}
+for key, code in (("kospi", "KOSPI"), ("kosdaq", "KOSDAQ")):
+    try:
+        d = requests.get(f"https://polling.finance.naver.com/api/realtime/domestic/index/{code}",
+                         headers=NAVER, timeout=10).json()["datas"][0]
+        index[key] = {"now": num(d["closePrice"]), "chg": num(d.get("compareToPreviousClosePrice")),
+                      "pct": num(d.get("fluctuationsRatio")), "at": d.get("localTradedAt", ""),
+                      "status": d.get("marketStatus", "")}
+    except Exception as e:
+        print("지수 실패", code, e)
+    time.sleep(0.2)
+
+rpc("kospi_state_set", {"p_pin": "__prices__", "p_data": {"updated": now_kst.strftime("%Y-%m-%d %H:%M"), "prices": prices, "index": index}})
+print("저장:", now_kst.strftime("%H:%M"), {c: p["now"] for c, p in prices.items()},
+      "지수", {k: v["now"] for k, v in index.items()})
 
 # 3) 매도 신호 — 일별 종가 이력(data/*.csv)으로 고점·보유일 계산 + 장중 고가 반영
 if positions:

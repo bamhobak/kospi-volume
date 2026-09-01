@@ -601,7 +601,7 @@ async function renderPositions(){
       doneRule=el.dataset.r==='전체'?null:el.dataset.r;render()});
     if(doneRule)ps=ps.filter(p=>rid(p)===doneRule);
   }
-  let live={updated:'',prices:{}};try{const d=await rpc('kospi_state_get',{p_pin:'__prices__'});if(d&&d.prices)live=d}catch(e){}
+  await pullLive(); const live=LIVE;
   const lastD=raw.dates[raw.dates.length-1];
   const MOB=isMobile();
   const cols=['종목','규칙','매수일','매수가','수량','매수금액','현재가','수익률','평가손익','보유일','고점|매수 후 최고가 — 매수가와 매수일 이후 일별 종가, 오늘 실시간 고가 중 최댓값','손절/익절선','신호 유지','상태','매도가/손익',''];
@@ -684,13 +684,27 @@ async function load(){
     document.title=(r?r.n+' · ':'')+'상세 · 밤호박 종목 선별기';
     await showStock(DETAIL); return;
   }
-  await pullRemote();raw=await (await fetch('data/table.json?v='+Date.now())).json();prep();render();mktBadge()}
+  await pullRemote();raw=await (await fetch('data/table.json?v='+Date.now())).json();prep();render();
+  await pullLive();mktBadge();
+  /* 열어둔 화면도 10분마다 지수·현재가를 따라가게 한다 */
+  setInterval(async()=>{await pullLive();mktBadge();
+    if(cur==='pos'||cur==='done')render()},600000)}
+let LIVE={updated:'',prices:{},index:null};      /* 10분마다 갱신되는 실시간 스냅샷 */
+async function pullLive(){try{const d=await rpc('kospi_state_get',{p_pin:'__prices__'});
+  if(d&&d.prices)LIVE=d}catch(e){}}
 function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none';return}
   /* 지수는 값만 보여준다. 이평선은 규칙 활성 여부와 함께 상태 칩에서 한 번에 안내한다.
      코스닥 20일선은 어떤 규칙도 쓰지 않아 표시하지 않는다 (D1 도 코스피 60일선을 본다). */
+  /* 숫자는 10분 간격 실시간값이 있으면 그걸 쓰고, 화살표(20일선 위/아래)는 규칙과 같은
+     종가 기준을 유지한다 — 장중 값으로 규칙 게이트가 흔들리면 안 되기 때문이다. */
+  const ix=LIVE.index||{};
+  const kv=(ix.kospi&&ix.kospi.now)||k.close, qv=(ix.kosdaq&&ix.kosdaq.now)||k.kq;
+  const t=(ix.kospi&&ix.kospi.at)?ix.kospi.at.slice(11,16):'';
   el.className='mkt '+(k.up20?'up':'dn');
-  el.innerHTML=`${k.up20?'▲':'▼'} 코스피 ${k.close.toLocaleString()}`
-    +(k.kq?` &nbsp;<span class="mkt ${k.kqUp20?'up':'dn'}" style="margin-left:6px">${k.kqUp20?'▲':'▼'} 코스닥 ${k.kq.toLocaleString()}</span>`:'')}
+  el.title=t?`${t} 기준 실시간 지수 (10분 간격) · 화살표는 20일선 위/아래로 종가 기준`
+             :'전 거래일 종가 기준';
+  el.innerHTML=`${k.up20?'▲':'▼'} 코스피 ${kv.toLocaleString()}`
+    +(qv?` &nbsp;<span class="mkt ${k.kqUp20?'up':'dn'}" style="margin-left:6px">${k.kqUp20?'▲':'▼'} 코스닥 ${qv.toLocaleString()}</span>`:'')}
 function prep(){const n=7,D=raw.dates,k=Math.max(0,D.length-n);view.dates=D.slice(k);
   view.rows=raw.rows.map(r=>{const vols=r.v.slice(k),valid=vols.filter(x=>x!=null);const sum=a=>a.slice(k).reduce((x,y)=>x+(y||0),0);
     const prev=vols.slice(0,-1).filter(x=>x!=null),last=vols[vols.length-1];const avg=valid.length?valid.reduce((a,b)=>a+b,0)/valid.length:0;
