@@ -98,9 +98,24 @@ async function history(code: string): Promise<[string, number][]> {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   const t0 = Date.now();
-  const wantAlerts = new URL(req.url).searchParams.get("alerts") !== "0";
+  const q = new URL(req.url).searchParams;
+  const wantAlerts = q.get("alerts") !== "0";
   try {
     const { stamp, today } = kst();
+
+    // ?ping=1 — 텔레그램 연결 확인용. 시세만 받아 한 줄 보내고 끝낸다.
+    if (q.get("ping") === "1") {
+      const kp = await naver("index/KOSPI").catch(() => null);
+      await telegram(`🔔 <b>알림 연결 확인</b> (${stamp})
+` +
+        `이제 PC·브라우저가 꺼져 있어도 평일 09:00~15:40 10분마다 서버가 시세를 확인합니다.
+` +
+        `손절·익절·추가매수·매도일 조건에 걸리면 이 대화로 알려드립니다.` +
+        (kp ? `
+코스피 ${num(kp.closePrice)?.toLocaleString("en-US")}` : ""));
+      return new Response(JSON.stringify({ ping: "sent", at: stamp, hasToken: !!TG_TOKEN, hasChat: !!TG_CHAT }),
+        { headers: { ...CORS, "Content-Type": "application/json" } });
+    }
 
     // 1) 보유 종목 (모든 PIN, 미매도)
     const positions: any[] = (await rpc("kospi_state_positions", {})) ?? [];

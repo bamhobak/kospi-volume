@@ -742,8 +742,9 @@ function renderStatus(){
   const avg=rets.length?rets.reduce((a,b)=>a+b,0)/rets.length:0;
   const realized=closed.reduce((a,p)=>a+(p.sell/p.price-1)*100,0);
   el.innerHTML=g('보유',open_.length+'종목')
+    +(inv?g('매수금액',kor(inv)+'원'):'')
     +(rets.length?g('평균',(avg>0?'+':'')+avg.toFixed(1)+'%',cls(avg)):'')
-    +(inv?g('매수금액',kor(inv)+'원')+g('평가손익',kor(pnl,1)+'원',cls(pnl)):'')
+    +(inv?g('평가손익',kor(pnl,1)+'원',cls(pnl)):'')
     +(closed.length?g('완료',closed.length+'건 '+(realized>0?'+':'')+realized.toFixed(1)+'%',cls(realized)):'')
     +g('장중 시세',LIVE.updated?LIVE.updated.slice(5):'없음',LIVE.updated?'':'off')
     +g('데이터',(raw.updated||'').slice(5)||'—');
