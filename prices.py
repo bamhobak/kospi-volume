@@ -3,7 +3,7 @@
 - 신호: 필터별 — 1번 10일·익절20%(손절 없음) / 2번 10일(손절 없음)
 - 알림 중복 방지: Supabase '__alerts__' 에 보낸 키 기록
 - 텔레그램: 환경변수 TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (GitHub Secrets) 없으면 알림 생략
-(GitHub Actions에서 평일 장중 5분마다 실행, push 시 설정 확인 핑)
+(GitHub Actions에서 평일 장중 10분마다 실행, push 시 설정 확인 핑)
 """
 import re, os, csv, sys, time, datetime as dt
 from pathlib import Path
@@ -39,7 +39,7 @@ def telegram(text):
     print("텔레그램:", r.status_code)
 
 if "--ping" in sys.argv:
-    telegram(f"🔔 GitHub Actions 알림 설정 확인 OK ({now_kst:%m/%d %H:%M})\n평일 09:00~15:55 5분마다 보유 종목 시세를 확인합니다.")
+    telegram(f"🔔 GitHub Actions 알림 설정 확인 OK ({now_kst:%m/%d %H:%M})\n평일 09:00~15:40 10분마다 보유 종목 시세와 지수를 확인합니다.")
 
 # 1) 보유 종목 (모든 PIN, 미매도)
 positions = rpc("kospi_state_positions", {}) or []

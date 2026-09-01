@@ -1,7 +1,9 @@
 name: intraday-prices
 on:
   schedule:
-    - cron: "*/10 0-6 * * 1-5"   # KST 09:00~15:50 평일, 10분 간격
+    # KST 09:00~15:40 평일, 10분 간격 (장 마감 15:30 이후 10분까지만 확인)
+    - cron: "*/10 0-5 * * 1-5"            # KST 09:00~14:50
+    - cron: "0,10,20,30,40 6 * * 1-5"     # KST 15:00~15:40
   workflow_dispatch:
   push:
     paths: [prices.py, .github/workflows/prices.yml]

@@ -18,7 +18,16 @@ button{background:var(--acc);border:0;color:#0a0b0e;border-radius:0;padding:8px 
 button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
 #q{flex:none;width:180px;padding:6px 10px;font-size:12px;border-radius:0}
 #q:focus{border-color:var(--acc)}
-#status{color:var(--mut);font-size:12px;margin-left:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#status{color:var(--mut);font-size:12px;margin-left:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;min-width:0}
+/* 헤더 상태줄 — 항목마다 라벨(작게)+값(굵게), 사이에 세로 구분선 */
+#status .sgrp{display:inline-flex;align-items:baseline;gap:5px;padding:0 12px;flex:none;
+  border-left:1px solid var(--line);white-space:nowrap}
+#status .sgrp:first-child{padding-left:0;border-left:0}
+#status .sgrp i{font-style:normal;color:var(--dim);font-size:10px;font-weight:700;letter-spacing:.06em}
+#status .sgrp b{font-weight:600;color:var(--txt);font-size:12px;
+  font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+#status .sgrp b.pos{color:var(--up)}#status .sgrp b.neg{color:var(--dn)}
+#status .sgrp b.off{color:var(--dim);font-weight:400}
 .mkt{display:inline-flex;align-items:center;gap:6px;padding:0 2px;font-weight:700;font-size:13px;white-space:nowrap;font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
 .mkt.up{color:#f87171}.mkt.dn{color:#60a5fa}
 .mkt small{font-weight:400;opacity:.8}
@@ -616,7 +625,7 @@ async function renderPositions(){
     const rs=(d&&Array.isArray(d.rows)&&Array.isArray(d.dates))
       ?d.rows.map(x=>({date:d.dates[x[0]],close:x[1]})).filter(x=>x.date>=p.date):[];
     const lv=live.prices[p.code];const lvDate=lv&&lv.at?lv.at.slice(0,10).replace(/-/g,''):'';
-    /* 5분마다 수집하는 실시간 시세가 일봉만큼 최신이면 그쪽을 쓴다(현재가·수익률·평가손익·고점) */
+    /* 10분마다 수집하는 실시간 시세가 일봉만큼 최신이면 그쪽을 쓴다(현재가·수익률·평가손익·고점) */
     const useLive=!!(lv&&lv.now&&lvDate&&lvDate>=lastD&&lvDate>=p.date);
     const newDay=useLive&&lvDate>lastD;      /* 일봉에 아직 없는 날이면 보유일 +1 */
     const now=useLive?lv.now:(rs.length?rs[rs.length-1].close:null);
@@ -657,7 +666,17 @@ async function renderPositions(){
   const open_=rows.filter(r=>!r.p.sell);const avg=open_.length?open_.reduce((a,r)=>a+(r.ret||0),0)/open_.length:0;
   const closed=rows.filter(r=>r.p.sell);const realized=closed.reduce((a,r)=>a+pr(r.p),0);
   const inv=open_.reduce((a,r)=>a+(r.p.qty||0)*r.p.price,0),pnl=open_.reduce((a,r)=>a+((r.p.qty&&r.now)?(r.now-r.p.price)*r.p.qty:0),0);
-  $('#status').textContent=DONE?`매도 완료 ${closed.length}건 · 합산 수익률 ${realized>0?'+':''}${realized.toFixed(1)}% · 건당 평균 ${closed.length?(realized/closed.length>0?'+':'')+(realized/closed.length).toFixed(2):'0'}%`:`보유 ${open_.length}종목 평균 ${avg>0?'+':''}${avg.toFixed(1)}%${inv?` · 매수금액 ${kor(inv)}원 · 평가손익 ${kor(pnl,1)}원`:''}${closed.length?` · 매도 완료 ${closed.length}건 합산 ${realized>0?'+':''}${realized.toFixed(1)}%`:''} · 장중 시세 ${live.updated?live.updated.slice(5)+' 갱신 (평일 09~16시 5분 간격)':'없음'}`;
+  {const g=(k,v,c='')=>`<span class="sgrp"><i>${k}</i><b class="${c}">${v}</b></span>`;
+   const per=closed.length?realized/closed.length:0;
+   $('#status').innerHTML = DONE
+     ? g('매도 완료',closed.length+'건')
+       +g('합산 수익률',(realized>0?'+':'')+realized.toFixed(1)+'%',cls(realized))
+       +g('건당 평균',(per>0?'+':'')+per.toFixed(2)+'%',cls(per))
+     : g('보유',open_.length+'종목')
+       +g('평균',(avg>0?'+':'')+avg.toFixed(1)+'%',cls(avg))
+       +(inv?g('매수금액',kor(inv)+'원')+g('평가손익',kor(pnl,1)+'원',cls(pnl)):'')
+       +(closed.length?g('완료',closed.length+'건 '+(realized>0?'+':'')+realized.toFixed(1)+'%',cls(realized)):'')
+       +g('장중 시세',live.updated?live.updated.slice(5):'없음',live.updated?'':'off');}
   /* 행을 누르면 상세 패널이 열린다 — 모바일에서는 이 패널이 전체 화면(새 탭처럼)이다 */
   document.querySelectorAll('tbody tr[data-pc]').forEach(tr=>tr.onclick=()=>{
     sel=tr.dataset.pc;render();showStock(sel)});
