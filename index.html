@@ -87,7 +87,7 @@ header{flex:none}
 .rail .it.on{background:var(--panel2);border-color:var(--acc);color:var(--txt)}
 .rail .it .n{margin-left:auto;font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:var(--dim)}
 .rail .it.on .n{color:var(--acc);font-weight:700}
-.rail .it .bar{width:5px;height:15px;flex:none;background:var(--acc);opacity:.3}
+.rail .it .bar{width:5px;height:15px;flex:none;background:var(--acc);opacity:.14}
 .rail .it.on .bar{opacity:1}
 .rail .it.kq .bar{background:var(--ind)}.rail .it.kq.on{border-color:var(--ind)}.rail .it.kq.on .n{color:var(--ind)}
 .rail .it.pos{border-color:#f8717155}.rail .it.pos.on{border-color:var(--up)}.rail .it.pos.on .n{color:var(--up)}
@@ -99,6 +99,7 @@ header{flex:none}
 /* 규칙 행은 끌어서 순서를 바꿀 수 있다 */
 .rail .it[data-rule]{cursor:grab}.rail .it[data-rule]:active{cursor:grabbing}
 .rail .it.rdrag{box-shadow:inset 0 3px 0 var(--acc)}
+.rail .it.rgrab{opacity:.5}
 .rail .it.rg-up .bar{background:var(--up)}
 .rail .it.rg-down .bar{background:var(--dn)}
 .rail .it.kq .rid{color:var(--ind)}
@@ -418,7 +419,7 @@ function heldDays(p){try{const a=new Date(p.date.slice(0,4),+p.date.slice(4,6)-1
 function heldBy(code,rid){const p=heldPos(code);
   return !!(p&&(p.filters||[]).some(f=>normId(f)===normId(rid)))}
 function passes(r){
-  if(cur==='done')return false;
+  if(cur==='done'||cur==='pos')return false;   /* 규칙 탭이 아닌 곳에서는 걸러 낼 것이 없다 */
   if(cur==='kp')return r.mk==='KOSPI';        /* 전체 종목 탭은 보유 여부와 무관하게 다 보여준다 */
   if(cur==='kq')return r.mk==='KOSDAQ';
   /* 그 규칙으로 이미 산 종목은 그 탭에서 감춘다(기존과 동일).
@@ -449,22 +450,59 @@ function renderTabs(){
      바뀌는 건 '보이는 번호'뿐이고 저장되는 식별자(f.id)는 그대로다. */
   (function(){
     let src=null;
+    const clear=()=>document.querySelectorAll('#rail .it').forEach(x=>x.classList.remove('rdrag','rgrab'));
+    /* src 를 dst 자리로 옮긴다. 마우스·터치가 같은 함수를 쓴다. */
+    const move=dst=>{
+      if(!src||src===dst)return false;
+      const a=fOf(src),b=fOf(dst); if(!a||!b||a.mkt!==b.mkt)return false;   /* 시장이 다르면 무시 */
+      const ids=ordered(a.mkt).map(f=>f.id);
+      const i=ids.indexOf(src),j=ids.indexOf(dst);
+      if(i<0||j<0)return false;
+      ids.splice(i,1); ids.splice(j,0,src);
+      RORDER=Object.assign(loadROrder(),{[a.mkt]:ids}); saveROrder();
+      RDRAG_AT=Date.now(); render(); return true};
     document.querySelectorAll('#rail .it[data-rule]').forEach(el=>{
       el.ondragstart=e=>{src=el.dataset.f;RDRAG_AT=0;
         e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',src)}catch(_){}};
       el.ondragover=e=>{const a=fOf(src),b=fOf(el.dataset.f);
         if(a&&b&&a.mkt===b.mkt){e.preventDefault();el.classList.add('rdrag')}};
       el.ondragleave=()=>el.classList.remove('rdrag');
-      el.ondrop=e=>{e.preventDefault();el.classList.remove('rdrag');
-        const dst=el.dataset.f; if(!src||src===dst)return;
-        const a=fOf(src),b=fOf(dst); if(!a||!b||a.mkt!==b.mkt)return;   /* 시장이 다르면 무시 */
-        const ids=ordered(a.mkt).map(f=>f.id);
-        const i=ids.indexOf(src),j=ids.indexOf(dst);
-        if(i<0||j<0)return;
-        ids.splice(i,1); ids.splice(j,0,src);
-        RORDER=Object.assign(loadROrder(),{[a.mkt]:ids}); saveROrder();
-        RDRAG_AT=Date.now(); render()};
-      el.ondragend=()=>document.querySelectorAll('#rail .it').forEach(x=>x.classList.remove('rdrag'));
+      el.ondrop=e=>{e.preventDefault();clear();move(el.dataset.f)};
+      el.ondragend=clear;
+      /* 모바일 — 터치에서는 dragstart 가 아예 발생하지 않는다.
+         길게 눌러 잡고(350ms) 위아래로 끌어 놓는 방식으로 따로 처리한다. */
+      el.addEventListener('pointerdown',e=>{
+        if(e.pointerType==='mouse')return;
+        const x0=e.clientX,y0=e.clientY; let held=false,over=null;
+        const grab=setTimeout(()=>{held=true;src=el.dataset.f;RDRAG_AT=0;
+          el.classList.add('rgrab');
+          if(navigator.vibrate)try{navigator.vibrate(15)}catch(_){}},350);
+        const mv=ev=>{
+          if(!held){                                   /* 잡히기 전에 움직이면 스크롤이다 */
+            if(Math.abs(ev.clientX-x0)>10||Math.abs(ev.clientY-y0)>10)return done(false);
+            return}
+          const t=document.elementFromPoint(ev.clientX,ev.clientY);
+          const it=t&&t.closest?t.closest('#rail .it[data-rule]'):null;
+          const a=fOf(src),b=it?fOf(it.dataset.f):null;
+          clear(); el.classList.add('rgrab');
+          over=(a&&b&&a.mkt===b.mkt)?it.dataset.f:null;
+          if(over)it.classList.add('rdrag')};
+        const done=ok=>{
+          clearTimeout(grab);
+          document.removeEventListener('pointermove',mv);
+          document.removeEventListener('pointerup',up);
+          document.removeEventListener('pointercancel',cancel);
+          document.removeEventListener('touchmove',block);
+          clear(); if(ok&&held&&over)move(over);
+          else if(held){RDRAG_AT=Date.now()}          /* 잡았다 놓기만 해도 탭 이동은 막는다 */
+          held=false;src=null;over=null};
+        const up=()=>done(true), cancel=()=>done(false);
+        const block=ev=>{if(held)ev.preventDefault()};  /* 잡은 뒤에는 화면이 스크롤되지 않게 */
+        document.addEventListener('pointermove',mv);
+        document.addEventListener('pointerup',up);
+        document.addEventListener('pointercancel',cancel);
+        document.addEventListener('touchmove',block,{passive:false});
+      });
     });
   })();
   document.querySelectorAll('#rail .it').forEach(b=>b.onclick=()=>{

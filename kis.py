@@ -19,7 +19,7 @@ HOST = "https://openapi.koreainvestment.com:9443"
 TOKEN_FILE = BASE_DIR / "data" / ".kis_token.json"
 KST = dt.timezone(dt.timedelta(hours=9))
 
-# ── Supabase (prices.py 와 동일한 방식으로 assets/sb.js 에서 읽음)
+# ── Supabase (assets/sb.js 에서 접속 정보를 읽는다)
 _SB = None
 def _sb():
     global _SB
