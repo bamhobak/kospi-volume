@@ -707,11 +707,12 @@ let LIVE={updated:'',prices:{},index:null};      /* 10분마다 갱신되는 실
 /* 시세를 새로 받아온다.
    네이버 API 는 브라우저 출처를 403 으로 막기 때문에 페이지가 직접 못 받는다 —
    Supabase Edge Function 이 서버에서 받아 저장하고 돌려준다(접속할 때마다 최신).
+   alerts=0 — 텔레그램 알림은 크론이 보낸다. 화면을 열 때마다 알림이 가면 안 된다.
    함수가 실패하면 마지막으로 저장된 값이라도 읽어 화면이 비지 않게 한다. */
 async function pullLive(fresh){
   if(fresh!==false&&window.SB){
     try{
-      const r=await fetch(`${SB.url}/functions/v1/prices`,{method:'POST',
+      const r=await fetch(`${SB.url}/functions/v1/prices?alerts=0`,{method:'POST',
         headers:{apikey:SB.key,Authorization:'Bearer '+SB.key,'Content-Type':'application/json'},
         body:'{}'});
       if(r.ok){const d=await r.json();

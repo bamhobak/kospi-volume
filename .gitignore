@@ -19,3 +19,5 @@ data/fundamental/
 data/kosdaq.db
 data/kosdaq_short_recent.csv
 data/delisted_kd.db
+supabase/cron.sql
+supabase/_*.sql
