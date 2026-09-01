@@ -64,8 +64,9 @@ FILTERS = [
      and kospi.get("up60") is False
      and (r.get("sr60") is not None and r["sr60"] <= -10)
      and r.get("srDown") is True and r.get("dilu") is not True and r.get("disc") is not True),
-    ("P4", "업종붕괴 이탈 (코스피·5일 보유·손절 -15%)",
+    ("P4", "업종붕괴 이탈 (코스피·5일 보유·손절 -15%·하락장)",
      lambda r: r.get("mk") == "KOSPI" and not r["pref"]
+     and kospi.get("up60") is False
      and (r.get("sr60") is not None and r["sr60"] <= -20)
      and r.get("dma20") is not None and r["dma20"] <= -10
      and r.get("mdd60") is not None and r["mdd60"] <= -40
@@ -78,7 +79,7 @@ FILTERS = [
      and r.get("ret20") is not None and r["ret20"] <= -10
      and r.get("vs1") is not None and r["vs1"] >= 2
      and (r.get("sr60") is not None and r["sr60"] <= -10)
-     and not bool(kospi.get("up60"))
+     and kospi.get("up60") is False
      and r.get("ow20") is not None and r["ow20"] >= 0
      and r.get("srDown") is True
      and (r.get("amt20") or 0) >= 5 and (r.get("c") or 0) >= 1000
@@ -106,8 +107,9 @@ FILTERS = [
      and r.get("fromhi") is not None and r["fromhi"] >= -15
      and r.get("dilu") is not True and r.get("disc") is not True),
 
-    ("P6", "깊은 이격 (코스피·5일 보유·손절 -10%)",
+    ("P6", "깊은 이격 (코스피·5일 보유·손절 -10%·하락장)",
      lambda r: r.get("mk") == "KOSPI" and not r["pref"]
+     and kospi.get("up60") is False
      and r.get("dev25") is not None and r["dev25"] <= -25
      and r.get("sr60") is not None and r["sr60"] <= -20
      and (r.get("amt20") or 0) >= 10 and (r.get("c") or 0) >= 1000
