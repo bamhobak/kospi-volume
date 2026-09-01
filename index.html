@@ -4,12 +4,12 @@
 <meta name="theme-color" content="#0a0b0e">
 <link rel="icon" type="image/svg+xml" href="icon.svg"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="sb.js"></script>
 <style>
 :root{--dim:#5b626d;--faint:#41474f;--bg:#0a0b0e;--panel:#101217;--panel2:#171a21;--line:#272b34;--txt:#eef1f6;--mut:#858c99;/* 강조색은 손익색과 절대 겹치지 않게 분리한다 — 예전엔 --acc 와 --dn 이 둘 다 민트(5eead4)였다 */--acc:#a78bfa;--up:#f87171;--dn:#60a5fa;--ind:#fbbf24;--org:#34d399;--frg:#e879f9}
-*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--txt);font-family:'IBM Plex Sans KR',Pretendard,-apple-system,"Malgun Gothic",sans-serif;font-size:13px;overflow:hidden}
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--txt);font-family:'Noto Sans KR',Pretendard,-apple-system,"Malgun Gothic",sans-serif;font-size:13px;overflow:hidden}
 header{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
 header h1{font-size:16px;margin:0 8px 0 0;font-weight:700;letter-spacing:-.4px;white-space:nowrap}header h1 span{color:var(--acc)}
 input:not([type=checkbox]),select{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:0;padding:8px 12px;font-size:14px;outline:none;-webkit-appearance:none}
@@ -19,7 +19,7 @@ button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--t
 #q{flex:none;width:180px;padding:6px 10px;font-size:12px;border-radius:0}
 #q:focus{border-color:var(--acc)}
 #status{color:var(--mut);font-size:12px;margin-left:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mkt{display:inline-flex;align-items:center;gap:6px;padding:0 2px;font-weight:700;font-size:13px;white-space:nowrap;font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.mkt{display:inline-flex;align-items:center;gap:6px;padding:0 2px;font-weight:700;font-size:13px;white-space:nowrap;font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
 .mkt.up{color:#f87171}.mkt.dn{color:#60a5fa}
 .mkt small{font-weight:400;opacity:.8}
 .chk{display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);border-radius:0;padding:7px 10px;cursor:pointer;white-space:nowrap}
@@ -35,7 +35,7 @@ button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--t
 .s-item{background:var(--panel2);border:1px solid var(--line);border-radius:0;padding:5px 12px;text-align:center;min-width:76px}
 .info-btn{border-color:var(--acc)!important;color:var(--acc)!important}
 .info-card{cursor:pointer;color:var(--acc);font-size:15px;font-weight:700;min-width:60px}.info-card:hover{border-color:var(--acc)}
-.s-item b{display:block;color:var(--acc);font-size:15px;line-height:1.25;font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}.s-item small{color:var(--mut);font-size:10px}
+.s-item b{display:block;color:var(--acc);font-size:15px;line-height:1.25;font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}.s-item small{color:var(--mut);font-size:10px}
 .themes{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
 .thtag{background:var(--panel2);border:1px solid var(--line);border-radius:0;padding:3px 8px;font-size:11px;color:var(--mut)}
 .thtag.sector{border-color:var(--acc);color:var(--acc)}.thtag.up{border-color:#f8717155;color:#f87171}
@@ -76,14 +76,14 @@ header{flex:none}
           border:1px solid transparent;color:var(--mut);white-space:nowrap;font-weight:600}
 .rail .it:hover{background:var(--panel2)}
 .rail .it.on{background:var(--panel2);border-color:var(--acc);color:var(--txt)}
-.rail .it .n{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;color:var(--dim)}
+.rail .it .n{margin-left:auto;font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:var(--dim)}
 .rail .it.on .n{color:var(--acc);font-weight:700}
 .rail .it .bar{width:5px;height:15px;flex:none;background:var(--acc);opacity:.3}
 .rail .it.on .bar{opacity:1}
 .rail .it.kq .bar{background:var(--ind)}.rail .it.kq.on{border-color:var(--ind)}.rail .it.kq.on .n{color:var(--ind)}
 .rail .it.pos{border-color:#f8717155}.rail .it.pos.on{border-color:var(--up)}.rail .it.pos.on .n{color:var(--up)}
 .rail .it.done.on{border-color:var(--org)}.rail .it.done.on .n{color:var(--org)}
-.rail .it .rid{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:11px;width:20px;color:var(--acc)}
+.rail .it .rid{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:11px;width:20px;color:var(--acc)}
 .rail .it.kq .rid{color:var(--ind)}
 .rail .sec{padding:11px;background:var(--panel2);border:1px solid var(--line)}
 .rail .sec .row{display:flex;justify-content:space-between;font-size:11px;margin-top:5px}
@@ -100,7 +100,7 @@ header{flex:none}
 .sig .why{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px}
 .sig .why div{background:var(--panel2);padding:11px 12px}
 .sig .why .l{color:var(--dim);font-size:10px;margin-bottom:5px}
-.sig .why .v{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;font-size:16px;font-weight:700}
+.sig .why .v{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-size:16px;font-weight:700}
 .sig .why .s{color:var(--faint);font-size:10px;margin-top:3px}
 .sig .plan{display:flex;align-items:center;background:var(--panel2);padding:14px 18px;gap:16px}
 .sig .plan .st{flex-grow:1}.sig .plan .st b{display:block;font-weight:600;margin-top:4px}
@@ -112,18 +112,18 @@ header{flex:none}
 .dchip:hover{border-color:var(--acc)}
 .dchip.on{border-color:var(--acc);background:#1c1730}
 .dchip.kq.on{border-color:var(--ind);background:#2a2008}
-.dchip b{font-family:'IBM Plex Mono',monospace;font-weight:700;color:var(--acc)}
+.dchip b{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--acc)}
 .dchip.kq b{color:var(--ind)}
 .dchip .c{color:var(--dim)}
-.dchip span{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+.dchip span{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:0;overflow:hidden;display:flex;flex-direction:column;min-height:0}
 .tblwrap{overflow:auto;flex:1;-webkit-overflow-scrolling:touch}
 table{border-collapse:separate;border-spacing:0;width:100%;white-space:nowrap}
 th{position:sticky;top:0;z-index:2;background:var(--panel2);color:var(--mut);font-weight:600;padding:10px 9px;text-align:right;cursor:pointer;user-select:none;border-bottom:1px solid var(--line);font-size:12px}
 th.l,td.l{text-align:left}th.on{color:var(--acc)}
 th:first-child,td:first-child{position:sticky;left:0;z-index:1;background:var(--panel)}th:first-child{z-index:3;background:var(--panel2)}
-td{padding:8px 9px;border-bottom:1px solid #272b3480;text-align:right;font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums;font-size:12.5px}
-td.l,td.name{font-family:'IBM Plex Sans KR',Pretendard,sans-serif;font-size:13px}
+td{padding:8px 9px;border-bottom:1px solid #272b3480;text-align:right;font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums;font-size:12.5px}
+td.l,td.name{font-family:'Noto Sans KR',Pretendard,sans-serif;font-size:13px}
 tr:hover td{background:#ffffff08}tr.sel td{background:#1c1730}
 td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400}
 .pos{color:var(--up)}.neg{color:var(--dn)}
@@ -454,8 +454,8 @@ function renderCards(rows){
           <div style="color:var(--mut);font-size:12px">${kq?'코스닥':'코스피'}${r.up?' · '+r.up:''}${r.cap?' · 시총 '+(r.cap>=10000?(r.cap/10000).toFixed(1)+'조':fmt(r.cap)+'억'):''}</div>
         </div>
         <div style="text-align:right;flex:none">
-          <div class="n" style="font-size:23px;font-weight:700;line-height:1.1;font-family:'IBM Plex Mono',monospace">${fmt(r.close)}<span style="font-size:13px;color:var(--mut);font-weight:500">원</span></div>
-          <div class="${chp>0?'pos':'neg'}" style="font-size:12px;margin-top:2px;font-family:'IBM Plex Mono',monospace">${chp>0?'+':''}${chp.toFixed(1)}%</div>
+          <div class="n" style="font-size:23px;font-weight:700;line-height:1.1;font-family:'JetBrains Mono',monospace">${fmt(r.close)}<span style="font-size:13px;color:var(--mut);font-weight:500">원</span></div>
+          <div class="${chp>0?'pos':'neg'}" style="font-size:12px;margin-top:2px;font-family:'JetBrains Mono',monospace">${chp>0?'+':''}${chp.toFixed(1)}%</div>
         </div>
       </div>
       <div><div class="k" style="margin-bottom:9px">왜 걸렸나</div><div class="why">${whyCells(r,f)}</div></div>
