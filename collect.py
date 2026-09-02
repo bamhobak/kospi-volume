@@ -80,6 +80,12 @@ def wait_for_today(deadline="21:00", interval=600):
     """네이버에 당일 투자자 데이터 행이 올라올 때까지 대기 (평일만, deadline까지)"""
     today = datetime.today()
     if today.weekday() >= 5: return
+    # 장 마감 전이면 '오늘 데이터'는 존재할 수 없다. 기다려 봐야 타임아웃이므로
+    # 곧장 수집으로 넘어가 직전 거래일치를 확정값으로 다시 받는다.
+    # (아침 재수집 — 장 직후 받은 잠정 수급을 확정치로 덮어쓰는 용도)
+    if datetime.now().strftime("%H:%M") < "15:40":
+        log.info("장 마감 전 실행: 당일 데이터 대기 없이 직전 거래일치 수집")
+        return
     ts = today.strftime("%Y%m%d")
     while datetime.now().strftime("%H:%M") < deadline:
         try:
