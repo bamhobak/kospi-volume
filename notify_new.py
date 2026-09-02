@@ -131,8 +131,6 @@ for _p in POSI:
     held_by.setdefault(_p["code"], set()).update(
         str(LEGACY_ID.get(f, f)) for f in (_p.get("filters") or []))
 held = set(held_by)
-pos_name = {_p["code"]: _p.get("name", _p["code"]) for _p in POSI}
-pos_price = {_p["code"]: _p.get("price") for _p in POSI}
 cur = {}
 for fid, name, fn in FILTERS:
     cur[str(fid)] = sorted(r["t"] for r in rows
@@ -142,7 +140,6 @@ prev_state = rpc("kospi_state_get", {"p_pin": "__filters__"}) or {}
 prev = prev_state.get("filters", {})
 prev_date = prev_state.get("date", "")
 info = {r["t"]: r for r in rows}
-kmark = ("▲ 20일선 위" if kospi.get("up20") else "▼ 20일선 아래") + ("" if kospi.get("up60") is None else " · " + ("▲ 60일선 위" if kospi.get("up60") else "▼ 60일선 아래"))
 
 lines = []
 for fid, name, _ in FILTERS:
@@ -153,49 +150,14 @@ for fid, name, _ in FILTERS:
     for t in new:
         r = info[t]
         chp = (r["ch"] / (r["c"] - r["ch"]) * 100) if r.get("c") and r.get("ch") and r["c"] != r["ch"] else 0
-        mark = ""
-        if t in held_by:                       # 다른 규칙으로 이미 보유 중 → 추가 매수 후보
-            by = "·".join(sorted(held_by[t])) or "보유"
-            bp = pos_price.get(t)
-            pl = f" · {(r['c']/float(bp)-1)*100:+.1f}%" if bp else ""
-            mark = f"  🔁 <b>{by} 로 보유 중</b>{pl}"
+        # 🔁 = 다른 규칙으로 이미 보유 중(추가 매수하면 한 종목 비중이 두 배가 된다)
+        mark = "  🔁" if t in held_by else ""
         lines.append(f"• <b>{r['n']}</b> ({t}) {r['c']:,}원 ({chp:+.1f}%){mark}")
-        if fid == "P7":
-            lines.append(f"   외인 20일 {(r.get('fw20') or 0):+.1f}% · 기관 60일 "
-                         f"{(r.get('ow60') or 0):+.1f}% · 고점대비 {(r.get('fromhi') or 0):+.1f}% · "
-                         f"시총 {(r.get('cap') or 0)/10000:.1f}조")
-        elif fid == "P6":
-            lines.append(f"   25일선 괴리 {(r.get('dev25') or 0):+.1f}% · 업종 60일 "
-                         f"{(r.get('sr60') or 0):+.1f}% · 거래대금 {(r.get('amt20') or r.get('amt') or 0):.0f}억")
-        elif fid == "P5":
-            lines.append(f"   당일 자사주 직접취득 결정 공시 · 60일 {(r.get('r3m') or 0):+.1f}% · "
-                         f"거래대금 {(r.get('amt20') or r.get('amt') or 0):.0f}억")
-        elif fid in ("P3", "D1"):
-            lines.append(f"   20일 {(r.get('ret20') or 0):+.1f}% · 외인 60일 {(r.get('fw60') or 0):+.1f}% · "
-                         f"당일 거래량 {(r.get('vs1') or 0):.1f}배 · 거래대금 {(r.get('amt20') or r.get('amt') or 0):.0f}억"
-                         + (f" · 업종 60일 {r['sr60']:+.1f}%" if r.get('sr60') is not None else ""))
-        else:
-            lines.append(f"   외인 {fwp(r):.1f}% · 3일 {(r.get('ret3') or 0):+.1f}% · 10일 {(r.get('ret10') or 0):+.1f}% · "
-                         f"거래대금 {r.get('amt', 0):.0f}억 · 급등 {(r['aw']/r['a1']):.1f}배")
-        TR = T.get("themeRet") or {}
-        th = [f"{g} {TR[g]:+.1f}%" if g in TR else g for g in (r.get("th") or [])[:3]]
-        if r.get("up") or th:
-            lines.append(f"   🏷 {r.get('up') or ''}{' · ' if r.get('up') and th else ''}{' / '.join(th)}")
 
 if lines and prev_date:   # 첫 실행(비교 대상 없음)에는 보내지 않음
-    guide = ("\n\n💡 <b>매수 안내</b>\n"
-             "• 조용한 신고가: <b>지금 NXT 야간거래로 종가 매수</b>가 유리 (실측 +3.57% vs 다음날 시가 +3.44%)\n"
-             "• 조정매집: <b>다음날 시가 매수</b>가 유리 (급락 직후라 시초에 더 빠짐)\n"
-             "• 공통: 다음날 시가가 <b>+5% 이상 갭상승</b>이면 매수 보류\n"
-             "• 폭락반등·낙폭과대: <b>다음날 시가 매수</b> · <b>20거래일</b> 보유 (폭락 반등 — 흔들려도 손절 금지)\n"
-             "• 외인 매집: <b>다음날 시가 매수</b> · <b>60거래일</b> 보유 (상승장 전용 · 손절 없음)\n"
-             "• 깊은 이격: <b>다음날 시가 매수</b> · <b>5거래일</b> 보유 · 손절 <b>-10%</b> (깊은 이격)\n"
-             "• 자사주 낙폭: <b>다음날 시가 매수</b> · <b>10거래일</b> 보유 (자사주 취득 공시)\n"
-             "• 보유기간은 규칙마다 다릅니다 — 위 안내 참고 · 손절 없음 · 1번만 +20% 익절\n"
-             "• 규칙 번호(P1·D1…)는 화면에서 순서를 바꾸면 달라지므로 알림은 이름으로 적습니다\n"
-             "• 🔁 표시는 <b>다른 규칙으로 이미 보유 중</b>인 종목입니다 — 추가 매수는 한 종목 비중을 두 배로 만드니 한도를 확인하세요")
-    telegram(f"🆕 <b>신규 편입 종목</b> ({last_date[4:6]}/{last_date[6:]} 기준 · 코스피 {kmark})"
-             + "".join(lines) + guide
+    # 알림은 '무엇이 새로 들어왔나'만 전한다. 지표·매수 안내는 사이트에서 본다.
+    telegram(f"🆕 <b>신규 편입 종목</b> ({last_date[4:6]}/{last_date[6:]})"
+             + "".join(lines)
              + f"\n\nhttps://bamhobak.github.io/kospi-volume/")
 elif lines:
     print("첫 실행 — 기준 목록만 저장:", cur)
