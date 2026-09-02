@@ -465,10 +465,12 @@ function renderTabs(){
       view.rows.filter(r=>f.fn(r)&&!heldBy(r.ticker,f.id)).length,   /* 목록과 같은 기준 */
       `<span class="bar"></span><span class="rid">${codeOf(f.id)}</span>`,
       ` draggable="true" data-rule="${f.mkt}"`)).join('');
+  /* 접기는 모바일 전용 — PC(좌측 레일)에서는 예전처럼 전부 펼쳐 보여준다 */
+  const MOB=isMobile(), railOpen=MOB?RAILOPEN:true;
   $('#rail').innerHTML=
-    `<div class="railtog" id="railtog"><span>${RAILOPEN?'▾':'▸'} 규칙·조회 목록</span>`
-      + `<span class="n">${RAILOPEN?orderedAll().length+'개 규칙':'현재: '+curName()}</span></div>`
-    + (RAILOPEN?
+    (MOB?`<div class="railtog" id="railtog"><span>${RAILOPEN?'▾':'▸'} 규칙·조회 목록</span>`
+      + `<span class="n">${RAILOPEN?orderedAll().length+'개 규칙':'현재: '+curName()}</span></div>`:'')
+    + (railOpen?
     `<div class="grp">`
     + nrow('pos','pos','보유 종목',positions().filter(p=>!p.sell).length)
     + nrow('all','','매수 대기',wait)
@@ -560,9 +562,9 @@ function renderTabs(){
   $('#fdesc').innerHTML=cur==='done'?'매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요.':cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (${holdText()})`:cur==='all'?'':(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));{const fd=$('#fdesc');
   if(fd&&fd.style){const has=(fd.innerHTML||'').trim();
     fd.style.display=has?'':'none';
-    if(has&&!DESCOPEN){fd.dataset.full=fd.innerHTML;
+    if(has&&MOB&&!DESCOPEN){fd.dataset.full=fd.innerHTML;
       fd.innerHTML='<span class="descmore">▸ 설명 보기</span>'}
-    else if(has&&DESCOPEN&&!fd.querySelector('.descmore')){
+    else if(has&&MOB&&DESCOPEN&&!fd.querySelector('.descmore')){
       fd.innerHTML=fd.innerHTML+' <span class="descmore">▴ 접기</span>'}
     const dm=fd.querySelector('.descmore');
     if(dm)dm.onclick=()=>{DESCOPEN=!DESCOPEN;
