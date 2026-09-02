@@ -55,6 +55,19 @@ for nm in ("KP","KQ"):
     K2 = K.merge(INS, on=["ticker","date"], how="left"); assert len(K2)==n0
     K["ins60"] = K2.ins60.values
 
+# 신용잔고 — [폭락반등] 이 쓴다. 폭락 후 신용잔고가 크게 줄었다는 건 반대매매·손절이
+# 이미 나와 매물이 소화됐다는 뜻이다. 안 줄었으면 빚내서 버티는 물량이 남아 추가 압력이다.
+_cc = sqlite3.connect(f"file:{BASE}/data/kis/market.db?mode=ro", uri=True, timeout=600)
+_CR = pd.read_sql("SELECT date,ticker,loan_rmnd FROM credit", _cc); _cc.close()
+_CR = _CR.sort_values(["ticker","date"])
+_CR["cr_chg20"] = (_CR.loan_rmnd/_CR.groupby("ticker",sort=False).loan_rmnd.shift(20)-1)*100
+for _nm in ("KP","KQ"):
+    _K = {"KP":KP,"KQ":KQ}[_nm]; _n = len(_K)
+    _M = _K.merge(_CR[["date","ticker","cr_chg20"]], on=["ticker","date"], how="left")
+    assert len(_M) == _n
+    _K["cr_chg20"] = _M.cr_chg20.values
+del _CR, _M; import gc as _gc; _gc.collect()
+
 # [자사주 낙폭](A1) 은 코스피·코스닥 공통 규칙이라 두 패널을 합쳐 쓴다.
 # 전체 컬럼을 합치면 메모리가 두 배가 되므로 이 규칙이 쓰는 컬럼만 남긴다.
 _C = ["ticker","date","name","close","low","buy","cost","ret60","dil","amt20","bb","mk"]
@@ -73,7 +86,7 @@ RULES = {
  "P2": (KP, 10, None, 15, 2, base(KP,3)&dn20(KP)&(KP.r16<30)&(KP.rw1>=200)&(KP.fw5>=2)
         &(KP.ret3<=-5)&(KP.ret10<=0)&(KP.srd==True)),
  "P3": (KP, 20, None, 5, 3, base(KP,3)&dn60(KP)&(KP.ret20<=-20)&(KP.su1>=1.5)&(KP.fw60>=1)
-        &(KP.u<=-10)&(KP.srd==True)),
+        &(KP.u<=-10)&(KP.srd==True)&(KP.cr_chg20<=-20)),
  "P4": (KP, 5, 0.15, 3, 4, base(KP,10)&dn60(KP)&(KP.u<=-20)&(KP.dma20<=-10)&(KP.mdd60<=-40)&(KP.srd==True)),
  "P5": (KB, 10, None, 5, 3, base(KB,3)&dn60(KB)&KB.bb&(KB.ret60<=-20)),   # 공통(A1)
  "P6": (KP, 5, 0.10, 4, 4, base(KP,10)&dn60(KP)&(KP.dev25<=-25)&(KP.u<=-20)),

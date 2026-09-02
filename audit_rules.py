@@ -57,6 +57,19 @@ for rid, fn in RULES_JS.items():
     mj = [u for u in used if have and u not in have and u not in SAFE]
     if mp or mj:
         bad(f"  ❌ [{NAME[rid]}] " + (f"prep 누락 {mp} " if mp else "") + (f"table.json 누락 {mj}" if mj else ""))
+# 필드가 있어도 값이 전부 비어 있으면 규칙이 조용히 0건이 된다.
+# 2026-09-02 DART 한도 고갈로 bb·ins60·dilu 가 통째로 비어 두 규칙이 멈춘 적이 있다.
+if have:
+    ROWS = json.loads(tj.read_text(encoding="utf-8"))["rows"]
+    used_all = set()
+    for fn in RULES_JS.values():
+        used_all |= set(re.findall(r"r\.([A-Za-z_]\w*)", fn))
+    for u in sorted(used_all - SAFE):
+        if u not in have: continue
+        vals = [r.get(u) for r in ROWS]
+        live = [v for v in vals if v not in (None, 0, False, "")]
+        if not live:
+            bad(f"  ❌ 필드 '{u}' 가 전 종목({len(vals):,}) 에서 비어 있음 — 수집 실패 의심")
 print("  " + ("✅ 9규칙 모두 정상" if ok_all else ""))
 
 # ── 2) 세 곳의 문턱값이 같은가 ───────────────────────────────────
@@ -144,6 +157,17 @@ def load(f, mk):
     K["yr"] = K.date.str[:4]
     return K
 KP, KQ = load("kp_ow.pkl", "KOSPI"), load("kq_ow.pkl", "KOSDAQ")
+# 신용잔고 — [폭락반등] 이 쓴다
+_cc = sqlite3.connect(f"file:{BASE}/data/kis/market.db?mode=ro", uri=True, timeout=600)
+_CR = pd.read_sql("SELECT date,ticker,loan_rmnd FROM credit", _cc); _cc.close()
+_CR = _CR.sort_values(["ticker", "date"])
+_CR["crc"] = (_CR.loan_rmnd / _CR.groupby("ticker", sort=False).loan_rmnd.shift(20) - 1) * 100
+for _K in (KP, KQ):
+    _n = len(_K)
+    _M = _K.merge(_CR[["date", "ticker", "crc"]], on=["ticker", "date"], how="left")
+    assert len(_M) == _n
+    _K["crc"] = _M.crc.values
+del _CR, _M
 gp = lambda K, c: K[c] if c in K.columns else pd.Series(np.nan, index=K.index)
 NO = lambda K: ~K.dil.fillna(False)
 def R(K):
@@ -155,7 +179,7 @@ def R(K):
      "P2": (10, None, P & (K.r16 < 30) & (gp(K,"rw1") >= 200) & (K.fw5 >= 2) & (K.amt >= 3)
             & (K.ret3 <= -5) & (K.ret10 <= 0) & (~K.up20) & (K.srd == True)),
      "P3": (20, None, P & (K.ret20 <= -20) & (K.su1 >= 1.5) & (K.fw60 >= 1) & (K.amt20 >= 3)
-            & (~K.up60) & (K.u <= -10) & (K.srd == True)),
+            & (~K.up60) & (K.u <= -10) & (K.srd == True) & (gp(K,"crc") <= -20)),
      "P4": (5, 15, P & (~K.up60) & (K.u <= -20) & (K.dma20 <= -10) & (K.mdd60 <= -40)
             & (K.srd == True) & (K.amt20 >= 10) & (K.close >= 1000)),
      "P5": (10, None, (~K.pref) & (K.bb == True) & (K.ret60 <= -20) & (~K.up60)),

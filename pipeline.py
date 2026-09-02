@@ -352,6 +352,19 @@ def buyback_flags(last_date):
             if r["rcept_dt"] == last_date: out.add(r["ticker"])
     return out
 
+def credit_chg20():
+    """신용잔고 20일 증감률 (data/credit_recent.csv) — [폭락반등] 이 쓴다.
+       폭락 후 신용잔고가 줄었다는 건 반대매매·손절이 이미 나와 매물이 소화됐다는 뜻이다.
+       collect_credit_recent.py 가 20일 낙폭 -15% 이하 종목만 받아 둔다(전 종목은 2,700콜)."""
+    f = DATA / "credit_recent.csv"
+    if not f.exists(): return {}
+    out = {}
+    with open(f, encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            try: out[r["ticker"]] = float(r["cr_chg20"])
+            except (TypeError, ValueError): pass
+    return out
+
 def insider_counts(dates, n=60):
     """최근 n거래일 안에 임원·주요주주 소유상황보고가 몇 건 있었나 (종목별).
        P7 규칙이 쓴다 — 정보 우위 주체가 움직인 종목만 남기는 필터.
@@ -385,6 +398,8 @@ def build_site():
     SF = short_flags(dates)
     DILU = dilution_flags(dates[-1])
     BB = buyback_flags(dates[-1])
+    CRC = credit_chg20()
+    print(f"신용잔고 20일 증감: {len(CRC):,}종목")
     INS = insider_counts(dates)
     C2Y = ret2y_map(dates)
     DBT = load_debt_ratio()
@@ -507,6 +522,7 @@ def build_site():
                       "dilu": s["ticker"] in DILU,
                       "bb": s["ticker"] in BB,
                       "ins60": INS.get(s["ticker"], 0),
+                      "crc": CRC.get(s["ticker"]),
                       "dbt": DBT.get(s["ticker"]),
                       "pbrd": (lambda v: round(last[1] * v[0] / v[1], 3) if (v and v[1] and last[1]) else None)(PB.get(s["ticker"])),
                       "th": sorted(TH.get(s["ticker"], []), key=lambda g: -TRET.get(g, 0))[:6]})

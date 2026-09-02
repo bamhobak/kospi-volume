@@ -144,6 +144,16 @@ jobs:
           DART_API_KEY: ${{ secrets.DART_API_KEY }}
         run: python collect_daily_extra.py
 
+      # 신용잔고: [폭락반등] 이 쓴다. 20일 낙폭 -15% 이하 종목만 받으므로 보통 1~2분.
+      - name: collect credit balance (신용잔고 · 폭락 종목만)
+        if: github.event_name != 'push' && steps.td.outputs.trading == 'true'
+        continue-on-error: true
+        env:
+          TZ: Asia/Seoul
+          KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
+          KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
+        run: python collect_credit_recent.py
+
       - name: build site (CSV + JSON)
         env: { TZ: Asia/Seoul }
         run: python pipeline.py --no-collect
@@ -157,7 +167,7 @@ jobs:
       - name: commit monthly csv
         run: |
           git config user.name "kospi-bot"; git config user.email "bot@users.noreply.github.com"
-          git add data/20*.csv data/short_recent.csv data/dilution_recent.csv data/buyback_recent.csv data/insider_recent.csv data/sector.csv data/industry.csv data/valuation.csv
+          git add data/20*.csv data/short_recent.csv data/dilution_recent.csv data/buyback_recent.csv data/insider_recent.csv data/credit_recent.csv data/sector.csv data/industry.csv data/valuation.csv
           git diff --cached --quiet || (git commit -m "data: $(TZ=Asia/Seoul date +%Y-%m-%d)" && git pull --rebase && git push)
       - uses: actions/upload-pages-artifact@v3
         with: { path: site }
