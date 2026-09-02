@@ -41,6 +41,20 @@ nm_ = D.report_nm.str.replace(" ","",regex=False)
 BB = set(zip(*D[~nm_.str.contains("신탁") & ~nm_.str.contains("정정")][["ticker","dt"]].values.T))
 for K in (KP, KQ): K["bb"] = [(t,d) in BB for t,d in zip(K.ticker,K.date)]
 
+# 사이트(index.html)와 조건을 맞추기 위한 보조 피처.
+# 이것들이 빠져 있어 백테스트가 실제 규칙보다 느슨했다(audit_rules.py 가 잡아냄).
+INS = pd.read_pickle(BASE/"data"/"insider_feat.pkl")[["ticker","date","ins60"]]
+for nm in ("KP","KQ"):
+    K = {"KP":KP,"KQ":KQ}[nm]
+    g = K.groupby("ticker", sort=False)
+    K["ret250"] = (K.close/g.close.shift(250)-1)*100                  # 1년 수익률
+    ma20 = g.close.transform(lambda s: s.rolling(20).mean())
+    K["above20"] = (K.close>ma20).groupby(K.ticker).transform(          # 250일 중 20일선 위 비율(%)
+        lambda s: s.rolling(250, min_periods=80).mean())*100
+    n0 = len(K)
+    K2 = K.merge(INS, on=["ticker","date"], how="left"); assert len(K2)==n0
+    K["ins60"] = K2.ins60.values
+
 def base(K, amt): return ((~K.pref)&(K.close>=1000)&(~K.dil.fillna(False))&(K.amt20.fillna(0)>=amt))
 def dn20(K): return K.date.map(UP20).fillna(True) == False
 def dn60(K): return K.date.map(UP60).fillna(True) == False
@@ -48,7 +62,8 @@ def up60(K): return K.date.map(UP60).fillna(False) == True
 
 RULES = {
  "P1": (KP, 40, 0.15, 12, 7, base(KP,200)&(KP.fromhi>=-10)&(KP.r16<120)&(KP.rw1<=120)&(KP.fw5>=3)
-        &(KP.fw60>=1)&(KP.vol20<=2)&(KP.sr20<=0.5)&(KP.ret20<=5)),
+        &(KP.fw60>=1)&(KP.vol20<=2)&(KP.sr20<=0.5)&(KP.ret20<=5)
+        &~((KP.above20>70)&(KP.ret250>120))),
  "P2": (KP, 10, None, 15, 2, base(KP,3)&dn20(KP)&(KP.r16<30)&(KP.rw1>=200)&(KP.fw5>=2)
         &(KP.ret3<=-5)&(KP.ret10<=0)&(KP.srd==True)),
  "P3": (KP, 20, None, 5, 3, base(KP,3)&dn60(KP)&(KP.ret20<=-20)&(KP.su1>=1.5)&(KP.fw60>=1)
@@ -57,9 +72,11 @@ RULES = {
  "P5": (KP, 10, None, 5, 3, base(KP,3)&dn60(KP)&KP.bb&(KP.ret60<=-20)),
  "P6": (KP, 5, 0.10, 4, 4, base(KP,10)&dn60(KP)&(KP.dev25<=-25)&(KP.u<=-20)),
  "P7": (KP, 60, None, 4, 5, base(KP,30)&up60(KP)&(KP["cap조"]>=1)&(KP["cap조"]<10)&(KP.fw20>=1)
-        &(KP.ow60<0.4)&(KP.r16>=100)&(KP.r16<150)&(KP.fromhi>=-15)&(KP.fromlo>=70)),
+        &(KP.ow60<0.4)&(KP.r16>=100)&(KP.r16<150)&(KP.fromhi>=-15)&(KP.fromlo>=70)
+        &(KP.ins60.fillna(0)>0)),
  "D1": (KQ, 20, None, 5, 3, base(KQ,2)&dn60(KQ)&(KQ.ret20<=-20)&(KQ.su1>=1.5)&(KQ.fw60>=1)
-        &(KQ.u<=-20)&(KQ.srd==True)&(KQ.ow20>=0)),
+        &(KQ.u<=-20)&(KQ.srd==True)&(KQ.ow20>=0)
+        &(KQ['부채비율'].isna()|(KQ['부채비율']<=200))),
  "D2": (KQ, 40, None, 5, 3, base(KQ,5)&dn60(KQ)&(KQ.PBR>0)&(KQ.PBR<=0.5)&(KQ.ret20<=-10)
         &(KQ.su1>=2)&(KQ.u<=-10)&(KQ.ow20>=0)&(KQ.srd==True)),
 }
