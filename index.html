@@ -87,8 +87,9 @@ header{flex:none}
 .descmore{cursor:pointer;color:var(--acc);white-space:nowrap}
 .descmore:hover{text-decoration:underline}
 .rail .k{color:var(--dim);font-size:10px;font-weight:700;letter-spacing:.08em;padding:0 8px 4px}
-.rail .freq{margin-top:4px;padding:8px 10px;border-top:1px dashed var(--line);
-  color:var(--mut);font-size:11px;cursor:help}
+.rail .k.khead{display:flex;align-items:baseline;justify-content:space-between;gap:6px}
+.rail .freq{font-weight:600;letter-spacing:0;color:var(--mut);font-size:10px;cursor:help;
+  white-space:nowrap}
 .rail .freq:hover{color:var(--txt)}
 .rail .grp{display:flex;flex-direction:column;gap:4px}
 .rail .it{display:flex;align-items:center;gap:9px;padding:9px 10px;cursor:pointer;
@@ -215,6 +216,10 @@ button.prim{background:var(--acc);border:1px solid var(--acc);color:#0a0b0e;font
         padding:8px 10px;overflow:visible;
         border-right:0;border-bottom:1px solid var(--line)}
   .rail .k{display:none}
+  /* 섹션 라벨은 모바일에서 숨기지만 신호 빈도는 남긴다 — 화면당 정보량이 적어 더 유용하다 */
+  .rail .k.khead{display:flex;justify-content:flex-end;padding:0 2px 2px;width:100%}
+  .rail .k.khead{font-size:0}
+  .rail .k.khead .freq{font-size:10px}
   .rail .grp{flex-direction:row;flex-wrap:wrap;gap:5px;width:100%}
   .rail .grp+.grp{border-left:0;border-top:1px dashed var(--line);padding-top:6px}
   .rail .it{white-space:nowrap;padding:7px 9px;font-size:12px;flex:0 0 auto}
@@ -526,11 +531,10 @@ function renderTabs(){
     + nrow('pos','pos','보유 종목',positions().filter(p=>!p.sell).length)
     + nrow('all','','매수 대기',wait)
     + nrow('done','done','완료',positions().filter(p=>p.sell).length) + `</div>`
-    + `<div class="grp"><div class="k">규칙</div>${rules}</div>`
+    + `<div class="grp"><div class="k khead">규칙${freqNote()}</div>${rules}</div>`
     + `<div class="grp"><div class="k">조회</div>`
     + nrow('kp','','코스피 전체',view.rows.filter(r=>r.mk==='KOSPI').length,'<span class="bar"></span>')
     + nrow('kq','kq','코스닥 전체',view.rows.filter(r=>r.mk==='KOSDAQ').length,'<span class="bar"></span>') + `</div>`
-    + freqNote()
     :'');
   /* 규칙 행을 끌어 순서 변경 — 코스피↔코스닥은 서로 넘어가지 못한다.
      바뀌는 건 '보이는 번호'뿐이고 저장되는 식별자(f.id)는 그대로다. */
