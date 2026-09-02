@@ -44,14 +44,18 @@ def kospi_state():
         k = k[k["Close"] > 0]
         close = float(k["Close"].iloc[-1]); ma5 = float(k["Close"].tail(5).mean()); ma20 = float(k["Close"].tail(20).mean())
         ma60 = float(k["Close"].tail(60).mean()) if len(k) >= 60 else None
+        prev = float(k["Close"].iloc[-2]) if len(k) >= 2 else None   # 전 거래일 종가(등락률 표시용)
         out = {"date": k.index[-1].strftime("%Y%m%d"), "close": round(close, 2), "ma5": round(ma5, 2),
                "ma20": round(ma20, 2), "up": close > ma5, "up20": close > ma20,
-               "ma60": round(ma60, 2) if ma60 else None, "up60": (close > ma60) if ma60 else None}
+               "ma60": round(ma60, 2) if ma60 else None, "up60": (close > ma60) if ma60 else None,
+               "prev": round(prev, 2) if prev else None}
         try:
             q = fdr.DataReader("KQ11", (collect.datetime.now() - collect.timedelta(days=60)).strftime("%Y-%m-%d"))
             q = q[q["Close"] > 0]
             qc = float(q["Close"].iloc[-1]); q20 = float(q["Close"].tail(20).mean()); q5 = float(q["Close"].tail(5).mean())
-            out.update(kq=round(qc, 2), kq20=round(q20, 2), kqUp20=qc > q20, kqUp5=qc > q5)
+            qprev = float(q["Close"].iloc[-2]) if len(q) >= 2 else None
+            out.update(kq=round(qc, 2), kq20=round(q20, 2), kqUp20=qc > q20, kqUp5=qc > q5,
+                       kqPrev=round(qprev, 2) if qprev else None)
         except Exception as e:
             print("코스닥 지수 조회 실패:", e)
         return out
