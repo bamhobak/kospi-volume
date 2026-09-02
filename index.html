@@ -79,6 +79,13 @@ header{flex:none}
 .shell{display:flex;flex:1;min-height:0}
 .rail{width:212px;flex:none;background:#0c0e12;border-right:1px solid var(--line);
       display:flex;flex-direction:column;padding:14px 10px;gap:15px;overflow-y:auto}
+.railtog{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;
+  padding:8px 10px;font-size:12px;color:var(--mut);border:1px solid var(--line);
+  background:var(--panel2);width:100%}
+.railtog:hover{color:var(--txt)}
+.railtog .n{margin-left:auto;font-family:'JetBrains Mono',monospace;color:var(--dim);font-size:11px}
+.descmore{cursor:pointer;color:var(--acc);white-space:nowrap}
+.descmore:hover{text-decoration:underline}
 .rail .k{color:var(--dim);font-size:10px;font-weight:700;letter-spacing:.08em;padding:0 8px 4px}
 .rail .grp{display:flex;flex-direction:column;gap:4px}
 .rail .it{display:flex;align-items:center;gap:9px;padding:9px 10px;cursor:pointer;
@@ -372,6 +379,9 @@ const normId=v=>LEGACY_ID[v]||v;
    화면에 보이는 번호(P1·D1…)는 '순서에서 계산한' 표시용 값이고,
    저장·조회에 쓰는 식별자(f.id)는 절대 바뀌지 않는다.
    번호를 실제로 바꾸면 과거 매매 이력이 다른 규칙에 붙어 성적이 뒤섞인다. */
+/* 레일(규칙·조회 목록)은 기본 접힘 — 화면 위쪽 정보량을 줄인다. 선택은 기억한다. */
+let DESCOPEN=(function(){try{return localStorage.getItem('descopen')==='1'}catch(e){return false}})();
+let RAILOPEN=(function(){try{return localStorage.getItem('railopen')==='1'}catch(e){return false}})();
 let RORDER=null, RDRAG_AT=0;
 function loadROrder(){
   if(RORDER)return RORDER;
@@ -440,6 +450,13 @@ function passes(r){
   if(cur==='all')return FILTERS.some(f=>f.fn(r)&&!heldBy(r.ticker,f.id));
   if(heldBy(r.ticker,cur))return false;
   return FILTERS.find(f=>f.id===cur).fn(r)}
+/* 레일이 접혀 있을 때 지금 어느 탭인지 알려 준다 */
+function curName(){
+  if(cur==='pos')return '보유 종목'; if(cur==='all')return '매수 대기';
+  if(cur==='done')return '완료'; if(cur==='kp')return '코스피 전체'; if(cur==='kq')return '코스닥 전체';
+  const f=FILTERS.find(x=>x.id===cur);
+  return f?codeOf(f.id)+' '+f.name.split(' · ')[1]:cur;
+}
 function renderTabs(){
   const nrow=(f,cls,label,n,extra='',attr='')=>`<div class="it ${cls} ${cur===f?'on':''}" data-f="${f}"${attr}>${extra}<span>${label}</span><span class="n">${n}</span></div>`;
   const wait=view.rows.filter(r=>FILTERS.some(f=>f.fn(r)&&!heldBy(r.ticker,f.id))).length;
@@ -449,6 +466,9 @@ function renderTabs(){
       `<span class="bar"></span><span class="rid">${codeOf(f.id)}</span>`,
       ` draggable="true" data-rule="${f.mkt}"`)).join('');
   $('#rail').innerHTML=
+    `<div class="railtog" id="railtog"><span>${RAILOPEN?'▾':'▸'} 규칙·조회 목록</span>`
+      + `<span class="n">${RAILOPEN?orderedAll().length+'개 규칙':'현재: '+curName()}</span></div>`
+    + (RAILOPEN?
     `<div class="grp">`
     + nrow('pos','pos','보유 종목',positions().filter(p=>!p.sell).length)
     + nrow('all','','매수 대기',wait)
@@ -457,7 +477,7 @@ function renderTabs(){
     + `<div class="grp"><div class="k">조회</div>`
     + nrow('kp','','코스피 전체',view.rows.filter(r=>r.mk==='KOSPI').length,'<span class="bar"></span>')
     + nrow('kq','kq','코스닥 전체',view.rows.filter(r=>r.mk==='KOSDAQ').length,'<span class="bar"></span>') + `</div>`
-    ;
+    :'');
   /* 규칙 행을 끌어 순서 변경 — 코스피↔코스닥은 서로 넘어가지 못한다.
      바뀌는 건 '보이는 번호'뿐이고 저장되는 식별자(f.id)는 그대로다. */
   (function(){
@@ -517,8 +537,11 @@ function renderTabs(){
       });
     });
   })();
+  {const rt=$('#railtog');if(rt)rt.onclick=()=>{RAILOPEN=!RAILOPEN;
+    try{localStorage.setItem('railopen',RAILOPEN?'1':'0')}catch(e){}; renderTabs()};}
   document.querySelectorAll('#rail .it').forEach(b=>b.onclick=()=>{
     if(Date.now()-RDRAG_AT<400)return;            /* 순서를 끈 직후의 클릭은 탭 이동이 아니다 */
+    if(isMobile()){RAILOPEN=false;try{localStorage.setItem('railopen','0')}catch(e){}}  /* 고른 뒤엔 접어 자리를 돌려준다 */
     const f=b.dataset.f;
     cur=f;
     rowLimit=100;
@@ -534,13 +557,22 @@ function renderTabs(){
     $('#mktstate').innerHTML=`<i style="background:${open.length?'var(--org)':'var(--faint)'}"></i>`
       +`코스피 ${ma} → ${open.length?`오늘 열린 규칙 <b>${open.join('·')}</b>`:'<b>열린 규칙 없음</b>'}`;
   }else $('#mktstate').innerHTML='';
-  $('#fdesc').innerHTML=cur==='done'?'매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요.':cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (${holdText()}) · <button class="ghost mini" id="pinbtn">${getPin()===DEFAULT_PIN?'자동 동기화 중 (PIN 변경)':'PIN: '+getPin()+' (공유 중)'}</button>`:cur==='all'?'':(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));{const fd=$('#fdesc');if(fd&&fd.style)fd.style.display=(fd.innerHTML||'').trim()?'':'none'}
+  $('#fdesc').innerHTML=cur==='done'?'매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요.':cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (${holdText()})`:cur==='all'?'':(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));{const fd=$('#fdesc');
+  if(fd&&fd.style){const has=(fd.innerHTML||'').trim();
+    fd.style.display=has?'':'none';
+    if(has&&!DESCOPEN){fd.dataset.full=fd.innerHTML;
+      fd.innerHTML='<span class="descmore">▸ 설명 보기</span>'}
+    else if(has&&DESCOPEN&&!fd.querySelector('.descmore')){
+      fd.innerHTML=fd.innerHTML+' <span class="descmore">▴ 접기</span>'}
+    const dm=fd.querySelector('.descmore');
+    if(dm)dm.onclick=()=>{DESCOPEN=!DESCOPEN;
+      try{localStorage.setItem('descopen',DESCOPEN?'1':'0')}catch(e){}; renderTabs()};}}
   const rb=$('#rule');
   if(rb){const f=FILTERS.find(x=>x.id===cur)||null;
     if(f){rb.style.display='';rb.innerHTML=`<b>${f.name} 매매 규칙</b> <span>${f.ruleText}</span>`+(f.alloc?`<small><b style="color:var(--acc)">투입 비중</b> 계좌가 100이면 <b>한 종목에 ${f.alloc.pct}</b> · 이 규칙으로 <b>최대 ${f.alloc.max}종목</b>(최대 ${f.alloc.pct*f.alloc.max}) — 네 규칙 합쳐 실측 평균 7종목·투자율 81%, 검증 연 +6.0%·최대낙폭 11%</small>`:'')}else{rb.style.display='none'}}
   const qb=$('#q');if(qb&&!qb.dataset.b){qb.dataset.b='1';
     qb.oninput=()=>{query=qb.value;rowLimit=100;render()}}
-  const pb=$('#pinbtn');if(pb)pb.onclick=setPin;[$('#infobtn'),$('#infobtn2')].forEach(ib=>{if(ib)ib.onclick=()=>{showInfo=!showInfo;renderTabs()}})}
+  [$('#infobtn'),$('#infobtn2')].forEach(ib=>{if(ib)ib.onclick=()=>{showInfo=!showInfo;renderTabs()}})}
 let showInfo=false;let rowLimit=100;let rowTotal=0;let query='';   /* 조회 표: 100개씩 무한 스크롤 */let doneRule=null;   /* 완료 탭 규칙 필터 */   /* 조회 표 렌더 상한 — 2천행 DOM 파싱이 브라우저를 멈춘다 */
 function showTable(on){const t=$('#tblcard'),c=$('#cards');
   if(t)t.style.display=on?'':'none'; if(c)c.style.display=on?'none':'flex'}
@@ -748,7 +780,9 @@ async function renderPositions(){
   const lastD=raw.dates[raw.dates.length-1];
   const MOB=isMobile();
   const cols=['종목','규칙','매수일','매수가','수량','매수금액','현재가','수익률','평가손익','보유일','고점|매수 후 최고가 — 매수가와 매수일 이후 일별 종가, 오늘 실시간 고가 중 최댓값','손절/익절선','신호 유지','상태','매도가/손익',''];
-  const KEEP=MOB?[0,1,7,8,13,15]:cols.map((_,i)=>i);   /* 모바일: 종목·규칙·수익률·손익·상태·삭제만 */
+  /* 모바일에서도 열을 숨기지 않는다 — 표 안에서 가로로 밀어 매수일·매수가·수량까지 본다.
+     (열을 줄이면 화면엔 맞지만 정작 필요한 정보를 볼 방법이 없어진다) */
+  const KEEP=cols.map((_,i)=>i);
   clearColWidths();   /* 조회 표에서 정한 열 너비가 보유 종목 표에 남지 않게 */
   $('#tbl thead').innerHTML='<tr>'+cols.map((c,i)=>{if(!KEEP.includes(i))return '';
     const[t,tip]=c.split('|');
