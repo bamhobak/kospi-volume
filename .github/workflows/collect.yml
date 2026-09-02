@@ -8,6 +8,11 @@ on:
     - cron: "30 9 * * 1-5"    # 18:30 KST 평일 — 2차 시도
     - cron: "30 12 * * 1-5"   # 21:30 KST 평일 — 3차 시도
     - cron: "0 22 * * 0-4"    # 다음날 07:00 KST — 최종 보충(앞의 셋을 다 놓쳤을 때)
+  # 외부 스케줄러(cron-job.org)가 정시에 때려 주는 입구. GitHub 예약은 부하에 따라
+  # 몇 시간 밀리거나 통째로 유실되지만(실측: 5일간 기대 10회 중 4회만 발화, 지연 중앙값 3h),
+  # 이쪽은 시각을 우리가 소유한다. 위 schedule 은 외부 스케줄러가 죽었을 때의 보험으로 남긴다.
+  repository_dispatch:
+    types: [collect]
   workflow_dispatch:
     inputs:
       force:
@@ -38,7 +43,10 @@ jobs:
         env: { TZ: Asia/Seoul }
         run: |
           OK=$(python is_trading_day.py)
-          if [ "${{ inputs.force }}" = "true" ]; then OK=true; echo "force 입력 — 휴장일이어도 수집"; fi
+          # 수동 실행은 inputs.force, 외부 스케줄러는 client_payload.force 로 강제할 수 있다
+          if [ "${{ inputs.force }}" = "true" ] || [ "${{ github.event.client_payload.force }}" = "true" ]; then
+            OK=true; echo "force 입력 — 휴장일이어도 수집"
+          fi
           echo "trading=$OK" >> $GITHUB_OUTPUT
           echo "수집 여부: $OK"
       # 푸시(코드 변경)는 수집을 건너뛰고 빌드·배포만 한다.
