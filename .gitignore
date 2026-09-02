@@ -25,3 +25,8 @@ prices_local.log
 data/dart/insider.db
 insider_collect.log
 insider_task.log
+
+# 로컬 수집 체인 로그 (수집 중 계속 쓰여 git 작업을 방해한다)
+chain.log
+krx_daily.log
+index_collect.log
