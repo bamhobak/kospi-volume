@@ -87,6 +87,11 @@ header{flex:none}
 .descmore{cursor:pointer;color:var(--acc);white-space:nowrap}
 .descmore:hover{text-decoration:underline}
 .rail .k{color:var(--dim);font-size:10px;font-weight:700;letter-spacing:.08em;padding:0 8px 4px}
+.rail .freq{margin-top:4px;padding:9px 10px;border-top:1px dashed var(--line);color:var(--mut);
+  font-size:11px;line-height:1.65}
+.rail .freq b{color:var(--txt);font-weight:700}
+.rail .freq .now{display:inline-block;margin-left:2px;color:var(--org);font-weight:700}
+.rail .freq small{display:block;margin-top:5px;color:var(--dim);font-size:10px;line-height:1.55}
 .rail .grp{display:flex;flex-direction:column;gap:4px}
 .rail .it{display:flex;align-items:center;gap:9px;padding:9px 10px;cursor:pointer;
           border:1px solid transparent;color:var(--mut);white-space:nowrap;font-weight:600}
@@ -460,6 +465,25 @@ function curName(){
   const f=FILTERS.find(x=>x.id===cur);
   return f?codeOf(f.id)+' '+f.name.split(' · ')[1]:cur;
 }
+/* 규칙 목록 맨 아래 '월 평균 몇 건' 안내.
+   각 규칙의 stats.perMonth(검증기간 실측)를 게이트별로 더한다 — 상승장 전용 규칙과
+   하락장 전용 규칙은 동시에 열리지 않으므로 통째로 합치면 과대평가가 된다.
+   규칙을 새로 추가해도 gate·stats 만 채우면 여기 자동으로 들어온다. */
+function freqNote(){
+  let up=0, dn=0, miss=0;
+  orderedAll().forEach(f=>{
+    const pm=(f.stats&&typeof f.stats.perMonth==='number')?f.stats.perMonth:null;
+    if(pm===null){miss++;return}
+    const g=f.gate||'always';
+    if(g==='up60')up+=pm; else if(g==='dn60'||g==='dn20')dn+=pm; else {up+=pm;dn+=pm}
+  });
+  const now=GATE.up60(raw.kospi)?'up':(GATE.dn60(raw.kospi)?'dn':null);
+  const cur=now==='up'?up:(now==='dn'?dn:null);
+  return `<div class="freq">신호 빈도 <b>상승장 월 ${up.toFixed(1)}건</b> · <b>하락장 월 ${dn.toFixed(1)}건</b>`
+    + (cur!==null?` <span class="now">지금 ${now==='up'?'상승장':'하락장'} → 월 ${cur.toFixed(1)}건</span>`:'')
+    + `<small>규칙별 검증기간(2023~) 실측을 국면별로 합한 값입니다. 하락장에 몰려 나오므로 `
+    + `평소엔 며칠씩 신호가 없는 것이 정상입니다`+(miss?` · 성적 미측정 규칙 ${miss}개 제외`:'')+`</small></div>`;
+}
 function renderTabs(){
   const nrow=(f,cls,label,n,extra='',attr='')=>`<div class="it ${cls} ${cur===f?'on':''}" data-f="${f}"${attr}>${extra}<span>${label}</span><span class="n">${n}</span></div>`;
   const wait=view.rows.filter(r=>FILTERS.some(f=>f.fn(r)&&!heldBy(r.ticker,f.id))).length;
@@ -483,6 +507,7 @@ function renderTabs(){
     + `<div class="grp"><div class="k">조회</div>`
     + nrow('kp','','코스피 전체',view.rows.filter(r=>r.mk==='KOSPI').length,'<span class="bar"></span>')
     + nrow('kq','kq','코스닥 전체',view.rows.filter(r=>r.mk==='KOSDAQ').length,'<span class="bar"></span>') + `</div>`
+    + freqNote()
     :'');
   /* 규칙 행을 끌어 순서 변경 — 코스피↔코스닥은 서로 넘어가지 못한다.
      바뀌는 건 '보이는 번호'뿐이고 저장되는 식별자(f.id)는 그대로다. */
