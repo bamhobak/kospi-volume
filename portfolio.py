@@ -55,6 +55,12 @@ for nm in ("KP","KQ"):
     K2 = K.merge(INS, on=["ticker","date"], how="left"); assert len(K2)==n0
     K["ins60"] = K2.ins60.values
 
+# [자사주 낙폭](A1) 은 코스피·코스닥 공통 규칙이라 두 패널을 합쳐 쓴다.
+# 전체 컬럼을 합치면 메모리가 두 배가 되므로 이 규칙이 쓰는 컬럼만 남긴다.
+_C = ["ticker","date","name","close","low","buy","cost","ret60","dil","amt20","bb","mk"]
+KB = pd.concat([KP[_C], KQ[_C]], ignore_index=True).sort_values(["ticker","date"]).reset_index(drop=True)
+KB["pref"] = ~KB.ticker.str.endswith("0")
+
 def base(K, amt): return ((~K.pref)&(K.close>=1000)&(~K.dil.fillna(False))&(K.amt20.fillna(0)>=amt))
 def dn20(K): return K.date.map(UP20).fillna(True) == False
 def dn60(K): return K.date.map(UP60).fillna(True) == False
@@ -69,7 +75,7 @@ RULES = {
  "P3": (KP, 20, None, 5, 3, base(KP,3)&dn60(KP)&(KP.ret20<=-20)&(KP.su1>=1.5)&(KP.fw60>=1)
         &(KP.u<=-10)&(KP.srd==True)),
  "P4": (KP, 5, 0.15, 3, 4, base(KP,10)&dn60(KP)&(KP.u<=-20)&(KP.dma20<=-10)&(KP.mdd60<=-40)&(KP.srd==True)),
- "P5": (KP, 10, None, 5, 3, base(KP,3)&dn60(KP)&KP.bb&(KP.ret60<=-20)),
+ "P5": (KB, 10, None, 5, 3, base(KB,3)&dn60(KB)&KB.bb&(KB.ret60<=-20)),   # 공통(A1)
  "P6": (KP, 5, 0.10, 4, 4, base(KP,10)&dn60(KP)&(KP.dev25<=-25)&(KP.u<=-20)),
  "P7": (KP, 60, None, 4, 5, base(KP,30)&up60(KP)&(KP["cap조"]>=1)&(KP["cap조"]<10)&(KP.fw20>=1)
         &(KP.ow60<0.4)&(KP.r16>=100)&(KP.r16<150)&(KP.fromhi>=-15)&(KP.fromlo>=70)

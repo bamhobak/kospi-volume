@@ -102,15 +102,16 @@ def scope(txt, py):
 for rid in RULES_JS:
     a = scope(RULES_JS[rid], False)
     b = scope(NV_R.get(rid, ""), True) if rid in NV_R else None
-    c = ("코스피" if re.match(r"\s*KP", PF_R.get(rid, "")) else
-         "코스닥" if re.match(r"\s*KQ", PF_R.get(rid, "")) else None) if rid in PF_R else None
+    _pf = PF_R.get(rid, "")
+    c = ("공통" if re.match(r"\s*KB", _pf) else "코스피" if re.match(r"\s*KP", _pf)
+         else "코스닥" if re.match(r"\s*KQ", _pf) else None) if rid in PF_R else None
     got = {x for x in (a, b, c) if x}
     if len(got) > 1:
         bad(f"  ❌ [{NAME[rid]}] 시장 범위 불일치 — site={a} / notify={b} / portfolio={c}")
     # 메타데이터(mkt)와 실제 판정이 어긋나는가
     mm = re.search(rf"\{{id:'{rid}'[^}}]*?mkt:'([^']+)'", BLK)
     if mm:
-        meta = {"KOSPI": "코스피", "KOSDAQ": "코스닥"}.get(mm.group(1), mm.group(1))
+        meta = {"KOSPI": "코스피", "KOSDAQ": "코스닥", "BOTH": "공통"}.get(mm.group(1), mm.group(1))
         if a == "공통" and meta != "공통":
             bad(f"  ❌ [{NAME[rid]}] 화면 분류는 {meta} 인데 판정 함수는 시장을 가리지 않음(공통)")
 print("  (표기 차이를 흡수하지 못해 오탐이 날 수 있음 — 실제로 다른지 눈으로 확인할 것)")

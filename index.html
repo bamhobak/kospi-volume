@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="sb.js"></script>
 <style>
-:root{--dim:#5b626d;--faint:#41474f;--bg:#0a0b0e;--panel:#101217;--panel2:#171a21;--line:#272b34;--txt:#eef1f6;--mut:#858c99;/* 강조색은 손익색과 절대 겹치지 않게 분리한다 — 예전엔 --acc 와 --dn 이 둘 다 민트(5eead4)였다 */--acc:#a78bfa;--up:#f87171;--dn:#60a5fa;--ind:#fbbf24;--org:#34d399;--frg:#e879f9}
+:root{--dim:#5b626d;--faint:#41474f;--bg:#0a0b0e;--panel:#101217;--panel2:#171a21;--line:#272b34;--txt:#eef1f6;--mut:#858c99;/* 강조색은 손익색과 절대 겹치지 않게 분리한다 — 예전엔 --acc 와 --dn 이 둘 다 민트(5eead4)였다 */--acc:#a78bfa;--up:#f87171;--dn:#60a5fa;--ind:#fbbf24;--org:#34d399;--bth:#4ade80;/* 공통(A) 규칙 초록 */--frg:#e879f9}
 *{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--txt);font-family:'Noto Sans KR',Pretendard,-apple-system,"Malgun Gothic",sans-serif;font-size:13px;overflow:hidden}
 header{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
 header h1{font-size:16px;margin:0 8px 0 0;font-weight:700;letter-spacing:-.4px;white-space:nowrap}header h1 span{color:var(--acc)}
@@ -49,7 +49,7 @@ button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--t
 .thtag{background:var(--panel2);border:1px solid var(--line);border-radius:0;padding:3px 8px;font-size:11px;color:var(--mut)}
 .thtag.sector{border-color:var(--acc);color:var(--acc)}.thtag.up{border-color:#f8717155;color:#f87171}
 .thtag b{font-weight:700}
-.tag.kq{background:var(--ind)}
+.tag.kq{background:var(--ind)}.tag.bo{background:var(--bth)}
 .tag{display:inline-block;min-width:20px;text-align:center;background:var(--acc);color:#0a0b0e;border-radius:0;padding:1px 6px;font-size:11px;font-weight:700;margin-right:3px}
 button.mini{padding:3px 8px;font-size:11px;border-radius:0}
 .tabs button.pos-tab{border-color:#f8717155;color:#f87171}.tabs button.pos-tab.on{background:#f87171;border-color:#f87171;color:#0a0b0e}
@@ -97,6 +97,7 @@ header{flex:none}
 .rail .it .bar{width:5px;height:15px;flex:none;background:var(--acc);opacity:.14}
 .rail .it.on .bar{opacity:1}
 .rail .it.kq .bar{background:var(--ind)}.rail .it.kq.on{border-color:var(--ind)}.rail .it.kq.on .n{color:var(--ind)}
+.rail .it.bo .bar{background:var(--bth)}.rail .it.bo.on{border-color:var(--bth)}.rail .it.bo.on .n{color:var(--bth)}
 .rail .it.pos{border-color:#f8717155}.rail .it.pos.on{border-color:var(--up)}.rail .it.pos.on .n{color:var(--up)}
 .rail .it.done.on{border-color:var(--org)}.rail .it.done.on .n{color:var(--org)}
 .rail .it .rid{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:11px;width:20px;color:var(--acc)}
@@ -109,7 +110,7 @@ header{flex:none}
 .rail .it.rgrab{opacity:.5}
 .rail .it.rg-up .bar{background:var(--up)}
 .rail .it.rg-down .bar{background:var(--dn)}
-.rail .it.kq .rid{color:var(--ind)}
+.rail .it.kq .rid{color:var(--ind)}.rail .it.bo .rid{color:var(--bth)}
 .rail .sec{padding:11px;background:var(--panel2);border:1px solid var(--line)}
 .rail .sec .row{display:flex;justify-content:space-between;font-size:11px;margin-top:5px}
 .main{flex-grow:1;min-width:0;display:flex;flex-direction:column;min-height:0}
@@ -318,7 +319,7 @@ const FILTERS=[
         &&(r.amt20!=null?r.amt20:0)>=10&&r.close!=null&&r.close>=1000
         &&r.dilu!==true&&r.disc!==true},
 
-  {id:'P5',regime:'down',gate:'dn60',name:'P5 · 자사주 낙폭',mkt:'KOSPI',desc:'**코스피·코스닥 공통** · **당일 자사주 직접취득 결정 공시**(주요사항보고서 — 신탁계약·정정공시 제외) · **최근 60거래일 주가 -20% 이하** · **코스피 60일선 아래**  ▶ 매매: **다음날 시가 매수** · **10거래일 보유** 후 종가 매도 · 손절·익절 없음  ▶ 왜 이 조합인가: 회사가 폭락 구간에서 자기 주식을 직접 사겠다고 공시하는 것은 가격이 아니라 **회사의 의사결정** 신호라, 가격·수급으로 만든 기존 규칙과 정보 원천이 다릅니다. 실제로 같은 종목·시기를 다른 규칙과 함께 사는 경우는 **6%**뿐입니다. 신탁계약은 실행 강제성이 약해 성적이 한 급 아래였고(직접취득만 사용), 60일선 위에서는 수익이 0이라 하락장 조건을 붙였습니다  ▶ 백테스트 2018~26(9년, 절대수익, **상장폐지 종목 포함**): 255건 평균 **+11.31%** / 중앙값 +7.05% / 승률 74% / PF 7.30 · **검증(2023~26) +6.02%**(47건, 중앙값 +6.14%, 승률 68%, PF 4.08, 최악 -29.9%) · 월 단위 신뢰구간 전체 **+3.0~+17.7%** · **검증구간만 봐도 +3.7~+8.3%** · 2018~26 **전 연도 양수**(2020 제외해도 평균 ≈+4%)  ▶ **생존편향 보정 완료(2026-09-01)**: 폐지 512종목의 공시 35,832건과 주가를 넣어 재측정했습니다. 폐지종목이 만든 신호는 **4건(1.6%)**뿐이었고, 전체 +11.35%→**+11.31%**로 사실상 그대로였으며 검증구간은 +5.22%→**+6.02%**로 오히려 올랐습니다. 자사주를 사는 회사가 곧 폐지되는 경우는 드물어 편향이 작았습니다  ▶ ⚠ **발생 시기는 기존 규칙과 거의 겹칩니다**(±10일 내 다른 규칙 신호 존재 97%) — 하락장에 P3·D1·D2 와 동시에 종목을 요구하므로 자금 배분에 유의  ▶ ⚠ 신호가 하락장에만 나며(하락장 월 5.5건) 상승장에는 0건입니다  ▶ ⚠ 2020년이 표본의 38%입니다 — 다만 상위 5건 기여는 14%로 소수 대박 의존은 아닙니다',
+  {id:'P5',regime:'down',gate:'dn60',name:'A1 · 자사주 낙폭',mkt:'BOTH',desc:'**코스피·코스닥 공통** · **당일 자사주 직접취득 결정 공시**(주요사항보고서 — 신탁계약·정정공시 제외) · **최근 60거래일 주가 -20% 이하** · **코스피 60일선 아래**  ▶ 매매: **다음날 시가 매수** · **10거래일 보유** 후 종가 매도 · 손절·익절 없음  ▶ 왜 이 조합인가: 회사가 폭락 구간에서 자기 주식을 직접 사겠다고 공시하는 것은 가격이 아니라 **회사의 의사결정** 신호라, 가격·수급으로 만든 기존 규칙과 정보 원천이 다릅니다. 실제로 같은 종목·시기를 다른 규칙과 함께 사는 경우는 **6%**뿐입니다. 신탁계약은 실행 강제성이 약해 성적이 한 급 아래였고(직접취득만 사용), 60일선 위에서는 수익이 0이라 하락장 조건을 붙였습니다  ▶ 백테스트 2018~26(9년, 절대수익, **상장폐지 종목 포함**): 255건 평균 **+11.31%** / 중앙값 +7.05% / 승률 74% / PF 7.30 · **검증(2023~26) +6.02%**(47건, 중앙값 +6.14%, 승률 68%, PF 4.08, 최악 -29.9%) · 월 단위 신뢰구간 전체 **+3.0~+17.7%** · **검증구간만 봐도 +3.7~+8.3%** · 2018~26 **전 연도 양수**(2020 제외해도 평균 ≈+4%)  ▶ **생존편향 보정 완료(2026-09-01)**: 폐지 512종목의 공시 35,832건과 주가를 넣어 재측정했습니다. 폐지종목이 만든 신호는 **4건(1.6%)**뿐이었고, 전체 +11.35%→**+11.31%**로 사실상 그대로였으며 검증구간은 +5.22%→**+6.02%**로 오히려 올랐습니다. 자사주를 사는 회사가 곧 폐지되는 경우는 드물어 편향이 작았습니다  ▶ ⚠ **발생 시기는 기존 규칙과 거의 겹칩니다**(±10일 내 다른 규칙 신호 존재 97%) — 하락장에 P3·D1·D2 와 동시에 종목을 요구하므로 자금 배분에 유의  ▶ ⚠ 신호가 하락장에만 나며(하락장 월 5.5건) 상승장에는 0건입니다  ▶ ⚠ 2020년이 표본의 38%입니다 — 다만 상위 5건 기여는 14%로 소수 대박 의존은 아닙니다',
    alloc:{pct:5,max:3},
    rule:{hold:10,stop:null,target:null}, ruleText:'다음날 <em>시가 매수</em> · <em>10거래일</em> 보유 후 종가 매도 (손절·익절 <em>없음</em>)',
    stats:{n:47, perMonth:1.1, win:68, pf:4.08, avg:6.02, years:'**검증기간(2023~26) · 실거래 기준** · 2023 +2.1%(5건) / 2024 +5.0%(28건) / 2025 +11.0%(1건) / 2026 +9.3%(13건)  —  참고: 전체기간 255건 평균 +11.31% · 승률 74% (상장폐지 종목 포함)'},
@@ -402,19 +403,20 @@ function ordered(mkt){
   base.forEach(f=>{if(!seen.has(f.id))out.push(f)});
   return out;
 }
-const orderedAll=()=>ordered('KOSPI').concat(ordered('KOSDAQ'));
+/* 공통(BOTH) 규칙은 A1·A2… 로 코스피·코스닥 뒤에 붙는다 */
+const orderedAll=()=>ordered('KOSPI').concat(ordered('KOSDAQ')).concat(ordered('BOTH'));
 /* 표시 번호 — 순서에서 계산한다. 폐기 규칙(P0)처럼 목록에 없으면 원래 코드 그대로. */
 function codeOf(id){
   const nid=normId(id);
-  for(const mkt of ['KOSPI','KOSDAQ']){
+  for(const mkt of ['KOSPI','KOSDAQ','BOTH']){
     const i=ordered(mkt).findIndex(f=>f.id===nid);
-    if(i>=0)return (mkt==='KOSPI'?'P':'D')+(i+1);
+    if(i>=0)return ({KOSPI:'P',KOSDAQ:'D',BOTH:'A'}[mkt])+(i+1);
   }
   return nid;
 }
 const fcode=id=>codeOf(id);
 /* 설명문 안의 규칙 참조(P4·D1…)도 현재 표시 번호로 바꿔 준다 */
-const descOf=f=>String(f.desc||'').replace(/(^|[^A-Za-z0-9])([PD][0-9])(?![0-9A-Za-z])/g,(m,pre,c)=>pre+codeOf(c));
+const descOf=f=>String(f.desc||'').replace(/(^|[^A-Za-z0-9])([PDA][0-9])(?![0-9A-Za-z])/g,(m,pre,c)=>pre+codeOf(c));
 const fOf=id=>FILTERS.find(x=>x.id===normId(id))||RETIRED[normId(id)]||null;
 /* 2026-09-01 이름 정리: 폐기된 옛 P1(상승초입) 이력을 P0 으로 옮긴다.
    같은 'P1' 이름 아래 성격이 다른 두 규칙의 성적이 섞이는 것을 막기 위한 일회성 변환.
@@ -462,7 +464,8 @@ function renderTabs(){
   const nrow=(f,cls,label,n,extra='',attr='')=>`<div class="it ${cls} ${cur===f?'on':''}" data-f="${f}"${attr}>${extra}<span>${label}</span><span class="n">${n}</span></div>`;
   const wait=view.rows.filter(r=>FILTERS.some(f=>f.fn(r)&&!heldBy(r.ticker,f.id))).length;
   /* 규칙 이름에 발현 장세를 색조로 — 상승장은 붉은기, 하락장은 푸른기 */
-  const rules=orderedAll().map(f=>nrow(f.id,(f.mkt==='KOSDAQ'?'kq ':'')+'rg-'+(f.regime||'down'),f.name.split(' · ')[1],
+  const cls=f=>f.mkt==='KOSDAQ'?'kq ':(f.mkt==='BOTH'?'bo ':'');
+  const rules=orderedAll().map(f=>nrow(f.id,cls(f)+'rg-'+(f.regime||'down'),f.name.split(' · ')[1],
       view.rows.filter(r=>f.fn(r)&&!heldBy(r.ticker,f.id)).length,   /* 목록과 같은 기준 */
       `<span class="bar"></span><span class="rid">${codeOf(f.id)}</span>`,
       ` draggable="true" data-rule="${f.mkt}"`)).join('');
@@ -823,7 +826,7 @@ async function renderPositions(){
     const cells=[
       `<td class="l name">${p.name} <span class="code">${p.code}</span>`
         +`${MOB?'':` <button class="ghost mini pdet" data-detail="${p.code}">상세</button>`}</td>`,
-      `<td class="l">${(p.filters||[]).map(f=>{const ff=fOf(f);return `<span class="tag ${ff&&ff.mkt==='KOSDAQ'?'kq':''}">${fcode(f)}</span>`}).join('')||'<span class="code">-</span>'}</td>`,
+      `<td class="l">${(p.filters||[]).map(f=>{const ff=fOf(f);return `<span class="tag ${ff?(ff.mkt==='KOSDAQ'?'kq':(ff.mkt==='BOTH'?'bo':'')):''}">${fcode(f)}</span>`}).join('')||'<span class="code">-</span>'}</td>`,
       `<td class="l">${md(p.date)}</td>`,`<td>${fmt(p.price)}</td>`,`<td>${p.qty?fmt(p.qty)+'주':''}</td>`,
       `<td>${p.qty?kor(p.price*p.qty)+'원':''}</td>`,`<td class="${cls(ret)}">${nowCell}</td>`,
       `<td class="${cls(ret)}">${ret==null?'':(ret>0?'+':'')+ret.toFixed(1)+'%'}</td>`,
@@ -976,7 +979,7 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
   /* 셀을 컬럼 id 로 만들어 cols 순서대로 출력한다 — 모바일 축약 시 머리글과 어긋나지 않게 */
   const cellOf=(r)=>({
     name:`<td class="l name">${r.name} <span class="code">${r.ticker}</span></td>`,
-    hits:`<td class="l">${orderedAll().filter(f=>f.fn(r)).map(f=>`<span class="tag ${f.mkt==='KOSDAQ'?'kq':''}">${codeOf(f.id)}</span>`).join('')}${heldPos(r.ticker)?'<span class="tag hold">보유</span>':''} <button class="ghost mini" data-buy="${r.ticker}">매수</button></td>`,
+    hits:`<td class="l">${orderedAll().filter(f=>f.fn(r)).map(f=>`<span class="tag ${f.mkt==='KOSDAQ'?'kq':(f.mkt==='BOTH'?'bo':'')}">${codeOf(f.id)}</span>`).join('')}${heldPos(r.ticker)?'<span class="tag hold">보유</span>':''} <button class="ghost mini" data-buy="${r.ticker}">매수</button></td>`,
     cap:`<td class="sc">${r.cap==null?'':(r.cap>=10000?(r.cap/10000).toFixed(1)+'조':fmt(r.cap)+'억')}</td>`,
     r1m:`<td class="${cls(r.r1m)}">${r.r1m==null?'':(r.r1m>0?'+':'')+r.r1m.toFixed(1)+'%'}</td>`,
     r3m:`<td class="${cls(r.r3m)}">${r.r3m==null?'':(r.r3m>0?'+':'')+r.r3m.toFixed(1)+'%'}</td>`,
