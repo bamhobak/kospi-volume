@@ -87,11 +87,9 @@ header{flex:none}
 .descmore{cursor:pointer;color:var(--acc);white-space:nowrap}
 .descmore:hover{text-decoration:underline}
 .rail .k{color:var(--dim);font-size:10px;font-weight:700;letter-spacing:.08em;padding:0 8px 4px}
-.rail .freq{margin-top:4px;padding:9px 10px;border-top:1px dashed var(--line);color:var(--mut);
-  font-size:11px;line-height:1.65}
-.rail .freq b{color:var(--txt);font-weight:700}
-.rail .freq .now{display:inline-block;margin-left:2px;color:var(--org);font-weight:700}
-.rail .freq small{display:block;margin-top:5px;color:var(--dim);font-size:10px;line-height:1.55}
+.rail .freq{margin-top:4px;padding:8px 10px;border-top:1px dashed var(--line);
+  color:var(--mut);font-size:11px;cursor:help}
+.rail .freq:hover{color:var(--txt)}
 .rail .grp{display:flex;flex-direction:column;gap:4px}
 .rail .it{display:flex;align-items:center;gap:9px;padding:9px 10px;cursor:pointer;
           border:1px solid transparent;color:var(--mut);white-space:nowrap;font-weight:600}
@@ -465,10 +463,14 @@ function curName(){
   const f=FILTERS.find(x=>x.id===cur);
   return f?codeOf(f.id)+' '+f.name.split(' · ')[1]:cur;
 }
-/* 규칙 목록 맨 아래 '월 평균 몇 건' 안내.
-   각 규칙의 stats.perMonth(검증기간 실측)를 게이트별로 더한다 — 상승장 전용 규칙과
-   하락장 전용 규칙은 동시에 열리지 않으므로 통째로 합치면 과대평가가 된다.
-   규칙을 새로 추가해도 gate·stats 만 채우면 여기 자동으로 들어온다. */
+/* 규칙 목록 맨 아래 신호 빈도 — 지금 국면의 예상치만 한 줄로, 근거는 툴팁에.
+
+   두 조각을 곱한다.
+   (1) 규칙별 stats.perMonth(검증기간 실측)를 게이트별로 합산 — 규칙을 추가하면 자동 반영
+   (2) 코스피 60일선 이격도 구간별 배율 — 같은 '하락장' 이라도 이격 -2% 와 -20% 는
+       신호량이 700배 차이가 난다(실측). 국면 이분법만으로는 예상치가 무의미하다.
+   배율은 2018~26 전 규칙 신호를 이격 구간별로 세어 같은 국면 평균으로 나눈 값이다. */
+const FREQ_MULT=[[-20,36.3],[-10,7.0],[-5,0.83],[-2,0.22],[0,0.05],[3,0.74],[7,0.94],[999,1.54]];
 function freqNote(){
   let up=0, dn=0, miss=0;
   orderedAll().forEach(f=>{
@@ -477,12 +479,33 @@ function freqNote(){
     const g=f.gate||'always';
     if(g==='up60')up+=pm; else if(g==='dn60'||g==='dn20')dn+=pm; else {up+=pm;dn+=pm}
   });
-  const now=GATE.up60(raw.kospi)?'up':(GATE.dn60(raw.kospi)?'dn':null);
-  const cur=now==='up'?up:(now==='dn'?dn:null);
-  return `<div class="freq">신호 빈도 <b>상승장 월 ${up.toFixed(1)}건</b> · <b>하락장 월 ${dn.toFixed(1)}건</b>`
-    + (cur!==null?` <span class="now">지금 ${now==='up'?'상승장':'하락장'} → 월 ${cur.toFixed(1)}건</span>`:'')
-    + `<small>규칙별 검증기간(2023~) 실측을 국면별로 합한 값입니다. 하락장에 몰려 나오므로 `
-    + `평소엔 며칠씩 신호가 없는 것이 정상입니다`+(miss?` · 성적 미측정 규칙 ${miss}개 제외`:'')+`</small></div>`;
+  const k=raw.kospi||{};
+  const dev=(k.close&&k.ma60)?(k.close/k.ma60-1)*100:null;
+  const isUp=GATE.up60(k), isDn=GATE.dn60(k);
+  const gateSum=isUp?up:(isDn?dn:null);
+  let mult=null;
+  if(dev!==null){for(const[hi,m]of FREQ_MULT){if(dev<=hi){mult=m;break}}}
+  const est=(gateSum!==null&&mult!==null)?gateSum*mult:null;
+  const fx=v=>v>=10?v.toFixed(0):v.toFixed(1);
+  const txt=est!==null?`월 ${fx(est)}건(예상)`
+    :(gateSum!==null?`월 ${fx(gateSum)}건(예상)`:`상승장 월 ${fx(up)}건 · 하락장 월 ${fx(dn)}건`);
+  const tip=[
+    est!==null?`지금: 코스피 60일선 이격 ${dev.toFixed(1)}% · ${isUp?'상승장':'하락장'}`:null,
+    est!==null?`계산: 국면 기준 월 ${fx(gateSum)}건 × 이격 구간 배율 ${mult} = 약 ${fx(est)}건`:null,
+    '',
+    `국면 기준  상승장 월 ${fx(up)}건 · 하락장 월 ${fx(dn)}건`,
+    '  규칙별 검증기간(2023~) 실측 빈도를 게이트별로 합한 값입니다.',
+    '  상승장 전용 규칙과 하락장 전용 규칙은 동시에 열리지 않으므로 따로 셉니다.',
+    '',
+    '이격 구간 배율 (2018~26 실측)',
+    '  -20%↓ 36.3배 · -20~-10% 7.0배 · -10~-5% 0.83배 · -5~-2% 0.22배',
+    '  -2~0% 0.05배 · 0~+3% 0.74배 · +3~+7% 0.94배 · +7%↑ 1.54배',
+    '  같은 하락장이라도 이격 -2% 와 -20% 는 신호량이 700배 차이 납니다.',
+    '',
+    '신호는 폭락 구간에 몰려 나옵니다 — 평상시엔 80~89% 의 날이 0건입니다.',
+    miss?`성적을 아직 재지 않은 규칙 ${miss}개는 빠져 있습니다.`:null
+  ].filter(x=>x!==null&&x!==undefined).join(String.fromCharCode(10));
+  return `<div class="freq" title="${tip.replace(/"/g,'&quot;')}">${txt}</div>`;
 }
 function renderTabs(){
   const nrow=(f,cls,label,n,extra='',attr='')=>`<div class="it ${cls} ${cur===f?'on':''}" data-f="${f}"${attr}>${extra}<span>${label}</span><span class="n">${n}</span></div>`;
