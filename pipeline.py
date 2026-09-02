@@ -456,6 +456,8 @@ def build_site():
         # ── P4(조용한 신고가)용 지표 ────────────────────────────
         hi250 = max(closes[-250:]) if len(closes) >= 60 else None            # 52주 신고가
         fromhi = round((closes[-1] / hi250 - 1) * 100, 2) if hi250 else None  # 신고가 대비(%)
+        lo250 = min(closes[-250:]) if len(closes) >= 60 else None            # 52주 신저가
+        fromlo = round((closes[-1] / lo250 - 1) * 100, 2) if lo250 else None  # 저점 대비 상승률(%)
         f5 = fr_all[-5:]; v5 = vol_all[-5:]
         fw5 = (round(sum(x or 0 for x in f5) / sum(v5) * 100, 2)
                if len(f5) >= 5 and sum(v5) else None)                         # 외국인 5일 순매수 비중
@@ -491,7 +493,7 @@ def build_site():
                 if closes[i] > ma: hit += 1
             above20 = round(hit / n * 100, 1)
         table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2], "streak": streak, "ret3": ret3, "ret10": ret10,
-                      "ret20": ret20, "ret60": ret60, "fromhi": fromhi, "fw5": fw5, "vol20": vol20, "ret2y": ret2y, "ret250": ret250, "above20": above20, "fw20": fw20, "ow60": ow60, "dev25": dev25, "dma20": dma20, "mdd60": mdd60, "r1m": r1m, "r3m": r3m, "r6m": r6m, "r1y": r1y, "vs1": vs1, "fw60": fw60, "amt20": amt20, "ow20": ow20, "disc": disc,
+                      "ret20": ret20, "ret60": ret60, "fromhi": fromhi, "fromlo": fromlo, "fw5": fw5, "vol20": vol20, "ret2y": ret2y, "ret250": ret250, "above20": above20, "fw20": fw20, "ow60": ow60, "dev25": dev25, "dma20": dma20, "mdd60": mdd60, "r1m": r1m, "r3m": r3m, "r6m": r6m, "r1y": r1y, "vs1": vs1, "fw60": fw60, "amt20": amt20, "ow20": ow20, "disc": disc,
                       "aw": aw, "a1": a1, "a6": a6 if n6 >= W_BASE // 2 else None,
                       "amt": round(amt1 / 1e8, 2) if amt1 else None, "cap": s.get("cap"), "pref": s["ticker"][-1] != "0", "mk": s.get("mkt", "KOSPI"),
                       "up": UP.get(s["ticker"]), "rs": RS.get(UP.get(s["ticker"])),

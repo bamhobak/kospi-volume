@@ -105,6 +105,7 @@ FILTERS = [
      and r.get("ow60") is not None and r["ow60"] < 0.4
      and (r.get("a1") and r.get("a6") and 100 <= r["a1"] / r["a6"] * 100 < 150)
      and r.get("fromhi") is not None and r["fromhi"] >= -15
+     and r.get("fromlo") is not None and r["fromlo"] >= 70
      and (r.get("ins60") or 0) > 0
      and r.get("dilu") is not True and r.get("disc") is not True),
 
