@@ -61,7 +61,7 @@ FILTERS = [
      and r.get("vs1") is not None and r["vs1"] >= 1.5
      and r.get("fw60") is not None and r["fw60"] >= 1
      and (r.get("amt20") if r.get("amt20") is not None else (r.get("amt") or 0)) >= 3
-     and r.get("crc") is not None and r["crc"] <= -20
+     and r.get("crc") is not None and r["crc"] <= -15
      and kospi.get("up60") is False
      and (r.get("sr60") is not None and r["sr60"] <= -10)
      and r.get("srDown") is True and r.get("dilu") is not True and r.get("disc") is not True),

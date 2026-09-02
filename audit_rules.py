@@ -179,7 +179,7 @@ def R(K):
      "P2": (10, None, P & (K.r16 < 30) & (gp(K,"rw1") >= 200) & (K.fw5 >= 2) & (K.amt >= 3)
             & (K.ret3 <= -5) & (K.ret10 <= 0) & (~K.up20) & (K.srd == True)),
      "P3": (20, None, P & (K.ret20 <= -20) & (K.su1 >= 1.5) & (K.fw60 >= 1) & (K.amt20 >= 3)
-            & (~K.up60) & (K.u <= -10) & (K.srd == True) & (gp(K,"crc") <= -20)),
+            & (~K.up60) & (K.u <= -10) & (K.srd == True) & (gp(K,"crc") <= -15)),
      "P4": (5, 15, P & (~K.up60) & (K.u <= -20) & (K.dma20 <= -10) & (K.mdd60 <= -40)
             & (K.srd == True) & (K.amt20 >= 10) & (K.close >= 1000)),
      "P5": (10, None, (~K.pref) & (K.bb == True) & (K.ret60 <= -20) & (~K.up60)),
