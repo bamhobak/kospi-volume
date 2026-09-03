@@ -31,3 +31,5 @@ chain.log
 krx_daily.log
 index_collect.log
 backfill_krx.log
+dart_2016.log
+panel_kq.log

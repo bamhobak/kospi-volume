@@ -30,7 +30,11 @@ def load(f, mk):
     K["cap조"] = K.marcap/1e4
     K["dev25"] = (K.close/g.close.transform(lambda s: s.rolling(25,min_periods=25).mean())-1)*100
     return K
-KP = load("kp_ow.pkl","KOSPI"); KQ = load("kq_ow.pkl","KOSDAQ")
+# 패널 파일은 환경변수로 바꿀 수 있다. 기본은 운영 패널(2018~), PANEL_KP/PANEL_KQ 를
+# 주면 다른 패널로 같은 규칙을 잴 수 있다 — 과거 구간(2016~) 검증에 쓴다.
+import os as _os
+KP = load(_os.environ.get("PANEL_KP", "kp_ow.pkl"), "KOSPI")
+KQ = load(_os.environ.get("PANEL_KQ", "kq_ow.pkl"), "KOSDAQ")
 
 # 자사주 공시(P5)
 con = sqlite3.connect(BASE/"data"/"dart"/"disclosures.db")

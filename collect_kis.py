@@ -73,7 +73,8 @@ log.info(f"[{MODE}/{MKT}] 대상 {len(todo)}종목 (완료 {len(done)}) · {FROM
 
 TOKEN = kis.get_token()
 lock = threading.Lock(); last = [0.0]
-def throttle(gap=0.15):
+GAP = float(arg("--gap", "0.15"))
+def throttle(gap=GAP):
     with lock:
         w = gap - (time.time() - last[0])
         if w > 0: time.sleep(w)
