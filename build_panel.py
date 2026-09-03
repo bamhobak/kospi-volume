@@ -40,6 +40,29 @@ for r in csv.DictReader(open(BASE/"data"/"ksic.csv", encoding="utf-8-sig")):
 SECT = dict(KS); SECT.update(IND)      # industry.csv 가 우선, 없으면 ksic
 log.info(f"업종: industry.csv {len(IND):,} + ksic 보완 {len(set(KS)-set(IND)):,} = {len(SECT):,}종목")
 
+# 업종 이력 — KRX 업종 지수의 분기별 구성 종목(collect_sector_hist.py 가 쌓는다).
+# 예전엔 현재 스냅샷 하나를 전 기간에 소급했는데, 그러면 그 사이 상장폐지된 종목은
+# 업종을 몰라 판정에서 통째로 빠진다(2016년 종목의 98%). 각 행의 날짜에 대해
+# '그 시점 이전의 가장 가까운 스냅샷' 을 적용한다.
+_sc = sqlite3.connect(f"file:{BASE}/data/kospi.db?mode=ro", uri=True, timeout=600)
+try:
+    SH = pd.read_sql("SELECT snap,ticker,gname FROM sector WHERE kind='upjong'", _sc)
+except Exception:
+    SH = pd.DataFrame(columns=["snap","ticker","gname"])
+_sc.close()
+SNAPS = np.array(sorted(SH.snap.unique())) if len(SH) else np.array([])
+SHMAP = {(s, t): g for s, t, g in zip(SH.snap, SH.ticker, SH.gname)} if len(SH) else {}
+log.info(f"업종 이력: 스냅샷 {len(SNAPS)}개 · 매핑 {len(SHMAP):,}건")
+
+def sector_of(dates, tickers):
+    """행마다 '그 날짜 이전의 가장 가까운 스냅샷' 기준 업종. 없으면 현재 분류로 보완."""
+    if not len(SNAPS):
+        return pd.Series(tickers).map(SECT).values
+    i = np.clip(np.searchsorted(SNAPS, np.asarray(dates), side="right") - 1, 0, len(SNAPS) - 1)
+    snap = SNAPS[i]
+    out = [SHMAP.get((s, t)) for s, t in zip(snap, tickers)]
+    return [o if o is not None else SECT.get(t) for o, t in zip(out, tickers)]
+
 _d = sqlite3.connect(f"file:{BASE}/data/dart/disclosures.db?mode=ro", uri=True, timeout=600)
 dz = pd.read_sql("SELECT stock_code t, rcept_dt FROM disclosure WHERE "
    "replace(report_nm,' ','') LIKE '%유상증자결정%' "
@@ -48,6 +71,26 @@ dz = pd.read_sql("SELECT stock_code t, rcept_dt FROM disclosure WHERE "
 DIL = defaultdict(list)
 for r in dz.itertuples(): DIL[r.t].append(r.rcept_dt)
 log.info(f"희석 공시 {len(dz):,}건 · {dz.rcept_dt.min()}~{dz.rcept_dt.max()}")
+
+# 자사주 취득결정 — [자사주 낙폭](A1) 이 쓴다. 신탁계약은 실제 매입 시점이 흩어져
+# 효과가 다르고, 정정공시는 원본과 중복되므로 뺀다(기존 규칙 정의와 동일).
+_d = sqlite3.connect(f"file:{BASE}/data/dart/disclosures.db?mode=ro", uri=True, timeout=600)
+bz = pd.read_sql("SELECT stock_code t, rcept_dt, report_nm FROM disclosure WHERE "
+                 "length(stock_code)=6 AND replace(report_nm,' ','') LIKE '%자기주식취득결정%'", _d)
+_nm = bz.report_nm.str.replace(" ", "", regex=False)
+bz = bz[~_nm.str.contains("신탁") & ~_nm.str.contains("정정")]
+BBSET = set(zip(bz.t, bz.rcept_dt))
+log.info(f"자사주 취득결정 {len(BBSET):,}건 · {bz.rcept_dt.min()}~{bz.rcept_dt.max()}")
+# 임원·주요주주 소유상황보고 — [외인 매집](P1) 이 '최근 60거래일 1건 이상' 으로 쓴다
+iz = pd.read_sql("SELECT stock_code t, rcept_dt FROM disclosure WHERE length(stock_code)=6 AND "
+                 "replace(report_nm,' ','') LIKE '%임원ㆍ주요주주특정증권등소유상황보고서%'", _d)
+if not len(iz):
+    iz = pd.read_sql("SELECT stock_code t, rcept_dt FROM disclosure WHERE length(stock_code)=6 AND "
+                     "report_nm LIKE '%주요주주%소유상황보고%'", _d)
+_d.close()
+INS = defaultdict(list)
+for r in iz.itertuples(): INS[r.t].append(r.rcept_dt)
+log.info(f"내부자 보고 {len(iz):,}건 · 종목 {len(INS):,}개")
 
 IX = fdr.DataReader("KS11", "2014-06-01"); IX = IX[IX.Close > 0]
 IX.index = IX.index.strftime("%Y%m%d")
@@ -143,6 +186,21 @@ def build(mkt):
         dil[idx] = ((L.values[None,:] >= v[:,None]-np.timedelta64(90,"D")) &
                     (L.values[None,:] <= v[:,None])).any(axis=1)
     df["dil"] = dil
+    # 자사주: 그날 취득결정 공시가 있었나(규칙은 '공시 다음날 시가 매수' 로 실측했다)
+    df["bb"] = [(t, d) in BBSET for t, d in zip(df.ticker, df.date)]
+    # 내부자: 최근 60거래일 안의 보고 건수. 거래일 인덱스로 세어 휴장을 건너뛴다.
+    ins = np.zeros(len(df), np.int32)
+    pos60 = df.date.map(DI).values
+    for t, idx in df.groupby("ticker").indices.items():
+        L = INS.get(t)
+        if not L: continue
+        lp = np.sort([DI[x] for x in L if x in DI])
+        if not len(lp): continue
+        v = pos60[idx]
+        hi = np.searchsorted(lp, v, side="right")
+        lo = np.searchsorted(lp, v - 60, side="left")
+        ins[idx] = hi - lo
+    df["ins60"] = ins
     pc = g.close.shift(1); jj = (C/pc).where(pc > 0)
     badday = ((jj > 1.32) | (jj < 0.68)).fillna(False)
     bad = np.zeros(len(df), bool); pos = df.date.map(DI).values
@@ -152,7 +210,7 @@ def build(mkt):
         qq = np.searchsorted(bp, p, side="right")
         bad[idx[(qq < len(bp)) & (bp[np.minimum(qq, len(bp)-1)] - p <= 42)]] = True
     df["bad"] = bad
-    df["up"] = df.ticker.map(SECT)
+    df["up"] = sector_of(df.date.values, df.ticker.values)
     d2 = df[df.up.notna()].dropna(subset=["ret60"])
     gm = d2.groupby(["date","up"]).ret60
     m = gm.median()[gm.size() >= 5]
@@ -162,6 +220,19 @@ def build(mkt):
     for h in HZ:
         sell = g.close.shift(-h).where(~(mypos+h > lastpos), lastclose)
         df["n%d" % h] = (sell/df.buy-1)*100 - df.cost
+    # 2018~ 의 공매도는 DB(daily)가 아니라 기존 패널에만 있다(과거 파이프라인이 별도
+    # 경로로 관리해 왔다). 2016~17 은 백필 때 KRX 에서 직접 받아 DB 에 있으므로,
+    # 비어 있는 구간만 기존 패널에서 채운다. 이걸 빌드 안에서 하지 않으면 패널을
+    # 다시 만들 때마다 공매도가 사라져 관련 규칙이 통째로 0건이 된다(2026-09-04 실측).
+    _oldf = BASE/"data"/("kp_ow.pkl" if mkt == "KOSPI" else "kq_ow.pkl")
+    if _oldf.exists() and df.srd.isna().any():
+        _O = pd.read_pickle(_oldf)[["ticker","date","sr20","srd"]]
+        _n = len(df)
+        df = df.merge(_O, on=["ticker","date"], how="left", suffixes=("","_o"))
+        assert len(df) == _n, "공매도 병합에서 행이 늘었다 — 키 중복"
+        for _c in ("sr20","srd"):
+            df[_c] = df[_c].where(df[_c].notna(), df[_c+"_o"]); df.drop(columns=[_c+"_o"], inplace=True)
+        log.info(f"  공매도 보완: srd 결측 {df.srd.isna().mean()*100:.0f}%")
     fn = "panel_kp.pkl" if mkt == "KOSPI" else "panel_kq.pkl"
     df.to_pickle(BASE/"data"/fn)
     log.info(f"  저장 {fn} · {len(df):,}행 {len(df.columns)}컬럼")
