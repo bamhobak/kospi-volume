@@ -81,13 +81,19 @@ for rid, (K, hold, stop, pct, mx, cond) in RULES.items():
     r = ret_of(K, hold, stop)
     if r is None: continue
     K["_r"] = r.values
-    # 연속 유지 일수: 같은 종목에서 조건이 끊기지 않고 이어진 날수
-    g = K.groupby("ticker", sort=False)
-    blk = (~K._c).groupby(K.ticker).cumsum()
-    K["_stk"] = K.groupby(["ticker", blk]).cumcount() + 1
-    K.loc[~K._c, "_stk"] = 0
+    # 연속 유지 일수: 같은 종목에서 조건이 끊기지 않고 이어진 날수.
+    # 구간을 '조건이 꺼진 마지막 지점(base)' 으로 잡는다. cumsum 으로 그룹을 만들면
+    # 꺼진 행이 그 구간의 첫 원소로 딸려 들어가 번호가 하나씩 밀린다(최초 신호가 2가 된다).
+    c = K._c.to_numpy()
+    new_tk = K.ticker.ne(K.ticker.shift()).to_numpy()
+    idx = np.arange(len(c))
+    base = np.where(~c, idx, -1)
+    base = np.where(new_tk & c, idx - 1, base)   # 종목 첫 행이 신호면 그 직전을 기준선으로
+    base = np.maximum.accumulate(base)
+    K["_stk"] = np.where(c, idx - base, 0)
+    K["_seg"] = base                              # 같은 연속 구간이면 base 가 같다
     # 최초 신호의 매수가를 그 연속 구간 내내 들고 간다
-    first_buy = K.where(K._stk == 1)["buy"].groupby([K.ticker, blk]).transform("first")
+    first_buy = K.where(K._stk == 1)["buy"].groupby([K.ticker, K._seg]).transform("first")
     K["_win"] = (K.close / first_buy - 1) * 100        # 최초 매수분의 현재 손익
     Z = K[K._c & K._r.notna()]
     print(f"  [{NAME[rid]}] · {hold}거래일 보유" + (f" · 손절 -{stop*100:.0f}%" if stop else ""))
