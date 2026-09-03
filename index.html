@@ -294,6 +294,27 @@ function kor(n,sign){if(n==null||isNaN(n))return '';const a=Math.abs(n);let s;
   if(a>=1e8)s=(a/1e8).toFixed(a>=1e9?0:1).replace(/\.0$/,'')+'억';else if(a>=1e4)s=(a/1e4).toFixed(a>=1e6?0:1).replace(/\.0$/,'')+'만';else if(a>=1e3)s=(a/1e3).toFixed(1).replace(/\.0$/,'')+'천';else s=String(Math.round(a));
   return (n<0?'-':(sign&&n>0?'+':''))+s}
 const fmt=n=>n==null?'':Math.round(n).toLocaleString();const cls=n=>n>0?'pos':n<0?'neg':'';const WD=['일','월','화','수','목','금','토'];const md=d=>d.slice(4,6)+'/'+d.slice(6)+'('+WD[new Date(+d.slice(0,4),+d.slice(4,6)-1,+d.slice(6)).getDay()]+')';
+/* 한국 증시 휴장일 — 매도일 추정에만 쓴다. 주말은 요일로 걸러지니 공휴일만 적는다.
+   가장 긴 규칙이 60거래일(약 3개월)이라 반년치면 넉넉하다. 해가 바뀌면 갱신할 것.
+   빠진 휴장일이 있으면 매도일이 그만큼 당겨 보인다(알림은 실제 거래일로 세므로 정확하다). */
+const HOLIDAY=new Set(['20260924','20260925','20260928','20261005','20261009','20261225','20261231','20270101']);
+const dkey=dt=>`${dt.getFullYear()}${String(dt.getMonth()+1).padStart(2,'0')}${String(dt.getDate()).padStart(2,'0')}`;
+const dparse=d=>new Date(+d.slice(0,4),+d.slice(4,6)-1,+d.slice(6,8));
+const isTrading=dt=>{const w=dt.getDay();return w!==0&&w!==6&&!HOLIDAY.has(dkey(dt))};
+/* 매도일 = 매수일을 1일째로 세어 hold 번째 거래일. 백테스트의 청산일과 같은 정의다
+   (신호 다음날 시가 매수 → 신호일+hold 거래일 종가 매도).
+   이미 지난 날은 실제 거래일(raw.dates)을 쓰고, 아직 오지 않은 날만 추정한다. */
+function sellDate(buy,hold){
+  if(!buy||!hold)return null;
+  const known=(raw.dates||[]).filter(d=>d>=buy);
+  if(known.length>=hold)return {date:known[hold-1],est:false};
+  let n=known.length, cur=dparse(known.length?known[known.length-1]:buy);
+  if(!n&&isTrading(cur))n=1;              /* 매수일이 거래일인데 아직 일봉이 없는 경우 */
+  let guard=0;
+  while(n<hold&&guard++<400){cur.setDate(cur.getDate()+1);if(isTrading(cur))n++}
+  return {date:dkey(cur),est:true};
+}
+const mdShort=d=>(+d.slice(4,6))+'/'+(+d.slice(6,8))+'('+WD[dparse(d).getDay()]+')';
 const pct=(c,ch)=>{if(c==null||ch==null||c-ch===0)return '';const p=ch/(c-ch)*100;return `<span class="pct">(${p>0?'+':''}${p.toFixed(2)}%)</span>`};
 const chg=(c,ch)=>ch==null?'':`<span class="${cls(ch)}">${ch>0?'+':''}${fmt(ch)}${pct(c,ch)}</span>`;
 /* 지수 국면 게이트 — 규칙이 '오늘 열려 있는가' 를 정하는 조건.
@@ -884,7 +905,7 @@ async function renderPositions(){
   await pullLive(false); const live=LIVE;   /* 탭 전환마다 새로 받지 않는다 — 접속 시와 10분 주기에만 갱신 */
   const lastD=raw.dates[raw.dates.length-1];
   const MOB=isMobile();
-  const cols=['종목','규칙','매수일','매수가','수량','매수금액','현재가','수익률','평가손익','보유일','고점|매수 후 최고가 — 매수가와 매수일 이후 일별 종가, 오늘 실시간 고가 중 최댓값','손절/익절선','신호 유지','상태','매도가/손익',''];
+  const cols=['종목','규칙','매수일','매수가','수량','매수금액','현재가','수익률','평가손익','보유일','매도일|규칙상 매도일 — 매수일을 1일째로 세어 보유기간이 되는 거래일. 아직 오지 않은 날은 주말·공휴일을 빼서 추정한 값이라 휴장일에 따라 하루 이틀 밀릴 수 있습니다','고점|매수 후 최고가 — 매수가와 매수일 이후 일별 종가, 오늘 실시간 고가 중 최댓값','손절/익절선','신호 유지','상태','매도가/손익',''];
   /* 모바일에서도 열을 숨기지 않는다 — 표 안에서 가로로 밀어 매수일·매수가·수량까지 본다.
      (열을 줄이면 화면엔 맞지만 정작 필요한 정보를 볼 방법이 없어진다) */
   const KEEP=cols.map((_,i)=>i);
@@ -929,7 +950,13 @@ async function renderPositions(){
       `<td>${p.qty?kor(p.price*p.qty)+'원':''}</td>`,`<td class="${cls(ret)}">${nowCell}</td>`,
       `<td class="${cls(ret)}">${ret==null?'':(ret>0?'+':'')+ret.toFixed(1)+'%'}</td>`,
       `<td class="${cls(ret)}">${p.qty&&now?kor((now-p.price)*p.qty,1)+'원':''}</td>`,
-      `<td>${days}일</td>`,`<td>${fmt(hi)}</td>`,
+      `<td>${days}일</td>`,
+      `<td>${(()=>{if(!rule)return '<span class="code">-</span>';
+        const sd=sellDate(p.date,rule.hold);if(!sd)return '<span class="code">-</span>';
+        const left=rule.hold-days;   /* 남은 거래일 — 지났으면 매도 시점이다 */
+        return `<span class="${left<=0?'pos':''}" title="${sd.est?'추정':'확정'} · ${left>0?'남은 '+left+'거래일':'매도일 도래'}">`
+          +`${mdShort(sd.date)}</span>`})()}</td>`,
+      `<td>${fmt(hi)}</td>`,
       `<td>${rule?`${line?'손절 '+fmt(line):''}${tgt?'익절 '+fmt(tgt):''}`||'-':'<span class="code">-</span>'}</td>`,
       `<td>${streak?`<span class="${streak>=4?'hot':''}">${streak}일</span>`:'<span class="code">-</span>'}</td>`,
       `<td class="l ${sc==='none'?'':sc}" style="font-weight:600">${sc==='none'?'<span class="code">-</span>':st}</td>`,

@@ -1,5 +1,9 @@
 // 장중 시세·지수 수집 + 매도 신호 텔레그램 알림 (Edge Function)
 //
+// '추가매수 고려' 알림은 뺐다(2026-09-03). 원래 조건은 '이익 중 + 신호 4일 연속
+// 유지' 였는데(표본 11건), Edge Function 으로 옮기며 연속 유지 조건이 빠지고
+// '매수 후 3거래일' 로 바뀌어 근거와 무관한 알림이 되어 있었다.
+//
 // 왜 서버에서 받아야 하나: 네이버 시세 API 는 브라우저 출처를 보고 403 을 준다.
 // (polling.finance.naver.com · m.stock.naver.com · api.stock.naver.com 모두 실측 403)
 // 그래서 페이지가 직접 못 받고, 이 함수가 대신 받아 __prices__ 에 저장한 뒤 돌려준다.
@@ -118,7 +122,7 @@ Deno.serve(async (req) => {
 ` +
         `이제 PC·브라우저가 꺼져 있어도 평일 09:00~15:40 10분마다 서버가 시세를 확인합니다.
 ` +
-        `손절·익절·추가매수·매도일 조건에 걸리면 이 대화로 알려드립니다.` +
+        `손절·익절·매도일 조건에 걸리면 이 대화로 알려드립니다.` +
         (kp ? `
 코스피 ${num(kp.closePrice)?.toLocaleString("en-US")}` : ""));
       return new Response(JSON.stringify({ ping: "sent", at: stamp, hasToken: !!TG_TOKEN, hasChat: !!TG_CHAT }),
@@ -199,13 +203,6 @@ Deno.serve(async (req) => {
           await telegram(`🎯 <b>${nm}</b> 익절 목표 도달 (+${(rule.target! * 100).toFixed(0)}%)\n` +
             `현재가 ${fmt(now)} (매수 ${fmt(price)}, +${ret.toFixed(1)}%)\n보유 ${days}거래일 · 규칙 ${RNAME[rid] ?? rid}`);
           sent.add(`${id}:target`); fired++;
-        }
-        // 매수 후 3거래일 넘게 이익 중이면 한 번 알린다 (prices.py 와 같은 조건)
-        if (days >= 3 && ret > 0 && !sent.has(`${id}:add`)) {
-          await telegram(`🔥 <b>${nm}</b> 추가매수 고려 — 매수 후 ${days}거래일째 이익 중 (+${ret.toFixed(1)}%)
-` +
-            `현재가 ${fmt(now)} (매수 ${fmt(price)}) · 규칙 ${RNAME[rid] ?? rid}`);
-          sent.add(`${id}:add`); fired++;
         }
         // 매도일 알림은 12시부터. 09:00 첫 체크에 보내면 시가 변동이 한창일 때 알림이 와서
         // 판단할 여유가 없다. 정오면 그날 흐름이 어느 정도 잡힌다.
