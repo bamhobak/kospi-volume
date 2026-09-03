@@ -25,11 +25,21 @@ permissions:
   contents: write
   pages: write
   id-token: write
-concurrency: { group: pages, cancel-in-progress: true }
+# Pages 배포는 한 번에 하나만 — 그래서 그룹은 하나다. 다만 '취소' 는 수집끼리만 한다.
+# 코드 푸시(빌드만)가 진행 중인 수집을 취소하면 그날 데이터가 통째로 사라진다 —
+# 수집은 대기까지 몇 시간짜리라 그 사이 푸시 한 번이면 죽는다. 푸시는 줄을 서서 기다린다.
+concurrency:
+  group: pages
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    # collect.py 의 wait_for_today 는 네이버가 당일 투자자 데이터를 올릴 때까지 21:00 까지
+    # 기다린다. 잡 타임아웃이 그보다 짧으면 대기 중에 잡이 죽고(GitHub 은 이걸 cancelled 로
+    # 표시한다) 뒤 단계가 전부 건너뛰어진다 — 2026-09-03 16:35 실행이 50분 만에 그렇게
+    # 죽었다. 16:35 에 시작해 21:00 까지 버티려면 4시간 반이 필요하다. 공개 저장소라
+    # 러너 시간은 무료다.
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
