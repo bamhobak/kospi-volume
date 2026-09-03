@@ -11,7 +11,8 @@
 :root{--dim:#5b626d;--faint:#41474f;--bg:#0a0b0e;--panel:#101217;--panel2:#171a21;--line:#272b34;--txt:#eef1f6;--mut:#858c99;/* 강조색은 손익색과 절대 겹치지 않게 분리한다 — 예전엔 --acc 와 --dn 이 둘 다 민트(5eead4)였다 */--acc:#a78bfa;--up:#f87171;--dn:#60a5fa;--ind:#fbbf24;--org:#34d399;--bth:#4ade80;/* 공통(A) 규칙 초록 */--frg:#e879f9}
 *{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--txt);font-family:'Noto Sans KR',Pretendard,-apple-system,"Malgun Gothic",sans-serif;font-size:13px;overflow:hidden}
 header{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
-header h1{font-size:16px;margin:0 8px 0 0;font-weight:700;letter-spacing:-.4px;white-space:nowrap}header h1 span{color:var(--acc)}
+header h1{font-size:16px;margin:0 8px 0 0;font-weight:700;letter-spacing:-.4px;white-space:nowrap;cursor:pointer;user-select:none}
+header h1:active{opacity:.6}header h1 span{color:var(--acc)}
 input:not([type=checkbox]),select{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:0;padding:8px 12px;font-size:14px;outline:none;-webkit-appearance:none}
 input:focus{border-color:var(--acc)}input:not([type=checkbox]){flex:1;min-width:120px}
 button{background:var(--acc);border:0;color:#0a0b0e;border-radius:0;padding:8px 14px;font-weight:600;cursor:pointer;font-size:13px}
@@ -268,7 +269,7 @@ button.prim{background:var(--acc);border:1px solid var(--acc);color:#0a0b0e;font
 }
 </style></head><body>
 <header>
-  <h1>밤호박 <span>종목 선별기</span></h1>
+  <h1 id="home" title="첫 화면으로">밤호박 <span>종목 선별기</span></h1>
   <span id="mkt" class="mkt"></span>
   <span id="mktstate" class="mktstate"></span>
   <input id="q" type="search" placeholder="종목명·코드 검색" autocomplete="off">
@@ -648,6 +649,7 @@ function renderTabs(){
     if(f){rb.style.display='';rb.innerHTML=`<b>${codeOf(f.id)} · ${f.name.split(' · ')[1]||f.name} 매매 규칙</b> <span>${f.ruleText}</span>`}else{rb.style.display='none'}}
   const qb=$('#q');if(qb&&!qb.dataset.b){qb.dataset.b='1';
     qb.oninput=()=>{query=qb.value;rowLimit=100;render()}}
+  const hb=$('#home');if(hb&&!hb.dataset.b){hb.dataset.b='1';hb.onclick=goHome}
   [$('#infobtn'),$('#infobtn2')].forEach(ib=>{if(ib)ib.onclick=()=>{showInfo=!showInfo;renderTabs()}})}
 let showInfo=false;let rowLimit=100;let rowTotal=0;let query='';   /* 조회 표: 100개씩 무한 스크롤 */let doneRule=null;   /* 완료 탭 규칙 필터 */   /* 조회 표 렌더 상한 — 2천행 DOM 파싱이 브라우저를 멈춘다 */
 function showTable(on){const t=$('#tblcard'),c=$('#cards');
@@ -948,6 +950,15 @@ let raw={dates:[],rows:[]},view={dates:[],rows:[]},sortKey='last',desc=true,sel=
 let _mob=null;
 if(typeof window!=='undefined')window.addEventListener('resize',()=>{const m=isMobile();if(_mob!==null&&m!==_mob)render();_mob=m});
 const DETAIL=(()=>{try{const m=/[?&]detail=([0-9A-Za-z]+)/.exec(location.search||'');return m?m[1]:null}catch(e){return null}})();
+/* 첫 화면은 '매수 대기'. 다만 거기가 비어 있고 보유 종목이 있으면 그쪽을 연다 —
+   빈 목록보다 내 종목이 쓸모 있다. (매수 대기 = 아직 그 규칙으로 사지 않은, 규칙에 걸린 종목) */
+function homeTab(){return (!view.rows.some(r=>FILTERS.some(f=>f.fn(r)&&!heldBy(r.ticker,f.id)))
+  &&positions().some(p=>!p.sell))?'pos':'all'}
+function goHome(){
+  if(DETAIL){location.href=location.pathname;return}    /* 상세는 새 창이라 목록이 없다 */
+  const qb=$('#q');if(qb)qb.value='';query='';          /* 검색어도 함께 푼다 */
+  cur=homeTab();rowLimit=100;showInfo=false;doneRule=null;render();
+  window.scrollTo(0,0)}
 async function load(){
   if(DETAIL){                       /* 새 창 상세 모드: 헤더·목록 숨기고 종목 하나만 */
     document.body.classList.add('detail');
@@ -959,8 +970,7 @@ async function load(){
   await pullRemote();raw=await (await fetch('data/table.json?v='+Date.now())).json();prep();
   /* 첫 화면: 매수 대기가 비어 있으면 보유 종목 탭으로 연다 — 빈 목록보다 내 종목이 쓸모 있다.
      (매수 대기 = 아직 그 규칙으로 사지 않은 규칙에 걸린 종목) */
-  if(cur==='all'&&!view.rows.some(r=>FILTERS.some(f=>f.fn(r)&&!heldBy(r.ticker,f.id)))
-     &&positions().some(p=>!p.sell))cur='pos';
+  if(cur==='all')cur=homeTab();
   render();
   await pullLive();mktBadge();
   /* 열어둔 화면도 10분마다 지수·현재가를 따라가게 한다 */
@@ -1024,19 +1034,22 @@ function renderStatus(){
 function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none';return}
   /* 지수는 값만 보여준다. 이평선은 규칙 활성 여부와 함께 상태 칩에서 한 번에 안내한다.
      코스닥 20일선은 어떤 규칙도 쓰지 않아 표시하지 않는다 (D1 도 코스피 60일선을 본다). */
-  /* 숫자는 10분 간격 실시간값이 있으면 그걸 쓰고, 화살표(20일선 위/아래)는 규칙과 같은
-     종가 기준을 유지한다 — 장중 값으로 규칙 게이트가 흔들리면 안 되기 때문이다. */
+  /* 화살표와 색은 '오늘 등락'을 따른다. 예전엔 20일선 위/아래였는데, 바로 옆의 등락률과
+     어긋나 보였다(지수 +1.58% 인데 파란 ▼). 이평선 상태는 아래 상태 칩이 이미 말해 준다. */
   const ix=LIVE.index||{};
   const kv=(ix.kospi&&ix.kospi.now)||k.close, qv=(ix.kosdaq&&ix.kosdaq.now)||k.kq;
   const t=(ix.kospi&&ix.kospi.at)?ix.kospi.at.slice(11,16):'';
-  el.className='mkt '+(k.up20?'up':'dn');
-  el.title=t?`${t} 기준 실시간 지수 (10분 간격) · 화살표는 20일선 위/아래로 종가 기준`
-             :'전 거래일 종가 기준';
   /* 등락률은 전 거래일 종가 대비. 실시간 값이 있으면 그 값으로 계산한다. */
   const pc=(v,p)=>(v&&p)?((v/p-1)*100):null;
+  const kc=pc(kv,k.prev), qc=pc(qv,k.kqPrev);
+  const up=(x)=>x==null?null:x>=0;              /* 등락을 모르면 색을 칠하지 않는다 */
+  const cls=(x)=>up(x)===null?'':(up(x)?'up':'dn'), arr=(x)=>up(x)===null?'':(up(x)?'▲ ':'▼ ');
+  el.className='mkt '+cls(kc);
+  el.title=t?`${t} 기준 실시간 지수 (10분 간격) · 화살표는 전 거래일 종가 대비 등락`
+             :'전 거래일 종가 기준';
   const pct=(x)=>x==null?'':` <span class="${x>=0?'pos':'neg'}" style="font-size:11px">${x>=0?'+':''}${x.toFixed(2)}%</span>`;
-  el.innerHTML=`${k.up20?'▲':'▼'} P ${kv.toLocaleString()}${pct(pc(kv,k.prev))}`
-    +(qv?` &nbsp;<span class="mkt ${k.kqUp20?'up':'dn'}" style="margin-left:6px">${k.kqUp20?'▲':'▼'} D ${qv.toLocaleString()}${pct(pc(qv,k.kqPrev))}</span>`:'')}
+  el.innerHTML=`${arr(kc)}P ${kv.toLocaleString()}${pct(kc)}`
+    +(qv?` &nbsp;<span class="mkt ${cls(qc)}" style="margin-left:6px">${arr(qc)}D ${qv.toLocaleString()}${pct(qc)}</span>`:'')}
 function prep(){const n=7,D=raw.dates,k=Math.max(0,D.length-n);view.dates=D.slice(k);
   view.rows=raw.rows.map(r=>{const vols=r.v.slice(k),valid=vols.filter(x=>x!=null);const sum=a=>a.slice(k).reduce((x,y)=>x+(y||0),0);
     const prev=vols.slice(0,-1).filter(x=>x!=null),last=vols[vols.length-1];const avg=valid.length?valid.reduce((a,b)=>a+b,0)/valid.length:0;
