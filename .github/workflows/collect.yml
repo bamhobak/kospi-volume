@@ -154,6 +154,25 @@ jobs:
           KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
         run: python collect_credit_recent.py
 
+      # 수집 단계는 continue-on-error 라서 실패해도 워크플로가 통과한다. 그때 빈 CSV 가
+      # 그대로 빌드에 들어가면 그 필드를 쓰는 규칙이 조용히 0건이 된다 — 2026-09-02 에
+      # 자사주·내부자가 비어 [자사주 낙폭]·[외인 매집] 이 하루 종일 멈춰 있었다.
+      # 헤더만 남은 파일은 이전 것으로 되돌린다. 옛 데이터가 빈 데이터보다 낫다.
+      - name: 수집 결과 점검 (빈 파일이면 이전 것을 지킨다)
+        run: |
+          bad=0
+          for f in data/buyback_recent.csv data/insider_recent.csv data/dilution_recent.csv \
+                   data/credit_recent.csv data/short_recent.csv; do
+            [ -f "$f" ] || continue
+            n=$(wc -l < "$f")
+            if [ "$n" -le 1 ]; then
+              echo "::warning::$f 가 비었다(${n}줄) — 수집 실패로 보고 이전 파일을 지킨다"
+              git checkout -- "$f" 2>/dev/null || rm -f "$f"; bad=$((bad+1))
+            else
+              echo "$f: ${n}줄"
+            fi
+          done
+          [ "$bad" -eq 0 ] || echo "::warning::빈 파일 ${bad}건을 되돌렸다 — 수집 로그를 확인할 것"
       - name: build site (CSV + JSON)
         env: { TZ: Asia/Seoul }
         run: python pipeline.py --no-collect

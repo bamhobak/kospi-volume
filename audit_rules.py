@@ -86,6 +86,18 @@ PAT = re.compile(r"""[r.\["']*\b(""" + FIELD + r""")["'\]]*\s*(<=|>=|<|>)\s*(-?[
 
 def _flatten(t):
     """비교를 가리는 표기를 걷어낸다 — 걷어내도 문턱값은 그대로다."""
+    # notify_new 의 r["x"] → r.x (아래 비율 변환이 한 가지 표기만 보게 한다)
+    t = re.sub(r"""r\[\s*["']([^"']+)["']\s*\]""", r" r.\1 ", t)
+    # notify 는 외국인 5일 비중을 헬퍼로 쓴다 — 사이트의 fw5 와 같은 값이다
+    t = re.sub(r"fwp\(\s*r\s*\)", " r.fw5 ", t)
+    # 거래량 비율 표기가 셋이다: 사이트는 퍼센트 필드(r16), 알림은 a1/a6*100 또는 a1/a6.
+    # *100 이 붙은 쪽을 먼저 치환해야 뒤의 배수 규칙이 그것까지 100 배 하지 않는다.
+    t = re.sub(r"r\.a1\s*/\s*r\.a6\s*\*\s*100\s*(<=|>=|<|>)\s*([\d.]+)", r" r.r16 \1 \2 ", t)
+    t = re.sub(r"r\.aw\s*/\s*r\.a1\s*\*\s*100\s*(<=|>=|<|>)\s*([\d.]+)", r" r.rw1 \1 \2 ", t)
+    t = re.sub(r"r\.a1\s*/\s*r\.a6\s*(<=|>=|<|>)\s*([\d.]+)",
+               lambda m: " r.r16 %s %s " % (m.group(1), float(m.group(2)) * 100), t)
+    t = re.sub(r"r\.aw\s*/\s*r\.a1\s*(<=|>=|<|>)\s*([\d.]+)",
+               lambda m: " r.rw1 %s %s " % (m.group(1), float(m.group(2)) * 100), t)
     # notify_new 의 r.get("x") · (r.get("x") or 0) → r.x
     t = re.sub(r"""\(?\s*r\.get\(\s*["']([^"']+)["']\s*\)\s*(?:or\s*[-\d.]+\s*)?\)?""", r" r.\1 ", t)
     # portfolio 의 .fillna(0) · .isna() 꼬리는 비교 자체와 무관하다
@@ -131,8 +143,11 @@ for rid in RULES_JS:
         other = thr(tbl[rid])
         only_js = {x for x in js if x[0] in {y[0] for y in other}} - other
         only_ot = {x for x in other if x[0] in {y[0] for y in js}} - js
-        # base(K,amt) 안에 들어 있거나 표기가 달라 정규식으로 못 잡는 것들
-        SILENT = {"close", "marcap", "fw5", "r16", "rw1", "amt20", "amt"}
+        # portfolio 는 base(K,amt) 안에 조건이 숨어 정규식으로 안 보인다. 그러나 notify 는
+        # 조건을 다 펼쳐 쓰므로 침묵시킬 이유가 없다 — 예전엔 양쪽에 같은 목록을 적용해
+        # 알림에만 빠져 있던 조건(rw1)을 가려 버렸다(2026-09-03 selftest 로 발견).
+        SILENT = ({"close", "marcap", "fw5", "r16", "rw1", "amt20", "amt"}
+                  if src == "portfolio" else {"amt20", "amt"})
         # 양쪽 모두 본다. 예전엔 '사이트에 있는데 상대에 없는 것' 만 봐서,
         # 알림에만 몰래 남아 있던 조건을 놓쳤다(notify 의 [조정매집] streak).
         miss = ({x[0] for x in js} - {y[0] for y in other}) - SILENT

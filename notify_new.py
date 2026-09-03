@@ -55,6 +55,9 @@ FILTERS = [
     ("P2", "조정매집 (코스피·10일 보유·손절 없음)",
      lambda r: r.get("mk") == "KOSPI" and fwp(r) >= 2 and not r["pref"]
      and (r.get("amt") or 0) >= 3 and r["a1"] / r["a6"] < 0.3
+     # 최근 3거래일 거래량 >= 2개월 평균의 200%. 사이트(rw1>=200)에는 있는데 여기만
+     # 빠져 있어 알림이 더 헐겁게 나갔다(2026-09-03 selftest 로 발견).
+     and r.get("aw") and r.get("a1") and r["aw"] / r["a1"] >= 2
      and r.get("ret3") is not None and r["ret3"] <= -5
      and r.get("ret10") is not None and r["ret10"] <= 0
      and not bool(kospi.get("up20"))
