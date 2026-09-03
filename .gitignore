@@ -30,3 +30,4 @@ insider_task.log
 chain.log
 krx_daily.log
 index_collect.log
+backfill_krx.log

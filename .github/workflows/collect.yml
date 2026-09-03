@@ -188,8 +188,11 @@ jobs:
         env: { TZ: Asia/Seoul }
         run: python pipeline.py --no-collect
       # 알림은 데이터가 갱신됐을 때만 — 코드 푸시로 텔레그램이 나가면 안 된다
+      # 알림이 실패해도 수집 데이터는 커밋돼야 한다. 2026-09-03 에 이 단계가 실패해
+      # 그날 데이터가 통째로 커밋되지 않았다 — 알림은 부가 기능이지 수집의 전제가 아니다.
       - name: notify new picks
         if: github.event_name != 'push' && steps.td.outputs.trading == 'true'
+        continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

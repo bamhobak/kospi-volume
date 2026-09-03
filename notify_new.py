@@ -25,9 +25,15 @@ def rpc(fn, body):
 
 def telegram(text):
     if not (TG_TOKEN and TG_CHAT): print("텔레그램 미설정:", text.replace("\n", " | ")); return
-    r = requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
-                      json={"chat_id": TG_CHAT, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}, timeout=15)
-    print("텔레그램:", r.status_code, r.text[:120])
+    # 전송 실패가 이 스크립트를 죽이면 안 된다 — 알림은 부가 기능인데 그것 때문에
+    # 워크플로가 실패하면 그날 수집 데이터가 통째로 커밋되지 않는다(2026-09-03 발생).
+    try:
+        r = requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
+                          json={"chat_id": TG_CHAT, "text": text, "parse_mode": "HTML",
+                                "disable_web_page_preview": True}, timeout=30)
+        print("텔레그램:", r.status_code, r.text[:200])
+    except Exception as e:
+        print("텔레그램 전송 실패(무시하고 계속):", repr(e)[:200])
 
 T = json.loads((BASE / "site" / "data" / "table.json").read_text(encoding="utf-8"))
 rows, kospi = T["rows"], T.get("kospi") or {}
