@@ -226,7 +226,13 @@ Deno.serve(async (req) => {
         // 실측 근거: 754건 평균 +17.34%(최초 신호 +14.70%) · 학습CI +7.7~+24.0 ·
         // 중앙 +14.99% · 상위5% 제거 +13.88% · 최다연도 29%. 계좌로도 네 구간 모두 개선.
         const stk = STK[`${rid}:${p.code}`] ?? 0;
-        if (rid === "P7" && stk >= 2 && ret > 0 && !sent.has(`${id}:add`)) {
+        // 종목당 한 번만. 추가매수를 하면 같은 종목이 두 줄이 되는데, sent 키가 포지션
+        // id 라서 그 두 줄 각각에 또 알림이 갈 수 있었다 — 그 종목의 [외인 매집] 보유가
+        // 이미 둘이면 보내지 않는다(백테스트도 종목당 1회로 쟀다).
+        const nP7 = positions.filter((q: any) =>
+          q.code === p.code && !q.sell &&
+          (q.filters ?? []).some((f: any) => (LEGACY[String(f)] ?? String(f)) === "P7")).length;
+        if (rid === "P7" && nP7 < 2 && stk >= 2 && ret > 0 && !sent.has(`${id}:add`)) {
           await telegram(`🔥 <b>${nm}</b> 추가매수 고려 — 신호 ${stk}일째 유지 + 이익 중 (+${ret.toFixed(1)}%)
 ` +
             `현재가 ${fmt(now)} (매수 ${fmt(price)}) · 보유 ${days}거래일 · 규칙 ${RNAME[rid] ?? rid}
