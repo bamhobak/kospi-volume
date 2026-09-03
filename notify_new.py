@@ -4,9 +4,13 @@
 - 보유 중(미매도) 종목은 사이트와 동일하게 제외
 매일 수집(18:30) 워크플로 마지막에 실행
 """
-import re, os, json, sys, datetime as dt
+import re, os, io, json, sys, datetime as dt
 from pathlib import Path
 import requests
+
+# 윈도우 콘솔은 기본이 cp949 라 이모지가 섞이면 print 에서 죽는다(텔레그램 미설정 시
+# 메시지를 그대로 찍기 때문에 로컬 점검이 항상 실패했다). 표준출력을 UTF-8 로 고정한다.
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
 BASE = Path(__file__).parent
 js = (BASE / "assets" / "sb.js").read_text(encoding="utf-8")
@@ -137,10 +141,23 @@ cur = {}
 for fid, name, fn in FILTERS:
     cur[str(fid)] = sorted(r["t"] for r in rows
                            if fn(r) and str(fid) not in held_by.get(r["t"], set()))
+# 연속 일수용은 보유 여부로 거르지 않은 '조건 충족' 그대로다 — 신호가 이어지는지가
+# 보유 여부에 좌우되면 안 된다.
+hits = {str(fid): {r["t"] for r in rows if fn(r)} for fid, name, fn in FILTERS}
 
 prev_state = rpc("kospi_state_get", {"p_pin": "__filters__"}) or {}
 prev = prev_state.get("filters", {})
 prev_date = prev_state.get("date", "")
+
+# 규칙별·종목별 '신호가 며칠째 이어지는가'. [외인 매집] 추가매수 판정이 쓴다.
+# 과거를 소급 계산할 수 없어(그날의 지표를 다시 만들어야 한다) 매일 하루씩 누적한다.
+# 같은 날 두 번 돌아도 늘지 않게 날짜가 바뀐 경우에만 갱신한다.
+prev_stk = prev_state.get("streaks") or {}
+if prev_date == last_date:
+    streaks = prev_stk                      # 같은 날 재실행 — 그대로 둔다
+else:
+    streaks = {f"{fid}:{t}": prev_stk.get(f"{fid}:{t}", 0) + 1
+               for fid, ts in hits.items() for t in ts}
 info = {r["t"]: r for r in rows}
 
 lines = []
@@ -166,5 +183,7 @@ elif lines:
 else:
     print("신규 편입 없음:", {k: len(v) for k, v in cur.items()})
 
-rpc("kospi_state_set", {"p_pin": "__filters__", "p_data": {"filters": cur, "date": last_date, "updated": now_kst.strftime("%Y-%m-%d %H:%M")}})
-print("저장:", {k: len(v) for k, v in cur.items()}, "held", len(held))
+rpc("kospi_state_set", {"p_pin": "__filters__", "p_data": {"filters": cur, "streaks": streaks,
+                                                          "date": last_date, "updated": now_kst.strftime("%Y-%m-%d %H:%M")}})
+print("저장:", {k: len(v) for k, v in cur.items()}, "held", len(held),
+      "연속2일+", sum(1 for v in streaks.values() if v >= 2))

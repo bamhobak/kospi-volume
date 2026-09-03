@@ -1,8 +1,11 @@
 // 장중 시세·지수 수집 + 매도 신호 텔레그램 알림 (Edge Function)
 //
-// '추가매수 고려' 알림은 뺐다(2026-09-03). 원래 조건은 '이익 중 + 신호 4일 연속
-// 유지' 였는데(표본 11건), Edge Function 으로 옮기며 연속 유지 조건이 빠지고
-// '매수 후 3거래일' 로 바뀌어 근거와 무관한 알림이 되어 있었다.
+// '추가매수 고려' 알림 이력: 원래 '이익 중 + 신호 4일 연속 유지'(표본 11건)였는데
+// Edge Function 이관 때 연속 조건이 빠지고 '매수 후 3거래일' 이 되어 근거와 무관한
+// 알림이 됐다. 2026-09-03 에 제거하고 현재 9규칙으로 다시 실측한 뒤, 근거가 확인된
+// [외인 매집] 에 한해 되살렸다. 다른 규칙은 연도 쏠림이 심해(한 해에 86~90% 집중)
+// 통과하지 못했다. 계좌 기준 전체·학습·검증·붐제외 네 구간 모두 수익금이 늘고
+// 낙폭 악화는 -0.9%p 이내였다(자세한 근거는 addbuy_final.py).
 //
 // 왜 서버에서 받아야 하나: 네이버 시세 API 는 브라우저 출처를 보고 403 을 준다.
 // (polling.finance.naver.com · m.stock.naver.com · api.stock.naver.com 모두 실측 403)
@@ -122,7 +125,7 @@ Deno.serve(async (req) => {
 ` +
         `이제 PC·브라우저가 꺼져 있어도 평일 09:00~15:40 10분마다 서버가 시세를 확인합니다.
 ` +
-        `손절·익절·매도일 조건에 걸리면 이 대화로 알려드립니다.` +
+        `손절·익절·추가매수·매도일 조건에 걸리면 이 대화로 알려드립니다.` +
         (kp ? `
 코스피 ${num(kp.closePrice)?.toLocaleString("en-US")}` : ""));
       return new Response(JSON.stringify({ ping: "sent", at: stamp, hasToken: !!TG_TOKEN, hasChat: !!TG_CHAT }),
@@ -170,6 +173,9 @@ Deno.serve(async (req) => {
     if (wantAlerts && positions.length) {
       const st = (await rpc("kospi_state_get", { p_pin: "__alerts__" })) ?? {};
       const sent = new Set<string>(st.sent ?? []);
+      // 규칙별 신호 연속 일수 — notify_new.py 가 매일 하루씩 누적해 둔다
+      const STK: Record<string, number> =
+        ((await rpc("kospi_state_get", { p_pin: "__filters__" })) ?? {}).streaks ?? {};
       const before = sent.size;
       for (const p of positions) {
         const lv = prices[p.code];
@@ -206,6 +212,18 @@ Deno.serve(async (req) => {
         }
         // 매도일 알림은 12시부터. 09:00 첫 체크에 보내면 시가 변동이 한창일 때 알림이 와서
         // 판단할 여유가 없다. 정오면 그날 흐름이 어느 정도 잡힌다.
+        // 추가매수는 [외인 매집](P7) 에서만, 신호가 이어지는 중이고 이미 이익일 때 한 번.
+        // 실측 근거: 754건 평균 +17.34%(최초 신호 +14.70%) · 학습CI +7.7~+24.0 ·
+        // 중앙 +14.99% · 상위5% 제거 +13.88% · 최다연도 29%. 계좌로도 네 구간 모두 개선.
+        const stk = STK[`${rid}:${p.code}`] ?? 0;
+        if (rid === "P7" && stk >= 2 && ret > 0 && !sent.has(`${id}:add`)) {
+          await telegram(`🔥 <b>${nm}</b> 추가매수 고려 — 신호 ${stk}일째 유지 + 이익 중 (+${ret.toFixed(1)}%)
+` +
+            `현재가 ${fmt(now)} (매수 ${fmt(price)}) · 보유 ${days}거래일 · 규칙 ${RNAME[rid] ?? rid}
+` +
+            `최초 매수와 같은 비중으로 한 번만 · 매도는 이 매수분 기준 60거래일`);
+          sent.add(`${id}:add`); fired++;
+        }
         if (days >= rule.hold && hour >= 12 && !sent.has(`${id}:hold`)) {
           await telegram(`⏰ <b>${nm}</b> 보유 ${days}거래일째 — 규칙상 매도일\n` +
             `현재가 ${fmt(now)} (매수 ${fmt(price)}, ${ret >= 0 ? "+" : ""}${ret.toFixed(1)}%)\n` +
