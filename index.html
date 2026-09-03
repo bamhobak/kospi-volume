@@ -805,8 +805,23 @@ function getPin(){try{return localStorage.getItem('pin')||DEFAULT_PIN}catch(e){r
 async function rpc(fn,body){const r=await fetch(`${SB.url}/rest/v1/rpc/${fn}`,{method:'POST',headers:{apikey:SB.key,Authorization:'Bearer '+SB.key,'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error(fn+' '+r.status);const t=await r.text();return t?JSON.parse(t):null}
 async function pullRemote(){const pin=getPin();if(!pin||!window.SB)return;try{const d=await rpc('kospi_state_get',{p_pin:pin});if(d&&d.colcfg&&Array.isArray(d.colcfg.hidden)){COLCFG=d.colcfg;try{localStorage.setItem('colcfg',JSON.stringify(COLCFG))}catch(e){}}
     if(d&&d.rorder&&typeof d.rorder==='object'){RORDER=d.rorder;try{localStorage.setItem('rorder',JSON.stringify(RORDER))}catch(e){}}
-    if(d&&Array.isArray(d.positions)&&d.positions.length){POS=d.positions;try{localStorage.setItem('positions',JSON.stringify(POS))}catch(e){}}else if(POS.length){await pushRemote()}}catch(e){console.warn('sync pull',e)}}
-async function pushRemote(){const pin=getPin();if(!pin||!window.SB)return;try{await rpc('kospi_state_set',{p_pin:pin,p_data:{positions:POS,colcfg:COLCFG,rorder:RORDER}})}catch(e){alert('서버 저장 실패: '+e.message)}}
+    /* 빈 배열도 '전부 지웠다'는 뜻이므로 받아들여야 한다. 예전엔 d.positions.length 를
+       함께 검사해서, 마지막 한 건을 지우면 그 배열이 '데이터 없음'으로 취급되고
+       다른 기기가 자기 목록을 도로 올려 지운 종목이 되살아났다(PC 에서 지웠는데
+       모바일에 남아 있던 문제).
+       어느 쪽이 최신인지는 저장 시각(updated)으로 가린다 — 오프라인에서 새로 담은
+       기기가 남의 빈 목록에 덮이지 않게 하기 위해서다. */
+    if(d&&Array.isArray(d.positions)){
+      const rt=+d.updated||0, lt=posStamp();
+      if(rt>=lt||!POS.length){POS=d.positions;try{localStorage.setItem('positions',JSON.stringify(POS))}catch(e){};posStamp(rt)}
+      else await pushRemote();
+    }else if(POS.length){await pushRemote()}}catch(e){console.warn('sync pull',e)}}
+/* 보유 목록을 마지막으로 저장한 시각. 인자를 주면 기록하고, 없으면 읽는다. */
+function posStamp(v){try{if(v===undefined)return +(localStorage.getItem('posUpdated')||0);
+  localStorage.setItem('posUpdated',String(v||0))}catch(e){}return v||0}
+async function pushRemote(){const pin=getPin();if(!pin||!window.SB)return;const now=Date.now();
+  try{await rpc('kospi_state_set',{p_pin:pin,p_data:{positions:POS,colcfg:COLCFG,rorder:RORDER,updated:now}});posStamp(now)}
+  catch(e){alert('서버 저장 실패: '+e.message)}}
 function savePositions(a){POS=a;try{localStorage.setItem('positions',JSON.stringify(a))}catch(e){};pushRemote()}
 async function setPin(){const cur_=getPin();const v=prompt('기기 간 공유용 PIN (4자 이상). 기본값이면 모든 기기가 자동 공유됩니다. 남과 분리하고 싶을 때만 바꾸세요.',cur_===DEFAULT_PIN?'':cur_);if(v==null)return;const pin=v.trim();if(pin.length<4){if(pin===''){try{localStorage.removeItem('pin')}catch(e){};await pullRemote();render();return}alert('4자 이상 입력하세요');return}
   try{localStorage.setItem('pin',pin)}catch(e){}
@@ -814,8 +829,12 @@ async function setPin(){const cur_=getPin();const v=prompt('기기 간 공유용
   if(remote&&Array.isArray(remote.positions)&&remote.positions.length){if(POS.length&&!confirm(`이 PIN에 저장된 보유 종목 ${remote.positions.length}건을 불러옵니다. 현재 기기의 ${POS.length}건은 덮어씁니다. 계속?`))return;POS=remote.positions;try{localStorage.setItem('positions',JSON.stringify(POS))}catch(e){}}
   else if(POS.length){await pushRemote()}
   render()}
-function addPosition(code,name,close){const last=raw.dates[raw.dates.length-1];
-  const date=prompt(`${name} 매수일 (YYYYMMDD)`,last);if(!date)return;
+function addPosition(code,name,close){
+  /* 기본값은 '오늘'. 데이터 최신일(전 거래일)을 넣으면 실제 매수일과 하루씩 어긋난다 —
+     우리 규칙은 신호 다음날 시가 매수라 기록하는 날이 곧 매수일이다. */
+  const _t=new Date(), pad=n=>String(n).padStart(2,'0');
+  const today=`${_t.getFullYear()}${pad(_t.getMonth()+1)}${pad(_t.getDate())}`;
+  const date=prompt(`${name} 매수일 (YYYYMMDD)`,today);if(!date)return;
   const price=+prompt(`${name} 매수가 (원)`,close);if(!price)return;
   const qty=+(prompt(`${name} 매수 수량 (주)`,'')||0);
   const row=view.rows.find(x=>x.ticker===code);const filters=row?FILTERS.filter(f=>f.fn(row)).map(f=>f.id):[];
