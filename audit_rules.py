@@ -73,19 +73,49 @@ if have:
 print("  " + ("✅ 9규칙 모두 정상" if ok_all else ""))
 
 # ── 2) 세 곳의 문턱값이 같은가 ───────────────────────────────────
-def thr(txt):
-    """'필드 비교 숫자' 쌍을 집합으로. 표기 차이를 흡수하려 별칭을 통일한다."""
-    A = {"vs1": "su1", "sr60": "u", "srDown": "srd", "dilu": "dil", "pbrd": "PBR",
+# 같은 조건이 파일마다 다르게 적혀 있다. 세 가지 차이(이름·단위·표기)를 흡수한다.
+# 이걸 안 하면 감사가 늘 빨간불이라 진짜 어긋남이 묻힌다 — 실제로 오탐 5건이 상주했다.
+ALIAS = {"vs1": "su1", "sr60": "u", "srDown": "srd", "dilu": "dil", "pbrd": "PBR",
          "r3m": "ret60", "cap": "marcap", "cap조": "marcap", "c": "close", "fw": "fw5",
-         "a1": "r16", "a6": "r16", "aw": "rw1", "dbt": "부채비율"}
-    out = set()
-    for f, op, v in re.findall(r"[r.\[\"']*\b([A-Za-z_]\w*)[\"'\]]*\s*(<=|>=|<|>)\s*(-?[\d.]+)", txt):
-        f = A.get(f, f)
-        if f in ("length", "slice", "index"): continue
-        try: out.add((f, op, float(v)))
-        except ValueError: pass
-    return out
+         "a1": "r16", "a6": "r16", "aw": "rw1", "dbt": "부채비율",
+         "cr_chg20": "crc"}          # portfolio 의 신용잔고 20일 증감 = 사이트의 crc
+SCALE = {"cap조": 1e4}                # portfolio 는 시총을 조로, 사이트는 억으로 쓴다
+NOTFIELD = {"length", "slice", "index", "get", "fillna", "isna", "notna", "round", "abs"}
+FIELD = r"[^\W\d]\w*"                 # 한글 필드명(부채비율)도 잡는다
+PAT = re.compile(r"""[r.\["']*\b(""" + FIELD + r""")["'\]]*\s*(<=|>=|<|>)\s*(-?[\d.]+)""")
+
+def _flatten(t):
+    """비교를 가리는 표기를 걷어낸다 — 걷어내도 문턱값은 그대로다."""
+    # notify_new 의 r.get("x") · (r.get("x") or 0) → r.x
+    t = re.sub(r"""\(?\s*r\.get\(\s*["']([^"']+)["']\s*\)\s*(?:or\s*[-\d.]+\s*)?\)?""", r" r.\1 ", t)
+    # portfolio 의 .fillna(0) · .isna() 꼬리는 비교 자체와 무관하다
+    t = re.sub(r"\.(fillna\([^()]*\)|isna\(\)|notna\(\))", " ", t)
+    # 사이트는 '외국인 5일 순매수 ≥ 2% × 5일 거래량' 을 비율로 쓰고
+    # portfolio 는 같은 값을 퍼센트 필드(fw5)로 쓴다 — 비율을 퍼센트로 맞춘다.
+    t = re.sub(r"r\.fw\s*(>=|>)\s*([\d.]+)\s*\*\s*r\.v5",
+               lambda m: " r.fw %s %s " % (m.group(1), float(m.group(2)) * 100), t)
+    return t
+
+def thr(txt):
+    """조건을 '필드·방향·문턱' 으로 줄인다.
+
+    같은 방향 조건이 여럿이면 실제로 묶는 건 가장 빡빡한 하나뿐이다
+    (fw5>0 과 fw5>=2 가 같이 있으면 유효한 건 2). 그래서 방향별로 하나만 남긴다 —
+    널 가드 같은 느슨한 조건이 '한쪽에만 있는 조건' 으로 오탐되지 않는다.
+    '>' 와 '>=' 는 구분하지 않는다. 문턱값이 어긋났는지만 본다.
+    """
+    out = {}
+    for f0, op, v in PAT.findall(_flatten(txt)):
+        if f0 in NOTFIELD: continue
+        try: x = float(v) * SCALE.get(f0, 1)
+        except ValueError: continue
+        k = (ALIAS.get(f0, f0), "lo" if op in (">", ">=") else "hi")
+        out[k] = (max if k[1] == "lo" else min)(out[k], x) if k in out else x
+    return {(f, d, v) for (f, d), v in out.items()}
 print("\n## 2) index.html · notify_new.py · portfolio.py 조건이 일치하는가")
+ok2 = True
+def bad2(msg):
+    global ok2; ok2 = False; bad(msg)
 NV_R = {m.group(1): m.group(2) for m in
         re.finditer(r'\("(P\d|D\d)",\s*"[^"]*",\s*(lambda r:.*?)\),\n    \("', NV, re.S)}
 m = re.search(r"RULES = \{(.*?)\n\}", PF, re.S)
@@ -107,7 +137,7 @@ for rid in RULES_JS:
             d = []
             if only_js or only_ot: d.append(f"값 다름 site={sorted(only_js)} {src}={sorted(only_ot)}")
             if miss: d.append(f"{src} 에 없는 조건 {sorted(miss)}")
-            bad(f"  ❌ [{NAME[rid]}] " + " / ".join(d))
+            bad2(f"  ❌ [{NAME[rid]}] " + " / ".join(d))
 # 시장 범위(코스피/코스닥/공통)가 세 곳에서 같은가 — 문턱값 비교로는 안 잡힌다
 def scope(txt, py):
     kp = ("KOSPI" in txt); kq = ("KOSDAQ" in txt)
@@ -120,14 +150,15 @@ for rid in RULES_JS:
          else "코스닥" if re.match(r"\s*KQ", _pf) else None) if rid in PF_R else None
     got = {x for x in (a, b, c) if x}
     if len(got) > 1:
-        bad(f"  ❌ [{NAME[rid]}] 시장 범위 불일치 — site={a} / notify={b} / portfolio={c}")
+        bad2(f"  ❌ [{NAME[rid]}] 시장 범위 불일치 — site={a} / notify={b} / portfolio={c}")
     # 메타데이터(mkt)와 실제 판정이 어긋나는가
     mm = re.search(rf"\{{id:'{rid}'[^}}]*?mkt:'([^']+)'", BLK)
     if mm:
         meta = {"KOSPI": "코스피", "KOSDAQ": "코스닥", "BOTH": "공통"}.get(mm.group(1), mm.group(1))
         if a == "공통" and meta != "공통":
-            bad(f"  ❌ [{NAME[rid]}] 화면 분류는 {meta} 인데 판정 함수는 시장을 가리지 않음(공통)")
-print("  (표기 차이를 흡수하지 못해 오탐이 날 수 있음 — 실제로 다른지 눈으로 확인할 것)")
+            bad2(f"  ❌ [{NAME[rid]}] 화면 분류는 {meta} 인데 판정 함수는 시장을 가리지 않음(공통)")
+print("  " + ("✅ 9규칙 조건·시장범위 일치" if ok2 else "")
+      + "  (별칭·단위·표기 차이는 ALIAS/SCALE/_flatten 이 흡수한다 — python test_audit_parser.py 로 파서 자체를 검증한다)")
 
 # ── 3) 화면 성적표가 지금 조건과 맞는가 ──────────────────────────
 print("\n## 3) 화면 stats 가 지금 조건으로 잰 값과 맞는가 (검증기간 2023~)")
