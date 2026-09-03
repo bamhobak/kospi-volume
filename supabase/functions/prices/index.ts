@@ -88,7 +88,8 @@ async function telegram(text: string) {
 function kst() {
   const k = new Date(Date.now() + 9 * 3600 * 1000);
   const iso = k.toISOString();
-  return { stamp: iso.slice(0, 16).replace("T", " "), today: iso.slice(0, 10).replace(/-/g, "") };
+  return { stamp: iso.slice(0, 16).replace("T", " "), today: iso.slice(0, 10).replace(/-/g, ""),
+           hour: k.getUTCHours() };
 }
 
 /** 종목의 매수일 이후 일별 종가 — 사이트가 이미 배포한 JSON 을 서버에서 읽는다 */
@@ -108,7 +109,7 @@ Deno.serve(async (req) => {
   const q = new URL(req.url).searchParams;
   const wantAlerts = q.get("alerts") !== "0";
   try {
-    const { stamp, today } = kst();
+    const { stamp, today, hour } = kst();
 
     // ?ping=1 — 텔레그램 연결 확인용. 시세만 받아 한 줄 보내고 끝낸다.
     if (q.get("ping") === "1") {
@@ -206,7 +207,9 @@ Deno.serve(async (req) => {
             `현재가 ${fmt(now)} (매수 ${fmt(price)}) · 규칙 ${RNAME[rid] ?? rid}`);
           sent.add(`${id}:add`); fired++;
         }
-        if (days >= rule.hold && !sent.has(`${id}:hold`)) {
+        // 매도일 알림은 12시부터. 09:00 첫 체크에 보내면 시가 변동이 한창일 때 알림이 와서
+        // 판단할 여유가 없다. 정오면 그날 흐름이 어느 정도 잡힌다.
+        if (days >= rule.hold && hour >= 12 && !sent.has(`${id}:hold`)) {
           await telegram(`⏰ <b>${nm}</b> 보유 ${days}거래일째 — 규칙상 매도일\n` +
             `현재가 ${fmt(now)} (매수 ${fmt(price)}, ${ret >= 0 ? "+" : ""}${ret.toFixed(1)}%)\n` +
             `고점 ${fmt(hi)} · 규칙 ${RNAME[rid] ?? rid} (${rule.hold}거래일 보유)`);
