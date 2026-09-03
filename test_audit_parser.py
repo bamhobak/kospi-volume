@@ -26,7 +26,10 @@ def diff(a, b):
     ja, jb = thr(a), thr(b)
     only_a = {x for x in ja if x[0] in {y[0] for y in jb}} - jb
     only_b = {x for x in jb if x[0] in {y[0] for y in ja}} - ja
-    return bool(only_a or only_b)
+    SILENT = {"close", "marcap", "fw5", "r16", "rw1", "amt20", "amt"}
+    miss = ({x[0] for x in ja} - {y[0] for y in jb}) - SILENT       # 사이트에만 있는 조건
+    extra = ({y[0] for y in jb} - {x[0] for x in ja}) - SILENT      # 상대에만 있는 조건
+    return bool(only_a or only_b or miss or extra)
 
 CASES = [
     # (설명, 사이트 표기, 다른 파일 표기, 어긋나야 하는가)
@@ -58,6 +61,10 @@ CASES = [
      "r.ret20!=null&&r.ret20<=-20", "(KP.ret20<=-20)", False),
     ("보유기간·손절 같은 다른 숫자에 속지 않는가",
      "r.ret20<=-20", "(KP.ret20<=-20)", False),
+    # 한쪽에만 조건이 더 붙은 경우 — 예전엔 사이트→상대 방향만 봐서 이쪽을 놓쳤다
+    ("사이트에만 있는 조건", "r.ret20<=-20&&r.vs1>=1.5", "(KP.ret20<=-20)", True),
+    ("상대에만 있는 조건 (알림에 몰래 남은 것)",
+     "r.ret20<=-20", '(r.get("ret20") or 0) <= -20 and (r.get("streak") or 0) >= 1', True),
 ]
 ok = True
 print(f"  {'검증 항목':<38} {'기대':<6} {'결과':<6} 판정")

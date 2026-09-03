@@ -121,7 +121,8 @@ NV_R = {m.group(1): m.group(2) for m in
 m = re.search(r"RULES = \{(.*?)\n\}", PF, re.S)
 PF_R = {}
 if m:
-    for r in re.finditer(r'"(P\d|D\d)":\s*\((.*?)\),\n(?= "|\})', m.group(1), re.S):
+    # 줄 끝 주석(`),   # 공통(A1)`)까지 허용해야 한다 — 아니면 그 규칙이 다음 규칙을 삼킨다
+    for r in re.finditer(r'"(P\d|D\d)":\s*\((.*?)\),[ \t]*(?:#[^\n]*)?\n(?= "|\})', m.group(1), re.S):
         PF_R[r.group(1)] = r.group(2)
 for rid in RULES_JS:
     js = thr(RULES_JS[rid])
@@ -132,11 +133,15 @@ for rid in RULES_JS:
         only_ot = {x for x in other if x[0] in {y[0] for y in js}} - js
         # base(K,amt) 안에 들어 있거나 표기가 달라 정규식으로 못 잡는 것들
         SILENT = {"close", "marcap", "fw5", "r16", "rw1", "amt20", "amt"}
+        # 양쪽 모두 본다. 예전엔 '사이트에 있는데 상대에 없는 것' 만 봐서,
+        # 알림에만 몰래 남아 있던 조건을 놓쳤다(notify 의 [조정매집] streak).
         miss = ({x[0] for x in js} - {y[0] for y in other}) - SILENT
-        if only_js or only_ot or miss:
+        extra = ({y[0] for y in other} - {x[0] for x in js}) - SILENT
+        if only_js or only_ot or miss or extra:
             d = []
             if only_js or only_ot: d.append(f"값 다름 site={sorted(only_js)} {src}={sorted(only_ot)}")
             if miss: d.append(f"{src} 에 없는 조건 {sorted(miss)}")
+            if extra: d.append(f"{src} 에만 있는 조건 {sorted(extra)}")
             bad2(f"  ❌ [{NAME[rid]}] " + " / ".join(d))
 # 시장 범위(코스피/코스닥/공통)가 세 곳에서 같은가 — 문턱값 비교로는 안 잡힌다
 def scope(txt, py):

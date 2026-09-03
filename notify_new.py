@@ -49,7 +49,7 @@ FILTERS = [
      and not ((r.get("above20") or 0) > 70 and (r.get("ret250") or 0) > 120)
      and r.get("dilu") is not True and r.get("disc") is not True),
     ("P2", "조정매집 (코스피·10일 보유·손절 없음)",
-     lambda r: r.get("mk") == "KOSPI" and (r.get("streak") or 0) >= 1 and fwp(r) >= 2 and not r["pref"]
+     lambda r: r.get("mk") == "KOSPI" and fwp(r) >= 2 and not r["pref"]
      and (r.get("amt") or 0) >= 3 and r["a1"] / r["a6"] < 0.3
      and r.get("ret3") is not None and r["ret3"] <= -5
      and r.get("ret10") is not None and r["ret10"] <= 0
