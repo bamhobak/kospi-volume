@@ -24,14 +24,23 @@ UP20 = dict(zip(IX.date, IX.Close > IX.ma20)); UP60 = dict(zip(IX.date, IX.Close
 
 def load(f, mk):
     K = pd.read_pickle(BASE/"data"/f).sort_values(["ticker","date"]).reset_index(drop=True)
-    K["pref"] = ~K.ticker.str.endswith("0"); K["mk"] = mk
+    K["mk"] = mk; K["pref"] = ~K.ticker.str.endswith("0")
+    # 과거 검증용 패널(panel_*.pkl)은 운영 패널과 두 가지가 다르다. 그대로 쓰면
+    # 조건이 조용히 틀어지므로 여기서 맞춘다.
+    #  · marcap 단위: 운영은 억, 과거 패널은 원 → 값 크기로 판별해 '조' 로 환산
+    #  · 없는 컬럼: 조건에서 참조하면 KeyError 로 죽는다. NaN 으로 만들어 두면
+    #    '결측이면 통과' 인 조건(부채비율)은 통과하고, '결측이면 탈락' 인 조건(crc)은
+    #    탈락한다 — 어느 쪽인지는 규칙 정의가 정한다.
+    # ins60·bb·cr_chg20 은 아래에서 따로 병합하므로 여기서 만들면 충돌한다(suffix 가 붙는다).
+    # 어디서도 채워지지 않는 것만 NaN 으로 둔다.
+    for c in ("부채비율", "PBR", "above20", "ret250"):
+        if c not in K.columns: K[c] = np.nan
     g = K.groupby("ticker", sort=False)
-    K.loc[K.marcap/1e4 > 2000, "marcap"] = np.nan
-    K["cap조"] = K.marcap/1e4
-    K["dev25"] = (K.close/g.close.transform(lambda s: s.rolling(25,min_periods=25).mean())-1)*100
+    _mx = K.marcap.max()
+    K["cap조"] = K.marcap / (1e12 if _mx and _mx > 1e13 else 1e4)   # 원 → 조 / 억 → 조
+    if "dev25" not in K.columns or K["dev25"].isna().all():
+        K["dev25"] = (K.close/g.close.transform(lambda s: s.rolling(25,min_periods=25).mean())-1)*100
     return K
-# 패널 파일은 환경변수로 바꿀 수 있다. 기본은 운영 패널(2018~), PANEL_KP/PANEL_KQ 를
-# 주면 다른 패널로 같은 규칙을 잴 수 있다 — 과거 구간(2016~) 검증에 쓴다.
 import os as _os
 KP = load(_os.environ.get("PANEL_KP", "kp_ow.pkl"), "KOSPI")
 KQ = load(_os.environ.get("PANEL_KQ", "kq_ow.pkl"), "KOSDAQ")
@@ -55,9 +64,12 @@ for nm in ("KP","KQ"):
     ma20 = g.close.transform(lambda s: s.rolling(20).mean())
     K["above20"] = (K.close>ma20).groupby(K.ticker).transform(          # 250일 중 20일선 위 비율(%)
         lambda s: s.rolling(250, min_periods=80).mean())*100
-    n0 = len(K)
-    K2 = K.merge(INS, on=["ticker","date"], how="left"); assert len(K2)==n0
-    K["ins60"] = K2.ins60.values
+    # 과거 검증용 패널은 ins60 을 이미 담고 있다. 그때 다시 병합하면 suffix 가 붙어
+    # (ins60_x/ins60_y) 조건이 참조하는 이름이 사라진다.
+    if "ins60" not in K.columns:
+        n0 = len(K)
+        K2 = K.merge(INS, on=["ticker","date"], how="left"); assert len(K2)==n0
+        K["ins60"] = K2.ins60.values
 
 # 신용잔고 — [폭락반등] 이 쓴다. 폭락 후 신용잔고가 크게 줄었다는 건 반대매매·손절이
 # 이미 나와 매물이 소화됐다는 뜻이다. 안 줄었으면 빚내서 버티는 물량이 남아 추가 압력이다.
@@ -74,7 +86,9 @@ del _CR, _M; import gc as _gc; _gc.collect()
 
 # [자사주 낙폭](A1) 은 코스피·코스닥 공통 규칙이라 두 패널을 합쳐 쓴다.
 # 전체 컬럼을 합치면 메모리가 두 배가 되므로 이 규칙이 쓰는 컬럼만 남긴다.
-_C = ["ticker","date","name","close","low","buy","cost","ret60","dil","amt20","bb","mk"]
+# n10 은 [자사주 낙폭](10거래일 보유)의 수익 컬럼이다. 빠져 있으면 이 규칙만
+# 측정에서 통째로 빠진다(계좌 시뮬은 exit 를 따로 계산해 눈치채기 어려웠다).
+_C = ["ticker","date","name","close","low","buy","cost","ret60","dil","amt20","bb","mk","n10"]
 KB = pd.concat([KP[_C], KQ[_C]], ignore_index=True).sort_values(["ticker","date"]).reset_index(drop=True)
 KB["pref"] = ~KB.ticker.str.endswith("0")
 
