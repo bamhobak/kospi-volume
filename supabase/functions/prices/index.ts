@@ -133,7 +133,17 @@ Deno.serve(async (req) => {
     }
 
     // 1) 보유 종목 (모든 PIN, 미매도)
-    const positions: any[] = (await rpc("kospi_state_positions", {})) ?? [];
+    // kospi_state 를 직접 읽는다. 예전에 쓰던 kospi_state_positions RPC 는 id·code·date·
+    // name·price 만 뽑아 주고 filters 와 qty 를 버려서, 모든 보유 종목이 '규칙 없이 등록된
+    // 종목' 으로 취급됐다 — 손절·매도일·추가매수 알림이 통째로 나가지 않고 있었다.
+    // (2026-09-03 발견. service role 이라 RLS 를 지나 전체 행을 읽는다.)
+    const _sr = await fetch(`${SB_URL}/rest/v1/kospi_state?select=pin,data`,
+      { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } });
+    const _rows: any[] = _sr.ok ? await _sr.json() : [];
+    const positions: any[] = _rows
+      .filter((r) => !String(r.pin ?? "").startsWith("__"))     // __filters__ 등 시스템 키 제외
+      .flatMap((r) => (r.data?.positions ?? []))
+      .filter((p: any) => p && p.code && !p.sell);
     const codes = [...new Set(positions.map((p) => p.code).filter(Boolean))] as string[];
 
     // 2) 종목 시세 · 3) 지수 — 실패한 항목은 건너뛴다
@@ -238,7 +248,12 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({
       ...payload,
-      _meta: { codes: codes.length, ok: Object.keys(prices).length, alerts: fired, ms: Date.now() - t0 },
+      _meta: { codes: codes.length, ok: Object.keys(prices).length, alerts: fired,
+               // 규칙이 붙어 있어 청산 알림을 받을 수 있는 보유 종목 수.
+               // 0 이면 보유가 있어도 알림이 나가지 않는다는 뜻이라 바로 눈에 띈다.
+               ruled: positions.filter((p: any) =>
+                 (p.filters ?? []).some((f: any) => RULES[LEGACY[String(f)] ?? String(f)])).length,
+               held: positions.length, ms: Date.now() - t0 },
     }), { headers: { ...CORS, "Content-Type": "application/json" } });
   } catch (e) {
     console.error(e);

@@ -129,7 +129,13 @@ FILTERS = [
 ]
 
 LEGACY_ID = {1: "P0", 2: "P2", 3: "P3", 4: "P1"}          # 예전 숫자 id 호환
-POSI = rpc("kospi_state_positions", {}) or []
+# 보유 종목. kospi_state_positions RPC 는 filters 를 버리고 돌려주기 때문에 쓸 수 없다
+# (그러면 held_by 가 늘 비어, 이미 그 규칙으로 산 종목이 계속 '신규 편입' 으로 알림이 간다).
+# anon 키로는 테이블을 직접 못 읽으므로 사이트가 쓰는 PIN 의 상태를 그대로 읽는다.
+# ⚠ 다른 PIN 의 보유 종목은 보지 못한다 — 여러 PIN 을 쓰게 되면 RPC 를 고쳐야 한다.
+PIN = re.search(r"DEFAULT_PIN='([^']+)'", (BASE / "index.html").read_text(encoding="utf-8")).group(1)
+POSI = [p for p in ((rpc("kospi_state_get", {"p_pin": PIN}) or {}).get("positions") or [])
+        if p and p.get("code") and not p.get("sell")]
 # 종목별 "어느 규칙으로 샀는지". 같은 규칙에 다시 걸린 건 새 신호가 아니지만,
 # 다른 규칙에 걸린 건 추가 매수 후보라 따로 알린다.
 held_by = {}
