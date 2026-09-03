@@ -28,27 +28,32 @@ def load(f):
     K["pref"] = ~K.ticker.str.endswith("0")
     K["up60"] = K.date.map(UP60).fillna(False)
     K["up20"] = K.date.map(UP20).fillna(False)
+    # dev25(25일선 이격)는 패널에 없다. [깊은 이격] 의 실제 조건이므로 직접 만든다 —
+    # 앞서 dma20(20일선 이격)으로 대신했는데 그건 다른 지표라 측정이 틀렸다.
+    g = K.groupby("ticker", sort=False)
+    K["dev25"] = (K.close / g.close.transform(lambda s: s.rolling(25, min_periods=25).mean()) - 1) * 100
+    K["cap조"] = K.marcap / 1e12          # 원 → 조
     return K
 KP, KQ = load("panel_kp.pkl"), load("panel_kq.pkl")
 KB = pd.concat([KP, KQ], ignore_index=True).sort_values(["ticker","date"]).reset_index(drop=True)
 
 def base(K, amt): return (~K.pref) & (~K.dil.fillna(False)) & (K.close >= 1000) & (K.amt20 >= amt)
 R = {}
-R["외인 매집"]      = (KP, 60, None, base(KP,30) & KP.up60 & (KP.marcap>=1e4*1e8) & (KP.marcap<1e5*1e8)
+R["외인 매집"]      = (KP, 60, None, base(KP,30) & KP.up60 & (KP["cap조"]>=1) & (KP["cap조"]<10)
                        & (KP.fw20>=1) & (KP.ow60<0.4) & (KP.r16>=100) & (KP.r16<150)
                        & (KP.fromhi>=-15) & (KP.fromlo>=70) & (KP.ins60.fillna(0)>0))
 R["조용한 신고가"]   = (KP, 40, 0.15, base(KP,200) & (KP.fromhi>=-10) & (KP.r16<120) & (KP.rw1<=120)
                        & (KP.fw5>=3) & (KP.fw60>=1) & (KP.vol20<=2) & (KP.sr20<=0.5) & (KP.ret20<=5))
 R["업종붕괴 이탈"]   = (KP, 5, 0.15, base(KP,10) & (~KP.up60) & (KP.u<=-20) & (KP.dma20<=-10)
                        & (KP.mdd60<=-40) & (KP.srd==True))
-R["깊은 이격"]      = (KP, 5, 0.10, base(KP,10) & (~KP.up60) & (KP.dma20<=-25) & (KP.u<=-20))
+R["깊은 이격"]      = (KP, 5, 0.10, base(KP,10) & (~KP.up60) & (KP.dev25<=-25) & (KP.u<=-20))
 R["폭락반등"]       = (KP, 20, None, base(KP,3) & (KP.ret20<=-20) & (KP.su1>=1.5) & (KP.fw60>=1)
                        & (~KP.up60) & (KP.u<=-10) & (KP.srd==True))
 R["조정매집"]       = (KP, 10, None, base(KP,3) & (~KP.up20) & (KP.r16<30) & (KP.rw1>=200)
                        & (KP.fw5>=2) & (KP.ret3<=-5) & (KP.ret10<=0) & (KP.srd==True))
 R["낙폭과대"]       = (KQ, 20, None, base(KQ,2) & (KQ.ret20<=-20) & (KQ.su1>=1.5) & (KQ.fw60>=1)
                        & (~KQ.up60) & (KQ.u<=-20) & (KQ.srd==True) & (KQ.ow20>=0))
-R["자사주 낙폭"]     = (KB, 10, None, (~KB.pref) & (KB.bb==True) & (KB.ret60<=-20) & (~KB.up60))
+R["자사주 낙폭"]     = (KB, 10, None, base(KB,3) & (KB.bb==True) & (KB.ret60<=-20) & (~KB.up60))
 
 def measure(K, hold, stop, cond, lo, hi):
     g = K.groupby("ticker", sort=False); col = f"n{hold}"
