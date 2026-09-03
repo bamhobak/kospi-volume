@@ -31,8 +31,12 @@ con.execute("CREATE INDEX IF NOT EXISTS ix_disc_stock ON disclosure(stock_code, 
 con.execute("CREATE INDEX IF NOT EXISTS ix_disc_dt ON disclosure(rcept_dt)")
 con.execute("CREATE TABLE IF NOT EXISTS done(corp_code TEXT PRIMARY KEY, n INTEGER, at TEXT)")
 con.commit()
+# done 은 종목 단위라 기간을 바꿔도 이미 받은 종목을 건너뛴다. 과거 구간을 따로
+# 받으려면 키를 갈라야 한다 — 2018 이전 요청이면 연도 태그를 붙인다(2026-09-03).
+TAG = "" if FROM >= "20180101" else ":" + FROM[:4]
 done = {r[0] for r in con.execute("SELECT corp_code FROM done")}
-todo = [(sc, v["corp_code"], v["corp_name"]) for sc, v in CORP.items() if v["corp_code"] not in done]
+todo = [(sc, v["corp_code"], v["corp_name"]) for sc, v in CORP.items()
+        if v["corp_code"] + TAG not in done]
 log.info(f"DART 공시 수집: 대상 {len(todo)}종목 (완료 {len(done)}) · {FROM}~{TO}")
 
 URL = "https://opendart.fss.or.kr/api/list.json"
@@ -69,7 +73,7 @@ with ThreadPoolExecutor(W) as ex:
             con.executemany("INSERT OR IGNORE INTO disclosure VALUES (?,?,?,?,?,?,?,?)", rows)
             tot += len(rows)
         con.execute("INSERT OR REPLACE INTO done VALUES (?,?,?)",
-                    (cc, len(rows), time.strftime("%Y-%m-%d %H:%M")))
+                    (cc + TAG, len(rows), time.strftime("%Y-%m-%d %H:%M")))
         n += 1
         if n % 50 == 0:
             con.commit(); el = time.time() - t0
