@@ -150,8 +150,8 @@ header{flex:none}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:0;overflow:hidden;display:flex;flex-direction:column;min-height:0}
 .tblwrap{overflow:auto;flex:1;-webkit-overflow-scrolling:touch}
 table{border-collapse:separate;border-spacing:0;width:100%;white-space:nowrap}
-th{position:sticky;top:0;z-index:2;background:var(--panel2);color:var(--mut);font-weight:600;padding:10px 9px;text-align:right;cursor:pointer;user-select:none;border-bottom:1px solid var(--line);font-size:12px}
-th.l,td.l{text-align:left}th.on{color:var(--acc)}
+th{position:sticky;top:0;z-index:2;background:var(--panel2);color:var(--mut);font-weight:600;padding:10px 9px;text-align:center;cursor:pointer;user-select:none;border-bottom:1px solid var(--line);font-size:12px}
+td.l{text-align:left}th.on{color:var(--acc)}
 th:first-child,td:first-child{position:sticky;left:0;z-index:1;background:var(--panel)}th:first-child{z-index:3;background:var(--panel2)}
 td{padding:8px 9px;border-bottom:1px solid #272b3480;text-align:right;font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums;font-size:12.5px}
 td.l,td.name{font-family:'Noto Sans KR',Pretendard,sans-serif;font-size:13px}
@@ -169,7 +169,7 @@ body.detail .side{display:flex;height:100%;border-radius:0}
 body.detail #close{display:none}
 th[draggable]{cursor:grab;user-select:none}th.dragover{box-shadow:inset 3px 0 0 var(--acc)}
 /* 열 너비 조절 — 머리글 오른쪽 끝 손잡이. 폭을 하나라도 정하면 표는 fixed 로 고정된다 */
-th{padding-right:16px}
+th{padding-right:16px;padding-left:16px}
 th .rz{position:absolute;right:0;top:0;bottom:0;width:11px;cursor:col-resize;touch-action:none;z-index:4}
 th .rz::after{content:'';position:absolute;right:4px;top:6px;bottom:6px;width:2px;background:var(--line)}
 th .rz:hover::after,th .rz.on::after{background:var(--acc);top:0;bottom:0}
@@ -197,7 +197,7 @@ th .rz:hover::after,th .rz.on::after{background:var(--acc);top:0;bottom:0}
   border-top:1px solid var(--line);color:var(--mut);font-size:11px}
 .colmenu .sp{margin-left:auto}
 button.prim{background:var(--acc);border:1px solid var(--acc);color:#0a0b0e;font-weight:700}
-@media (max-width:900px){th .rz{width:18px}th{padding-right:20px}
+@media (max-width:900px){th .rz{width:18px}th{padding-right:20px;padding-left:20px}
   .colmenu{right:8px;left:8px;width:auto}
   .colmenu .colgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .side h2{margin:0;font-size:18px}.side .sub{color:var(--mut);font-size:12px;margin-top:2px}
