@@ -17,6 +17,10 @@ js = (BASE / "assets" / "sb.js").read_text(encoding="utf-8")
 URL = re.search(r"url:'([^']+)'", js).group(1); KEY = re.search(r"key:'([^']+)'", js).group(1)
 H = {"apikey": KEY, "Authorization": f"Bearer {KEY}", "Content-Type": "application/json"}
 TG_TOKEN, TG_CHAT = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
+# --dry: 판정만 보고 텔레그램도 상태 저장도 하지 않는다(재전송 워크플로의 점검용).
+# 상태를 저장해 버리면 오늘 걸린 종목이 '이미 알린 것' 이 되어 진짜 알림이 사라진다.
+DRY = "--dry" in sys.argv
+if DRY: TG_TOKEN = TG_CHAT = None
 now_kst = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=9)
 
 def rpc(fn, body):
@@ -211,7 +215,9 @@ elif lines:
 else:
     print("신규 편입 없음:", {k: len(v) for k, v in cur.items()})
 
-rpc("kospi_state_set", {"p_pin": "__filters__", "p_data": {"filters": cur, "streaks": streaks,
-                                                          "date": last_date, "updated": now_kst.strftime("%Y-%m-%d %H:%M")}})
+if DRY: print("--dry — 기준 목록을 저장하지 않는다")
+else:
+    rpc("kospi_state_set", {"p_pin": "__filters__", "p_data": {"filters": cur, "streaks": streaks,
+                                                              "date": last_date, "updated": now_kst.strftime("%Y-%m-%d %H:%M")}})
 print("저장:", {k: len(v) for k, v in cur.items()}, "held", len(held),
       "연속2일+", sum(1 for v in streaks.values() if v >= 2))
