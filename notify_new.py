@@ -60,7 +60,10 @@ FILTERS = [
      and r.get("dilu") is not True and r.get("disc") is not True),
     ("P2", "조정매집 (코스피·10일 보유·손절 없음)",
      lambda r: r.get("mk") == "KOSPI" and fwp(r) >= 2 and not r["pref"]
-     and (r.get("amt") or 0) >= 3 and r["a1"] / r["a6"] < 0.3
+     # a1(2개월 평균)·a6(1년 평균)은 신규 상장주에서 None 이다. 사이트는 r16=null 로
+     # 두고 비교에서 걸러내는데 여기만 바로 나눠서, 그런 종목이 하나라도 끼면
+     # 스크립트가 통째로 죽어 그날 알림이 전부 사라졌다(2026-09-04 코리아써키트).
+     and r.get("a1") and r.get("a6") and r["a1"] / r["a6"] < 0.3
      # 최근 3거래일 거래량 >= 2개월 평균의 200%. 사이트(rw1>=200)에는 있는데 여기만
      # 빠져 있어 알림이 더 헐겁게 나갔다(2026-09-03 selftest 로 발견).
      and r.get("aw") and r.get("a1") and r["aw"] / r["a1"] >= 2
@@ -152,13 +155,23 @@ for _p in POSI:
     held_by.setdefault(_p["code"], set()).update(
         str(LEGACY_ID.get(f, f)) for f in (_p.get("filters") or []))
 held = set(held_by)
+# 한 종목의 결측값 때문에 규칙 전체가 죽으면 그날 알림이 통째로 사라진다.
+# 데이터가 이상한 종목 하나는 건너뛰고 나머지는 정상적으로 알린다.
+BROKEN = []
+def ok(fn, r, fid):
+    try: return bool(fn(r))
+    except Exception as e:
+        BROKEN.append(f"{fid}:{r['t']}({type(e).__name__})"); return False
+
 cur = {}
 for fid, name, fn in FILTERS:
     cur[str(fid)] = sorted(r["t"] for r in rows
-                           if fn(r) and str(fid) not in held_by.get(r["t"], set()))
+                           if ok(fn, r, fid) and str(fid) not in held_by.get(r["t"], set()))
 # 연속 일수용은 보유 여부로 거르지 않은 '조건 충족' 그대로다 — 신호가 이어지는지가
 # 보유 여부에 좌우되면 안 된다.
-hits = {str(fid): {r["t"] for r in rows if fn(r)} for fid, name, fn in FILTERS}
+hits = {str(fid): {r["t"] for r in rows if ok(fn, r, fid)} for fid, name, fn in FILTERS}
+if BROKEN:
+    print(f"⚠ 판정 중 예외 {len(BROKEN)}건(해당 종목만 제외):", ", ".join(BROKEN[:10]))
 
 prev_state = rpc("kospi_state_get", {"p_pin": "__filters__"}) or {}
 prev = prev_state.get("filters", {})

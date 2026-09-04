@@ -127,7 +127,13 @@ try:
         "저장 시각(updated)이 있다 — 기기 간 최신본 판별 가능" if "updated" in st
         else "저장 시각이 없다 — 예전에 저장된 상태다(다음 저장 때 생긴다)")
     f = rpc("kospi_state_get", {"p_pin": "__filters__"}) or {}
-    ok(f"신호 연속 일수 {len(f.get('streaks') or {})}건 기록 (기준일 {f.get('date')})")
+    # 알림 기준일이 최신 거래일보다 뒤처져 있으면 그 사이 알림이 통째로 유실된 것이다.
+    # 워크플로가 continue-on-error 라 초록불이어도 이 값은 정직하다(2026-09-04 유실 사례).
+    fd = f.get("date") or ""
+    (ok if fd == last else ng)(
+        f"알림 기준일이 최신 거래일과 같다 ({fd})" if fd == last
+        else f"알림 기준일 {fd or "없음"} < 최신 거래일 {last} — 그 사이 신규 편입 알림이 나가지 않았다")
+    ok(f"신호 연속 일수 {len(f.get('streaks') or {})}건 기록")
 except Exception as e: ng(f"상태 조회 실패: {e}")
 
 print("\n## 5) 스케줄")

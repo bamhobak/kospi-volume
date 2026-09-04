@@ -227,7 +227,14 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python notify_new.py
+        # continue-on-error 는 알림 실패가 그날 수집 커밋을 막지 않게 하려고 둔 것인데,
+        # 그 탓에 스크립트가 죽어도 워크플로가 초록불이라 며칠간 아무도 몰랐다
+        # (2026-09-03·04 이틀치 알림 유실). 죽으면 최소한 그 사실은 알린다.
+        run: |
+          python notify_new.py || {
+            curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage"               -d chat_id="$TELEGRAM_CHAT_ID"               -d text="⚠ 신규 편입 알림 스크립트가 죽었습니다. 오늘 알림이 나가지 않았습니다 — Actions 로그를 확인하세요." > /dev/null
+            echo "notify_new.py 실패 — 텔레그램으로 사실만 알렸다"
+          }
       - name: commit monthly csv
         run: |
           git config user.name "kospi-bot"; git config user.email "bot@users.noreply.github.com"
