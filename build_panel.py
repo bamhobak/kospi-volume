@@ -225,14 +225,16 @@ def build(mkt):
     # 비어 있는 구간만 기존 패널에서 채운다. 이걸 빌드 안에서 하지 않으면 패널을
     # 다시 만들 때마다 공매도가 사라져 관련 규칙이 통째로 0건이 된다(2026-09-04 실측).
     _oldf = BASE/"data"/("kp_ow.pkl" if mkt == "KOSPI" else "kq_ow.pkl")
-    if _oldf.exists() and df.srd.isna().any():
-        _O = pd.read_pickle(_oldf)[["ticker","date","sr20","srd"]]
+    if _oldf.exists() and (df.srd.isna().any() or df.marcap.isna().any()):
+        _O = pd.read_pickle(_oldf)[["ticker","date","sr20","srd","marcap","shares"]]
         _n = len(df)
         df = df.merge(_O, on=["ticker","date"], how="left", suffixes=("","_o"))
         assert len(df) == _n, "공매도 병합에서 행이 늘었다 — 키 중복"
-        for _c in ("sr20","srd"):
+        # marcap·shares 도 같은 사정이다. DB 는 2023 년부터 넣기 시작해서 2018~2022 가
+        # 통째로 비어 있고, 그러면 시총 조건을 쓰는 [외인 매집] 이 그 구간 0건이 된다.
+        for _c in ("sr20","srd","marcap","shares"):
             df[_c] = df[_c].where(df[_c].notna(), df[_c+"_o"]); df.drop(columns=[_c+"_o"], inplace=True)
-        log.info(f"  공매도 보완: srd 결측 {df.srd.isna().mean()*100:.0f}%")
+        log.info(f"  기존 패널로 보완: srd 결측 {df.srd.isna().mean()*100:.0f}% · marcap 결측 {df.marcap.isna().mean()*100:.0f}%")
     fn = "panel_kp.pkl" if mkt == "KOSPI" else "panel_kq.pkl"
     df.to_pickle(BASE/"data"/fn)
     log.info(f"  저장 {fn} · {len(df):,}행 {len(df.columns)}컬럼")
