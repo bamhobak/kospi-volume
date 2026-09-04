@@ -84,7 +84,9 @@ try:
     qc.close()
 except Exception: pass
 TK = sorted(TK)
-tag = f"d{DAYS}" if DAYS else "full"
+# 매일 갱신은 날짜까지 태그에 넣는다. 안 그러면 어제 "d5" 로 완료 표시된 종목을
+# 오늘 건너뛰어 새 데이터를 못 받는다.
+tag = (f"d{DAYS}:" + time.strftime("%Y%m%d")) if DAYS else "full"
 done = {r[0] for r in con.execute("SELECT k FROM done")}
 todo = [(t,p) for t in TK for p in SPEC if f"{t}:{p}:{tag}" not in done]
 log.info(f"토스 수집: 종목 {len(TK):,} × API {len(SPEC)} → 할 일 {len(todo):,} "
