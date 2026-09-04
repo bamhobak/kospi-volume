@@ -42,3 +42,7 @@ data/toss.db-shm
 data/toss.db-wal
 tosstest.log
 oas.json
+sideways.log
+sideways2.log
+sideways3.log
+data/tech_ind.pkl
