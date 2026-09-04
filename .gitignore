@@ -33,3 +33,12 @@ index_collect.log
 backfill_krx.log
 dart_2016.log
 panel_kq.log
+chain_2005.log
+data/toss.db
+data/toss.db-*
+data/.toss_token.json
+toss_full.log
+data/toss.db-shm
+data/toss.db-wal
+tosstest.log
+oas.json
