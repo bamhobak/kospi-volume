@@ -165,6 +165,20 @@ jobs:
           KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
         run: python collect_credit_recent.py
 
+      # 공포탐욕지수 — VKOSPI 실측을 먼저 받고(그날 값이 있어야 지수가 제대로 나온다),
+      # 그 값으로 지수를 하루치 이어 붙인다. 전 구간 재계산(collect_feargreed.py)은
+      # kospi.db(1GB, 저장소에 없음)가 필요해 CI 에서는 못 돌린다 — 증분 갱신만 한다.
+      - name: collect VKOSPI (변동성지수)
+        if: github.event_name != 'push' && steps.td.outputs.trading == 'true'
+        continue-on-error: true
+        env: { TZ: Asia/Seoul }
+        run: python collect_vkospi.py
+      - name: update fear & greed index (공포탐욕지수 하루치)
+        if: github.event_name != 'push' && steps.td.outputs.trading == 'true'
+        continue-on-error: true
+        env: { TZ: Asia/Seoul }
+        run: python update_feargreed.py
+
       # 수집 단계는 continue-on-error 라서 실패해도 워크플로가 통과한다. 그때 빈 CSV 가
       # 그대로 빌드에 들어가면 그 필드를 쓰는 규칙이 조용히 0건이 된다 — 2026-09-02 에
       # 자사주·내부자가 비어 [자사주 낙폭]·[외인 매집] 이 하루 종일 멈춰 있었다.
@@ -238,7 +252,7 @@ jobs:
       - name: commit monthly csv
         run: |
           git config user.name "kospi-bot"; git config user.email "bot@users.noreply.github.com"
-          git add data/20*.csv data/short_recent.csv data/dilution_recent.csv data/buyback_recent.csv data/insider_recent.csv data/credit_recent.csv data/sector.csv data/industry.csv data/valuation.csv
+          git add data/20*.csv data/short_recent.csv data/dilution_recent.csv data/buyback_recent.csv data/insider_recent.csv data/credit_recent.csv data/sector.csv data/industry.csv data/valuation.csv data/vkospi.csv data/feargreed.csv
           git diff --cached --quiet || (git commit -m "data: $(TZ=Asia/Seoul date +%Y-%m-%d)" && git pull --rebase && git push)
       - uses: actions/upload-pages-artifact@v3
         with: { path: site }

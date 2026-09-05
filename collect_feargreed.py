@@ -47,8 +47,10 @@ def idx(code):
     return d.Close.rename(code)
 KS = idx("KS11"); KQ = idx("KQ11")
 FX = idx("USD/KRW")
-IX = pd.concat([KS, KQ, FX], axis=1).sort_index().ffill()
-IX = IX.dropna(subset=["KS11", "KQ11"])
+# ⚠ 원/달러는 주말·공휴일에도 값이 있다. 그대로 합치고 ffill 하면 휴장일이 거래일로 둔갑한다
+#   (예전에 893일이 그렇게 섞여 있었다). 코스피가 실제로 거래된 날로 먼저 자른다.
+IX = pd.concat([KS, KQ, FX], axis=1).sort_index()
+IX = IX.loc[KS.index].ffill().dropna(subset=["KS11", "KQ11"])
 IX["d"] = IX.index.strftime("%Y%m%d")
 log(f"지수 {len(IX)}거래일 {IX.d.iloc[0]}~{IX.d.iloc[-1]}")
 
@@ -152,7 +154,8 @@ def build(market):
     N["score_rv"] = (num2 / den2.replace(0, np.nan)).round(1)
     N["market"] = market; N["date"] = F.date
     for c in ("vol20","volsrc","vk","mom","trend","risk","safe","strength","bread","nh","nl"): N["raw_"+c] = F[c]
-    return N.dropna(subset=["score"])
+    # 종목 집계(강도)가 없는 날은 점수를 내지 않는다 — 증분 갱신기(update_feargreed.py)와 기준을 맞춘다.
+    return N.dropna(subset=["score", "raw_strength"])
 
 log("요소 계산·정규화")
 R = pd.concat([build(m) for m in ("KOSPI", "KOSDAQ")], ignore_index=True)
