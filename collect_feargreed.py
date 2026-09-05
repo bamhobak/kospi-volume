@@ -9,7 +9,9 @@
    2005년까지 소급 산출한다. 남의 숫자를 긁어오는 것보다 재현 가능하고 백테스트에 바로 쓸 수 있다.
 
 구성 요소(0~100 정규화 후 가중합, feargreed.co.kr 공개 가중치에 맞춤)
-  변동성   30%  20일 실현변동성의 역방향 (VKOSPI 대용 — 2009+ 는 VKOSPI 와 대조 검증 가능)
+  변동성   30%  **VKOSPI**(2013-08~, Investing.com) 의 역방향. 그 이전은 20일 실현변동성을
+                겹치는 3,209일 회귀로 VKOSPI 수준에 맞춰 이어 붙인다(상관 0.892).
+                비교용으로 실현변동성만 쓴 점수(score_rv)도 함께 저장한다.
   모멘텀   25%  지수 종가 / 125일 이동평균 (CNN 과 동일)
   주가강도 15%  52주 신고가 종목수 − 신저가 종목수, 유효 종목수 대비
   추세     15%  지수의 20일 수익률
@@ -22,6 +24,7 @@
 사용: python collect_feargreed.py [--rebuild]
 """
 import sqlite3, sys, time
+sys.stdout.reconfigure(encoding="utf-8")
 from pathlib import Path
 import numpy as np, pandas as pd
 import FinanceDataReader as fdr
@@ -92,6 +95,16 @@ def pctile(s, win=750, minp=250):
     return s.rolling(win, min_periods=minp).apply(
         lambda x: (x[:-1] < x[-1]).mean() * 100 if len(x) > 1 else np.nan, raw=True)
 
+# VKOSPI — 있으면 변동성 요소를 이걸로 쓴다(없던 구간은 실현변동성을 회귀로 맞춰 잇는다)
+def vkospi():
+    f = BASE/"data"/"vkospi.csv"
+    if not f.exists():
+        log("⚠ data/vkospi.csv 없음 — 실현변동성만 쓴다 (collect_vkospi.py 를 먼저 돌릴 것)")
+        return None
+    V = pd.read_csv(f, dtype={"date": str})
+    return dict(zip(V.date, V.close))
+VK = vkospi()
+
 def build(market):
     px = IX["KS11"] if market == "KOSPI" else IX["KQ11"]
     F = pd.DataFrame(index=IX.index); F["date"] = IX.d
@@ -105,9 +118,20 @@ def build(market):
     F["strength"] = bb.strength.values
     F["bread"] = bb.bread20.values
     F["nh"] = bb.nh.values; F["nl"] = bb.nl.values
+    # 변동성 원천: VKOSPI 우선, 없는 구간은 실현변동성을 회귀(a+b*rv)로 VKOSPI 수준에 맞춘다
+    F["vk"] = F.date.map(VK) if VK else np.nan
+    ov = F.dropna(subset=["vk", "vol20"])
+    if len(ov) > 100:
+        b, a = np.polyfit(ov.vol20.values, ov.vk.values, 1)
+        F["volsrc"] = F.vk.where(F.vk.notna(), a + b*F.vol20)
+        log(f"  {market} 변동성: VKOSPI {int(F.vk.notna().sum()):,}일 + 회귀 보간 "
+            f"(VKOSPI ≈ {a:.2f} + {b:.2f}×실현, 상관 {ov.vol20.corr(ov.vk):.3f})")
+    else:
+        F["volsrc"] = F.vol20
     # 0~100 정규화 — 변동성은 높을수록 공포이므로 뒤집는다
     N = pd.DataFrame(index=F.index)
-    N["volatility"] = 100 - pctile(F.vol20)
+    N["volatility"] = 100 - pctile(F.volsrc)
+    N["volatility_rv"] = 100 - pctile(F.vol20)
     N["momentum"]   = pctile(F.mom)
     N["strength"]   = pctile(F.strength)
     N["trend"]      = pctile(F.trend)
@@ -118,21 +142,27 @@ def build(market):
     num = sum(N[k].fillna(0)*w for k, w in W.items())
     den = sum(N[k].notna()*w for k, w in W.items())
     N["score"] = (num / den.replace(0, np.nan)).round(1)
+    # 비교용 — 변동성 요소만 실현변동성으로 바꾼 점수
+    Wr = dict(W); N2 = N.rename(columns={"volatility_rv": "volatility"})
+    num2 = sum(N2[k].fillna(0)*w for k, w in Wr.items() if k != "volatility") + N["volatility_rv"].fillna(0)*W["volatility"]
+    den2 = sum(N2[k].notna()*w for k, w in Wr.items() if k != "volatility") + N["volatility_rv"].notna()*W["volatility"]
+    N["score_rv"] = (num2 / den2.replace(0, np.nan)).round(1)
     N["market"] = market; N["date"] = F.date
-    for c in ("vol20","mom","trend","risk","safe","strength","bread","nh","nl"): N["raw_"+c] = F[c]
+    for c in ("vol20","volsrc","vk","mom","trend","risk","safe","strength","bread","nh","nl"): N["raw_"+c] = F[c]
     return N.dropna(subset=["score"])
 
 log("요소 계산·정규화")
 R = pd.concat([build(m) for m in ("KOSPI", "KOSDAQ")], ignore_index=True)
-cols = (["date","market","score","volatility","momentum","strength","trend","risk","safe","breadth"]
+cols = (["date","market","score","score_rv","volatility","volatility_rv","momentum","strength","trend","risk","safe","breadth"]
         + [c for c in R.columns if c.startswith("raw_")])
 R = R[cols].sort_values(["market","date"])
 for c in R.columns:
     if c not in ("date","market"): R[c] = R[c].astype(float).round(3)
 
 con = sqlite3.connect(DB)
-con.execute("CREATE TABLE IF NOT EXISTS feargreed(date TEXT, market TEXT, score REAL, "
-            "volatility REAL, momentum REAL, strength REAL, trend REAL, risk REAL, safe REAL, breadth REAL, "
+con.execute("DROP TABLE IF EXISTS feargreed")
+con.execute("CREATE TABLE feargreed(date TEXT, market TEXT, score REAL, score_rv REAL, "
+            "volatility REAL, volatility_rv REAL, momentum REAL, strength REAL, trend REAL, risk REAL, safe REAL, breadth REAL, "
             + ",".join(f"{c} REAL" for c in R.columns if c.startswith("raw_")) + ", PRIMARY KEY(date,market))")
 ph = ",".join("?"*len(R.columns))
 con.executemany(f"INSERT OR REPLACE INTO feargreed VALUES({ph})", R.itertuples(index=False, name=None))
@@ -147,6 +177,11 @@ for m in ("KOSPI", "KOSDAQ"):
     X = R[R.market == m]
     print(f"■ {m}  {len(X):,}일  {X.date.min()}~{X.date.max()}  평균 {X.score.mean():.1f}")
     last = X.iloc[-1]
+    vk = X.dropna(subset=["raw_vk"])
+    if len(vk):
+        d = (X.set_index("date").score - X.set_index("date").score_rv).dropna()
+        print(f"   VKOSPI 적용 {len(vk):,}일 · 교체로 점수 평균 {d.loc[vk.date].mean():+.2f} 이동 "
+              f"(최대 {d.loc[vk.date].abs().max():.1f})")
     print(f"   최신 {last.date}: {last.score:.1f} ({band(last.score)}) · "
           f"변동성 {last.volatility:.0f} 모멘텀 {last.momentum:.0f} 강도 {last.strength:.0f} "
           f"추세 {last.trend:.0f} 위험선호 {last.risk:.0f} 안전자산 {last.safe:.0f}")
