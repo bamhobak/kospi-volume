@@ -90,3 +90,8 @@ daily_research.log
 daily_research_run.log
 kis_credit_kp.log
 investor_daily.log
+backfill_aux_run.log
+backfill_kis_track.log
+backfill_krx_track.log
+repair_market.log
+investor_daily.log

@@ -4,6 +4,11 @@
 사용: python collect_kis.py short|credit|program [--from 20180101] [--workers 4]
       python collect_kis.py credit --days 10      ← 매일 갱신용. done 을 무시하고 전 종목의
                                                      최근 구간만 다시 받아 덮어쓴다(1페이지).
+      python collect_kis.py credit --fill-before 20180102 --from 20080101
+                                                  ← 과거 백필용. **이미 done 인 종목도** 그 날짜
+                                                     이전 이력이 없으면 거슬러 받는다. done 만 보고
+                                                     건너뛰면 2,916종목 중 415종목만 받고 끝난다
+                                                     (2026-09-05 에 실제로 그랬다).
 """
 import json, sqlite3, sys, threading, time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -18,6 +23,7 @@ MODE = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("-") else
 arg = lambda k, d: sys.argv[sys.argv.index(k) + 1] if k in sys.argv else d
 FROM = arg("--from", "20180101")
 DAYS = int(arg("--days", "0"))          # >0 이면 '최근 N일만' 갱신 모드
+FILL = arg("--fill-before", None)       # 이 날짜 이전 이력이 없는 종목만, 그 날짜부터 거슬러
 W = int(arg("--workers", "4"))
 if DAYS:
     import datetime as _d0
@@ -75,8 +81,22 @@ else:                                         # 거래 불가 종목까지 긁�
         f"GROUP BY ticker HAVING avg(volume*close)/1e8 >= {float(arg('--min-amt','1'))}", (MKT,))]
 c2.close()
 # 최근 갱신 모드는 done 을 무시한다 — 이미 '완료' 로 찍힌 종목의 새 날짜를 받아야 하기 때문.
-todo = sorted(codes) if DAYS else [t for t in sorted(codes) if t not in done]
-log.info(f"[{MODE}/{MKT}] 대상 {len(todo)}종목 ({'최근 갱신' if DAYS else f'완료 {len(done)}'}) · {FROM}~ · 워커 {W}")
+if FILL:
+    # 과거 백필: done 여부와 무관하게 'FILL 이전 이력이 없는 종목' 만 고른다.
+    have = {r[0] for r in con.execute(
+        f"SELECT ticker FROM {S['table']} WHERE date < ? GROUP BY ticker", (FILL,))}
+    con.execute("CREATE TABLE IF NOT EXISTS nodata(mode TEXT, ticker TEXT, before TEXT, at TEXT, "
+                "PRIMARY KEY(mode,ticker,before))")
+    none_ = {r[0] for r in con.execute(
+        "SELECT ticker FROM nodata WHERE mode=? AND before=?", (MODE, FILL))}
+    todo = [t for t in sorted(codes) if t not in have and t not in none_]
+    if none_: log.info(f"[{MODE}/{MKT}] 데이터 없음으로 확인된 {len(none_)}종목은 건너뜀")
+elif DAYS:
+    todo = sorted(codes)
+else:
+    todo = [t for t in sorted(codes) if t not in done]
+mode_nm = f"{FILL} 이전 채우기" if FILL else ("최근 갱신" if DAYS else f"완료 {len(done)}")
+log.info(f"[{MODE}/{MKT}] 대상 {len(todo)}종목 ({mode_nm}) · {FROM}~ · 워커 {W}")
 
 TOKEN = kis.get_token()
 lock = threading.Lock(); last = [0.0]
@@ -90,7 +110,7 @@ def throttle(gap=GAP):
 import datetime as _dt
 def fetch(tk):
     """오류 시 재시도. 끝까지 못 받으면 done=False 로 반환해 다음 실행에서 재개."""
-    rows, anchor, seen = [], time.strftime("%Y%m%d"), set()
+    rows, anchor, seen = [], (FILL or time.strftime("%Y%m%d")), set()
     complete = False
     for _ in range(200):
         p = {"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": tk}
@@ -136,8 +156,15 @@ with ThreadPoolExecutor(W) as ex:
             verb = "REPLACE" if DAYS else "IGNORE"
             con.executemany(f"INSERT OR {verb} INTO {S['table']} (date,ticker,{','.join(CN)}) VALUES ({ph})", rows)
             tot += len(rows)
-        if complete and not DAYS:      # 갱신 모드는 '완료' 표시를 건드리지 않는다
+        if complete and not DAYS and not FILL:   # 갱신 모드는 '완료' 표시를 건드리지 않는다
             con.execute("INSERT OR REPLACE INTO done VALUES (?,?,?,?)", (MODE, tk, len(rows), time.strftime("%H:%M")))
+        elif FILL and complete and not rows:
+            # 과거 백필에서 '한 건도 없음' 이 확인된 종목은 따로 적어 둔다. 안 그러면 다음 실행 때
+            # 또 499종목을 헛돈다(신용거래 불가 종목·우선주는 KIS 가 아예 제공하지 않는다).
+            con.execute("CREATE TABLE IF NOT EXISTS nodata(mode TEXT, ticker TEXT, before TEXT, at TEXT, "
+                        "PRIMARY KEY(mode,ticker,before))")
+            con.execute("INSERT OR REPLACE INTO nodata VALUES (?,?,?,?)",
+                        (MODE, tk, FILL, time.strftime("%Y-%m-%d %H:%M")))
         n += 1
         if n % 25 == 0:
             con.commit(); el = time.time() - t0

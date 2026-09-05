@@ -47,6 +47,12 @@ def say(m):
     print(line, flush=True)
     with open(LOG, "a", encoding="utf-8") as f: f.write(line + "\n")
 
+# 과거 백필이 돌고 있으면 비켜준다 — KRX 를 동시에 두드리면 차단된다.
+LOCK = BASE / "data" / ".backfill_lock"
+if LOCK.exists() and time.time() - LOCK.stat().st_mtime < 36*3600:
+    say(f"과거 백필 진행 중({LOCK.name}) — 오늘 갱신은 건너뛴다. 백필이 같은 자료를 더 넓게 받는다.")
+    sys.exit(0)
+
 say(f"=== 연구용 일일 갱신 시작 (최근 {DAYS}일) ===")
 t0 = time.time(); fail = []
 for no, name, cmd in STEPS:
