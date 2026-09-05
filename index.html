@@ -251,21 +251,35 @@ button.prim{background:var(--acc);border:1px solid var(--acc);color:#0a0b0e;font
   tr.sel td:first-child{background:var(--panel2)}
   .card{min-width:0}
 
-  /* 신호 카드: 좁은 화면에서 조건 셀 5열을 그대로 두면 셀 폭이 50px 로 눌려
-     '업 종 6 0 일' 처럼 글자가 세로로 쪼개진다. 2열로 접고 값 글자도 줄인다. */
-  .sig{padding:14px 14px;gap:13px}
-  .sig .hd{gap:10px}
-  .sig .nm{font-size:16px}
-  .sig .why{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
-  .sig .why div{padding:9px 10px;min-width:0}
-  .sig .why .l{font-size:10px;margin-bottom:3px;white-space:normal;word-break:keep-all;line-height:1.35}
-  .sig .why .v{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .sig .why .s{font-size:9px;white-space:normal;word-break:keep-all;line-height:1.3}
+  /* 신호 카드 — 한 종목이 화면을 다 차지하지 않게 납작하게 만든다(2026-09-05).
+     예전엔 조건 칸이 라벨·값·기준 3줄짜리 상자라 5개면 3줄 × 150px 로 카드 대부분을 먹었다.
+     이제 한 칸을 '라벨 — 값 — 기준' 한 줄로 눕혀 같은 정보를 3분의 1 높이에 담는다.
+     이 화면에서 두 종목이 들어오는 것이 목표. */
+  .sig{padding:11px 12px;gap:9px}
+  .sig .hd{gap:9px}
+  .sig .nm{font-size:15px}
+  .sig .hd>div:first-child>div:first-child{margin-bottom:2px !important;gap:6px !important}
+  .sig .hd>div:first-child>div:last-child{font-size:11px}
+  .sig .why{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+  /* 한 줄 배치: 라벨(왼쪽) · 값(오른쪽) · 기준(값 아래 아주 작게) */
+  .sig .why div{padding:6px 8px;min-width:0;display:grid;
+                grid-template-columns:minmax(0,1fr) auto;align-items:baseline;column-gap:6px}
+  .sig .why .l{font-size:10px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
+  .sig .why .v{font-size:13px;white-space:nowrap;text-align:right;line-height:1.3}
+  .sig .why .s{grid-column:1/-1;font-size:8px;margin:1px 0 0;text-align:right;
+               white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
   /* 가격이 잘리지 않게 */
   .sig .hd>div:last-child{flex:0 0 auto;min-width:0}
-  .sig .hd .n{font-size:19px !important}
-  /* 매매 계획은 지금도 잘 접히므로 여백만 줄인다 */
-  .plan{flex-wrap:wrap;gap:10px;padding:11px 12px}
+  .sig .hd .n{font-size:17px !important}
+  /* 매매 계획도 한 줄로 눕힌다 */
+  .plan{flex-wrap:wrap;gap:6px 10px;padding:8px 10px}
+  .sig .plan{font-size:12px}
+  .sig .plan .st b{margin-top:1px;font-size:12px}
+  .sig .plan .k{font-size:9px}
+  .sig .plan svg{width:13px;height:13px}
+  .sig .plan button{padding:6px 10px;font-size:12px}
+  .sig .warn{font-size:10px;line-height:1.35;gap:6px}
+  .sig .warn svg{width:12px;height:12px}
 }
 </style></head><body>
 <header>
