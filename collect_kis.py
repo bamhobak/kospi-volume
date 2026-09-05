@@ -2,6 +2,8 @@
 """KIS Open API 수집 — 공매도 / 신용잔고 / 프로그램매매 (2018~현재)
    메인 DB를 건드리지 않고 data/kis/market.db 에 별도 저장. 재실행하면 이어서 수집.
 사용: python collect_kis.py short|credit|program [--from 20180101] [--workers 4]
+      python collect_kis.py credit --days 10      ← 매일 갱신용. done 을 무시하고 전 종목의
+                                                     최근 구간만 다시 받아 덮어쓴다(1페이지).
 """
 import json, sqlite3, sys, threading, time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -15,7 +17,11 @@ log = collect.log
 MODE = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("-") else "short"
 arg = lambda k, d: sys.argv[sys.argv.index(k) + 1] if k in sys.argv else d
 FROM = arg("--from", "20180101")
+DAYS = int(arg("--days", "0"))          # >0 이면 '최근 N일만' 갱신 모드
 W = int(arg("--workers", "4"))
+if DAYS:
+    import datetime as _d0
+    FROM = (_d0.date.today() - _d0.timedelta(days=DAYS*2 + 10)).strftime("%Y%m%d")
 num = lambda s: None if s in (None, "", "-") else (float(s) if "." in str(s) else int(float(s)))
 
 SPEC = {
@@ -68,8 +74,9 @@ else:                                         # 거래 불가 종목까지 긁�
         "SELECT ticker FROM daily WHERE market=? AND volume>0 AND close>0 "
         f"GROUP BY ticker HAVING avg(volume*close)/1e8 >= {float(arg('--min-amt','1'))}", (MKT,))]
 c2.close()
-todo = [t for t in sorted(codes) if t not in done]
-log.info(f"[{MODE}/{MKT}] 대상 {len(todo)}종목 (완료 {len(done)}) · {FROM}~ · 워커 {W}")
+# 최근 갱신 모드는 done 을 무시한다 — 이미 '완료' 로 찍힌 종목의 새 날짜를 받아야 하기 때문.
+todo = sorted(codes) if DAYS else [t for t in sorted(codes) if t not in done]
+log.info(f"[{MODE}/{MKT}] 대상 {len(todo)}종목 ({'최근 갱신' if DAYS else f'완료 {len(done)}'}) · {FROM}~ · 워커 {W}")
 
 TOKEN = kis.get_token()
 lock = threading.Lock(); last = [0.0]
@@ -125,9 +132,11 @@ with ThreadPoolExecutor(W) as ex:
     for f in as_completed([ex.submit(fetch, t) for t in todo]):
         tk, rows, complete = f.result()
         if rows:
-            con.executemany(f"INSERT OR IGNORE INTO {S['table']} (date,ticker,{','.join(CN)}) VALUES ({ph})", rows)
+            # 갱신 모드는 덮어쓴다(잠정치가 확정치로 바뀌는 경우가 있다)
+            verb = "REPLACE" if DAYS else "IGNORE"
+            con.executemany(f"INSERT OR {verb} INTO {S['table']} (date,ticker,{','.join(CN)}) VALUES ({ph})", rows)
             tot += len(rows)
-        if complete:
+        if complete and not DAYS:      # 갱신 모드는 '완료' 표시를 건드리지 않는다
             con.execute("INSERT OR REPLACE INTO done VALUES (?,?,?,?)", (MODE, tk, len(rows), time.strftime("%H:%M")))
         n += 1
         if n % 25 == 0:
