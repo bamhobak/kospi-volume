@@ -229,10 +229,14 @@ button.prim{background:var(--acc);border:1px solid var(--acc);color:#0a0b0e;font
   .main{min-height:0;flex:1;min-width:0}
   .wrap{grid-template-columns:1fr;padding:10px;min-width:0}
   .rule{margin:10px 10px 0;font-size:12px}
-  /* 헤더: 한 줄에 다 못 넣으면 줄바꿈 */
-  header{height:auto;padding:9px 12px;flex-wrap:wrap;gap:8px}
-  header h1{width:auto;font-size:15px}
-  .mkt{font-size:12px}
+  /* 헤더: 제목과 지수를 **한 줄에** 넣는다(2026-09-05).
+     예전엔 제목 15px + 지수 12px 이 합쳐 390px 를 넘겨 지수가 다음 줄로 밀렸다.
+     둘 다 줄이고 지수는 남는 폭에 맞춰 줄어들게 해서 줄바꿈을 막는다. */
+  header{height:auto;padding:9px 12px;flex-wrap:wrap;gap:6px}
+  header h1{width:auto;font-size:13px;margin-right:0;flex:none}
+  .mkt{font-size:11px;gap:4px;flex:0 1 auto;min-width:0;overflow:hidden}
+  .mkt .mkt{margin-left:3px !important}
+  .mkt .pos,.mkt .neg{font-size:9.5px !important}
   .mktstate{font-size:10px;padding:3px 8px;white-space:nowrap;max-width:100%;overflow-x:auto}
   #q{flex:1 1 100%;min-width:0}
   body:not(.detail) .side.open{position:fixed;inset:0;z-index:20;border-radius:0;background:var(--panel);display:flex}
