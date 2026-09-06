@@ -104,7 +104,7 @@ def sim(S, ds, seed):
         curve.append(eq)
     Cv=pd.Series(curve); dd=(Cv/Cv.cummax()-1)*100
     return dict(nav=Cv.iloc[-1], mdd=dd.min(), byrid=byrid)
-ds = [d for d in adates if d >= "20180101"]
+ds = [d for d in adates if d >= "20160101"]   # 2026-09-07: 계좌 비교 기준 시작 2016
 SEEDS = 12
 print(f"\n3) 규칙 하나씩 빼기 — 전체 2018~26 · 시드 {SEEDS}회 · 같은 시드 짝지어 비교\n")
 full = [sim(S, ds, k) for k in range(SEEDS)]

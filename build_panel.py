@@ -127,9 +127,15 @@ def build(mkt):
                 sel += "," + extra if extra in cols else ",NULL AS " + extra
             D = pd.read_sql("SELECT " + sel + " FROM daily WHERE close>0 AND open>0 AND date>=?",
                             c, params=(FROM,))
-            D = D[~D.ticker.isin(set(df.ticker))]
+            # ⚠ 종목 단위로 빼면 안 된다(2026-09-06 발견). 2005~2017 백필에 있던 종목이 2018 이후
+            #   폐지되면 그 종목의 2018~ 이력이 폐지 DB 에만 있는데, 종목이 '이미 있다' 고 통째로
+            #   버려서 코스피 74·코스닥 186 종목의 2018 이후가 패널에서 사라졌다(현대미포·두산인프라 등).
+            #   (종목, 날짜) 가 겹치는 행만 뺀다.
+            have = set(zip(df.ticker, df.date))
+            D = D[[(t, d) not in have for t, d in zip(D.ticker, D.date)]]
             if len(D):
                 D["grp"] = "폐지"; df = pd.concat([df, D], ignore_index=True)
+                df.loc[df.ticker.isin(set(D.ticker)), "grp"] = "폐지"      # 종목 단위로 표시 통일
                 log.info(f"  폐지 {dbf}: {D.ticker.nunique()}종목 {len(D):,}행 추가")
         except Exception as e: log.warning(f"  {dbf} 건너뜀: {str(e)[:70]}")
         c.close()
