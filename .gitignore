@@ -100,3 +100,11 @@ panel_kq_2005.log
 hist_port_kp.log
 hist_port_full.log
 hist_rules_full.log
+
+# 연구용 대용량 산출물 — 로컬에서만 쓴다 (GitHub 100MB 제한)
+data/krx_daily.db
+data/investor.db
+data/wave_panel.csv
+data/flow_panel.csv
+data/f3_all.csv
+data/f3_grid.csv

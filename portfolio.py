@@ -109,7 +109,7 @@ RULES = {
         &~((KP.above20>70)&(KP.ret250>120))),
  "P2": (KP, 10, None, 15, 2, base(KP,3)&dn20(KP)&(KP.r16<30)&(KP.rw1>=200)&(KP.fw5>=2)
         &(KP.ret3<=-5)&(KP.ret10<=0)&(KP.srd==True)),
- "P3": (KP, 20, None, 5, 3, base(KP,3)&dn60(KP)&(KP.ret20<=-20)&(KP.su1>=1.5)&(KP.fw60>=1)
+ "P3": (KP, 20, None, 5, 3, base(KP,3)&dn60(KP)&(KP.ret20<=-25)&(KP.su1>=1.5)&(KP.fw60>=1)
         &(KP.u<=-10)&(KP.srd==True)&(KP.cr_chg20<=-15)),
  "P4": (KP, 5, 0.15, 3, 4, base(KP,10)&dn60(KP)&(KP.u<=-20)&(KP.dma20<=-10)&(KP.mdd60<=-40)&(KP.srd==True)),
  "P5": (KB, 10, None, 5, 3, base(KB,3)&dn60(KB)&KB.bb&(KB.ret60<=-20)),   # 공통(A1)
@@ -117,7 +117,7 @@ RULES = {
  "P7": (KP, 60, None, 4, 5, base(KP,30)&up60(KP)&(KP["cap조"]>=1)&(KP["cap조"]<10)&(KP.fw20>=1)
         &(KP.ow60<0.4)&(KP.r16>=100)&(KP.r16<150)&(KP.fromhi>=-15)&(KP.fromlo>=70)
         &(KP.ins60.fillna(0)>0)),
- "D1": (KQ, 20, None, 5, 3, base(KQ,2)&dn60(KQ)&(KQ.ret20<=-20)&(KQ.su1>=1.5)&(KQ.fw60>=1)
+ "D1": (KQ, 20, None, 5, 3, base(KQ,2)&dn60(KQ)&(KQ.ret20<=-30)&(KQ.su1>=1.5)&(KQ.fw60>=1)
         &(KQ.u<=-20)&(KQ.srd==True)&(KQ.ow20>=0)
         &(KQ['부채비율'].isna()|(KQ['부채비율']<=200))),
  "D2": (KQ, 40, None, 5, 3, base(KQ,5)&dn60(KQ)&(KQ.PBR>0)&(KQ.PBR<=0.5)&(KQ.ret20<=-10)
