@@ -28,8 +28,10 @@ DISP = {"P7":"P1","P1":"P2","P4":"P3","P6":"P4","P3":"P5","P2":"P6","D1":"D1","D
 NAME = {"P7":"외인 매집","P1":"조용한 신고가","P4":"업종붕괴 이탈","P6":"깊은 이격","P3":"폭락반등",
         "P2":"조정매집","D1":"낙폭과대","D2":"저PBR 낙폭","P5":"자사주 낙폭"}
 ORDER = ["P7","P1","P4","P6","P3","P2","D1","D2","P5"]
-PER = [("2016~2017","20160101","20171231"), ("2018~2022","20180101","20221231"),
-       ("2023~2026","20230101","20991231")]
+# 구간은 환경변수 HIST_PER 로 갈아 끼운다. 기본은 예전 3구간.
+# 폭락을 성격별로 갈라 보려면: HIST_PER="2008금융위기:20080101-20091231,2011폭락:20110101-20121231,..."
+_dflt = "2016~2017:20160101-20171231,2018~2022:20180101-20221231,2023~2026:20230101-20991231"
+PER = [(p.split(":")[0], *p.split(":")[1].split("-")) for p in os.environ.get("HIST_PER", _dflt).split(",")]
 def trades(K, hold, stop, cond, lo, hi):
     col = f"n{hold}"
     if col not in K.columns: return None
@@ -60,3 +62,15 @@ for rid in ORDER:
         v = Z._r.to_numpy()
         cells += f"{len(Z):>7}건{v.mean():>+8.2f}% 승{(v>0).mean()*100:>3.0f}%"
     print(f"  {DISP[rid]:<3}{NAME[rid]:<14}{cells}")
+if os.environ.get("HIST_YEAR"):
+    print()
+    print("  연도별 (건수 · 평균 · 승률)")
+    for rid in ORDER:
+        K, hold, stop, pct, mx, cond = RULES[rid]
+        Z = trades(K, hold, stop, cond, "19000101", "20991231")
+        if Z is None or not len(Z):
+            print(f"  {DISP[rid]:<3}{NAME[rid]:<14} (신호 없음)"); continue
+        Z = Z.assign(y=Z.date.str[:4])
+        out = " · ".join(f"{y}:{len(g)}건 {g._r.mean():+.1f}%({(g._r>0).mean()*100:.0f}%)"
+                         for y, g in Z.groupby("y"))
+        print(f"  {DISP[rid]:<3}{NAME[rid]:<14} {out}")

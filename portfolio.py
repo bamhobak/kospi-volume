@@ -11,13 +11,18 @@
 """
 import io, sqlite3, sys
 from pathlib import Path
+import os as _os0
 import numpy as np, pandas as pd
 import FinanceDataReader as fdr
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 BASE = Path(__file__).parent
 
-IX = fdr.DataReader("KS11", "2017-01-01"); IX = IX[IX.Close > 0].copy()
+# 국면 게이트용 지수. 과거 검증(2005~)에서는 이 시작점을 앞당겨야 한다 —
+# 2017년부터만 읽으면 그 이전 날짜가 전부 '국면 모름' 이 되어 dn60/up60 규칙이
+# 통째로 0건이 된다(2026-09-06 실측). PANEL_FROM 으로 갈아 끼운다.
+IX = fdr.DataReader("KS11", _os0.environ.get("IX_FROM", "2017-01-01"))
+IX = IX[IX.Close > 0].copy()
 IX["date"] = IX.index.strftime("%Y%m%d")
 IX["ma20"] = IX.Close.rolling(20).mean(); IX["ma60"] = IX.Close.rolling(60).mean()
 UP20 = dict(zip(IX.date, IX.Close > IX.ma20)); UP60 = dict(zip(IX.date, IX.Close > IX.ma60))
@@ -48,8 +53,9 @@ KQ = load(_os.environ.get("PANEL_KQ", "kq_ow.pkl"), "KOSDAQ")
 # 자사주 공시(P5)
 con = sqlite3.connect(BASE/"data"/"dart"/"disclosures.db")
 D = pd.read_sql("SELECT stock_code AS ticker, rcept_dt AS dt, report_nm FROM disclosure "
-                "WHERE length(stock_code)=6 AND rcept_dt>='20180101' "
-                "AND report_nm LIKE '%자기주식취득결정%'", con); con.close()
+                "WHERE length(stock_code)=6 AND rcept_dt>=? "
+                "AND report_nm LIKE '%자기주식취득결정%'", con,
+                params=(_os0.environ.get("DART_FROM", "20180101"),)); con.close()
 nm_ = D.report_nm.str.replace(" ","",regex=False)
 BB = set(zip(*D[~nm_.str.contains("신탁") & ~nm_.str.contains("정정")][["ticker","dt"]].values.T))
 for K in (KP, KQ): K["bb"] = [(t,d) in BB for t,d in zip(K.ticker,K.date)]
