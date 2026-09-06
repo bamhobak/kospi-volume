@@ -25,15 +25,22 @@ for rid, d in S.items():
     i = s.index(f"{{id:'{rid}',")
     j = s.index("stats:{", i); k = s.index("}", s.index("years:", j))
     ydet = " / ".join(f"{y} {v['avg']:+.1f}%({v['n']}건)" for y, v in sorted(yr.items()) if y >= "2023")
-    months = max(va["months"], 1)
-    years = (f"'**검증기간(2023~26) · 실거래 기준** · {ydet}"
+    # 월 건수는 '난 달 수 / 전체 달 수' 로 적는다 — 단순 나눗셈은 신호 쏠림을 감춘다
+    dist = (f"신호가 난 달은 **{va['span']}개월 중 {va['months']}개월**"
+            f"(난 달 기준 중앙 {va['permo_med']:.0f}건, 가장 많았던 달 {va['top_mo'][:4]}-{va['top_mo'][4:]} {va['top_n']}건)")
+    years = (f"'**검증기간(2023~26) · 실거래 기준** · {ydet}  —  {dist}"
              f"  —  **기준구간(2016~26, 11년)** {al['n']}건 평균 {al['avg']:+.2f}% · 중앙값 {al['med']:+.2f}%"
              f" · 승률 {al['win']:.0f}% · PF {al['pf']:.2f} · 최악 {al['worst']:.1f}% · 월 신뢰구간 하한 {al['ci']:+.1f}%"
              f"  —  **학습(2016~22)** {tr['n']}건 {tr['avg']:+.2f}%(승률 {tr['win']:.0f}%, CI하한 {tr['ci']:+.1f}%)"
              f"  —  참고 **스트레스(2005~15)** " +
              (f"{st['n']}건 {st['avg']:+.2f}%(승률 {st['win']:.0f}%)" if st else "신호 없음") +
              " — 공매도·가격제한폭 제도가 지금과 달라 채택 근거로는 쓰지 않습니다'")
-    new = (f"stats:{{n:{va['n']}, perMonth:{va['n']/44:.1f}, win:{va['win']:.0f}, pf:{min(va['pf'],999):.2f},"
+    # perMonth 는 '월 평균' 그대로 둔다 — 화면 하단 빈도 예측이 이 값에 이격도 배율을 곱하기
+    # 때문이다(배율이 평균 기준으로 산출돼 있어 중앙값을 넣으면 과대추정된다).
+    # 대신 화면 표시용으로 실제 분포(난 달 수·전체 달 수·최다월)를 따로 넘긴다.
+    new = (f"stats:{{n:{va['n']}, perMonth:{va['n']/va['span']:.1f}, monthsActive:{va['months']},"
+           f" spanMonths:{va['span']}, medPerActive:{va['permo_med']:.0f}, topMonth:'{va['top_mo']}',"
+           f" topN:{va['top_n']}, win:{va['win']:.0f}, pf:{min(va['pf'],999):.2f},"
            f" avg:{va['avg']:.2f}, years:{years}}}")
     s = s[:j] + new + s[k+1:]; n_stats += 1
     # ── ② desc 머리말의 백테스트/학습 문구

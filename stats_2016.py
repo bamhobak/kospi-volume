@@ -61,8 +61,15 @@ for rid in ORDER:
         z = Z[(Z.date >= lo) & (Z.date <= hi)]
         if not len(z):
             print(f"{NAME[rid]:<14}{pn:<14}{'신호 없음':>6}"); OUT[rid][pn] = None; continue
+        # 신호는 고르게 나지 않는다 — '월 N건' 단순 나눗셈은 오해를 부른다(2026-09-07).
+        #   예: [업종붕괴 이탈] 검증 209건은 44개월 중 2개월에만 몰려 있다.
+        #   그래서 '신호가 난 달 수 / 전체 달 수' 와 '난 달의 중앙 건수' 를 같이 남긴다.
+        mo = z.date.str[:6]
+        span = (int(hi[:4])*12+int(hi[4:6]) if hi < "20991231" else 2026*12+9) - (int(lo[:4])*12+int(lo[4:6])) + 1
         d = dict(n=len(z), avg=z._r.mean(), med=z._r.median(), win=(z._r>0).mean()*100,
-                 pf=pf(z._r), worst=z._r.min(), ci=ci(z), months=z.date.str[:6].nunique())
+                 pf=pf(z._r), worst=z._r.min(), ci=ci(z), months=mo.nunique(),
+                 span=span, permo_med=float(mo.value_counts().median()),
+                 top_mo=str(mo.value_counts().index[0]), top_n=int(mo.value_counts().iloc[0]))
         OUT[rid][pn] = d
         print(f"{NAME[rid]:<14}{pn:<14}{d['n']:>6}{d['avg']:>+7.2f}%{d['med']:>+7.2f}%{d['win']:>5.0f}%"
               f"{d['pf']:>7.2f}{d['worst']:>+7.1f}%{d['ci']:>+7.1f}%{d['months']:>5}")
