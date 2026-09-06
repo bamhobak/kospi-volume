@@ -96,3 +96,7 @@ backfill_krx_track.log
 repair_market.log
 investor_daily.log
 panel_kp_2005.log
+panel_kq_2005.log
+hist_port_kp.log
+hist_port_full.log
+hist_rules_full.log
