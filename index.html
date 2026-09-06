@@ -967,10 +967,12 @@ async function renderPositions(){
     else if(tgt&&now!=null&&now>=tgt){st='🎯 익절 도달 (+'+rule.target+'%)';sc='pos'}
     else if(days>=rule.hold){st='⏰ '+rule.hold+'일 도래 (매도)';sc='pos'}
     else if(rid0==='P7'&&ret!=null&&ret>0&&streak>=2){st='🔥 추가매수 고려 (신호 '+streak+'일째 + 이익 중)';sc='pos'}
-    return {p,now,hi,days,line,tgt,ret,st,sc,streak,rule,useLive,lvDate}}));
+    return {p,now,hi,days,line,tgt,ret,st,sc,streak,rule,useLive,lvDate,rid0}}));
   const pr=p=>(p.sell/p.price-1)*100;
   /* 셀을 배열로 만들어 KEEP 인덱스만 출력한다 — 모바일에서 머리글과 어긋나지 않게 */
-  $('#tbl tbody').innerHTML=rows.map(({p,now,hi,days,line,tgt,ret,st,sc,streak,rule,useLive,lvDate})=>{
+  /* rid0 도 함께 받는다 — 아래 '신호 연속일수' 칸이 P7 강조에 쓴다. 예전엔 빠져 있어
+     보유 종목에 streak 가 붙는 순간 ReferenceError 로 표 전체와 상태줄이 죽었다(2026-09-07). */
+  $('#tbl tbody').innerHTML=rows.map(({p,now,hi,days,line,tgt,ret,st,sc,streak,rule,useLive,lvDate,rid0})=>{
     const nowCell=fmt(now);
     const cells=[
       `<td class="l name">${p.name} <span class="code">${p.code}</span>`
