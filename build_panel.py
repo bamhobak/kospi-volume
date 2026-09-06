@@ -238,6 +238,20 @@ def build(mkt):
         for _c in _want:
             df[_c] = df[_c].where(df[_c].notna(), df[_c+"_o"]); df.drop(columns=[_c+"_o"], inplace=True)
         log.info(f"  기존 패널로 보완: srd 결측 {df.srd.isna().mean()*100:.0f}% · marcap 결측 {df.marcap.isna().mean()*100:.0f}%")
+    # 밸류에이션(PBR) — 2005년부터 krx_daily.db 에 다 받아 뒀는데 패널에 안 붙어 있었다.
+    # 그래서 [저PBR 낙폭] 이 21년 검증에서 여섯 구간 전부 0건이었다(2026-09-06 발견).
+    _fp = BASE/"data"/"krx_daily.db"
+    if _fp.exists():
+        _c = sqlite3.connect(f"file:{_fp}?mode=ro", uri=True, timeout=600)
+        _tk = tuple(sorted(df.ticker.unique()))
+        _V = pd.read_sql("SELECT date, ticker, pbr AS PBR, per AS PER, bps AS BPS "
+                         "FROM fundamental WHERE date>=?", _c, params=(FROM,))
+        _c.close()
+        _V = _V[_V.ticker.isin(set(_tk))]
+        _n = len(df)
+        df = df.merge(_V, on=["ticker","date"], how="left")
+        assert len(df) == _n, "밸류에이션 병합에서 행이 늘었다 — 키 중복"
+        log.info(f"  밸류에이션 병합: PBR 결측 {df.PBR.isna().mean()*100:.0f}%")
     fn = "panel_kp.pkl" if mkt == "KOSPI" else "panel_kq.pkl"
     df.to_pickle(BASE/"data"/fn)
     log.info(f"  저장 {fn} · {len(df):,}행 {len(df.columns)}컬럼")
