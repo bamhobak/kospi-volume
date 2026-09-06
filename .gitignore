@@ -108,3 +108,6 @@ data/wave_panel.csv
 data/flow_panel.csv
 data/f3_all.csv
 data/f3_grid.csv
+
+# 종목 공포탐욕 점수(재생성 가능 · 대용량)
+data/stock_fg_*.pkl
