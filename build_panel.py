@@ -137,6 +137,43 @@ def build(mkt):
     dates = sorted(df.date.unique()); DI = {d: i for i, d in enumerate(dates)}
     log.info(f"  {df.ticker.nunique()}종목 {len(df):,}행 {dates[0]}~{dates[-1]}")
 
+    # ── 주가 기준 맞추기(2026-09-06 감사에서 발견) ─────────────────────────────────
+    # 2005~2017 KRX 백필은 원주가, 2018~ 는 수정주가다. 그대로 두면 (1) 2018-01-02 이음새에서
+    # 코스피 199·코스닥 398 종목이 점프하고 (2) 2005~2017 안의 액면분할·무상증자가 '폭락' 으로,
+    # 병합이 '급등' 으로 남는다(아모레퍼시픽 2015 분할 = -90%). 두 단계로 맞춘다.
+    #  ① 이음새 계수(data/seam_factor.csv · 네이버 수정주가 2017-12-28 ÷ 우리 원주가)를
+    #     2018 이전 행 전체에 곱한다 — 2018 이후 사건이 소급된 기준으로 맞춰진다.
+    #  ② 그 다음, 주식수가 뛰고 종가가 역비율로 움직인 날(=액면변경·무상증자)을 찾아
+    #     그 이전 행을 주식수 비율로 되돌린다 — 폐지 종목까지 잡힌다(주식수 100% 있음).
+    #  거래량은 반대로 나눈다. 2018 이후는 이미 수정돼 있어 ②의 조건(종가도 같이 뛰어야)에
+    #  걸리지 않는다. 시총·주식수 열은 그대로 둔다(원래 기준값).
+    PX = ["open","high","low","close"]
+    sf = BASE/"data"/"seam_factor.csv"
+    if sf.exists():
+        F = pd.read_csv(sf, dtype={"ticker": str}).set_index("ticker").factor.astype(float)
+        F = F[(F > 0) & F.notna()]
+        fac = df.ticker.map(F).where(df.date < "20180101", 1.0).fillna(1.0)
+        for c in PX: df[c] = df[c]*fac
+        df["volume"] = df.volume/fac
+        log.info(f"  ① 이음새 계수 적용: {int(((fac != 1.0)).sum()):,}행 · {F.index.isin(df.ticker.unique()).sum()}종목")
+    g0 = df.groupby("ticker", sort=False)
+    ss = df.shares/g0.shares.shift(1); jj = df.close/g0.close.shift(1)
+    ev = ((ss.sub(1).abs() > 0.08) & ((jj*ss).sub(1).abs() < 0.12) & (jj.sub(1).abs() > 0.08)).fillna(False)
+    if ev.any():
+        # 종목별로 뒤에서 앞으로 누적: 사건일 이전 행의 가격 ×(사건 전 주식수/사건 후 주식수)
+        adj = np.ones(len(df))
+        for t, idx in df[ev].groupby("ticker").indices.items():
+            rows = df.index[df.ticker == t].values
+            evi = df.index[ev & (df.ticker == t)].values
+            cum = 1.0
+            for e in evi[::-1]:
+                cum *= 1.0/ss.iloc[e]                      # 분할 5:1 → ss=5 → 이전 가격 ÷5
+                adj[rows[rows < e]] = cum
+        for c in PX: df[c] = df[c]*adj
+        df["volume"] = df.volume/adj
+        log.info(f"  ② 주식수 기반 분할·무상증자 보정: 사건 {int(ev.sum()):,}건 · {int((adj != 1.0).sum()):,}행 조정")
+    # 보정 뒤에도 남은 ±32% 점프 = 진짜 사건(거래정지 후 폭락·정리매매 등)
+
     g = df.groupby("ticker", sort=False)
     V, C = df.volume.astype(float), df.close
     sr = df.short_ratio.astype(float)
@@ -176,7 +213,11 @@ def build(mkt):
     df["y"] = df.date.str[:4].astype(int)
     df["buy"] = g.open.shift(-1)
     df["gap"] = (df.buy/C-1)*100
-    df["cost"] = 0.18 + np.select([df.amt20>=100, df.amt20>=50, df.amt20>=20, df.amt20>=10],
+    # 거래세는 해마다 달랐다 — 0.18 고정이면 2005~2018 을 0.12%p 씩 후하게 잰다(2026-09-06 감사).
+    #   ~2018 0.30 · 2019~20 0.25 · 2021~22 0.23 · 2023 0.20 · 2024 0.18 · 2025~ 0.15
+    _tax = np.select([df.y<=2018, df.y<=2020, df.y<=2022, df.y==2023, df.y==2024],
+                     [0.30, 0.25, 0.23, 0.20, 0.18], default=0.15)
+    df["cost"] = _tax + np.select([df.amt20>=100, df.amt20>=50, df.amt20>=20, df.amt20>=10],
                                   [.20,.30,.50,.70], default=1.00)
     ds = pd.to_datetime(df.date); dil = np.zeros(len(df), bool)
     for t, idx in df.groupby("ticker").indices.items():

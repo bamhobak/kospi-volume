@@ -28,6 +28,8 @@ ONLY = {int(x) for x in arg("--only", "").split(",") if x.strip().isdigit()}
 LOG = BASE / "daily_research.log"
 PY = sys.executable
 
+import datetime as _dt
+SINCE180 = (_dt.date.today() - _dt.timedelta(days=180)).strftime("%Y%m%d")
 STEPS = [
     (1, "신용잔고 코스피",   ["collect_kis.py", "credit", "--days", DAYS, "--market", "KOSPI",  "--workers", "4"]),
     (1, "신용잔고 코스닥",   ["collect_kis.py", "credit", "--days", DAYS, "--market", "KOSDAQ", "--workers", "4"]),
@@ -36,6 +38,10 @@ STEPS = [
     (3, "밸류에이션",        ["collect_krx_daily.py", "fund", "--gap", "1.6"]),
     (4, "공매도잔고",        ["collect_krx_daily.py", "shortbal", "--gap", "1.6"]),
     (5, "투자자 11분할",     ["collect_investor_daily.py", "--days", DAYS, "--gap", "1.8"]),
+    # 6) DB 이력은 수정주가로 백필됐고 매일은 원주가로 붙는다. 액면변경이 있으면 경계에서
+    #    가짜 점프가 생긴다(2026-06-04 코스닥 88종목이 1/5~1/10 로 기록됐던 사고).
+    #    최근 반년 점프 종목만 네이버 수정주가와 대조해 어긋나면 그 종목을 통째로 덮어쓴다.
+    (6, "주가 기준 이음새 점검", ["find_seams.py", "--since", SINCE180, "--fix"]),
 ]
 
 def clean(t):
