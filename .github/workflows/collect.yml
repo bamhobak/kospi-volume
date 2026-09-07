@@ -249,11 +249,30 @@ jobs:
             curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage"               -d chat_id="$TELEGRAM_CHAT_ID"               -d text="⚠ 신규 편입 알림 스크립트가 죽었습니다. 오늘 알림이 나가지 않았습니다 — Actions 로그를 확인하세요." > /dev/null
             echo "notify_new.py 실패 — 텔레그램으로 사실만 알렸다"
           }
+      # 데이터 커밋은 사람이 코드를 밀어넣는 것과 부딪힌다. 2026-09-07 이 그래서 통째로 날아갔다 —
+      # 수집은 다 됐는데 `git pull --rebase` 가 충돌해 단계가 실패하고 그날(코스피 +4.6%) 데이터가
+      # 저장되지 않았다. 원격이 앞서 있으면 다시 얹어 밀기를 재시도하고, 충돌하면 데이터 파일은
+      # 방금 수집한 값을 쓴다(rebase 중 -X theirs = 내 커밋 쪽). 커밋에 데이터 파일만 담기므로
+      # 코드가 이 규칙에 휩쓸릴 일은 없다.
       - name: commit monthly csv
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           git config user.name "kospi-bot"; git config user.email "bot@users.noreply.github.com"
           git add data/20*.csv data/short_recent.csv data/dilution_recent.csv data/buyback_recent.csv data/insider_recent.csv data/credit_recent.csv data/sector.csv data/industry.csv data/valuation.csv data/vkospi.csv data/feargreed.csv
-          git diff --cached --quiet || (git commit -m "data: $(TZ=Asia/Seoul date +%Y-%m-%d)" && git pull --rebase && git push)
+          if git diff --cached --quiet; then echo "바뀐 데이터 없음"; exit 0; fi
+          git commit -m "data: $(TZ=Asia/Seoul date +%Y-%m-%d)"
+          for i in 1 2 3 4 5; do
+            if git pull --rebase -X theirs origin main && git push; then
+              echo "데이터 커밋 성공 (${i}회차)"; exit 0
+            fi
+            git rebase --abort 2>/dev/null || true
+            echo "커밋 경합 — ${i}회차 실패, 재시도"; sleep $((i * 15))
+          done
+          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage"             -d chat_id="$TELEGRAM_CHAT_ID"             -d text="⚠ 오늘 수집 데이터를 저장하지 못했습니다(커밋 경합 5회 실패). 데이터는 받았으나 리포지토리에 없습니다 — Actions 로그를 확인하세요." > /dev/null
+          echo "::error::데이터 커밋 5회 실패"
+          exit 1
       - uses: actions/upload-pages-artifact@v3
         with: { path: site }
   deploy:
