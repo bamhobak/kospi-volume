@@ -407,10 +407,18 @@ def build_site():
     con.close()
     idx = {d: i for i, d in enumerate(dates)}
     by = {}
+    skipped = set()
     for r in rows:
+        # dates 는 코스피 기준 거래일이다. 코스닥 캐시가 코스피보다 하루 앞서 있으면
+        # 그 날짜가 idx 에 없어 KeyError 로 빌드가 통째로 죽는다(2026-09-08 실측:
+        # 9/7 코스피 커밋이 실패해 코스닥만 9/7 을 갖고 있었다). 한쪽만 앞선 날은 건너뛴다.
+        if r["date"] not in idx: skipped.add(r["date"]); continue
         s = by.setdefault(r["ticker"], {"ticker": r["ticker"], "name": r["name"], "rows": [], "mkt": r["market"] or "KOSPI"})
         s["rows"].append([idx[r["date"]], r["close"], r["change"], r["volume"], r["indiv"], r["organ"], r["frgn"], r["foreign_ratio"]])
         if r["marcap"]: s["cap"] = round(r["marcap"] / 1e8)
+    if skipped:
+        print(f"⚠ 코스피 거래일에 없는 날짜 {sorted(skipped)} 의 행을 건너뛰었다 "
+              f"— 한쪽 시장만 앞서 수집된 상태다(다음 수집에서 맞춰진다)")
     tdates = dates[-TABLE_DAYS:]; t0 = len(dates) - len(tdates)
     table = []
     for s in by.values():
