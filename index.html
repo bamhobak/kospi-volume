@@ -994,7 +994,7 @@ async function renderPositions(){
         return `<span class="${left<=0?'pos':''}" title="${sd.est?'추정':'확정'} · ${left>0?'남은 '+left+'거래일':'매도일 도래'}">`
           +`${mdShort(sd.date)}</span>`})()}</td>`,
       `<td>${fmt(hi)}</td>`,
-      `<td>${rule?`${line?(rule.trail?'트레일 ':'손절 ')+fmt(line):''}${tgt?'익절 '+fmt(tgt):''}`||'-':'<span class="code">-</span>'}</td>`,
+      `<td>${rule?`${line?(rule.trail?'T ':'손절 ')+fmt(line):''}${tgt?'익절 '+fmt(tgt):''}`||'-':'<span class="code">-</span>'}</td>`,
       `<td>${streak?`<span class="${(rid0==='P7'&&streak>=2)?'hot':''}">${streak}일</span>`:'<span class="code">-</span>'}</td>`,
       `<td class="l ${sc==='none'?'':sc}" style="font-weight:600">${sc==='none'?'<span class="code">-</span>':st}</td>`,
       `<td class="${p.sell?cls(pr(p)):''}">${p.sell?fmt(p.sell)+' ('+(pr(p)>0?'+':'')+pr(p).toFixed(1)+'%'+(p.qty?' · '+kor((p.sell-p.price)*p.qty,1)+'원':'')+')':''}</td>`,
