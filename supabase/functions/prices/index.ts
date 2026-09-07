@@ -33,13 +33,14 @@ const CORS = {
 };
 
 // 규칙별 청산 — index.html FILTERS 의 rule 과 같아야 한다
-const RULES: Record<string, { stop: number | null; target: number | null; hold: number }> = {
-  P1: { stop: 0.15, target: null, hold: 40 },
+// trail = 트레일링(보유 중 **종가** 최고점 대비). 2026-09-08 채택 — 고정 손절을 대체한다.
+const RULES: Record<string, { stop: number | null; trail?: number | null; target: number | null; hold: number }> = {
+  P1: { stop: null, trail: 0.08, target: null, hold: 40 },
   P2: { stop: null, target: null, hold: 10 },
   P3: { stop: null, target: null, hold: 20 },
-  P4: { stop: 0.15, target: null, hold: 5 },
+  P4: { stop: null, trail: 0.08, target: null, hold: 5 },
   P5: { stop: null, target: null, hold: 10 },
-  P6: { stop: 0.10, target: null, hold: 5 },
+  P6: { stop: null, trail: 0.08, target: null, hold: 5 },
   P7: { stop: null, target: null, hold: 60 },
   D1: { stop: null, target: null, hold: 20 },
   D2: { stop: null, target: null, hold: 40 },
@@ -206,13 +207,29 @@ Deno.serve(async (req) => {
 
         const now = lv.now, ret = (now / price - 1) * 100;
         const nm = p.name ?? p.code, id = p.id ?? p.code;
-        const line = rule.stop ? price * (1 - rule.stop) : null;
+        // 트레일링 청산선은 보유 중 **종가** 최고점 기준이다(장중 고가 lv.high 는 쓰지 않는다 —
+        // 백테스트가 종가로 쟀으므로 실전도 종가로 판정해야 성적이 맞는다).
+        const hiC = Math.max(price, ...rows.map(([, c]) => c));
+        const line = rule.trail ? hiC * (1 - rule.trail)
+                   : rule.stop ? price * (1 - rule.stop) : null;
         const tgt = rule.target ? price * (1 + rule.target) : null;
 
         if (line && now <= line && !sent.has(`${id}:stop`)) {
-          await telegram(`🛑 <b>${nm}</b> 손절선 이탈 (-${(rule.stop! * 100).toFixed(0)}%)\n` +
-            `현재가 ${fmt(now)} (매수 ${fmt(price)}, ${ret >= 0 ? "+" : ""}${ret.toFixed(1)}%)\n` +
-            `손절선 ${fmt(line)} · 보유 ${days}거래일 · 규칙 ${RNAME[rid] ?? rid}`);
+          await telegram(rule.trail
+            ? `🛑 <b>${nm}</b> 트레일링 -${(rule.trail * 100).toFixed(0)}% 이탈
+` +
+              `현재가 ${fmt(now)} (매수 ${fmt(price)}, ${ret >= 0 ? "+" : ""}${ret.toFixed(1)}%)
+` +
+              `기준선 ${fmt(line)} = 보유 중 최고 종가 ${fmt(hiC)} 대비 -${(rule.trail * 100).toFixed(0)}%
+` +
+              `보유 ${days}거래일 · 규칙 ${RNAME[rid] ?? rid}
+` +
+              `※ 판정은 종가 기준 — 종가가 이 선 아래로 끝나면 내일 시가에 파십시오`
+            : `🛑 <b>${nm}</b> 손절선 이탈 (-${(rule.stop! * 100).toFixed(0)}%)
+` +
+              `현재가 ${fmt(now)} (매수 ${fmt(price)}, ${ret >= 0 ? "+" : ""}${ret.toFixed(1)}%)
+` +
+              `손절선 ${fmt(line)} · 보유 ${days}거래일 · 규칙 ${RNAME[rid] ?? rid}`);
           sent.add(`${id}:stop`); fired++;
         }
         if (tgt && now >= tgt && !sent.has(`${id}:target`)) {

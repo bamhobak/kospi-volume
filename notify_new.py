@@ -49,7 +49,7 @@ def fwp(r):
 
 # 사이트 index.html 의 FILTERS 와 동일
 FILTERS = [
-    ("P1", "조용한 신고가 (코스피·40일 보유·손절 -15%)",
+    ("P1", "조용한 신고가 (코스피·40일 보유·트레일링 -8%)",
      lambda r: r.get("mk") == "KOSPI" and not r["pref"]
      and r.get("fromhi") is not None and r["fromhi"] >= -10
      and r.get("a1") and r.get("a6") and r.get("aw")
@@ -85,7 +85,7 @@ FILTERS = [
      and kospi.get("up60") is False
      and (r.get("sr60") is not None and r["sr60"] <= -10)
      and r.get("srDown") is True and r.get("dilu") is not True and r.get("disc") is not True),
-    ("P4", "업종붕괴 이탈 (코스피·5일 보유·손절 -15%·하락장)",
+    ("P4", "업종붕괴 이탈 (코스피·5일 보유·트레일링 -8%·하락장)",
      lambda r: r.get("mk") == "KOSPI" and not r["pref"]
      and kospi.get("up60") is False
      and (r.get("sr60") is not None and r["sr60"] <= -20)
@@ -130,7 +130,7 @@ FILTERS = [
      and (r.get("ins60") or 0) > 0
      and r.get("dilu") is not True and r.get("disc") is not True),
 
-    ("P6", "깊은 이격 (코스피·5일 보유·손절 -10%·하락장)",
+    ("P6", "깊은 이격 (코스피·5일 보유·트레일링 -8%·하락장)",
      lambda r: r.get("mk") == "KOSPI" and not r["pref"]
      and kospi.get("up60") is False
      and r.get("dev25") is not None and r["dev25"] <= -25

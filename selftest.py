@@ -96,17 +96,25 @@ if SITE:
 
 print("\n## 3) 알림 경로")
 ts = (BASE / "supabase" / "functions" / "prices" / "index.ts").read_text(encoding="utf-8")
-ER = {m[0]: (m[1], m[3]) for m in re.findall(
-    r"(\w+):\s*\{\s*stop:\s*([\d.]+|null),\s*target:\s*([\d.]+|null),\s*hold:\s*(\d+)", ts)}
+# 알림 규칙표: stop(고정 손절) · trail(트레일링, 2026-09-08 도입) · hold 를 함께 읽는다
+ER = {}
+for m in re.finditer(r"(\w+):\s*\{\s*stop:\s*([\d.]+|null),(?:\s*trail:\s*([\d.]+|null),)?"
+                     r"\s*target:\s*([\d.]+|null),\s*hold:\s*(\d+)", ts):
+    ER[m.group(1)] = (m.group(2), m.group(5), m.group(3))     # stop, hold, trail
 if SITE:  # 화면에 적힌 보유기간·손절이 알림의 규칙표와 같은가
     bad = 0
     for rid in SITE["meta"]["ids"]:
-        h, s_ = SITE["meta"]["hold"].get(rid), SITE["meta"]["stop"].get(rid)
+        h = SITE["meta"]["hold"].get(rid)
+        s_ = SITE["meta"]["stop"].get(rid)
+        tr = (SITE["meta"].get("trail") or {}).get(rid)
         if rid not in ER: ng(f"[{NAME.get(rid,rid)}] 이 알림 규칙표에 없다 — 청산 알림이 안 간다"); bad += 1; continue
-        eh, es = int(ER[rid][1]), (None if ER[rid][0] == "null" else float(ER[rid][0]) * 100)
-        if h != eh or (s_ or None) != (es if es is None else round(es)):
-            ng(f"[{NAME.get(rid,rid)}] 보유/손절 다름 — 사이트 {h}일·{s_} vs 알림 {eh}일·{es}"); bad += 1
-    if not bad: ok("9규칙의 보유기간·손절이 사이트와 알림에서 같다")
+        eh = int(ER[rid][1])
+        es = None if ER[rid][0] == "null" else float(ER[rid][0]) * 100
+        et = None if not ER[rid][2] or ER[rid][2] == "null" else float(ER[rid][2]) * 100
+        if h != eh or (s_ or None) != (es if es is None else round(es))            or (tr or None) != (et if et is None else round(et)):
+            ng(f"[{NAME.get(rid,rid)}] 청산 조건 다름 — 사이트 {h}일·손절{s_}·트레일{tr}"
+               f" vs 알림 {eh}일·손절{es}·트레일{et}"); bad += 1
+    if not bad: ok("9규칙의 보유기간·손절·트레일링이 사이트와 알림에서 같다")
 try:
     r = urllib.request.Request(f"{URL}/functions/v1/prices?alerts=0", data=b"{}",
         headers={"apikey": KEY, "Authorization": f"Bearer {KEY}", "Content-Type": "application/json"})

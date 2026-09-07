@@ -25,5 +25,6 @@ const run = new Function('raw', 'view',
   'return {rules:out, meta:{rows:view.rows.length, dates:view.dates.length,' +
   ' ids:FILTERS.map(f=>f.id), mkt:Object.fromEntries(FILTERS.map(f=>[f.id,f.mkt||"KOSPI"])),' +
   ' hold:Object.fromEntries(FILTERS.map(f=>[f.id,(f.rule||{}).hold||null])),' +
-  ' stop:Object.fromEntries(FILTERS.map(f=>[f.id,(f.rule||{}).stop??null]))}};');
+  ' stop:Object.fromEntries(FILTERS.map(f=>[f.id,(f.rule||{}).stop??null])),' +
+  ' trail:Object.fromEntries(FILTERS.map(f=>[f.id,(f.rule||{}).trail??null]))}};');
 process.stdout.write(JSON.stringify(run(raw, view)));

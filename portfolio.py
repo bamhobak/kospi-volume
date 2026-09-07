@@ -106,17 +106,23 @@ def dn20(K): return K.date.map(UP20).fillna(True) == False
 def dn60(K): return K.date.map(UP60).fillna(True) == False
 def up60(K): return K.date.map(UP60).fillna(False) == True
 
+# 청산: hold 일 뒤 종가가 기본. stop 은 고정 손절(매수가 대비), TRAIL 은 트레일링이다.
+# **트레일링**(2026-09-08 채택) — 보유 중 **종가** 최고점(시작값 매수가) 대비 8% 아래로
+#   종가가 내려온 날 판정하고 **다음날 시가**에 판다. 장중 감시가 아니다(백테스트가 종가 기준).
+#   고정 손절을 이걸로 바꾸자 계좌 5.64→7.24배(12/12 시드) · 낙폭 -10% 유지 ·
+#   11년 중 나빠진 해 없음 · 2026 +19.4→+23.4%. 문턱 -3~-10% 어디서도 6.9~7.2배로 둔감하다.
+TRAIL = {"P1": 0.08, "P4": 0.08, "P6": 0.08}
 RULES = {
- "P1": (KP, 40, 0.15, 12, 7, base(KP,200)&(KP.fromhi>=-10)&(KP.r16<120)&(KP.rw1<=120)&(KP.fw5>=3)
+ "P1": (KP, 40, None, 12, 7, base(KP,200)&(KP.fromhi>=-10)&(KP.r16<120)&(KP.rw1<=120)&(KP.fw5>=3)
         &(KP.fw60>=1)&(KP.vol20<=2)&(KP.sr20<=0.5)&(KP.ret20<=5)
         &~((KP.above20>70)&(KP.ret250>120))),
  "P2": (KP, 10, None, 15, 2, base(KP,3)&dn20(KP)&(KP.r16<30)&(KP.rw1>=200)&(KP.fw5>=2)
         &(KP.ret3<=-5)&(KP.ret10<=0)&(KP.srd==True)),
  "P3": (KP, 20, None, 5, 3, base(KP,3)&dn60(KP)&(KP.ret20<=-25)&(KP.su1>=1.5)&(KP.fw60>=1)
         &(KP.u<=-10)&(KP.srd==True)&(KP.cr_chg20<=-15)),
- "P4": (KP, 5, 0.15, 3, 4, base(KP,10)&dn60(KP)&(KP.u<=-20)&(KP.dma20<=-10)&(KP.mdd60<=-40)&(KP.srd==True)),
+ "P4": (KP, 5, None, 3, 4, base(KP,10)&dn60(KP)&(KP.u<=-20)&(KP.dma20<=-10)&(KP.mdd60<=-40)&(KP.srd==True)),
  "P5": (KB, 10, None, 5, 3, base(KB,3)&dn60(KB)&KB.bb&(KB.ret60<=-20)),   # 공통(A1)
- "P6": (KP, 5, 0.10, 4, 4, base(KP,10)&dn60(KP)&(KP.dev25<=-25)&(KP.u<=-20)),
+ "P6": (KP, 5, None, 4, 4, base(KP,10)&dn60(KP)&(KP.dev25<=-25)&(KP.u<=-20)),
  "P7": (KP, 60, None, 4, 5, base(KP,30)&up60(KP)&(KP["cap조"]>=1)&(KP["cap조"]<10)&(KP.fw20>=1)
         &(KP.ow60<0.4)&(KP.r16>=100)&(KP.r16<150)&(KP.fromhi>=-15)&(KP.fromlo>=70)
         &(KP.ins60.fillna(0)>0)),
@@ -136,7 +142,22 @@ for rid,(K,hold,stop,pct,mx,cond) in RULES.items():
     X["rid"]=rid; X["hold"]=hold; X["stop"]=stop if stop else np.nan
     X["pct"]=pct; X["mx"]=mx
     X["exit"]=ex.reindex(X.index); X["low"]=lo.reindex(X.index)
-    sig.append(X[["date","ticker","name","mk","rid","hold","stop","pct","mx","buy","exit","low","cost"]])
+    t = TRAIL.get(rid)
+    if t:
+        # 트레일링: 보유 중 종가 최고점 대비 t 아래로 내려온 첫날 그 가격에 청산한다.
+        # ⚠ 청산가에 '보유기간 전체 최고점' 을 쓰면 미래를 보는 것이다 — 발동 시점까지만 쓴다.
+        C = np.column_stack([g.close.shift(-i).values for i in range(1, hold+1)])
+        run = np.maximum.accumulate(np.column_stack([K.buy.values, C]), axis=1)[:, 1:]
+        hit = C <= run*(1-t)
+        ok = hit.any(axis=1); first = np.where(ok, hit.argmax(axis=1), hold-1)
+        px = np.where(ok, run[np.arange(len(C)), first]*(1-t), C[:, -1])
+        m = cond.fillna(False).values
+        X["exit"] = px[m]                       # 확정 청산가
+        X["hold"] = (first + 1)[m]              # 실제 보유 거래일(자리가 그만큼 빨리 빈다)
+        X["trail"] = t
+    else:
+        X["trail"] = np.nan
+    sig.append(X[["date","ticker","name","mk","rid","hold","stop","trail","pct","mx","buy","exit","low","cost"]])
 S = pd.concat(sig).dropna(subset=["buy","exit","cost"])
 S = S[S.buy > 0]
 print(f"전체 신호 {len(S):,}건 (규칙별: " + " ".join(f"{k}:{int(v)}" for k,v in S.rid.value_counts().items()) + ")")
@@ -155,6 +176,7 @@ def simulate(cash_cap=1.0, scale=1.0, label=""):
             if p["exit_di"] <= i:
                 hit = (p["stop"] == p["stop"]) and (p["low"]/p["buy"]-1)*100 <= -p["stop"]*100
                 ret = (-p["stop"]*100 - p["cost"]) if hit else ((p["exit"]/p["buy"]-1)*100 - p["cost"])
+                # 트레일링 규칙은 exit 가 이미 확정 청산가다(위 신호표에서 계산)
                 eq += p["amt"] * ret/100
                 log.append({"rid":p["rid"],"date":p["date"],"ret":ret,"amt":p["amt"]})
             else: still.append(p)
