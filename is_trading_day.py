@@ -52,8 +52,18 @@ def main():
         return
 
     ok = latest > have
+    why = "수집 필요" if ok else "이미 최신"
+    # 네이버 지수는 장 마감 뒤에도 몇 시간 늦게 올라온다(2026-09-08 20:00 에도 그날 봉이 없었다).
+    # 그 상태로 '이미 최신' 이라 답하면 그날이 통째로 유실된다 — KRX 에는 이미 있는데도.
+    # 평일 16:00 이후인데 우리 보유분이 '오늘' 보다 앞서 있으면, 휴장이 아니라 지연일 수 있으니
+    # 수집을 시도한다. 진짜 휴장이면 collect 쪽에서 받을 게 없어 빈손으로 끝난다(피해 없음).
+    if not ok:
+        today = now.strftime("%Y%m%d")
+        if now.weekday() < 5 and now.hour >= 16 and have < today:
+            ok = True
+            why = f"지수 지연 의심(평일 {now.hour}시·보유 {have} < 오늘 {today}) → 확인차 수집"
     print("true" if ok else "false", end="")
-    print(f"{'수집 필요' if ok else '이미 최신'} — 지수 최신 {latest} / 보유 최신 {have} "
+    print(f"{why} — 지수 최신 {latest} / 보유 최신 {have} "
           f"(실행 {now:%Y-%m-%d %H:%M})", file=sys.stderr)
 
 main()
