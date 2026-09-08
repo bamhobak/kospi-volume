@@ -129,7 +129,7 @@ RULES = {
  "D1": (KQ, 20, None, 5, 3, base(KQ,2)&dn60(KQ)&(KQ.ret20<=-30)&(KQ.su1>=1.5)&(KQ.fw60>=1)
         &(KQ.u<=-20)&(KQ.srd==True)&(KQ.ow20>=0)
         &(KQ['부채비율'].isna()|(KQ['부채비율']<=200))),
- "D2": (KQ, 40, None, 5, 3, base(KQ,5)&dn60(KQ)&(KQ.PBR>0)&(KQ.PBR<=0.5)&(KQ.ret20<=-10)
+ "D2": (KQ, 40, None, 5, 3, base(KQ,5)&dn60(KQ)&(KQ.PBR>0)&(KQ.PBR<=0.8)&(KQ.ret20<=-10)
         &(KQ.su1>=2)&(KQ.u<=-10)&(KQ.ow20>=0)&(KQ.srd==True)),
 }
 # 신호를 한 표로 모은다 (매수가·청산가·보유중 최저가)

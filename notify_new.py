@@ -96,7 +96,7 @@ FILTERS = [
      and r.get("dilu") is not True and r.get("disc") is not True),
     ("D2", "저PBR 낙폭 (코스닥·40일 보유·손절 없음)",
      lambda r: r.get("mk") == "KOSDAQ" and not r["pref"]
-     and r.get("pbrd") is not None and r["pbrd"] <= 0.5
+     and r.get("pbrd") is not None and r["pbrd"] <= 0.8
      and r.get("ret20") is not None and r["ret20"] <= -10
      and r.get("vs1") is not None and r["vs1"] >= 2
      and (r.get("sr60") is not None and r["sr60"] <= -10)
