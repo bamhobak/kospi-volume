@@ -732,7 +732,12 @@ function whyCells(r,f){
     `<div><div class="l">${l}</div><div class="v" style="color:${c}">${v}</div><div class="s">${sub}</div></div>`).join('')}
 function renderCards(rows){
   const box=$('#cards');
-  if(!rows.length){box.innerHTML=`<div class="empty" style="margin-top:60px">${cur==='all'?'오늘 조건을 만족한 종목이 없습니다.':'오늘 이 규칙에 걸린 종목이 없습니다.'}<div style="font-size:12px;margin-top:8px;color:var(--faint)">신호가 없는 날이 더 많습니다.</div></div>`;return}
+  if(!rows.length){
+    /* '오늘' 이 아니라 **마지막으로 수집한 날**을 밝힌다 — 장 마감 전이거나 수집이 밀리면
+       화면의 신호는 어제 기준인데 '오늘' 이라고 적혀 있어 오해를 부른다(2026-09-08 사용자 지적). */
+    const dd=(raw.dates&&raw.dates.length)?raw.dates[raw.dates.length-1]:'';
+    const on=dd?`현재 조건(${mdShort(dd)})`:'현재 조건';
+    box.innerHTML=`<div class="empty" style="margin-top:60px">${cur==='all'?on+'을 만족한 종목이 없습니다.':on+'으로 이 규칙에 걸린 종목이 없습니다.'}<div style="font-size:12px;margin-top:8px;color:var(--faint)">신호가 없는 날이 더 많습니다.</div></div>`;return}
   box.innerHTML=rows.map(r=>{
     const f=FILTERS.find(x=>x.id===cur)||FILTERS.find(x=>x.fn(r));
     if(!f)return '';
