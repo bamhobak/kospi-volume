@@ -5,8 +5,8 @@
      · 금색 점이 저점 — 이 앱의 아홉 규칙은 전부 '떨어진 것을 산다'
 
      포물선은 V 에 가까워 입처럼 안 보인다. 3차 베지에로 바꾸고 제어점을 **양 끝 쪽에**
-     붙였다(끝에서 7.36). 그래야 바닥이 눕고 입꼬리가 선다. 제어점을 가운데로 모으면
-     오히려 V 가 된다. -->
+     바짝 붙였다(끝에서 4.16). 그래야 바닥이 눕고 입꼬리가 선다. 제어점을 가운데로
+     모으면 오히려 V 가 된다. -->
 <defs>
   <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0" stop-color="#0d1020"/><stop offset="1" stop-color="#05060a"/>
@@ -26,9 +26,9 @@
 <rect width="64" height="64" rx="15.04" fill="url(#bg)"/>
 <rect x="1.15" y="1.15" width="61.7" height="61.7" rx="14.2" fill="none"
       stroke="#ffffff" stroke-opacity="0.06" stroke-width="0.45"/>
-<circle cx="32" cy="42.24" r="14" fill="url(#gl)"/>
-<path d="M9.09,20.48 C16.45,49.49 47.55,49.49 54.91,20.48" fill="none"
+<circle cx="32" cy="42.11" r="14" fill="url(#gl)"/>
+<path d="M9.09,20.16 C13.25,49.43 50.75,49.43 54.91,20.16" fill="none"
       stroke="url(#ln)" stroke-width="5.25" stroke-linecap="round"/>
-<circle cx="32" cy="42.24" r="5.25" fill="#07090f"/>
-<circle cx="32" cy="42.24" r="3.36" fill="#fbbf24"/>
+<circle cx="32" cy="42.11" r="5.25" fill="#07090f"/>
+<circle cx="32" cy="42.11" r="3.36" fill="#fbbf24"/>
 </svg>
