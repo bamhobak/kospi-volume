@@ -18,11 +18,15 @@ import io, sys, time, json, warnings
 warnings.filterwarnings("ignore")
 sys.stdout.reconfigure(encoding="utf-8")
 from pathlib import Path
-import pandas as pd, yfinance as yf
+import pandas as pd, yfinance as yf, logging
+# yfinance 가 없는 종목마다 404 를 찍어 로그가 안 보인다. 조용히 시킨다.
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 US=Path("data/us"); OUT=US/"analyst"; OUT.mkdir(parents=True, exist_ok=True)
 CH=200
 def log(m): print(f"{time.strftime('%H:%M:%S')} {m}", flush=True)
-syms=pd.read_csv(US/"tickers.csv",dtype=str).Symbol.tolist()
+# ⚠ 목록에 빈 값이 하나 섞여 있어 14번째 조각에서 죽었다(float 'nan' 에 .upper()).
+syms=[x for x in pd.read_csv(US/"tickers.csv",dtype=str).Symbol.tolist()
+      if isinstance(x,str) and x.strip()]
 chunks=[syms[i:i+CH] for i in range(0,len(syms),CH)]
 log(f"종목 {len(syms):,}개 · 조각 {len(chunks)}개")
 t0=time.time(); ne=nu=0
@@ -31,7 +35,10 @@ for i,c in enumerate(chunks):
     if pe.exists() and pu.exists(): continue
     E=[]; U=[]
     for s in c:
-        T=yf.Ticker(s)
+        try:
+            T=yf.Ticker(s)
+        except Exception:
+            continue
         try:
             d=T.get_earnings_dates(limit=100)
             if d is not None and len(d):
