@@ -1,0 +1,48 @@
+===== 계산 로그 =====
+[  0.0분] ── KP 패널 로드
+[  0.1분]   5,023,801행 · 열 ['ticker', 'date', 'close', 'vol20', 'dma120', 'fromhi', 'fromlo', 'sr20', 'fw20', 'ow20']
+[  0.4분]   추세·신용 재료 생성 (신용 보유율 68%)
+[  0.4분]   변동성
+[  0.4분]   모멘텀
+[  0.5분]   강도
+[  0.5분]   추세
+[  0.6분]   위험
+[  0.6분]   안전
+[  0.6분]   저장 stock_fg_kp.pkl · 점수 있는 행 90%
+  분포: 5% 23 · 25% 40 · 중앙 51 · 75% 61 · 95% 73
+  최근일 20260828 극단 공포 5: 015260(8), 00088K(10), 024890(12), 006370(13), 210980(13)
+  최근일 극단 탐욕 5: 014440(86), 417310(83), 003300(81), 006090(80), 001790(79)
+[  0.7분] ── KQ 패널 로드
+[  0.8분]   6,679,923행 · 열 ['ticker', 'date', 'close', 'vol20', 'dma120', 'fromhi', 'fromlo', 'sr20', 'fw20', 'ow20']
+[  1.1분]   추세·신용 재료 생성 (신용 보유율 48%)
+[  1.2분]   변동성
+[  1.2분]   모멘텀
+[  1.2분]   강도
+[  1.3분]   추세
+[  1.4분]   위험
+[  1.4분]   안전
+[  1.5분]   저장 stock_fg_kq.pkl · 점수 있는 행 89%
+  분포: 5% 23 · 25% 41 · 중앙 51 · 75% 61 · 95% 73
+  최근일 20260901 극단 공포 5: 033170(5), 300120(6), 183300(6), 276730(7), 042040(9)
+  최근일 극단 탐욕 5: 368970(84), 286750(62), 036800(60), 950220(56), 204840(55)
+[  1.6분] 완료
+
+===== 실측 =====
+Traceback (most recent call last):
+  File "G:\vscode\kospi-volume\stock_fg_test.py", line 34, in <module>
+    KB["fg"] = KB.merge(F, on=["ticker","date"], how="left").fg.values
+    ~~^^^^^^
+  File "C:\Users\bamhobak\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\frame.py", line 4322, in __setitem__
+    self._set_item(key, value)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^
+  File "C:\Users\bamhobak\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\frame.py", line 4535, in _set_item
+    value, refs = self._sanitize_column(value)
+                  ~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\bamhobak\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\frame.py", line 5288, in _sanitize_column
+    com.require_length_match(value, self.index)
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\bamhobak\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\pandas\core\common.py", line 573, in require_length_match
+    raise ValueError(
+    ...<4 lines>...
+    )
+ValueError: Length of values (12462080) does not match length of index (11703724)

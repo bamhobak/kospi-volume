@@ -1,0 +1,16 @@
+02:21:46 업종: industry.csv 2,761 + ksic 보완 493 = 3,254종목
+02:21:46 업종 이력: 스냅샷 44개 · 매핑 79,941건
+02:21:49 희석 공시 26,964건 · 20151001~20260828
+02:21:50 자사주 취득결정 1,917건 · 20151002~20260828
+02:21:51 내부자 보고 136,061건 · 종목 2,658개
+02:21:51 ── KOSPI ──
+G:\vscode\kospi-volume\build_panel.py:132: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  D["grp"] = "폐지"; df = pd.concat([df, D], ignore_index=True)
+02:22:32   폐지 delisted.db: 3종목 2,022행 추가
+G:\vscode\kospi-volume\build_panel.py:132: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+  D["grp"] = "폐지"; df = pd.concat([df, D], ignore_index=True)
+02:22:37   폐지 delisted_kd.db: 421종목 280,472행 추가
+02:22:39   1496종목 2,578,790행 20160104~20260828
+G:\vscode\kospi-volume\build_panel.py:146: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value 'nan' has dtype incompatible with bool, please explicitly cast to a compatible dtype first.
+  df.loc[few, "srd"] = np.nan
+02:24:36   저장 panel_kp.pkl · 2,578,790행 80컬럼
