@@ -1,32 +1,39 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="종목 선별기">
-<!-- 의미: 이 앱은 '오른다' 가 아니라 **떨어진 것을 산다**. 아홉 규칙이 전부 하락장
-     규칙이므로 주인공은 화살표가 아니라 **저점** 이다. 파랑으로 길게 내려와 금색 점에서
-     바닥을 찍고 빨강으로 짧게 들린다(한국 시장 관습: 하락 파랑·상승 빨강).
-     좌우대칭이면 그냥 골짜기라 하락을 길게·반등을 짧게 두어 의미를 남긴다. -->
+<!-- 웃는 얼굴. 의미가 세 겹이다.
+     · 입   — 파랑으로 내려와 금색 저점을 찍고 빨강으로 오른다
+              (한국 시장 관습: 하락 파랑·상승 빨강)
+     · 저점 — 금색 점. 이 앱의 아홉 규칙은 전부 '떨어진 것을 산다'
+     · 눈   — 웃는 눈(^^). 남들이 무서워할 때 웃는 사람, 곧 역발상
+     눈은 중립 흰색으로 둔다. 색을 주면 입의 파랑→금색→빨강 이야기가 묻힌다. -->
 <defs>
   <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0" stop-color="#0d1020"/><stop offset="1" stop-color="#05060a"/>
   </linearGradient>
-  <linearGradient id="ln" x1="0" y1="0" x2="1" y2="0">
+  <linearGradient id="mouth" x1="0" y1="0" x2="1" y2="0">
     <stop offset="0.00" stop-color="#3b82f6"/>
-    <stop offset="0.34" stop-color="#3b82f6"/>
-    <stop offset="0.433" stop-color="#fbbf24"/>
-    <stop offset="0.57" stop-color="#f87171"/>
+    <stop offset="0.40" stop-color="#3b82f6"/>
+    <stop offset="0.50" stop-color="#fbbf24"/>
+    <stop offset="0.60" stop-color="#f87171"/>
     <stop offset="1.00" stop-color="#f87171"/>
   </linearGradient>
   <radialGradient id="gl">
-    <stop offset="0" stop-color="#fbbf24" stop-opacity="0.42"/>
+    <stop offset="0" stop-color="#fbbf24" stop-opacity="0.40"/>
     <stop offset="1" stop-color="#fbbf24" stop-opacity="0"/>
   </radialGradient>
 </defs>
 <rect width="64" height="64" rx="15.04" fill="url(#bg)"/>
 <rect x="1.15" y="1.15" width="61.7" height="61.7" rx="14.2" fill="none"
       stroke="#ffffff" stroke-opacity="0.06" stroke-width="0.45"/>
-<circle cx="27.7" cy="41.1" r="15" fill="url(#gl)"/>
-<path d="M11.07,12.35 C17.47,26.42 21.31,41.15 27.70,41.15
-         C35.97,41.15 44.29,36.39 55.24,23.87"
-      fill="none" stroke="url(#ln)" stroke-width="5.76"
-      stroke-linecap="round" stroke-linejoin="round"/>
-<circle cx="27.7" cy="41.1" r="5.76" fill="#07090f"/>
-<circle cx="27.7" cy="41.1" r="4.38" fill="#fbbf24"/>
+<circle cx="32" cy="46.08" r="13" fill="url(#gl)"/>
+<!-- 눈 (^ ^) -->
+<path d="M17.95,24.77 Q22.27,16.83 26.59,24.77" fill="none" stroke="#e2e8f4"
+      stroke-width="3.2" stroke-linecap="round"/>
+<path d="M37.41,24.77 Q41.73,16.83 46.05,24.77" fill="none" stroke="#e2e8f4"
+      stroke-width="3.2" stroke-linecap="round"/>
+<!-- 입 (파랑 → 금색 저점 → 빨강) -->
+<path d="M13.12,36.16 Q32,56 50.88,36.16" fill="none" stroke="url(#mouth)"
+      stroke-width="4.99" stroke-linecap="round"/>
+<!-- 저점 -->
+<circle cx="32" cy="46.08" r="4.93" fill="#07090f"/>
+<circle cx="32" cy="46.08" r="3.70" fill="#fbbf24"/>
 </svg>
