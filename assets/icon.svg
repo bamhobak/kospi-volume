@@ -1,9 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="종목 선별기">
-<!-- 좌우대칭 곡선. 의미는 두 겹이다.
+<!-- 웃는 입 모양 곡선. 의미는 두 겹이다.
      · 파랑으로 내려와 금색 저점을 찍고 빨강으로 오른다
        (한국 시장 관습: 하락 파랑·상승 빨강)
      · 금색 점이 저점 — 이 앱의 아홉 규칙은 전부 '떨어진 것을 산다'
-     웃는 눈을 얹어 봤으나 얼굴이 되면 오히려 무섭게 읽혀 뺐다(2026-09-09 사용자 판단). -->
+
+     포물선은 V 에 가까워 입처럼 안 보인다. 3차 베지에로 바꾸고 제어점을 **양 끝 쪽에**
+     붙였다(끝에서 7.36). 그래야 바닥이 눕고 입꼬리가 선다. 제어점을 가운데로 모으면
+     오히려 V 가 된다. -->
 <defs>
   <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0" stop-color="#0d1020"/><stop offset="1" stop-color="#05060a"/>
@@ -23,9 +26,9 @@
 <rect width="64" height="64" rx="15.04" fill="url(#bg)"/>
 <rect x="1.15" y="1.15" width="61.7" height="61.7" rx="14.2" fill="none"
       stroke="#ffffff" stroke-opacity="0.06" stroke-width="0.45"/>
-<circle cx="32" cy="42.43" r="14" fill="url(#gl)"/>
-<path d="M9.92,23.23 Q32,61.63 54.08,23.23" fill="none" stroke="url(#ln)"
-      stroke-width="5.25" stroke-linecap="round"/>
-<circle cx="32" cy="42.43" r="5.25" fill="#07090f"/>
-<circle cx="32" cy="42.43" r="3.36" fill="#fbbf24"/>
+<circle cx="32" cy="42.24" r="14" fill="url(#gl)"/>
+<path d="M9.09,20.48 C16.45,49.49 47.55,49.49 54.91,20.48" fill="none"
+      stroke="url(#ln)" stroke-width="5.25" stroke-linecap="round"/>
+<circle cx="32" cy="42.24" r="5.25" fill="#07090f"/>
+<circle cx="32" cy="42.24" r="3.36" fill="#fbbf24"/>
 </svg>
