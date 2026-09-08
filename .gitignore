@@ -111,3 +111,9 @@ data/f3_grid.csv
 
 # 종목 공포탐욕 점수(재생성 가능 · 대용량)
 data/stock_fg_*.pkl
+
+# 미국 원본 데이터 — 용량이 커서 저장소에 넣지 않는다(스크립트로 다시 받으면 된다)
+data/us/raw/
+data/us/finra/
+data/us/companyfacts.zip
+data/panel_us.pkl

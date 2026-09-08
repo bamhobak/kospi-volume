@@ -1,0 +1,185 @@
+05:03:44 종목 목록 재사용 6,085개 (tickers.csv)
+05:03:53   조각   2/50 · 120종목 424,577행 · 누적 424,577행 · 남은시간 약 2분
+$LNW: possibly delisted; no price data found  (1d 2005-01-01 -> 2026-09-08) (Yahoo error = "No data found, symbol may be delisted")
+
+1 Failed download:
+['LNW']: possibly delisted; no price data found  (1d 2005-01-01 -> 2026-09-08) (Yahoo error = "No data found, symbol may be delisted")
+05:04:01   조각   3/50 · 119종목 391,389행 · 누적 815,966행 · 남은시간 약 3분
+05:04:09   조각   4/50 · 120종목 404,599행 · 누적 1,220,565행 · 남은시간 약 4분
+05:04:17   조각   5/50 · 120종목 392,565행 · 누적 1,613,130행 · 남은시간 약 4분
+05:04:24   조각   6/50 · 120종목 370,951행 · 누적 1,984,081행 · 남은시간 약 4분
+05:04:31   조각   7/50 · 120종목 348,553행 · 누적 2,332,634행 · 남은시간 약 4분
+HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: BITF"}}}
+$BITF: possibly delisted; no timezone found
+
+1 Failed download:
+['BITF']: possibly delisted; no timezone found
+05:04:39   조각   8/50 · 119종목 343,763행 · 누적 2,676,397행 · 남은시간 약 4분
+$VERB: possibly delisted; no timezone found
+$HTBK: possibly delisted; no timezone found
+
+2 Failed downloads:
+['VERB', 'HTBK']: possibly delisted; no timezone found
+05:04:47   조각   9/50 · 118종목 361,052행 · 누적 3,037,449행 · 남은시간 약 4분
+05:04:54   조각  10/50 · 120종목 338,361행 · 누적 3,375,810행 · 남은시간 약 4분
+$VACH: possibly delisted; no timezone found
+
+1 Failed download:
+['VACH']: possibly delisted; no timezone found
+05:05:02   조각  11/50 · 119종목 319,920행 · 누적 3,695,730행 · 남은시간 약 4분
+05:05:09   조각  12/50 · 120종목 281,916행 · 누적 3,977,646행 · 남은시간 약 4분
+$WLACU: possibly delisted; no timezone found
+
+1 Failed download:
+['WLACU']: possibly delisted; no timezone found
+05:05:16   조각  13/50 · 119종목 237,625행 · 누적 4,215,271행 · 남은시간 약 4분
+$WLAC: possibly delisted; no timezone found
+$LNKB: possibly delisted; no timezone found
+
+2 Failed downloads:
+['WLAC', 'LNKB']: possibly delisted; no timezone found
+05:05:22   조각  14/50 · 118종목 202,323행 · 누적 4,417,594행 · 남은시간 약 4분
+05:05:29   조각  15/50 · 120종목 241,223행 · 누적 4,658,817행 · 남은시간 약 4분
+$GNFT: possibly delisted; no timezone found
+$IPXGU: possibly delisted; no timezone found
+
+2 Failed downloads:
+['GNFT', 'IPXGU']: possibly delisted; no timezone found
+05:05:35   조각  16/50 · 118종목 188,874행 · 누적 4,847,691행 · 남은시간 약 4분
+05:05:41   조각  17/50 · 120종목 218,781행 · 누적 5,066,472행 · 남은시간 약 4분
+$FITBO: possibly delisted; no timezone found
+$FITBP: possibly delisted; no timezone found
+
+2 Failed downloads:
+['FITBO', 'FITBP']: possibly delisted; no timezone found
+05:05:47   조각  18/50 · 118종목 184,161행 · 누적 5,250,633행 · 남은시간 약 3분
+05:05:54   조각  19/50 · 120종목 231,169행 · 누적 5,481,802행 · 남은시간 약 3분
+$LIXT: possibly delisted; no timezone found
+
+1 Failed download:
+['LIXT']: possibly delisted; no timezone found
+05:06:01   조각  20/50 · 119종목 205,774행 · 누적 5,687,576행 · 남은시간 약 3분
+$AGFY: possibly delisted; no timezone found
+$DCOMP: possibly delisted; no timezone found
+
+2 Failed downloads:
+['AGFY', 'DCOMP']: possibly delisted; no timezone found
+05:06:08   조각  21/50 · 118종목 259,018행 · 누적 5,946,594행 · 남은시간 약 3분
+05:06:15   조각  22/50 · 120종목 265,190행 · 누적 6,211,784행 · 남은시간 약 3분
+05:06:21   조각  23/50 · 120종목 265,963행 · 누적 6,477,747행 · 남은시간 약 3분
+05:06:22   조각  24 실패 TypeError: expected string or bytes-like object, got 'float'
+$QVCGP: possibly delisted; no timezone found
+
+1 Failed download:
+['QVCGP']: possibly delisted; no timezone found
+05:06:28   조각  25/50 · 119종목 284,280행 · 누적 6,762,027행 · 남은시간 약 3분
+$OCCIO: possibly delisted; no timezone found
+$ELWS: possibly delisted; no timezone found
+
+2 Failed downloads:
+['OCCIO', 'ELWS']: possibly delisted; no timezone found
+05:06:35   조각  26/50 · 118종목 238,073행 · 누적 7,000,100행 · 남은시간 약 3분
+$MAXN: possibly delisted; no timezone found
+$ADAP: possibly delisted; no timezone found
+
+2 Failed downloads:
+['MAXN', 'ADAP']: possibly delisted; no timezone found
+05:06:42   조각  27/50 · 118종목 258,135행 · 누적 7,258,235행 · 남은시간 약 2분
+$GTI: possibly delisted; no timezone found
+$CHEK: possibly delisted; no timezone found
+
+2 Failed downloads:
+['GTI', 'CHEK']: possibly delisted; no timezone found
+05:06:49   조각  28/50 · 118종목 243,441행 · 누적 7,501,676행 · 남은시간 약 2분
+$ADN: possibly delisted; no timezone found
+$ZYXI: possibly delisted; no timezone found
+
+2 Failed downloads:
+['ADN', 'ZYXI']: possibly delisted; no timezone found
+05:06:56   조각  29/50 · 118종목 209,215행 · 누적 7,710,891행 · 남은시간 약 2분
+$QVCGA: possibly delisted; no timezone found
+
+1 Failed download:
+['QVCGA']: possibly delisted; no timezone found
+05:07:02   조각  30/50 · 119종목 208,596행 · 누적 7,919,487행 · 남은시간 약 2분
+$CTLP: possibly delisted; no timezone found
+$GDEN: possibly delisted; no timezone found
+$DAWN: possibly delisted; no timezone found
+$ACLX: possibly delisted; no timezone found
+$EM: possibly delisted; no timezone found
+$EWCZ: possibly delisted; no timezone found
+$OPT: possibly delisted; no timezone found
+
+7 Failed downloads:
+['CTLP', 'GDEN', 'DAWN', 'ACLX', 'EM', 'EWCZ', 'OPT']: possibly delisted; no timezone found
+05:07:08   조각  31/50 · 113종목  65,459행 · 누적 7,984,946행 · 남은시간 약 2분
+$HONIV: possibly delisted; no timezone found
+$FGXCU: possibly delisted; no timezone found
+$FBYDP: possibly delisted; no price data found  (1d 2005-01-01 -> 2026-09-08)
+$RNBW: possibly delisted; no timezone found
+$LEDRU: possibly delisted; no price data found  (1d 2005-01-01 -> 2026-09-08)
+$RML: possibly delisted; no price data found  (1d 2005-01-01 -> 2026-09-08)
+$CLRS: possibly delisted; no timezone found
+$ANABV: possibly delisted; no timezone found
+
+8 Failed downloads:
+['HONIV', 'FGXCU', 'RNBW', 'CLRS', 'ANABV']: possibly delisted; no timezone found
+['FBYDP', 'LEDRU', 'RML']: possibly delisted; no price data found  (1d 2005-01-01 -> 2026-09-08)
+05:07:18   조각  32/50 · 112종목 365,033행 · 누적 8,349,979행 · 남은시간 약 2분
+05:07:27   조각  33/50 · 120종목 594,631행 · 누적 8,944,610행 · 남은시간 약 2분
+05:07:37   조각  34/50 · 120종목 583,113행 · 누적 9,527,723행 · 남은시간 약 2분
+05:07:47   조각  35/50 · 120종목 530,546행 · 누적 10,058,269행 · 남은시간 약 2분
+05:07:56   조각  36/50 · 120종목 518,411행 · 누적 10,576,680행 · 남은시간 약 2분
+05:08:05   조각  37/50 · 120종목 521,910행 · 누적 11,098,590행 · 남은시간 약 1분
+05:08:14   조각  38/50 · 120종목 462,012행 · 누적 11,560,602행 · 남은시간 약 1분
+05:08:23   조각  39/50 · 120종목 423,486행 · 누적 11,984,088행 · 남은시간 약 1분
+$BBU: possibly delisted; no timezone found
+
+1 Failed download:
+['BBU']: possibly delisted; no timezone found
+05:08:32   조각  40/50 · 119종목 448,032행 · 누적 12,432,120행 · 남은시간 약 1분
+05:08:40   조각  41/50 · 120종목 420,421행 · 누적 12,852,541행 · 남은시간 약 1분
+$LC: possibly delisted; no timezone found
+
+1 Failed download:
+['LC']: possibly delisted; no timezone found
+05:08:48   조각  42/50 · 119종목 412,457행 · 누적 13,264,998행 · 남은시간 약 1분
+05:08:56   조각  43/50 · 120종목 411,901행 · 누적 13,676,899행 · 남은시간 약 1분
+$BHLB: possibly delisted; no timezone found
+
+1 Failed download:
+['BHLB']: possibly delisted; no timezone found
+05:09:05   조각  44/50 · 119종목 402,467행 · 누적 14,079,366행 · 남은시간 약 1분
+05:09:12   조각  45/50 · 120종목 357,507행 · 누적 14,436,873행 · 남은시간 약 1분
+05:09:19   조각  46/50 · 120종목 323,692행 · 누적 14,760,565행 · 남은시간 약 0분
+$SKLZ: possibly delisted; no timezone found
+$SOL: possibly delisted; no timezone found
+
+2 Failed downloads:
+['SKLZ', 'SOL']: possibly delisted; no timezone found
+05:09:27   조각  47/50 · 118종목 290,709행 · 누적 15,051,274행 · 남은시간 약 0분
+$SEMR: possibly delisted; no timezone found
+$RCB: possibly delisted; no timezone found
+$PRA: possibly delisted; no timezone found
+$CTRA: possibly delisted; no timezone found
+$QVCD: possibly delisted; no timezone found
+$QVCC: possibly delisted; no timezone found
+$PRO: possibly delisted; no timezone found
+$KUKE: possibly delisted; no timezone found
+
+8 Failed downloads:
+['SEMR', 'RCB', 'PRA', 'CTRA', 'QVCD', 'QVCC', 'PRO', 'KUKE']: possibly delisted; no timezone found
+05:09:35   조각  48/50 · 112종목 275,228행 · 누적 15,326,502행 · 남은시간 약 0분
+$NBY: possibly delisted; no timezone found
+
+1 Failed download:
+['NBY']: possibly delisted; no timezone found
+05:09:43   조각  49/50 · 119종목 368,727행 · 누적 15,695,229행 · 남은시간 약 0분
+$AMBI: possibly delisted; no timezone found
+$JMG: possibly delisted; no timezone found
+
+2 Failed downloads:
+['AMBI', 'JMG']: possibly delisted; no timezone found
+05:09:48   조각  50/50 ·  83종목 231,551행 · 누적 15,926,780행 · 남은시간 약 0분
+05:09:49 끝. 조각 50/51 성공 · 실패 1개 · 이번에 15,926,780행 · 저장 G:\vscode\kospi-volume\data\us\raw
+05:09:49   실패분은 'python us_collect.py --retry' 로 다시 받는다
