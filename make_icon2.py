@@ -141,12 +141,13 @@ def variant_c():
     n = S * K
     img = canvas()
     # 포물선 그릇
+    # 광학 중심 보정 — 도형이 위로 쏠려 보여 아래로 조금 민다(2026-09-09)
+    OY = 0.028
     pts = []
-    for i in range(41):
-        t = i / 40
+    for i in range(81):
+        t = i / 80
         x = 0.155 + 0.69 * t
-        y = 0.335 + 1.12 * (t - 0.5) ** 2 * -1 + 0.28     # 아래로 볼록
-        y = 0.335 + (1 - 4 * (t - 0.5) ** 2) * 0.30
+        y = 0.335 + OY + (1 - 4 * (t - 0.5) ** 2) * 0.30   # 아래로 볼록한 포물선
         pts.append((x * n, y * n))
     w = int(n * 0.082)
     mask = Image.new("L", (n, n), 0)
@@ -155,7 +156,7 @@ def variant_c():
     stroke = Image.new("RGBA", (n, n), (0, 0, 0, 0))
     stroke.paste(grad, (0, 0), mask)
     img = Image.alpha_composite(img, stroke)
-    bx, by = pts[20]
+    bx, by = pts[40]
     r = int(n * 0.082)
     img = glow(img, bx, by, r, GOLD, alpha=105)
     dd = ImageDraw.Draw(img)
