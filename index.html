@@ -947,7 +947,7 @@ async function renderPositions(){
   const MOB=isMobile();
   /* 완료 탭은 매도 뒤엔 뜻이 없는 열(현재가·평가손익·보유일·규칙상 매도일·고점·손절선·신호·상태)을 빼고
      '매도가/손익' 한 칸을 매도가·수익률·손익 세 칸으로 나눈다 */
-  const cols=DONE?['종목','규칙','매수일','매수가','수량','매수금액','매도가','수익률','손익','']
+  const cols=DONE?['종목','규칙','매수일','매수가','수량','매수금액','매도일|기록한 실제 매도일','매도가','수익률','손익','']
     :['종목','규칙','매수일','매수가','수량','매수금액','현재가','수익률','평가손익','보유일','매도일|규칙상 매도일 — 매수일을 1일째로 세어 보유기간이 되는 거래일. 아직 오지 않은 날은 주말·공휴일을 빼서 추정한 값이라 휴장일에 따라 하루 이틀 밀릴 수 있습니다','고점|매수 후 최고가 — 매수가와 매수일 이후 일별 종가, 오늘 실시간 고가 중 최댓값','손절/익절선','신호 유지','상태','매도가/손익',''];
   /* 모바일에서도 열을 숨기지 않는다 — 표 안에서 가로로 밀어 매수일·매수가·수량까지 본다.
      (열을 줄이면 화면엔 맞지만 정작 필요한 정보를 볼 방법이 없어진다) */
@@ -955,7 +955,7 @@ async function renderPositions(){
   clearColWidths();   /* 조회 표에서 정한 열 너비가 보유 종목 표에 남지 않게 */
   $('#tbl thead').innerHTML='<tr>'+cols.map((c,i)=>{if(!KEEP.includes(i))return '';
     const[t,tip]=c.split('|');
-    return `<th class="${(DONE?[0,1,2,9]:[0,1,2,13,15]).includes(i)?'l':''}"${tip?` title="${tip}" style="cursor:help"`:''}>${t}</th>`}).join('')+'</tr>';
+    return `<th class="${(DONE?[0,1,2,6,10]:[0,1,2,13,15]).includes(i)?'l':''}"${tip?` title="${tip}" style="cursor:help"`:''}>${t}</th>`}).join('')+'</tr>';
   if(!ps.length){$('#tbl tbody').innerHTML=`<tr><td colspan="${cols.length}" class="l" style="color:var(--mut);padding:30px">${DONE?'매도 완료된 종목이 없습니다. 보유 종목 탭에서 「매도」를 기록하면 여기로 옵니다.':'보유 종목이 없습니다. 종목 행의 「매수」 버튼으로 추가하세요.'}</td></tr>`;$('#status').textContent='보유 0종목';return}
   const rows=await Promise.all(ps.map(async p=>{let d=null;try{d=await (await fetch(`data/stock/${p.code}.json?v=${raw.updated}`)).json()}catch(e){}
     /* 종목 JSON 이 없거나 깨져도 표 전체가 죽지 않게 방어 */
@@ -1017,6 +1017,7 @@ async function renderPositions(){
       `<td class="l">${p.sell?'':`<button class="ghost mini" data-sell="${p.id}">매도</button>`} <button class="ghost mini" data-edit="${p.id}" title="${p.sell?'매도가·매도일 수정':'매수일·매수가·수량 수정'}">수정</button> <button class="ghost mini" data-del="${p.id}">삭제</button></td>`];
     if(DONE){const r_=pr(p),c_=cls(r_);
       const cd=[cells[0],cells[1],cells[2],cells[3],cells[4],cells[5],
+        `<td class="l">${p.sellDate?md(p.sellDate):'<span class="code">-</span>'}</td>`,
         `<td class="${c_}">${fmt(p.sell)}</td>`,
         `<td class="${c_}">${(r_>0?'+':'')+r_.toFixed(1)+'%'}</td>`,
         `<td class="${c_}">${p.qty?kor((p.sell-p.price)*p.qty,1)+'원':''}</td>`,cells[16]];
