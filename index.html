@@ -104,9 +104,6 @@ header{flex:none}
 .rail .it.kq .bar{background:var(--ind)}.rail .it.kq.on{border-color:var(--ind)}.rail .it.kq.on .n{color:var(--ind)}
 .rail .it.bo .bar{background:var(--bth)}.rail .it.bo.on{border-color:var(--bth)}.rail .it.bo.on .n{color:var(--bth)}
 .rail .it.pos.on{border-color:var(--up)}.rail .it.pos.on .n{color:var(--up)}
-.rail .rord{display:inline-flex;gap:3px;margin-left:auto;padding-left:6px}
-.rail .rord button{background:var(--panel2);border:1px solid var(--line);color:var(--mut);font-size:11px;line-height:1;padding:4px 7px;border-radius:6px;font-weight:700}
-.rail .rord button:active{background:var(--acc);color:#0a0b0e}
 .rail .it.done.on{border-color:var(--org)}.rail .it.done.on .n{color:var(--org)}
 .rail .it .rid{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:11px;width:20px;color:var(--acc)}
 /* 발현 장세는 왼쪽 세로 막대 색으로 — 상승장 붉은색, 하락장 파란색.
@@ -586,7 +583,7 @@ function freqNote(){
   return `<div class="freq" title="${tip.replace(/"/g,'&quot;')}">${txt}</div>`;
 }
 function renderTabs(){
-  const nrow=(f,cls,label,n,extra='',attr='',tail='')=>`<div class="it ${cls} ${cur===f?'on':''}" data-f="${f}"${attr}>${extra}<span>${label}</span><span class="n">${n}</span>${tail}</div>`;
+  const nrow=(f,cls,label,n,extra='',attr='')=>`<div class="it ${cls} ${cur===f?'on':''}" data-f="${f}"${attr}>${extra}<span>${label}</span><span class="n">${n}</span></div>`;
   const wait=view.rows.filter(r=>FILTERS.some(f=>f.fn(r)&&!heldBy(r.ticker,f.id))).length;
   /* 규칙 이름에 발현 장세를 색조로 — 상승장은 붉은기, 하락장은 푸른기 */
   const cls=f=>f.mkt==='KOSDAQ'?'kq ':(f.mkt==='BOTH'?'bo ':'');
@@ -595,10 +592,7 @@ function renderTabs(){
   const rules=orderedAll().map(f=>nrow(f.id,cls(f)+'rg-'+(f.regime||'down'),f.name.split(' · ')[1],
       view.rows.filter(r=>f.fn(r)&&!heldBy(r.ticker,f.id)).length,   /* 목록과 같은 기준 */
       `<span class="bar"></span><span class="rid">${codeOf(f.id)}</span>`,
-      ` draggable="true" data-rule="${f.mkt}"`,
-      /* 모바일은 끌기 대신 버튼 — 길게 눌러 끄는 방식은 브라우저 스크롤에 자꾸 뺏긴다(2026-09-09) */
-      MOB?`<span class="rord"><button data-mv="up" data-id="${f.id}" title="위로">▲</button>`
-         +`<button data-mv="dn" data-id="${f.id}" title="아래로">▼</button></span>`:'')).join('');
+      ` draggable="true" data-rule="${f.mkt}"`)).join('');
   $('#rail').innerHTML=
     (MOB?`<div class="railtog" id="railtog"><span>${RAILOPEN?'▾':'▸'} 규칙·조회 목록</span>`
       + `<span class="n">${RAILOPEN?orderedAll().length+'개 규칙':'현재: '+curName()}</span></div>`:'')
@@ -629,16 +623,6 @@ function renderTabs(){
       ids.splice(i,1); ids.splice(j,0,src);
       RORDER=Object.assign(loadROrder(),{[a.mkt]:ids}); saveROrder();
       RDRAG_AT=Date.now(); render(); return true};
-    /* 모바일 ▲▼ — 같은 시장 안에서 한 칸 이동 */
-    document.querySelectorAll('#rail .rord button[data-mv]').forEach(b=>b.onclick=e=>{
-      e.stopPropagation();
-      const id=b.dataset.id,f=fOf(id); if(!f)return;
-      const ids=ordered(f.mkt).map(x=>x.id), i=ids.indexOf(id);
-      const j=i+(b.dataset.mv==='up'?-1:1);
-      if(i<0||j<0||j>=ids.length)return;
-      ids.splice(i,1); ids.splice(j,0,id);
-      RORDER=Object.assign(loadROrder(),{[f.mkt]:ids}); saveROrder();
-      RDRAG_AT=Date.now(); render()});
     document.querySelectorAll('#rail .it[data-rule]').forEach(el=>{
       el.ondragstart=e=>{src=el.dataset.f;RDRAG_AT=0;
         e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',src)}catch(_){}};
