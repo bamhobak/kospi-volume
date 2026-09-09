@@ -751,7 +751,10 @@ function renderCards(rows){
   box.innerHTML=rows.map(r=>{
     const f=FILTERS.find(x=>x.id===cur)||FILTERS.find(x=>x.fn(r));
     if(!f)return '';
-    const kq=f.mkt==='KOSDAQ',hold=f.rule.hold;
+    /* kq: 규칙의 시장(색·테두리용). 시장 이름 표시는 규칙이 아니라 **종목** 것을 써야 한다 —
+       A1 처럼 mkt:'BOTH' 인 공통 규칙은 kq 가 늘 false 라 코스닥 종목도 '코스피' 로 찍혔다
+       (2026-09-09 쎄노텍 222420 이 A1 로 걸렸는데 카드에 코스피라고 표시됨). */
+    const kq=f.mkt==='KOSDAQ',hold=f.rule.hold,mkNm=r.mk==='KOSDAQ'?'코스닥':'코스피';
     const chp=(r.close&&r.change!=null&&r.close!==r.change)?r.change/(r.close-r.change)*100:0;
     return `<div class="sig ${kq?'kq':''} ${sel===r.ticker?'sel':''}" data-c="${r.ticker}">
       <div class="hd">
@@ -763,7 +766,7 @@ function renderCards(rows){
               const dd=heldDays(hp),pl=hp.price?((r.close/hp.price-1)*100):null;
               const by=(hp.filters||[]).map(codeOf).join('·');
               return `<span class="tag hold" title="${hp.date} 에 ${fmt(hp.price)}원으로 매수 기록됨 — 지금 이 규칙에 다시 걸렸습니다">${by?by+'로 ':''}보유 중${dd!=null?' '+dd+'일':''}${pl!=null?' · '+(pl>0?'+':'')+pl.toFixed(1)+'%':''}</span>`})()}</div>
-          <div style="color:var(--mut);font-size:12px">${kq?'코스닥':'코스피'}${r.up?' · '+r.up:''}${r.cap?' · 시총 '+(r.cap>=10000?(r.cap/10000).toFixed(1)+'조':fmt(r.cap)+'억'):''}</div>
+          <div style="color:var(--mut);font-size:12px">${mkNm}${r.up?' · '+r.up:''}${r.cap?' · 시총 '+(r.cap>=10000?(r.cap/10000).toFixed(1)+'조':fmt(r.cap)+'억'):''}</div>
         </div>
         <div style="text-align:right;flex:none">
           <div class="n" style="font-size:23px;font-weight:700;line-height:1.1;font-family:'JetBrains Mono',monospace">${fmt(r.close)}<span style="font-size:13px;color:var(--mut);font-weight:500">원</span></div>
