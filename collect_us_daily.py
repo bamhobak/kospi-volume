@@ -123,6 +123,20 @@ def main():
     start = (pd.Timestamp.today() - pd.Timedelta(days=430)).strftime("%Y-%m-%d")
     log(f"{len(syms):,}종목 · {start} 이후 · {a.chunk}개씩")
 
+    # ── 시가총액 — SEC XBRL 주식수(us_fin.py 가 만든 data/us/fin.pkl) × 종가 ─────────
+    #   yfinance 는 종목마다 따로 물어야 해서 6천 종목이면 너무 느리다. 이미 받아 둔 SEC
+    #   제출 주식수를 쓰면 공짜다. 티커별 **최신 제출분**만 쓰고, 없는 종목(ADR·외국기업 등)은
+    #   None 으로 남겨 화면에 빈칸으로 둔다. 단위는 거래대금과 같은 **백만 달러**.
+    SHR = {}
+    _fp = BASE / "data" / "us" / "fin.pkl"
+    if _fp.exists():
+        _F = pd.read_pickle(_fp).dropna(subset=["shares"])
+        _F = _F[_F.shares > 0].sort_values("filed").drop_duplicates("ticker", keep="last")
+        SHR = dict(zip(_F.ticker, _F.shares))
+        log(f"  주식수 {len(SHR):,}종목 (SEC XBRL) → 시가총액 계산")
+    else:
+        log("  data/us/fin.pkl 없음 — 시가총액은 빈칸으로 둔다")
+
     rows, dates, t0, fail = [], [], time.time(), 0
     for i in range(0, len(syms), a.chunk):
         part = syms[i:i + a.chunk]
@@ -138,7 +152,8 @@ def main():
             if not dates or len(x.index) > len(dates):
                 dates = list(x.index[-NDAY:])
             m.update(t=s, n=str(NM.get(s, s)), mk="US", ex=str(MK.get(s, "")),
-                     pref=False, cap=None, th=[])
+                     pref=False, th=[],
+                     cap=(round(SHR[s] * m["c"] / 1e6, 1) if SHR.get(s) and m.get("c") else None))
             rows.append(m)
         if (i // a.chunk) % 10 == 0:
             log(f"  {i+len(part):,}/{len(syms):,} · 담은 종목 {len(rows):,} · {time.time()-t0:.0f}초")
