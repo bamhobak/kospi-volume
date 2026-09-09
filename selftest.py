@@ -49,7 +49,10 @@ age = (now.date() - dt.datetime.strptime(last, "%Y%m%d").date()).days
 (ok if age <= 4 else warn)(f"최신 거래일 {last} ({age}일 전) · {len(rows):,}종목")
 used = set(re.findall(r"r\.([A-Za-z_]\w*)", HTML[HTML.find("const FILTERS="):HTML.find("const LEGACY_ID")]))
 SAFE = {"mk","pref","ticker","name","close","change","th","vols","avg","total","indiv","organ",
-        "frgn","last","chpct","fwp","fw","v5","r16","rw1","streak","dilu","get","ratio"}
+        "frgn","last","chpct","fwp","fw","v5","r16","rw1","streak","dilu","get","ratio",
+        # n1ok 는 table.json 에 없는 **계산 필드**다. 미장 규칙은 '그날 미장 전체 대비
+        # 백분위' 라서 표를 다 읽은 뒤 화면(markUS)·알림에서 각각 매긴다. 수집 실패가 아니다.
+        "n1ok"}
 # 이벤트성 필드는 '오늘 그 일이 있었나' 라서 값이 전부 비어도 정상일 수 있다
 # (bb 는 마지막 거래일 당일 자사주 공시만 켠다 — 공시 없는 날이 대부분이다).
 # 그래서 이 필드들은 table.json 이 아니라 원본 파일이 비었는지로 판단한다.

@@ -42,6 +42,32 @@ def telegram(text):
 T = json.loads((BASE / "site" / "data" / "table.json").read_text(encoding="utf-8"))
 rows, kospi = T["rows"], T.get("kospi") or {}
 last_date = T["dates"][-1] if T["dates"] else ""
+
+# ── 미장 — [상승장 신고가] 판정 (사이트 index.html 의 markUS 와 같은 계산) ────────
+#   조건이 '그날 미장 전체 대비 백분위' 라 종목 하나만 보고는 못 정한다. 표를 다 읽고
+#   ① 거래대금 상위 40% → ② 그 안에서 52주 고점 대비 상위 30% → ③ 거래대금 큰 순 20개.
+#   ③ 은 자리가 8개뿐이라 살 수 있는 만큼만 남기는 것이다(us_pick.py).
+US_SHOW = 20
+usrows, us_reg = [], {}
+_up = BASE / 'site' / 'data' / 'table_us.json'
+if _up.exists():
+    TU = json.loads(_up.read_text(encoding='utf-8'))
+    usrows = TU.get('rows') or []; us_reg = TU.get('us') or {}
+    for r in usrows: r['n1ok'] = False
+    cand = [r for r in usrows if not r.get('pref') and (r.get('c') or 0) >= 3 and r.get('amt20') is not None]
+    if cand:
+        cand.sort(key=lambda r: r['amt20'], reverse=True)
+        uni = cand[:max(1, int(len(cand) * 0.4))]
+        fh = [r for r in uni if r.get('fromhi') is not None]
+        fh.sort(key=lambda r: r['fromhi'], reverse=True)
+        keep = fh[:max(1, int(len(fh) * 0.3 + 0.999))]
+        keep.sort(key=lambda r: r['amt20'], reverse=True)
+        for r in keep[:US_SHOW]: r['n1ok'] = True
+    rows = rows + usrows
+    print('미장 %d종목 · [상승장 신고가] 후보 %d개 · S&P 60일선 위 %s'
+          % (len(usrows), sum(1 for r in usrows if r['n1ok']), us_reg.get('up60')))
+else:
+    print('table_us.json 없음 — 미장 규칙은 건너뛴다')
 s5 = lambda a: sum(x or 0 for x in a[-5:])
 
 def fwp(r):
@@ -143,6 +169,9 @@ FILTERS = [
      lambda r: not r["pref"] and r.get("bb") is True
      and r.get("r3m") is not None and r["r3m"] <= -20
      and kospi.get("up60") is False),
+    ("N1", "상승장 신고가 (미장·40일 보유·거래대금 큰 순)",
+     lambda r: r.get("mk") == "US" and r.get("n1ok") is True
+     and bool(us_reg.get("up60"))),
 ]
 
 LEGACY_ID = {1: "P0", 2: "P2", 3: "P3", 4: "P1"}          # 예전 숫자 id 호환

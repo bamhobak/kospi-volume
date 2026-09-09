@@ -161,8 +161,22 @@ def main():
     if not rows:
         log("한 종목도 못 받았다 — 파일을 덮어쓰지 않는다"); return 1
 
+    # ── 국면 — S&P500 60일선 (사이트 규칙 [상승장 신고가] 가 쓴다) ────────────
+    #   한국 표의 kospi 객체와 같은 자리다. 이게 없으면 사이트가 미장 국면을 알 수 없다.
+    us_reg = {}
+    try:
+        sp = yf.download('^GSPC', period='1y', auto_adjust=False, progress=False)
+        c = sp['Close'] if 'Close' in sp else sp.iloc[:, 0]
+        c = c.squeeze().dropna()
+        ma60 = float(c.rolling(60).mean().iloc[-1])
+        us_reg = {'date': c.index[-1].strftime('%Y%m%d'), 'close': float(c.iloc[-1]),
+                  'ma60': ma60, 'up60': bool(float(c.iloc[-1]) > ma60)}
+        log(f"  S&P500 {us_reg['close']:,.0f} · 60일선 {ma60:,.0f} · 60일선 위 {us_reg['up60']}")
+    except Exception as e:
+        log(f'  S&P500 국면 실패 — 규칙 판정이 멈춘다: {e!r}'[:120])
+
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    json.dump({"dates": dates, "rows": rows,
+    json.dump({"dates": dates, "rows": rows, "us": us_reg,
                "updated": datetime.now().strftime("%Y-%m-%d %H:%M")},
               open(OUT, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     log(f"{OUT.name} {OUT.stat().st_size/1024/1024:.1f}MB")
