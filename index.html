@@ -1036,7 +1036,12 @@ async function renderPositions(){
                         'width=560,height=920,scrollbars=yes,resizable=yes');
     if(w)w.focus(); else alert('팝업이 차단되었습니다. 브라우저에서 이 사이트의 팝업을 허용해주세요.');});
   document.querySelectorAll('[data-sell]').forEach(b=>b.onclick=e=>{e.stopPropagation();const a=positions();const p=a.find(x=>x.id==b.dataset.sell);const r=rows.find(r=>r.p.id==p.id);
-    const sell=+prompt(`${p.name} 매도가 (원)`,r.now||p.price);if(!sell)return;p.sell=sell;p.sellDate=raw.dates[raw.dates.length-1];savePositions(a);render()});
+    const sell=+prompt(`${p.name} 매도가 (원)`,r.now||p.price);if(!sell)return;
+    /* 매도일 기본값은 '오늘'. 예전엔 데이터 최신일(전 거래일)을 말없이 넣어 하루씩 어긋났다(2026-09-09). */
+    const _t=new Date(),pad=n=>String(n).padStart(2,'0');
+    const today=`${_t.getFullYear()}${pad(_t.getMonth()+1)}${pad(_t.getDate())}`;
+    const sd=prompt(`${p.name} 매도일 (YYYYMMDD)`,today);if(sd==null)return;
+    p.sell=sell;p.sellDate=(sd.replace(/\D/g,'')||today);savePositions(a);render()});
   /* 수정 — 잘못 넣은 값을 고친다. 보유 상태면 매수 때 넣은 값(매수일·매수가·수량),
      완료 상태면 매도 때 넣은 값(매도가·매도일). 취소(null)하면 아무것도 안 바꾼다. */
   document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=e=>{e.stopPropagation();const a=positions();const p=a.find(x=>x.id==b.dataset.edit);if(!p)return;
