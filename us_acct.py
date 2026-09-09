@@ -43,7 +43,7 @@ def build(rids):
         X["rid"] = rid
         X["pct"] = r["pct"]
         X["mx"] = r["mx"]
-        out.append(X[["date", "ticker", "hold", "rid", "pct", "mx", "ret"]])
+        out.append(X[["date", "ticker", "hold", "rid", "pct", "mx", "ret", "amt20"]])
     S = pd.concat(out, ignore_index=True)
     S["di"] = S.date.map(ADI)
     return S.dropna(subset=["di"]).sort_values("di").reset_index(drop=True)
@@ -65,7 +65,9 @@ def sim(S, ds, seed, cash_cap=1.0):
         g = byd.get(d)
         if g is None:
             continue
-        for r in g.sample(frac=1, random_state=int(rng.integers(1 << 30))).itertuples():
+        # 매수 선택은 **거래대금 큰 순** — 실전에서 무엇을 살지 정하는 규칙이다(us_pick.py).
+        # 랜덤으로 고르면 같은 규칙인데도 계좌가 2.14~8.96배까지 갈린다.
+        for r in g.sort_values("amt20", ascending=False, na_position="last").itertuples():
             if cnt.get(r.rid, 0) >= r.mx:
                 continue
             k = (r.rid, r.ticker, d)
@@ -83,6 +85,7 @@ def sim(S, ds, seed, cash_cap=1.0):
 PER = [("학습 2016~22", "20160101", "20221231"), ("검증 2023~26", "20230101", "20991231"),
        ("기준 2016~", "20160101", "20991231"), ("전구간 2005~26", "20050101", "20991231")]
 SETS = [("통과 둘 (낙폭과대+저PBR)", ["D1", "D2"]),
+        ("통과 둘 + [상승장 신고가]", ["D1", "D2", "N1"]),
         ("대입 가능 일곱 전부", ["P1", "P2", "P3", "P4", "P6", "D1", "D2"]),
         ("낙폭 계열 넷", ["P3", "P4", "P6", "D1"]),
         ("낙폭+밸류 다섯", ["P3", "P4", "P6", "D1", "D2"])]

@@ -193,29 +193,22 @@ else:
                for fid, ts in hits.items() for t in ts}
 info = {r["t"]: r for r in rows}
 
-lines = []
+# 알림에는 **종목명을 싣지 않는다**(2026-09-10 사용자 요청). 규칙에 뭐가 걸렸는지는
+# 사이트에서 보고, 알림은 '볼 것이 생겼다' 만 알린다. 몇 건이든 **한 통**만 보낸다.
+newly = []
 for fid, name, _ in FILTERS:
     k = str(fid)
-    new = [t for t in cur[k] if t not in set(prev.get(k, []))]
-    if not new: continue
-    lines.append(f"\n<b>[{name}]</b>")
-    for t in new:
-        r = info[t]
-        chp = (r["ch"] / (r["c"] - r["ch"]) * 100) if r.get("c") and r.get("ch") and r["c"] != r["ch"] else 0
-        # 🔁 = 다른 규칙으로 이미 보유 중(추가 매수하면 한 종목 비중이 두 배가 된다)
-        mark = "  🔁" if t in held_by else ""
-        lines.append(f"• <b>{r['n']}</b> ({t}) {r['c']:,}원 ({chp:+.1f}%){mark}")
+    newly += [t for t in cur[k] if t not in set(prev.get(k, []))]
+n_new = len(set(newly))
 
-if lines and prev_date:   # 첫 실행(비교 대상 없음)에는 보내지 않음
-    # 알림은 '무엇이 새로 들어왔나'만 전한다. 지표·매수 안내는 사이트에서 본다.
-    telegram(f"🆕 <b>신규 편입 종목</b> ({last_date[4:6]}/{last_date[6:]})"
-             + "".join(lines)
-             + f"\n\nhttps://bamhobak.github.io/kospi-volume/")
-elif lines:
+if n_new and prev_date:   # 첫 실행(비교 대상 없음)에는 보내지 않음
+    telegram("🆕 <b>매수 대기 종목이 있습니다</b> (%s/%s)" % (last_date[4:6], last_date[6:])
+             + chr(10) + "오늘 새로 걸린 종목 %d개 — 사이트에서 확인해 주세요." % n_new
+             + chr(10) + chr(10) + "https://bamhobak.github.io/kospi-volume/")
+elif n_new:
     print("첫 실행 — 기준 목록만 저장:", cur)
 else:
     print("신규 편입 없음:", {k: len(v) for k, v in cur.items()})
-
 if DRY: print("--dry — 기준 목록을 저장하지 않는다")
 else:
     rpc("kospi_state_set", {"p_pin": "__filters__", "p_data": {"filters": cur, "streaks": streaks,

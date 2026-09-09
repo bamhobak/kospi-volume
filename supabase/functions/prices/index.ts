@@ -187,6 +187,7 @@ Deno.serve(async (req) => {
       // 규칙별 신호 연속 일수 — notify_new.py 가 매일 하루씩 누적해 둔다
       const STK: Record<string, number> =
         ((await rpc("kospi_state_get", { p_pin: "__filters__" })) ?? {}).streaks ?? {};
+      const dueToSell: string[] = [];   // 매도일 도달분 — 모았다가 한 통으로
       const before = sent.size;
       for (const p of positions) {
         const lv = prices[p.code];
@@ -257,14 +258,22 @@ Deno.serve(async (req) => {
             `최초 매수와 같은 비중으로 한 번만 · 매도는 이 매수분 기준 60거래일`);
           sent.add(`${id}:add`); fired++;
         }
+        // 매도일 알림은 **종목명 없이 한 통**으로 모아 보낸다(2026-09-10 사용자 요청).
+        // 예전엔 종목마다 한 통씩 나가 하루에 여러 번 울렸다. 여기서는 모아 두고
+        // 반복문이 끝난 뒤 한 번만 보낸다. sent 키는 그대로 포지션별이라 같은 종목을
+        // 두 번 세지 않는다.
         if (days >= rule.hold && hour >= 12 && !sent.has(`${id}:hold`)) {
-          // '규칙상 매도일' 은 상태 보고로 읽혀 그냥 넘어가기 쉽다. 해야 할 일을 시킨다
-          // (2026-09-09 사용자 요청).
-          await telegram(`⏰ <b>${nm}</b> 매도일입니다. 장 마감 전에 매도해 주세요\n` +
-            `현재가 ${fmt(now)} (매수 ${fmt(price)}, ${ret >= 0 ? "+" : ""}${ret.toFixed(1)}%)\n` +
-            `고점 ${fmt(hi)} · 보유 ${days}거래일째 · 규칙 ${RNAME[rid] ?? rid} (${rule.hold}거래일 보유)`);
-          sent.add(`${id}:hold`); fired++;
+          dueToSell.push(id);
+          sent.add(`${id}:hold`);
         }
+      }
+      if (dueToSell.length) {
+        fired++;
+        await telegram(
+          `⏰ <b>매도일인 종목이 ${dueToSell.length}개 있습니다</b>` +
+          `${String.fromCharCode(10)}장 마감 전에 매도해 주세요 — 사이트에서 확인해 주세요.` +
+          `${String.fromCharCode(10)}${String.fromCharCode(10)}https://bamhobak.github.io/kospi-volume/`,
+        );
       }
       if (sent.size !== before) {
         await rpc("kospi_state_set", { p_pin: "__alerts__", p_data: { sent: [...sent].sort(), updated: stamp } });

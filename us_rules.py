@@ -96,6 +96,33 @@ RULES = {
             drop=["기관 20일 ≥0%", "공매도 비중 감소"]),
 }
 
+# ══════════════════════════════════════════════════════════════════════
+# 미장 고유 규칙 [상승장 신고가] — 한국에서 옮긴 게 아니라 미국 데이터에서 직접 찾은 것
+# ══════════════════════════════════════════════════════════════════════
+# 왜 따로 짓나: 한국 아홉 규칙 중 통과한 둘은 **둘 다 하락장 규칙**이다. 그런데 축 정찰
+# (us_scan.py)로 보면 미장은 국면에 따라 축의 부호가 뒤집히고 상승 국면(74%)에서 폭이 가장
+# 크다. 국내는 상승장에도 '빠지고 터지고 출렁이는' 게 좋은데 미국은 정확히 반대로
+# '고점 근처·조용하고·저변동'이 좋다. 그래서 옮기지 않고 새로 지었다(why_kr_us.py).
+#
+# 유동성은 **절대 문턱이 아니라 그날 미장 전체 대비 백분위**로 건다. 미장 전체 거래대금
+# 중앙값이 2016년 $5.0M → 2026년 $11.5M 로 두 배가 넘게 커져서, 같은 $10M 문턱이 2016년엔
+# 40%를 2026년엔 51%를 통과시켰다. 백분위는 해가 바뀌어도 뜻이 같다(us_liq.py).
+#
+# 한때 [상승장 추세지속](20일선 위 비율 상위 40%)을 N2 로 함께 뒀으나 **폐기했다** —
+# [상승장 신고가]와 월별 상관이 0.80 이라 분산이 아니라 집중이었고, N2 를 빼고 대신
+# 자리를 늘리면 같은 투입에서 자산은 같거나 크고 낙폭이 6%p 작았다(us_liq.py ③).
+BASE3 = (~K.pref) & (K.close >= 3)                    # 주가 ≥$3 · 우선주 제외
+K["amt_q"] = K[BASE3].groupby("date").amt20.rank(pct=True)      # 그날 미장 전체 대비 거래대금 백분위
+UNI_N = (BASE3 & (K.amt_q >= 0.6)).fillna(False)                # 거래대금 상위 40%
+_s = pd.Series(np.nan, index=K.index)
+_s[UNI_N] = K[UNI_N].groupby("date").fromhi.rank(pct=True)
+K["fromhi_q"] = _s
+N1_COND = (UNI_N & up60 & (K.fromhi_q >= 0.7))        # 52주 고점 상위 30%
+# 매수는 후보 중 **거래대금 큰 순**으로 채운다(us_pick.py). 하루 신호가 수백 건이라
+# 무엇을 사느냐로 계좌가 2.14~8.96배까지 갈렸는데, 줄 세우면 결과가 하나로 정해진다.
+RULES["N1"] = dict(name="상승장 신고가", hold=40, trail=None, pct=5, mx=8,
+                   cond=lambda: N1_COND, drop=[])
+
 UNI = {h: K[base(1.0)].dropna(subset=[f"n{h}"]).groupby("date")[f"n{h}"].mean()
        for h in (5, 10, 20, 40, 60)}
 
@@ -111,6 +138,13 @@ def measure(rid, r):
     buy = K.buy.values
     hit = np.zeros_like(C, dtype=bool); px = C.copy()
     if r["trail"]:
+        # ⚠ 낙관적 체결 가정 — 고점 대비 -trail 가격에 그대로 팔린다고 본다.
+        #   집안 규율(한국 [trailing-stop])은 '종가로 판정하고 다음날 시가에 판다' 이다.
+        #   2026-09-09 us_trail_check.py 로 비교했더니 차이가 결정적이었다:
+        #     낙폭과대 평균 무손절 +6.03 / 낙관트레일 +4.36 / **보수트레일 -0.58**
+        #     저PBR낙폭 평균 무손절 +8.41 / 낙관트레일 +4.68 / **보수트레일 +0.73**
+        #   즉 이 가정 위에서 나온 트레일 성적(P1·P4·P6, 그리고 계좌 시뮬의 트레일판)은
+        #   과대평가다. 트레일을 실제로 채택하려면 보수판으로 다시 재야 한다.
         run = np.maximum.accumulate(np.column_stack([buy, C]), axis=1)[:, 1:]
         hh = C <= run * (1 - r["trail"]); hit |= hh
         px = np.where(hh & ~np.isnan(C), run * (1 - r["trail"]), px)
@@ -175,13 +209,22 @@ KR = {"P1": 7.02, "P2": 11.81, "P3": 33.02, "P4": 10.68, "P5": 10.20,
       "P6": 10.76, "P7": 15.36, "D1": 42.54, "D2": 40.87}
 print(f"  {'규칙':<16}{'한국 평균':>10}{'미국 평균':>10}{'차이':>9}   판정")
 for rid, r in RULES.items():
-    if rid not in RES:
+    if rid not in RES or rid not in KR:      # N1·N2 는 한국 원본이 없다(미장 고유)
         continue
     z = RES[rid]
     ok = (z["med"] > 0 and z["trim"] > 0 and z["trm"] > 0 and z["vam"] > 0
           and z["ci"] > 0 and z["pos"] / z["ny"] >= 0.7)
     print(f"  {r['name']:<16}{KR[rid]:>+9.2f}%{z['ret']:>+9.2f}%{z['ret']-KR[rid]:>+8.2f}p"
           f"   {'✅ 통과' if ok else '❌ 기각'}")
+
+print("")
+print("  " + '── 미장 고유 규칙 (한국 원본 없음) ──')
+for rid in ("N1",):
+    if rid in RES:
+        z = RES[rid]
+        ok = (z["ex"] > 0 and z["ci"] > 0 and z["pos"] / z["ny"] >= 0.7)
+        print(f"    {RULES[rid]['name']:<16}{z['ret']:>+9.2f}%  초과 {z['ex']:>+6.2f}p"
+              f"  월CI {z['ci']:>+6.2f}  양수해 {z['pos']}/{z['ny']}   {'OK' if ok else '△'}")
 
 print("\n  ── 대입 불가 ──")
 for rid, r in RULES.items():
