@@ -89,6 +89,8 @@ def metrics(x):
     ret = np.diff(c) / c[:-1] * 100
     vol20 = float(np.nanstd(ret[-20:])) if len(ret) >= 20 else None
     above = float(np.mean(c[-20:] > pd.Series(c).rolling(20).mean().values[-20:]) * 100) if n >= 40 else None
+    # su1 = 당일 거래량 / 직전 20일 평균 — [낙폭과대]·[저PBR 낙폭] 이 쓰는 투매 신호
+    su1 = (float(v[-1] / np.nanmean(v[-21:-1])) if n >= 21 and np.nanmean(v[-21:-1]) else None)
     ch = round(c[-1] - c[-2], 2) if n >= 2 else None
     return dict(
         c=round(float(c[-1]), 2), ch=ch,
@@ -101,6 +103,7 @@ def metrics(x):
         fromlo=round((c[-1] / lo250 - 1) * 100, 1) if lo250 else None,
         dma20=round((c[-1] / ma20 - 1) * 100, 2) if ma20 else None,
         dev25=round((c[-1] / ma25 - 1) * 100, 2) if ma25 else None,
+        su1=round(su1, 2) if su1 is not None else None,
         mdd60=round(mdd, 1) if mdd is not None else None,
         vol20=round(vol20, 2) if vol20 is not None else None,
         above20=round(above, 1) if above is not None else None,
@@ -161,11 +164,38 @@ def main():
     if not rows:
         log("한 종목도 못 받았다 — 파일을 덮어쓰지 않는다"); return 1
 
+    # ── [낙폭과대]·[저PBR 낙폭] 이 쓰는 재료 — 업종 60일 수익률 · PBR · 부채비율 ────
+    #   한국 규칙을 미국에 대입했을 때 통과한 둘이다(us_rules.py). 사이트에도 얹으려면
+    #   이 셋이 필요하다. 업종은 tickers.csv 의 Industry, 나머지는 SEC XBRL(fin.pkl).
+    import collections
+    by_ind = collections.defaultdict(list)
+    for m in rows:
+        ind = IND.get(m['t'])
+        if ind and m.get('ret60') is not None: by_ind[ind].append(m['ret60'])
+    umed = {k: float(np.median(v)) for k, v in by_ind.items() if len(v) >= 5}   # 회원 5종목 이상
+    FIN = {}
+    _fp2 = BASE / 'data' / 'us' / 'fin.pkl'
+    if _fp2.exists():
+        _F2 = pd.read_pickle(_fp2).sort_values('filed').drop_duplicates('ticker', keep='last')
+        FIN = _F2.set_index('ticker')[['equity', 'liab', 'shares']].to_dict('index')
+    nu = npbr = ndbt = 0
+    for m in rows:
+        ind = IND.get(m['t'])
+        m['up'] = str(ind) if ind else None
+        m['sr60'] = round(umed[ind], 2) if ind in umed else None      # 한국 표와 같은 열 이름
+        f = FIN.get(m['t']) or {}
+        eq, li, sh = f.get('equity'), f.get('liab'), f.get('shares')
+        m['pbrd'] = (round(m['c'] * sh / eq, 3) if eq and sh and eq > 0 and m.get('c') else None)
+        m['dbt'] = (round(li / eq * 100, 1) if eq and li is not None and eq > 0 else None)
+        nu += m['sr60'] is not None; npbr += m['pbrd'] is not None; ndbt += m['dbt'] is not None
+    log(f'  업종 60일수익 {nu:,}종목 · PBR {npbr:,} · 부채비율 {ndbt:,} (전체 {len(rows):,})')
+
     # ── 국면 — S&P500 60일선 (사이트 규칙 [상승장 신고가] 가 쓴다) ────────────
     #   한국 표의 kospi 객체와 같은 자리다. 이게 없으면 사이트가 미장 국면을 알 수 없다.
     us_reg = {}
     try:
-        sp = yf.download('^GSPC', period='1y', auto_adjust=False, progress=False)
+        import yfinance as _yf          # fetch() 안에서만 import 하고 있어 여기선 새로 부른다
+        sp = _yf.download('^GSPC', period='1y', auto_adjust=False, progress=False)
         c = sp['Close'] if 'Close' in sp else sp.iloc[:, 0]
         c = c.squeeze().dropna()
         ma60 = float(c.rolling(60).mean().iloc[-1])

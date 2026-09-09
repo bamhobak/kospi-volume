@@ -45,6 +45,8 @@ const RULES: Record<string, { stop: number | null; trail?: number | null; target
   D1: { stop: null, target: null, hold: 20 },
   D2: { stop: null, target: null, hold: 40 },
   N1: { stop: null, target: null, hold: 40 },   // [상승장 신고가] — 미장 전용
+  N2: { stop: null, target: null, hold: 20 },   // [낙폭과대 (미장)]
+  N3: { stop: null, target: null, hold: 40 },   // [저PBR 낙폭 (미장)]
   P0: { stop: null, target: 0.20, hold: 10 },   // 폐기된 옛 P1 — 이력 보존용
 };
 const LEGACY: Record<string, string> = { "1": "P0", "2": "P2", "3": "P3", "4": "P1" };
@@ -54,6 +56,7 @@ const RNAME: Record<string, string> = {
   P5: "자사주 낙폭", P6: "깊은 이격", P7: "외인 매집",
   D1: "낙폭과대", D2: "저PBR 낙폭", P0: "옛 상승초입(폐기)",
   N1: "상승장 신고가",
+  N2: "낙폭과대 (미장)", N3: "저PBR 낙폭 (미장)",
 };
 
 const num = (s: unknown): number | null => {
