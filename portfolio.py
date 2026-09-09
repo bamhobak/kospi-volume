@@ -120,7 +120,9 @@ RULES = {
         &(KP.ret3<=-5)&(KP.ret10<=0)&(KP.srd==True)),
  "P3": (KP, 20, None, 5, 3, base(KP,3)&dn60(KP)&(KP.ret20<=-25)&(KP.su1>=1.5)&(KP.fw60>=1)
         &(KP.u<=-10)&(KP.srd==True)&(KP.cr_chg20<=-15)),
- "P4": (KP, 5, None, 3, 4, base(KP,10)&dn60(KP)&(KP.u<=-20)&(KP.dma20<=-10)&(KP.mdd60<=-40)&(KP.srd==True)),
+ # 2026-09-09 거래대금 10→5억, 신용잔고 20일 -15% 추가 — 같은 폭락 달 안에서 종목을 가른 유일한 재료
+ #   (2020-03 +12.3p · 2026-07 +6.0p, 2008 도 같은 방향). p4_refresh2/p4_within/p4_solo/p4_final.py
+ "P4": (KP, 5, None, 3, 4, base(KP,5)&dn60(KP)&(KP.u<=-20)&(KP.dma20<=-10)&(KP.mdd60<=-40)&(KP.srd==True)&(KP.cr_chg20<=-15)),
  "P5": (KB, 10, None, 5, 3, base(KB,3)&dn60(KB)&KB.bb&(KB.ret60<=-20)),   # 공통(A1)
  "P6": (KP, 5, None, 4, 4, base(KP,10)&dn60(KP)&(KP.dev25<=-25)&(KP.u<=-20)),
  "P7": (KP, 60, None, 4, 5, base(KP,30)&up60(KP)&(KP["cap조"]>=1)&(KP["cap조"]<10)&(KP.fw20>=1)

@@ -34,16 +34,23 @@ def candidates():
         f = BASE / "data" / db
         if not f.exists(): continue
         con = sqlite3.connect(f"file:{f}?mode=ro", uri=True)
-        ds = [r[0] for r in con.execute("SELECT DISTINCT date FROM daily ORDER BY date DESC LIMIT 21")]
+        ds = [r[0] for r in con.execute("SELECT DISTINCT date FROM daily ORDER BY date DESC LIMIT 61")]
         if len(ds) < 21: con.close(); continue
-        last, prev = ds[0], ds[-1]
+        last, prev = ds[0], ds[min(20, len(ds)-1)]
         rows = con.execute(
             "SELECT a.ticker, a.close, b.close FROM daily a JOIN daily b USING(ticker) "
             "WHERE a.date=? AND b.date=? AND a.close>0 AND b.close>0", (last, prev)).fetchall()
+        # [업종붕괴 이탈] 도 신용잔고를 쓴다(2026-09-09). 그 규칙은 60일 최대낙폭 -40% 이 전제라
+        # 20일 낙폭만으로는 4% 쯤 놓친다 → 60일 고점 대비 -35% 이하도 같이 받는다.
+        hi60 = dict(con.execute(
+            "SELECT ticker, MAX(close) FROM daily WHERE date>=? AND date<=? GROUP BY ticker",
+            (ds[-1], last)).fetchall())
         con.close()
         for t, c1, c0 in rows:
             r = (c1/c0 - 1) * 100
-            if r <= DROP: out[t] = r
+            h = hi60.get(t)
+            r60 = (c1/h - 1) * 100 if h else 0
+            if r <= DROP or r60 <= -35: out[t] = min(r, r60)
     return [t for t, _ in sorted(out.items(), key=lambda x: x[1])][:MAXN]
 
 def fetch(tk, token):

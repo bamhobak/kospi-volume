@@ -133,8 +133,9 @@ NV_R = {m.group(1): m.group(2) for m in
 m = re.search(r"RULES = \{(.*?)\n\}", PF, re.S)
 PF_R = {}
 if m:
-    # 줄 끝 주석(`),   # 공통(A1)`)까지 허용해야 한다 — 아니면 그 규칙이 다음 규칙을 삼킨다
-    for r in re.finditer(r'"(P\d|D\d)":\s*\((.*?)\),[ \t]*(?:#[^\n]*)?\n(?= "|\})', m.group(1), re.S):
+    # 줄 끝 주석(`),   # 공통(A1)`)과 **다음 줄 통째 주석**까지 허용해야 한다 —
+    # 아니면 그 규칙이 다음 규칙을 삼킨다(2026-09-09 [업종붕괴 이탈] 설명 주석에서 실제로 겪음)
+    for r in re.finditer(r'"(P\d|D\d)":\s*\((.*?)\),[ \t]*(?:#[^\n]*)?\n(?=[ \t]*[#"]|\})', m.group(1), re.S):
         PF_R[r.group(1)] = r.group(2)
 for rid in RULES_JS:
     js = thr(RULES_JS[rid])
