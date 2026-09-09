@@ -172,7 +172,7 @@ FILTERS = [
     ("N1", "상승장 신고가 (미장·40일 보유·거래대금 큰 순)",
      lambda r: r.get("mk") == "US" and r.get("n1ok") is True
      and bool(us_reg.get("up60"))),
-    ("N2", "낙폭과대 (미장·20일 보유)",
+    ("N2", "낙폭과대 (20일 보유)",
      lambda r: r.get("mk") == "US" and not r.get("pref")
      and us_reg.get("up60") is False
      and r.get("ret20") is not None and r["ret20"] <= -30
@@ -180,7 +180,7 @@ FILTERS = [
      and r.get("sr60") is not None and r["sr60"] <= -10
      and (r.get("dbt") is None or r["dbt"] <= 200)
      and (r.get("amt20") or 0) >= 2 and (r.get("c") or 0) >= 3),
-    ("N3", "저PBR 낙폭 (미장·40일 보유)",
+    ("N3", "저PBR 낙폭 (40일 보유)",
      lambda r: r.get("mk") == "US" and not r.get("pref")
      and us_reg.get("up60") is False
      and r.get("pbrd") is not None and 0 < r["pbrd"] <= 0.8
