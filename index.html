@@ -676,7 +676,7 @@ function renderTabs(){
     cur=f;
     rowLimit=100;
     if(f==='kp'||f==='kq'){sortKey='cap';desc=true}          /* 전체 종목은 시총 순 */
-    if(f==='us'){sortKey='amt20';desc=true;                   /* 미장은 시총이 없어 거래대금 순 */
+    if(f==='us'){sortKey='cap';desc=true;                     /* 미장도 시총 순 (SEC 주식수로 채운다) */
       if(!USROWS){showInfo=false;render();loadUS().then(render);return}}
     showInfo=false;render()});
   const K=raw.kospi||{};
@@ -697,7 +697,7 @@ function renderTabs(){
     $('#mktstate').innerHTML=`<i style="background:${open.length?'var(--org)':'var(--faint)'}"></i>`
       +`코스피 ${ma} → ${open.length?`<b>${open.join('·')}</b>`:'<b>열린 규칙 없음</b>'}`;
   }else $('#mktstate').innerHTML='';
-  $('#fdesc').innerHTML=cur==='done'?'매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요.':cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (${holdText()})`:cur==='all'?'':cur==='us'?(USROWS?`나스닥·뉴욕·아멕스 상장 ${USROWS.length.toLocaleString()}종목을 20일 평균 거래대금 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. <b>가격은 달러, 거래대금은 백만 달러</b>이고, 우리 규칙은 아직 미국에 쓰지 않습니다. ${raw.usUpdated?'기준 '+raw.usUpdated:''}`:'미장 자료를 받는 중입니다…')
+  $('#fdesc').innerHTML=cur==='done'?'매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요.':cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (${holdText()})`:cur==='all'?'':cur==='us'?(USROWS?`나스닥·뉴욕·아멕스 상장 ${USROWS.length.toLocaleString()}종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. <b>가격·시가총액·거래대금은 달러</b>이고, 열 설정은 코스피·코스닥 표와 따로 저장됩니다. ${raw.usUpdated?'기준 '+raw.usUpdated:''}`:'미장 자료를 받는 중입니다…')
       :(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));{const fd=$('#fdesc');
   if(fd&&fd.style){const has=(fd.innerHTML||'').trim();
     fd.style.display=has?'':'none';
@@ -805,17 +805,25 @@ function statsHtml(f){const t=f.stats;
   <div style="margin-top:4px;color:var(--mut)">연도별 순수익 — ${t.years}</div>`}
 // ===== 보유 종목(포지션) — localStorage =====
 let POS=(()=>{try{return JSON.parse(localStorage.getItem('positions')||'[]')}catch(e){return []}})();
-let COLCFG=null;         /* {order:[key...], hidden:[key...], w:{key:px}} — 조회 표 컬럼 배치 */
+let COLCFG={};           /* 탭 그룹별 {order:[key...], hidden:[key...], w:{key:px}} — 조회 표 컬럼 배치 */
+/* 미장은 한국과 열 자체가 다르다(수급·PER·업종이 없다). 한 설정을 공유하면 한쪽에서 숨긴
+   열이 다른 쪽에서도 사라져 헷갈린다. 그래서 저장 칸을 'kr' 과 'us' 로 나눈다. */
+const colScope=()=>cur==='us'?'us':'kr';
+const colKey=sc=>sc==='us'?'colcfg_us':'colcfg';
 let RESIZED_AT=0;        /* 열 너비를 끈 직후의 클릭은 정렬로 치지 않는다 */
-function loadColCfg(){
-  if(COLCFG)return COLCFG;
-  try{COLCFG=JSON.parse(localStorage.getItem('colcfg')||'null')}catch(e){COLCFG=null}
-  if(!COLCFG||!Array.isArray(COLCFG.order))COLCFG={order:null,hidden:[],w:{}};
-  if(!COLCFG.w)COLCFG.w={};
-  return COLCFG;
+function loadColCfg(sc){
+  sc=sc||colScope();
+  if(COLCFG[sc])return COLCFG[sc];
+  let c=null;
+  try{c=JSON.parse(localStorage.getItem(colKey(sc))||'null')}catch(e){c=null}
+  if(!c||!Array.isArray(c.order))c={order:null,hidden:[],w:{}};
+  if(!c.w)c.w={};
+  COLCFG[sc]=c; return c;
 }
-function saveColCfg(){
-  try{localStorage.setItem('colcfg',JSON.stringify(COLCFG))}catch(e){}
+function setColCfg(o,sc){sc=sc||colScope();COLCFG[sc]=Object.assign(loadColCfg(sc),o);return COLCFG[sc]}
+function saveColCfg(sc){
+  sc=sc||colScope();
+  try{localStorage.setItem(colKey(sc),JSON.stringify(COLCFG[sc]))}catch(e){}
   pushRemote();                        /* 포지션과 같은 PIN 상태에 함께 저장 → 다른 기기와 동기화 */
 }
 /* 저장된 순서를 현재 컬럼 목록에 적용한다. 새로 생긴 컬럼은 원래 자리에 남긴다. */
@@ -873,7 +881,10 @@ function positions(){return POS}
 const DEFAULT_PIN='bh-e0997ecc2798';  // 기본 공유 키(자동 동기화). PIN 버튼으로 변경 가능
 function getPin(){try{return localStorage.getItem('pin')||DEFAULT_PIN}catch(e){return DEFAULT_PIN}}
 async function rpc(fn,body){const r=await fetch(`${SB.url}/rest/v1/rpc/${fn}`,{method:'POST',headers:{apikey:SB.key,Authorization:'Bearer '+SB.key,'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error(fn+' '+r.status);const t=await r.text();return t?JSON.parse(t):null}
-async function pullRemote(){const pin=getPin();if(!pin||!window.SB)return;try{const d=await rpc('kospi_state_get',{p_pin:pin});if(d&&d.colcfg&&Array.isArray(d.colcfg.hidden)){COLCFG=d.colcfg;try{localStorage.setItem('colcfg',JSON.stringify(COLCFG))}catch(e){}}
+async function pullRemote(){const pin=getPin();if(!pin||!window.SB)return;try{const d=await rpc('kospi_state_get',{p_pin:pin});if(d&&d.colcfg&&Array.isArray(d.colcfg.hidden)){   /* 옛 형식(탭 구분 없던 시절) = 한국 설정 */
+      COLCFG.kr=d.colcfg;try{localStorage.setItem('colcfg',JSON.stringify(d.colcfg))}catch(e){}}
+    if(d&&d.colcfg_us&&Array.isArray(d.colcfg_us.hidden)){
+      COLCFG.us=d.colcfg_us;try{localStorage.setItem('colcfg_us',JSON.stringify(d.colcfg_us))}catch(e){}}
     if(d&&d.rorder&&typeof d.rorder==='object'){RORDER=d.rorder;try{localStorage.setItem('rorder',JSON.stringify(RORDER))}catch(e){}}
     /* 빈 배열도 '전부 지웠다'는 뜻이므로 받아들여야 한다. 예전엔 d.positions.length 를
        함께 검사해서, 마지막 한 건을 지우면 그 배열이 '데이터 없음'으로 취급되고
@@ -890,7 +901,7 @@ async function pullRemote(){const pin=getPin();if(!pin||!window.SB)return;try{co
 function posStamp(v){try{if(v===undefined)return +(localStorage.getItem('posUpdated')||0);
   localStorage.setItem('posUpdated',String(v||0))}catch(e){}return v||0}
 async function pushRemote(){const pin=getPin();if(!pin||!window.SB)return;const now=Date.now();
-  try{await rpc('kospi_state_set',{p_pin:pin,p_data:{positions:POS,colcfg:COLCFG,rorder:RORDER,updated:now}});posStamp(now)}
+  try{await rpc('kospi_state_set',{p_pin:pin,p_data:{positions:POS,colcfg:COLCFG.kr||loadColCfg('kr'),colcfg_us:COLCFG.us||loadColCfg('us'),rorder:RORDER,updated:now}});posStamp(now)}
   catch(e){alert('서버 저장 실패: '+e.message)}}
 function savePositions(a){POS=a;try{localStorage.setItem('positions',JSON.stringify(a))}catch(e){};pushRemote()}
 async function setPin(){const cur_=getPin();const v=prompt('기기 간 공유용 PIN (4자 이상). 기본값이면 모든 기기가 자동 공유됩니다. 남과 분리하고 싶을 때만 바꾸세요.',cur_===DEFAULT_PIN?'':cur_);if(v==null)return;const pin=v.trim();if(pin.length<4){if(pin===''){try{localStorage.removeItem('pin')}catch(e){};await pullRemote();render();return}alert('4자 이상 입력하세요');return}
@@ -1198,7 +1209,7 @@ function prep(){const n=7,D=raw.dates,k=Math.max(0,D.length-n);view.dates=D.slic
   view.rows=raw.rows.map(r=>{const vols=r.v.slice(k),valid=vols.filter(x=>x!=null);const sum=a=>a.slice(k).reduce((x,y)=>x+(y||0),0);
     const prev=vols.slice(0,-1).filter(x=>x!=null),last=vols[vols.length-1];const avg=valid.length?valid.reduce((a,b)=>a+b,0)/valid.length:0;
     const ratio=(prev.length&&last!=null&&prev.reduce((a,b)=>a+b,0))?last/(prev.reduce((a,b)=>a+b,0)/prev.length)*100:null;
-    return {ticker:r.t,name:r.n,close:r.c,change:r.ch,foreign_ratio:r.fr,vols,avg,total:valid.reduce((a,b)=>a+b,0),ratio,indiv:sum(r.i),organ:sum(r.o),frgn:sum(r.f),amt:r.amt,cap:r.cap,r1m:r.r1m,r3m:r.r3m,r6m:r.r6m,r1y:r.r1y,per:r.per,pbr:r.pbr,pcr:r.pcr,dy:r.dy,pref:r.pref,fw:r.f.slice(-5).reduce((x,y)=>x+(y||0),0),v5:r.v.slice(-5).reduce((x,y)=>x+(y||0),0),fwp:(()=>{const v=r.v.slice(-5).reduce((x,y)=>x+(y||0),0),f=r.f.slice(-5).reduce((x,y)=>x+(y||0),0);return v?f/v*100:null})(),streak:r.streak||0,ret3:r.ret3,ret10:r.ret10,ret20:r.ret20,sr60:r.sr60,vs1:r.vs1,fw60:r.fw60,amt20:r.amt20,disc:r.disc,fromhi:r.fromhi,fromlo:r.fromlo,ins60:r.ins60,crc:r.crc,fw20:r.fw20,ow60:r.ow60,bb:r.bb,dev25:r.dev25,fw5:r.fw5,vol20:r.vol20,ret2y:r.ret2y,ret250:r.ret250,above20:r.above20,sr20:r.sr20,ow20:r.ow20,dbt:r.dbt,pbrd:r.pbrd,dma20:r.dma20,mdd60:r.mdd60,up:r.up,rs:r.rs,sr:r.sr,srDown:r.srDown,dilu:r.dilu,th:r.th||[],mk:r.mk||'KOSPI',aw:r.aw,a1:r.a1,a6:r.a6,r16:(r.a1&&r.a6)?r.a1/r.a6*100:null,rw1:(r.aw&&r.a1)?r.aw/r.a1*100:null,last:last??-1,chpct:(r.c&&r.ch!=null&&r.c-r.ch)?r.ch/(r.c-r.ch)*100:-999}})}
+    return {ticker:r.t,name:r.n,close:r.c,change:r.ch,foreign_ratio:r.fr,vols,avg,total:valid.reduce((a,b)=>a+b,0),ratio,indiv:sum(r.i),organ:sum(r.o),frgn:sum(r.f),amt:r.amt,cap:r.cap,r1m:r.r1m,r3m:r.r3m,r6m:r.r6m,r1y:r.r1y,per:r.per,pbr:r.pbr,pcr:r.pcr,dy:r.dy,pref:r.pref,fw:r.f.slice(-5).reduce((x,y)=>x+(y||0),0),v5:r.v.slice(-5).reduce((x,y)=>x+(y||0),0),fwp:(()=>{const v=r.v.slice(-5).reduce((x,y)=>x+(y||0),0),f=r.f.slice(-5).reduce((x,y)=>x+(y||0),0);return v?f/v*100:null})(),streak:r.streak||0,ret3:r.ret3,ret10:r.ret10,ret20:r.ret20,sr60:r.sr60,vs1:r.vs1,fw60:r.fw60,amt20:r.amt20,disc:r.disc,fromhi:r.fromhi,fromlo:r.fromlo,ins60:r.ins60,crc:r.crc,fw20:r.fw20,ow60:r.ow60,bb:r.bb,dev25:r.dev25,fw5:r.fw5,vol20:r.vol20,ret2y:r.ret2y,ret250:r.ret250,above20:r.above20,sr20:r.sr20,ow20:r.ow20,dbt:r.dbt,pbrd:r.pbrd,dma20:r.dma20,mdd60:r.mdd60,up:r.up,rs:r.rs,sr:r.sr,srDown:r.srDown,dilu:r.dilu,th:r.th||[],mk:r.mk||'KOSPI',ex:r.ex,ret60:r.ret60,aw:r.aw,a1:r.a1,a6:r.a6,r16:(r.a1&&r.a6)?r.a1/r.a6*100:null,rw1:(r.aw&&r.a1)?r.aw/r.a1*100:null,last:last??-1,chpct:(r.c&&r.ch!=null&&r.c-r.ch)?r.ch/(r.c-r.ch)*100:-999}})}
 function val(r,k){if(k==='hits')return FILTERS.filter(f=>f.fn(r)).length;if(k.startsWith('d:'))return r.vols[+k.slice(2)]??-1;return r[k]??-1}
 const isMobile=()=>(typeof window!=='undefined'&&window.innerWidth<=900);
 const isCardView=()=>cur==='all'||FILTERS.some(f=>f.id===cur);   /* 규칙·매수대기는 카드, 조회는 표 */
@@ -1210,9 +1221,18 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
   if(isCardView()){showTable(false);renderCards(rows);return}
   showTable(true);
   rows.sort((a,b)=>{const x=val(a,sortKey),y=val(b,sortKey);return (typeof x==='string')?(desc?y.localeCompare(x):x.localeCompare(y)):(desc?y-x:x-y)});
-  const browse=(cur==='kp'||cur==='kq');   /* 조회 전용 — 매수 버튼 없음 */
+  const browse=(cur==='kp'||cur==='kq'||cur==='us');   /* 조회 전용 — 매수 버튼 없음 */
   /* 조회 탭은 컬럼을 줄이지 않는다 — 표 안에서 가로 스크롤하고 종목명은 CSS 로 고정 */
-  let cols=[['name','종목','l'],...(browse?[]:[['hits','통과 규칙']]),['cap','시가총액'],['r1m','1개월'],['r3m','3개월'],['r6m','6개월'],['r1y','1년'],['detail','상세'],['per','PER'],['pbr','PBR'],['pcr','PCR'],['up','업종','l'],['sr60','업종 60일'],['streak','연속'],['ret3','3일'],['ret10','10일'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','3일평균'],['r16','2M/1Y'],['rw1','3일/2M'],['fw','외국인 1W'],['fwp','외인/거래량'],['amt','2M 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
+  /* 미장은 열 자체가 다르다. 수급(개인·기관·외국인)·PER/PBR/PCR·업종·연속은 미국 자료에
+     아예 없어서 늘 빈칸이었다. 그래서 미장 탭은 **값이 있는 열만** 따로 세운다.
+     대신 한국 표에 없던 것(고점·저점 대비, 이격, 변동성, 20일선 위 비율, 낙폭)을 꺼내 준다. */
+  let cols = cur==='us'
+    ? [['name','종목','l'],['ex','거래소'],['cap','시가총액'],['close','종가'],['chpct','전일비'],
+       ['amt','거래대금'],['fromhi','고점대비'],['fromlo','저점대비'],['dma20','20일선 이격'],
+       ['dev25','25일선 이격'],['vol20','변동성'],['above20','20일선 위'],['mdd60','60일 낙폭'],
+       ['ret3','3일'],['ret10','10일'],['ret20','20일'],['ret60','60일'],['r1y','1년'],
+       ['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['detail','상세']]
+    : [['name','종목','l'],...(browse?[]:[['hits','통과 규칙']]),['cap','시가총액'],['r1m','1개월'],['r3m','3개월'],['r6m','6개월'],['r1y','1년'],['detail','상세'],['per','PER'],['pbr','PBR'],['pcr','PCR'],['up','업종','l'],['sr60','업종 60일'],['streak','연속'],['ret3','3일'],['ret10','10일'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','3일평균'],['r16','2M/1Y'],['rw1','3일/2M'],['fw','외국인 1W'],['fwp','외인/거래량'],['amt','2M 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
   /* 모바일에선 '상세' 열을 뺀다 — 팝업 새 창이 모바일에서 쓸모없고, 행을 누르면 어차피 상세가 열린다 */
   if(isMobile())cols=cols.filter(c=>c[0]!=='detail');
   const ALLCOLS=cols; cols=applyColCfg(cols);
@@ -1231,6 +1251,16 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
     r6m:`<td class="${cls(r.r6m)}">${r.r6m==null?'':(r.r6m>0?'+':'')+r.r6m.toFixed(1)+'%'}</td>`,
     r1y:`<td class="${cls(r.r1y)}">${r.r1y==null?'':(r.r1y>0?'+':'')+r.r1y.toFixed(1)+'%'}</td>`,
     detail:`<td><button class="ghost mini" data-detail="${r.ticker}">상세</button></td>`,
+    ex:`<td class="sc">${r.ex||''}</td>`,
+    fromhi:`<td class="${cls(r.fromhi)}">${r.fromhi==null?'':r.fromhi.toFixed(1)+'%'}</td>`,
+    fromlo:`<td class="${cls(r.fromlo)}">${r.fromlo==null?'':(r.fromlo>0?'+':'')+r.fromlo.toFixed(1)+'%'}</td>`,
+    dma20:`<td class="${cls(r.dma20)}">${r.dma20==null?'':(r.dma20>0?'+':'')+r.dma20.toFixed(1)+'%'}</td>`,
+    dev25:`<td class="${cls(r.dev25)}">${r.dev25==null?'':(r.dev25>0?'+':'')+r.dev25.toFixed(1)+'%'}</td>`,
+    vol20:`<td class="sc">${r.vol20==null?'':r.vol20.toFixed(1)+'%'}</td>`,
+    above20:`<td class="sc">${r.above20==null?'':Math.round(r.above20)+'%'}</td>`,
+    mdd60:`<td class="${cls(r.mdd60)}">${r.mdd60==null?'':r.mdd60.toFixed(1)+'%'}</td>`,
+    ret20:`<td class="${cls(r.ret20)}">${r.ret20==null?'':(r.ret20>0?'+':'')+r.ret20.toFixed(1)+'%'}</td>`,
+    ret60:`<td class="${cls(r.ret60)}">${r.ret60==null?'':(r.ret60>0?'+':'')+r.ret60.toFixed(1)+'%'}</td>`,
     per:`<td class="sc">${r.per==null?'':r.per.toFixed(2)}</td>`,
     pbr:`<td class="sc">${r.pbr==null?'':r.pbr.toFixed(2)}</td>`,
     pcr:`<td class="sc">${r.pcr==null?'':r.pcr.toFixed(2)}</td>`,
@@ -1269,7 +1299,7 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
         const k=th.dataset.k;
         const w=Object.assign(natWidths(),loadColCfg().w||{});
         cols.forEach(c=>{if(!w[c[0]])w[c[0]]=90});
-        COLCFG=Object.assign(loadColCfg(),{w:w}); applyColWidths(cols);   /* 먼저 fixed 로 전환 */
+        setColCfg({w:w}); applyColWidths(cols);   /* 먼저 fixed 로 전환 */
         const cg=t.querySelector('colgroup'), col=cg?cg.children[idx]:null;
         const x0=e.clientX, w0=w[k];
         g.classList.add('on'); th.draggable=false;
@@ -1280,7 +1310,7 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
           document.removeEventListener('pointermove',mv); document.removeEventListener('pointerup',up);
           document.removeEventListener('pointercancel',up);
           g.classList.remove('on'); th.draggable=true; RESIZED_AT=Date.now();
-          COLCFG=Object.assign(loadColCfg(),{w:w}); saveColCfg()};
+          setColCfg({w:w}); saveColCfg()};
         document.addEventListener('pointermove',mv); document.addEventListener('pointerup',up);
         document.addEventListener('pointercancel',up);
       };
@@ -1300,7 +1330,7 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
         const full=ALLCOLS.map(c=>c[0]).filter(k=>!order.includes(k));   /* 숨긴 열은 뒤에 보존 */
         const i=order.indexOf(src),j=order.indexOf(dst);
         order.splice(i,1); order.splice(j,0,src);
-        COLCFG=Object.assign(loadColCfg(),{order:order.concat(full),hidden:hid}); saveColCfg(); render()};
+        setColCfg({order:order.concat(full),hidden:hid}); saveColCfg(); render()};
       th.ondragend=()=>document.querySelectorAll('#tbl thead th').forEach(x=>x.classList.remove('dragover'));
     });
   })();
@@ -1320,10 +1350,10 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
      on('#colall',()=>{boxes.forEach(b=>b.checked=true);paint()});
      on('#colnone',()=>{boxes.forEach((b,i)=>b.checked=(i===0));paint()});   /* 종목명은 남긴다 */
      on('#colcancel',()=>{wrap.innerHTML=''});
-     on('#colreset',()=>{COLCFG={order:null,hidden:[],w:{}};saveColCfg();wrap.innerHTML='';render()});
+     on('#colreset',()=>{COLCFG[colScope()]={order:null,hidden:[],w:{}};saveColCfg();wrap.innerHTML='';render()});
      on('#colapply',()=>{
        const h=boxes.filter(b=>!b.checked).map(b=>b.dataset.col);
-       COLCFG=Object.assign(loadColCfg(),{hidden:h}); saveColCfg(); wrap.innerHTML=''; render()});
+       setColCfg({hidden:h}); saveColCfg(); wrap.innerHTML=''; render()});
    }}}
   renderStatus();
   document.querySelectorAll('th').forEach(th=>th.onclick=()=>{
