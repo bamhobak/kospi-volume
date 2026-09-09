@@ -258,9 +258,11 @@ Deno.serve(async (req) => {
           sent.add(`${id}:add`); fired++;
         }
         if (days >= rule.hold && hour >= 12 && !sent.has(`${id}:hold`)) {
-          await telegram(`⏰ <b>${nm}</b> 보유 ${days}거래일째 — 규칙상 매도일\n` +
+          // '규칙상 매도일' 은 상태 보고로 읽혀 그냥 넘어가기 쉽다. 해야 할 일을 시킨다
+          // (2026-09-09 사용자 요청).
+          await telegram(`⏰ <b>${nm}</b> 매도일입니다. 장 마감 전에 매도해 주세요\n` +
             `현재가 ${fmt(now)} (매수 ${fmt(price)}, ${ret >= 0 ? "+" : ""}${ret.toFixed(1)}%)\n` +
-            `고점 ${fmt(hi)} · 규칙 ${RNAME[rid] ?? rid} (${rule.hold}거래일 보유)`);
+            `고점 ${fmt(hi)} · 보유 ${days}거래일째 · 규칙 ${RNAME[rid] ?? rid} (${rule.hold}거래일 보유)`);
           sent.add(`${id}:hold`); fired++;
         }
       }
