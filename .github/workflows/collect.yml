@@ -232,6 +232,15 @@ jobs:
       - name: build site (CSV + JSON)
         env: { TZ: Asia/Seoul }
         run: python pipeline.py --no-collect
+      # 미장(나스닥·NYSE·아멕스) 조회용 목록 — 사이트를 만든 **뒤에** 얹는다(pipeline 이 site/ 를 지운다).
+      # 실패해도 나머지는 그대로 배포한다. 실패하면 그 파일이 없어 화면이 '받지 못했습니다' 를 띄운다.
+      - name: collect US (미장 전체 조회용)
+        if: github.event_name != 'push'
+        continue-on-error: true
+        env: { TZ: Asia/Seoul }
+        run: |
+          pip install yfinance
+          python collect_us_daily.py
       # 알림은 데이터가 갱신됐을 때만 — 코드 푸시로 텔레그램이 나가면 안 된다
       # 알림이 실패해도 수집 데이터는 커밋돼야 한다. 2026-09-03 에 이 단계가 실패해
       # 그날 데이터가 통째로 커밋되지 않았다 — 알림은 부가 기능이지 수집의 전제가 아니다.

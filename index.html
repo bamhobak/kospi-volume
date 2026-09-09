@@ -527,6 +527,7 @@ function passes(r){
   if(cur==='done'||cur==='pos')return false;   /* 규칙 탭이 아닌 곳에서는 걸러 낼 것이 없다 */
   if(cur==='kp')return r.mk==='KOSPI';        /* 전체 종목 탭은 보유 여부와 무관하게 다 보여준다 */
   if(cur==='kq')return r.mk==='KOSDAQ';
+  if(cur==='us')return r.mk==='US';
   /* 그 규칙으로 이미 산 종목은 그 탭에서 감춘다(기존과 동일).
      다른 규칙에 새로 걸린 경우에만 남기고 '어느 규칙으로 보유 중' 인지 배지로 알린다. */
   /* 매수 대기 탭도 같은 기준 — '아직 그 규칙으로 사지 않은' 규칙에 걸리면 남긴다 */
@@ -536,7 +537,7 @@ function passes(r){
 /* 레일이 접혀 있을 때 지금 어느 탭인지 알려 준다 */
 function curName(){
   if(cur==='pos')return '보유 종목'; if(cur==='all')return '매수 대기';
-  if(cur==='done')return '완료'; if(cur==='kp')return '코스피 전체'; if(cur==='kq')return '코스닥 전체';
+  if(cur==='done')return '완료'; if(cur==='kp')return '코스피 전체'; if(cur==='kq')return '코스닥 전체'; if(cur==='us')return '미장 전체';
   const f=FILTERS.find(x=>x.id===cur);
   return f?codeOf(f.id)+' '+f.name.split(' · ')[1]:cur;
 }
@@ -609,7 +610,9 @@ function renderTabs(){
     + `<div class="grp"><div class="k khead">규칙${freqNote()}</div>${rules}</div>`
     + `<div class="grp"><div class="k">조회</div>`
     + nrow('kp','','코스피 전체',view.rows.filter(r=>r.mk==='KOSPI').length,'<span class="bar"></span>')
-    + nrow('kq','kq','코스닥 전체',view.rows.filter(r=>r.mk==='KOSDAQ').length,'<span class="bar"></span>') + `</div>`
+    + nrow('kq','kq','코스닥 전체',view.rows.filter(r=>r.mk==='KOSDAQ').length,'<span class="bar"></span>')
+    /* 미장은 파일이 커서(≈4MB) 누를 때 받는다 — 안 보는 사람에게 짐을 지우지 않는다 */
+    + nrow('us','bo','미장 전체',USROWS?view.rows.filter(r=>r.mk==='US').length:'…','<span class="bar"></span>') + `</div>`
     :'');
   /* 규칙 행을 끌어 순서 변경 — 코스피↔코스닥은 서로 넘어가지 못한다.
      바뀌는 건 '보이는 번호'뿐이고 저장되는 식별자(f.id)는 그대로다. */
@@ -689,6 +692,8 @@ function renderTabs(){
     cur=f;
     rowLimit=100;
     if(f==='kp'||f==='kq'){sortKey='cap';desc=true}          /* 전체 종목은 시총 순 */
+    if(f==='us'){sortKey='amt20';desc=true;                   /* 미장은 시총이 없어 거래대금 순 */
+      if(!USROWS){showInfo=false;render();loadUS().then(render);return}}
     showInfo=false;render()});
   const K=raw.kospi||{};
   /* 시장 조건으로 오늘 열린 규칙과 그 근거를 한 줄로 */
@@ -708,7 +713,8 @@ function renderTabs(){
     $('#mktstate').innerHTML=`<i style="background:${open.length?'var(--org)':'var(--faint)'}"></i>`
       +`코스피 ${ma} → ${open.length?`<b>${open.join('·')}</b>`:'<b>열린 규칙 없음</b>'}`;
   }else $('#mktstate').innerHTML='';
-  $('#fdesc').innerHTML=cur==='done'?'매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요.':cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (${holdText()})`:cur==='all'?'':(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));{const fd=$('#fdesc');
+  $('#fdesc').innerHTML=cur==='done'?'매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요.':cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (${holdText()})`:cur==='all'?'':cur==='us'?(USROWS?`나스닥·뉴욕·아멕스 상장 ${USROWS.length.toLocaleString()}종목을 20일 평균 거래대금 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. <b>가격은 달러, 거래대금은 백만 달러</b>이고, 우리 규칙은 아직 미국에 쓰지 않습니다. ${raw.usUpdated?'기준 '+raw.usUpdated:''}`:'미장 자료를 받는 중입니다…')
+      :(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));{const fd=$('#fdesc');
   if(fd&&fd.style){const has=(fd.innerHTML||'').trim();
     fd.style.display=has?'':'none';
     if(has&&MOB&&!DESCOPEN){fd.dataset.full=fd.innerHTML;
@@ -1189,6 +1195,18 @@ function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none
   const pct=(x)=>x==null?'':` <span class="${x>=0?'pos':'neg'}" style="font-size:11px">${x>=0?'+':''}${x.toFixed(2)}%</span>`;
   el.innerHTML=`${arr(kc)}P ${kv.toLocaleString()}${pct(kc)}`
     +(qv?` &nbsp;<span class="mkt ${cls(qc)}" style="margin-left:6px">${arr(qc)}D ${qv.toLocaleString()}${pct(qc)}</span>`:'')}
+let USROWS=null;
+/* 미장 자료는 눌렀을 때 한 번만 받아 raw.rows 뒤에 붙인다. 규칙은 mk 로 시장을 가리므로
+   미장 종목이 규칙 목록에 섞이지 않는다. 수급(개인·기관·외국인) 자료가 없어 0 배열로 채운다. */
+async function loadUS(){
+  if(USROWS)return USROWS;
+  try{
+    const d=await (await fetch('data/table_us.json?v='+(raw.updated||''))).json();
+    const z=new Array((raw.dates||[]).length).fill(0);
+    USROWS=(d.rows||[]).map(r=>Object.assign({fr:null,i:z,o:z,f:z,streak:0,per:null,pbr:null,pcr:null,dy:null},r));
+    raw.usUpdated=d.updated||''; raw.rows=raw.rows.concat(USROWS); prep();
+  }catch(e){USROWS=null;alert('미장 자료를 받지 못했습니다: '+e.message)}
+  return USROWS}
 function prep(){const n=7,D=raw.dates,k=Math.max(0,D.length-n);view.dates=D.slice(k);
   view.rows=raw.rows.map(r=>{const vols=r.v.slice(k),valid=vols.filter(x=>x!=null);const sum=a=>a.slice(k).reduce((x,y)=>x+(y||0),0);
     const prev=vols.slice(0,-1).filter(x=>x!=null),last=vols[vols.length-1];const avg=valid.length?valid.reduce((a,b)=>a+b,0)/valid.length:0;

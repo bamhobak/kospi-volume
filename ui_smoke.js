@@ -44,9 +44,24 @@ const rowsJs = T.rows.map(r => Object.assign({}, r, {
 ctx.__rows = rowsJs;
 vm.runInContext('raw = __T; view = {dates: __T.dates, rows: __rows}; live = {prices:{}, updated:""};', ctx);
 
+// 미장 자료가 있으면 같이 얹어 본다 — 수급 배열이 없는 행이 표를 죽이지 않는지 확인한다
+let usN = 0;
+try {
+  const U = JSON.parse(fs.readFileSync('site/data/table_us.json', 'utf8'));
+  const z = new Array((T.dates || []).length).fill(0);
+  const us = (U.rows || []).map(r => Object.assign({ fr: null, i: z, o: z, f: z, streak: 0 }, r,
+    { ticker: r.t, name: r.n, close: r.c, change: r.ch, foreign_ratio: null,
+      vols: r.v, avg: 0, total: 0, ratio: 0, indiv: 0, organ: 0, frgn: 0,
+      fw: 0, v5: 0, r16: null, rw1: null, last: -1, chpct: r.chpct }));
+  usN = us.length;
+  ctx.__us = us;
+  vm.runInContext('view.rows = view.rows.concat(__us); raw.rows = raw.rows.concat(__us); USROWS = __us;', ctx);
+  console.log(`  (미장 ${usN.toLocaleString()}종목 얹음)`);
+} catch (e) { console.log('  (미장 자료 없음 — 건너뜀)'); }
+
 let fail = 0;
 const ids = vm.runInContext('FILTERS.map(f=>f.id)', ctx);
-for (const cur of ['pos', 'all', ...ids, 'done', 'kp', 'kq']) {
+for (const cur of ['pos', 'all', ...ids, 'done', 'kp', 'kq', ...(usN ? ['us'] : [])]) {
   try {
     vm.runInContext(`cur = ${typeof cur === 'number' ? cur : JSON.stringify(cur)}; render()`, ctx);
     let n = '-';
