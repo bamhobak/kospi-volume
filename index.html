@@ -921,7 +921,7 @@ async function renderPositions(){
        수량이 없는 기록은 매수금액을 모르므로 금액가중에서만 뺀다(동일가중에는 남긴다). */
     const chip=(k,list,on)=>{
       const f=k==='전체'?null:fOf(k), kq=f&&f.mkt==='KOSDAQ';
-      return `<span class="dchip ${on?'on':''} ${kq?'kq':''}" data-r="${k}"><b>${k==='전체'?k:codeOf(k)}</b><span class="c">${list.length}건</span></span>`};
+      return `<span class="dchip ${on?'on':''} ${kq?'kq':''}" data-r="${k}"><b>${k==='전체'?k:(f&&f.name?f.name:codeOf(k))}</b><span class="c">${list.length}건</span></span>`};
     const stat=(k,list)=>{
       const f=k==='전체'?null:fOf(k), kq=f&&f.mkt==='KOSDAQ';
       const avg=list.reduce((a,p)=>a+ret(p),0)/list.length;
@@ -931,7 +931,7 @@ async function renderPositions(){
       const sg=x=>x>0?'pos':x<0?'neg':'';
       const miss=list.length-wl.length;
       return `<div class="dstat" title="동일가중 = 건별 수익률의 단순 평균(규칙 자체의 성적, 백테스트와 비교용)&#10;금액가중 = 총손익 ÷ 총매수금액(내 계좌가 실제로 번 비율)${miss?'&#10;수량 없는 기록 '+miss+'건은 금액가중에서 제외':''}">`
-        +`<b class="${kq?'kq':''}">${k==='전체'?k:codeOf(k)}</b>`
+        +`<b class="${kq?'kq':''}">${k==='전체'?k:(f&&f.name?f.name:codeOf(k))}</b>`
         +`<span><span class="k">동일</span><span class="${sg(avg)}">${avg>0?'+':''}${avg.toFixed(1)}%</span></span>`
         +`<span><span class="k">금액</span><span class="${sg(wavg)}">${wavg==null?'—':(wavg>0?'+':'')+wavg.toFixed(1)+'%'}</span></span>`
         +`<span><span class="k">수익금</span><span class="${sg(sum)}">${sum?kor(sum,1)+'원':'—'}</span></span></div>`};
