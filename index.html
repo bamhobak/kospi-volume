@@ -1011,7 +1011,7 @@ async function renderPositions(){
       `<td>${streak?`<span class="${(rid0==='P7'&&streak>=2)?'hot':''}">${streak}일</span>`:'<span class="code">-</span>'}</td>`,
       `<td class="l ${sc==='none'?'':sc}" style="font-weight:600">${sc==='none'?'<span class="code">-</span>':st}</td>`,
       `<td class="${p.sell?cls(pr(p)):''}">${p.sell?fmt(p.sell)+' ('+(pr(p)>0?'+':'')+pr(p).toFixed(1)+'%'+(p.qty?' · '+kor((p.sell-p.price)*p.qty,1)+'원':'')+')':''}</td>`,
-      `<td class="l">${p.sell?'':`<button class="ghost mini" data-sell="${p.id}">매도</button>`} <button class="ghost mini" data-del="${p.id}">삭제</button></td>`];
+      `<td class="l">${p.sell?'':`<button class="ghost mini" data-sell="${p.id}">매도</button>`} <button class="ghost mini" data-edit="${p.id}" title="${p.sell?'매도가·매도일 수정':'매수일·매수가·수량 수정'}">수정</button> <button class="ghost mini" data-del="${p.id}">삭제</button></td>`];
     return `<tr data-pc="${p.code}" class="${sel===p.code?'sel':''}">`+KEEP.map(i=>cells[i]).join('')+'</tr>'}).join('');
   const open_=rows.filter(r=>!r.p.sell);const avg=open_.length?open_.reduce((a,r)=>a+(r.ret||0),0)/open_.length:0;
   const closed=rows.filter(r=>r.p.sell);const realized=closed.reduce((a,r)=>a+pr(r.p),0);
@@ -1028,6 +1028,21 @@ async function renderPositions(){
     if(w)w.focus(); else alert('팝업이 차단되었습니다. 브라우저에서 이 사이트의 팝업을 허용해주세요.');});
   document.querySelectorAll('[data-sell]').forEach(b=>b.onclick=e=>{e.stopPropagation();const a=positions();const p=a.find(x=>x.id==b.dataset.sell);const r=rows.find(r=>r.p.id==p.id);
     const sell=+prompt(`${p.name} 매도가 (원)`,r.now||p.price);if(!sell)return;p.sell=sell;p.sellDate=raw.dates[raw.dates.length-1];savePositions(a);render()});
+  /* 수정 — 잘못 넣은 값을 고친다. 보유 상태면 매수 때 넣은 값(매수일·매수가·수량),
+     완료 상태면 매도 때 넣은 값(매도가·매도일). 취소(null)하면 아무것도 안 바꾼다. */
+  document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=e=>{e.stopPropagation();const a=positions();const p=a.find(x=>x.id==b.dataset.edit);if(!p)return;
+    const num=v=>+String(v).replace(/[^\d.]/g,'');
+    if(p.sell){
+      const s_=prompt(`${p.name} 매도가 (원)`,p.sell);if(s_==null)return;const sv=num(s_);if(!sv){alert('매도가를 숫자로 입력하세요');return}
+      const d=prompt(`${p.name} 매도일 (YYYYMMDD)`,p.sellDate||'');if(d==null)return;
+      p.sell=sv;if(d.trim())p.sellDate=d.replace(/\D/g,'');
+    }else{
+      const d=prompt(`${p.name} 매수일 (YYYYMMDD)`,p.date);if(d==null)return;
+      const pr_=prompt(`${p.name} 매수가 (원)`,p.price);if(pr_==null)return;const pv=num(pr_);if(!pv){alert('매수가를 숫자로 입력하세요');return}
+      const q=prompt(`${p.name} 매수 수량 (주, 비우면 0)`,p.qty||'');if(q==null)return;
+      if(d.trim())p.date=d.replace(/\D/g,'');p.price=pv;p.qty=Math.floor(num(q))||0;
+    }
+    savePositions(a);render()});
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=e=>{e.stopPropagation();if(!confirm('삭제할까요?'))return;savePositions(positions().filter(x=>x.id!=b.dataset.del));render()});
 }
 let raw={dates:[],rows:[]},view={dates:[],rows:[]},sortKey='last',desc=true,sel=null,charts=[];
