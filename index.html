@@ -346,7 +346,11 @@ const dparse=d=>new Date(+d.slice(0,4),+d.slice(4,6)-1,+d.slice(6,8));
 const isTrading=dt=>{const w=dt.getDay();return w!==0&&w!==6&&!HOLIDAY.has(dkey(dt))};
 /* 종목이 속한 시장의 거래일 달력. 미장은 collect_us_daily.py 가 실어 보내는 usdates 다
    (미국 휴장일은 한국과 달라 국내 달력으로 대신할 수 없다). */
-const calOf=code=>(isUSCode(code)?(raw.usdates||[]):(raw.dates||[]));
+const calOf=code=>(isUSCode(code)
+  ?((raw.uscal&&raw.uscal.dates)||raw.usdates||[])
+  :(raw.dates||[]));
+/* 정렬 계산에만 쓰는 환율. 화면 표기는 바꾸지 않는다(달러는 달러로 보여준다). */
+const usdkrw=()=>Number((raw.uscal&&raw.uscal.usdkrw)||0)||0;
 /* 매수일부터 오늘까지 지난 거래일 수 — 매수일을 1일째로 센다(국내 표와 같은 정의) */
 const calDaysHeld=(code,buy)=>calOf(code).filter(d=>d>=buy).length;
 /* 매도일 = 매수일을 1일째로 세어 hold 번째 거래일. 백테스트의 청산일과 같은 정의다
@@ -1127,22 +1131,25 @@ async function renderPositions(){
         숫자를 그대로 견준다 — 환율을 모르므로 통화를 건너뛴 비교는 뜻이 약하다.
         수익률·보유일·매수일처럼 단위가 같은 열이 실제로 쓸모 있다. */
   const posVal=(r,k)=>{const{p,now,hi,days,ret,rule,streak,st}=r;
-    const amt=(v)=>v==null?null:v;
+    /* 돈 열은 원화로 환산해 견준다 — 표기는 그대로 두고 비교만 같은 자로 한다.
+       환율을 못 받았으면(fx=0) 예전처럼 숫자를 그대로 쓴다. */
+    const fx=usdkrw(), us=isUSCode(p.code);
+    const amt=(v)=>v==null?null:((us&&fx)?v*fx:v);
     if(DONE)switch(k){                       /* 완료 탭은 열 구성이 다르다 */
       case 0:return p.name||p.code; case 1:return (p.filters||[])[0]||'';
-      case 2:return p.date; case 3:return p.price; case 4:return p.qty||0;
-      case 5:return (p.qty||0)*p.price; case 6:return p.sellDate||'';
-      case 7:return p.sell; case 8:return p.sell?(p.sell/p.price-1)*100:null;
-      case 9:return (p.qty&&p.sell)?(p.sell-p.price)*p.qty:null; default:return null}
+      case 2:return p.date; case 3:return amt(p.price); case 4:return p.qty||0;
+      case 5:return amt((p.qty||0)*p.price); case 6:return p.sellDate||'';
+      case 7:return amt(p.sell); case 8:return p.sell?(p.sell/p.price-1)*100:null;
+      case 9:return amt((p.qty&&p.sell)?(p.sell-p.price)*p.qty:null); default:return null}
     switch(k){
       case 0:return p.name||p.code; case 1:return (p.filters||[])[0]||'';
-      case 2:return p.date; case 3:return p.price; case 4:return p.qty||0;
-      case 5:return (p.qty||0)*p.price; case 6:return amt(now);
-      case 7:return ret; case 8:return (p.qty&&now)?(now-p.price)*p.qty:null;
+      case 2:return p.date; case 3:return amt(p.price); case 4:return p.qty||0;
+      case 5:return amt((p.qty||0)*p.price); case 6:return amt(now);
+      case 7:return ret; case 8:return amt((p.qty&&now)?(now-p.price)*p.qty:null);
       case 9:return days;
       case 10:{const sd=rule?sellDate(p.date,rule.hold,p.code):null;return sd?sd.date:''}
-      case 11:return hi; case 12:return rule?(rule.trail||rule.stop||rule.target||0):null;
-      case 13:return streak; case 14:return st; case 15:return p.sell??null;
+      case 11:return amt(hi); case 12:return rule?(rule.trail||rule.stop||rule.target||0):null;
+      case 13:return streak; case 14:return st; case 15:return amt(p.sell??null);
       default:return null}};
   if(POSSORT.key!=null){const k=POSSORT.key,sg=POSSORT.desc?-1:1;
     rows.sort((a,b)=>{const x=posVal(a,k),y=posVal(b,k);
@@ -1240,7 +1247,11 @@ async function load(){
     document.title=(r?r.n+' · ':'')+'상세 · 밤호박 종목 선별기';
     await showStock(DETAIL); return;
   }
-  await pullRemote();raw=await (await fetch('data/table.json?v='+Date.now())).json();prep();
+  await pullRemote();raw=await (await fetch('data/table.json?v='+Date.now())).json();
+  /* 미장 거래일 달력 + 정렬용 환율(4KB). 미장 표(3.6MB)는 배경으로 늦게 오므로
+     보유일 계산이 첫 화면에서 어긋나지 않게 이 작은 파일을 먼저 받는다. */
+  try{raw.uscal=await (await fetch('data/uscal.json?v='+Date.now())).json()}catch(e){raw.uscal=null}
+  prep();
   /* 첫 화면: 매수 대기가 비어 있으면 보유 종목 탭으로 연다 — 빈 목록보다 내 종목이 쓸모 있다.
      (매수 대기 = 아직 그 규칙으로 사지 않은 규칙에 걸린 종목) */
   if(cur==='all')cur=homeTab();

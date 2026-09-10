@@ -296,7 +296,7 @@ def main():
 
     # ── 국면 — S&P500 60일선 (사이트 규칙 [상승장 신고가] 가 쓴다) ────────────
     #   한국 표의 kospi 객체와 같은 자리다. 이게 없으면 사이트가 미장 국면을 알 수 없다.
-    us_reg = {}; us_days = []
+    us_reg = {}; us_days = []; usdkrw = None
     try:
         import yfinance as _yf          # fetch() 안에서만 import 하고 있어 여기선 새로 부른다
         sp = _yf.download('^GSPC', period='2y', auto_adjust=False, progress=False)
@@ -311,6 +311,16 @@ def main():
         #   파일을 만드는 대신 달력 하나만 실어 보내면 된다. 미국 휴장일은 한국과 다르므로
         #   한국 달력으로 대신할 수 없다.
         us_days = [d.strftime('%Y%m%d') for d in c.index][-400:]
+        # 달러/원 환율 — **정렬 계산에만** 쓴다(화면에는 달러를 그대로 보여준다).
+        #   보유 종목 표에는 원화와 달러가 섞여 있어 '매수금액' 같은 열을 숫자 그대로 견주면
+        #   300만원과 $83 을 같은 축에 놓는 셈이 된다. 원화로 환산해 견주되 표기는 바꾸지 않는다.
+        try:
+            _fx = _yf.download('KRW=X', period='5d', auto_adjust=False, progress=False)
+            _fc = _fx['Close'] if 'Close' in _fx else _fx.iloc[:, 0]
+            usdkrw = float(_fc.squeeze().dropna().iloc[-1])
+            log(f'  환율 1달러 = {usdkrw:,.1f}원 (정렬용)')
+        except Exception as e:
+            log(f'  환율 실패 — 정렬은 통화 섞인 채로 한다: {e!r}'[:110])
         log(f"  S&P500 {us_reg['close']:,.0f} · 60일선 {ma60:,.0f} · 60일선 위 {us_reg['up60']}")
     except Exception as e:
         log(f'  S&P500 국면 실패 — 규칙 판정이 멈춘다: {e!r}'[:120])
@@ -323,7 +333,8 @@ def main():
     # 미장 거래일 달력만 담은 작은 파일 — 10분마다 도는 엣지 함수가 보유일을 세는 데 쓴다.
     #   미장 표는 3.6MB 라 10분마다 받을 수 없다. 달력은 400줄이면 10KB 도 안 된다.
     cal = OUT.parent / "uscal.json"
-    json.dump({"dates": us_days, "updated": datetime.now().strftime("%Y-%m-%d %H:%M")},
+    json.dump({"dates": us_days, "usdkrw": usdkrw,
+               "updated": datetime.now().strftime("%Y-%m-%d %H:%M")},
               open(cal, "w", encoding="utf-8"), separators=(",", ":"))
     log(f"{cal.name} 미장 거래일 {len(us_days)}일")
     return 0
