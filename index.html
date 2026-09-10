@@ -118,7 +118,7 @@ header{flex:none}
 .rail .it.rg-down .bar{background:var(--dn)}
 /* 국면 조건이 없는 규칙(양쪽에서 도는 규칙)은 위 절반 빨강·아래 절반 파랑으로 표시한다.
    이 규칙이 없으면 앞의 시장색(.us 주황)이 남아 상승장 규칙처럼 보인다(2026-09-10). */
-.rail .it.rg-both .bar{background:linear-gradient(180deg,var(--up) 0 50%,var(--dn) 50% 100%)}
+.rail .it.rg-both .bar{background:var(--mut)}
 .rail .it.kq .rid{color:var(--ind)}.rail .it.bo .rid{color:var(--bth)}.rail .it.us .rid{color:var(--usc)}
 .rail .sec{padding:11px;background:var(--panel2);border:1px solid var(--line)}
 .rail .sec .row{display:flex;justify-content:space-between;font-size:11px;margin-top:5px}
@@ -871,7 +871,7 @@ function statsHtml(f){const t=f.stats;
     <span class="s-item" title="기대 승률 — **검증기간(2023~26)** ${t.n}건 중 수익으로 끝난 비율. 규칙을 만들 때 보지 않은 구간이라 실전에 가장 가깝습니다. 손절이 없으므로 보유기간을 끝까지 채웠을 때 기준입니다."><b>${t.win}%</b></span>
     <span class="s-item" title="Profit Factor — 이익 거래의 합 ÷ 손실 거래의 합. 1.0이면 본전, 높을수록 손실 대비 이익이 큽니다."><b>${t.pf}</b></span>
     <span class="s-item" title="건당 평균 순수익 — **검증기간(2023~26)** 기준. 수수료·세금·슬리피지를 모두 뺀 값입니다. 중앙값은 이보다 낮을 수 있습니다(큰 수익 몇 건이 평균을 끌어올림)."><b>+${t.avg}%</b></span>
-    <span class="s-item" title="${f.regime==='both'?`출현 빈도·발현 장세 — 이 규칙은 **국면 조건이 없습니다**. 지수가 오르든 내리든 조건만 맞으면 신호가 납니다(실측: 거래의 45%가 상승 국면). 「낙폭」은 시장이 아니라 **그 종목이 52주 고점 대비 얼마나 떨어졌는가**를 뜻합니다. 검증기간 ${t.spanMonths||44}개월 중 ${t.monthsActive||'?'}개월에 신호가 났고 모두 합쳐 ${t.n}건입니다(월 평균 ${t.perMonth}건).`:f.regime==='up'?`출현 빈도·발현 장세 — 검증기간 ${t.spanMonths||44}개월 중 ${t.monthsActive||'?'}개월에만 신호가 났고 모두 합쳐 ${t.n}건입니다(신호가 난 달 기준 중앙 ${t.medPerActive||'?'}건, 가장 많았던 달 ${t.topMonth?t.topMonth.slice(0,4)+'-'+t.topMonth.slice(4):'-'} ${t.topN||0}건). 월 평균으로 나누면 ${t.perMonth}건이지만 실제로는 몰려서 납니다. 신호는 주로 코스피 60일선 위(상승·횡보장)에서 납니다(실측: P1 실거래 60건의 80%가 60일선 위, 거기서 평균 +8.6%). 신호가 없는 달도 많으니 조용하다고 고장난 게 아닙니다.`:`출현 빈도·발현 장세 — 검증기간 ${t.spanMonths||44}개월 중 ${t.monthsActive||'?'}개월에만 신호가 났고 모두 합쳐 ${t.n}건입니다(신호가 난 달 기준 중앙 ${t.medPerActive||'?'}건, 가장 많았던 달 ${t.topMonth?t.topMonth.slice(0,4)+'-'+t.topMonth.slice(4):'-'} ${t.topN||0}건). 월 평균으로 나누면 ${t.perMonth}건이지만 실제로는 몰려서 납니다. 신호는 코스피 60일선 아래(하락장)에서 납니다(P3·P5·D1·D2 는 조건 자체에 하락장 게이트, P4 는 실거래 816건의 92%·P2 는 98%가 하락장). 하락장이 없으면 몇 달씩 조용한 것이 정상입니다.`}"><b>${f.regime==='up'?'▲':f.regime==='both'?'↕':'▼'} 월 ${t.perMonth}건</b></span>
+    <span class="s-item" title="${f.regime==='both'?`출현 빈도·발현 장세 — 이 규칙은 **국면 조건이 없습니다**. 지수가 오르든 내리든 조건만 맞으면 신호가 납니다(실측: 거래의 45%가 상승 국면). 「낙폭」은 시장이 아니라 **그 종목이 52주 고점 대비 얼마나 떨어졌는가**를 뜻합니다. 검증기간 ${t.spanMonths||44}개월 중 ${t.monthsActive||'?'}개월에 신호가 났고 모두 합쳐 ${t.n}건입니다(월 평균 ${t.perMonth}건).`:f.regime==='up'?`출현 빈도·발현 장세 — 검증기간 ${t.spanMonths||44}개월 중 ${t.monthsActive||'?'}개월에만 신호가 났고 모두 합쳐 ${t.n}건입니다(신호가 난 달 기준 중앙 ${t.medPerActive||'?'}건, 가장 많았던 달 ${t.topMonth?t.topMonth.slice(0,4)+'-'+t.topMonth.slice(4):'-'} ${t.topN||0}건). 월 평균으로 나누면 ${t.perMonth}건이지만 실제로는 몰려서 납니다. 신호는 주로 코스피 60일선 위(상승·횡보장)에서 납니다(실측: P1 실거래 60건의 80%가 60일선 위, 거기서 평균 +8.6%). 신호가 없는 달도 많으니 조용하다고 고장난 게 아닙니다.`:`출현 빈도·발현 장세 — 검증기간 ${t.spanMonths||44}개월 중 ${t.monthsActive||'?'}개월에만 신호가 났고 모두 합쳐 ${t.n}건입니다(신호가 난 달 기준 중앙 ${t.medPerActive||'?'}건, 가장 많았던 달 ${t.topMonth?t.topMonth.slice(0,4)+'-'+t.topMonth.slice(4):'-'} ${t.topN||0}건). 월 평균으로 나누면 ${t.perMonth}건이지만 실제로는 몰려서 납니다. 신호는 코스피 60일선 아래(하락장)에서 납니다(P3·P5·D1·D2 는 조건 자체에 하락장 게이트, P4 는 실거래 816건의 92%·P2 는 98%가 하락장). 하락장이 없으면 몇 달씩 조용한 것이 정상입니다.`}"><b>월 ${t.perMonth}건</b></span>
     <span class="s-item info-card" id="infobtn2" title="규칙 상세 조건과 연도별 성적 보기">${showInfo?'✕':'ⓘ'}</span></div>`;
   if(!showInfo) return cards;
   return cards+`
