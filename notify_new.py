@@ -59,8 +59,8 @@ if _up.exists():
         for r in cand:
             if r['amt20'] >= cut: r['usliq'] = True
     rows = rows + usrows
-    print('미장 %d종목 · 유동성 상위40%% %d · 신고가 진입 %d · S&P 60일선 위 %s'
-          % (len(usrows), sum(1 for r in usrows if r['usliq']), sum(1 for r in usrows if r.get('nh5')), us_reg.get('up60')))
+    print('미장 %d종목 · 유동성 상위40%% %d · 조용한 신고가 진입 %d · S&P 60일선 위 %s'
+          % (len(usrows), sum(1 for r in usrows if r['usliq']), sum(1 for r in usrows if r.get('nh5') and (r.get('remo') or 999) <= 100), us_reg.get('up60')))
 else:
     print('table_us.json 없음 — 미장 규칙은 건너뛴다')
 s5 = lambda a: sum(x or 0 for x in a[-5:])
@@ -167,6 +167,7 @@ FILTERS = [
     ("N1", "상승장 신고가 (미장·40일 보유)",
      lambda r: r.get("mk") == "US" and not r.get("pref")
      and r.get("usliq") is True and r.get("nh5") is True
+     and r.get("remo") is not None and r["remo"] <= 100
      and bool(us_reg.get("up60"))),
     ("N2", "낙폭과대 (20일 보유)",
      lambda r: r.get("mk") == "US" and not r.get("pref")

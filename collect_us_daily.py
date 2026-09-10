@@ -95,6 +95,15 @@ def metrics(x):
     #   최근 20거래일은 밖에 있었다. '신고가권에 있다'(상태)로 걸면 상승장에 하루 400종목이
     #   매일 다시 걸리는데, '오늘 들어왔다'(사건)로 걸면 한 종목이 한 번만 걸려 하루 10종목
     #   안팎이 된다(us_n1_reduce*.py · 2026-09-10 채택). 종목 자기 이력만으로 계산된다.
+    # remo = 최근 3일 평균 거래량 ÷ 최근 한 달 평균(3일 전부터 20일). [상승장 신고가]가
+    #   'remo ≤ 100' 으로 쓴다 — **거래량이 붙으며 올라온 신고가는 이미 늦었다**.
+    #   실측: 재점화를 요구할수록 단조 악화(≥120% 초과 +0.62 → ≥300% -0.30), 반대로
+    #   식은 채로 진입한 쪽이 +1.02 · 검증 +1.38 · 양수해 10/11 (us_n1_vol*.py · 2026-09-10).
+    #   국내 [조용한 신고가]의 '최근 3거래일 ≤ 2개월 평균의 120%' 와 같은 계열이다.
+    remo = None
+    if n >= 23:
+        _mo = float(np.nanmean(v[-23:-3]))
+        if _mo > 0: remo = float(np.nanmean(v[-3:]) / _mo * 100)
     hh = x['High'].astype(float).values if 'High' in x else c
     nh5 = None
     if n >= 271:
@@ -115,6 +124,7 @@ def metrics(x):
         dev25=round((c[-1] / ma25 - 1) * 100, 2) if ma25 else None,
         su1=round(su1, 2) if su1 is not None else None,
         nh5=nh5,
+        remo=round(remo, 1) if remo is not None else None,
         mdd60=round(mdd, 1) if mdd is not None else None,
         vol20=round(vol20, 2) if vol20 is not None else None,
         above20=round(above, 1) if above is not None else None,

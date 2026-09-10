@@ -124,7 +124,10 @@ K["fromhi_q"] = _s
 _within = (BASE3 & (K.fromhi >= -5)).fillna(False)
 _seen = (_within.groupby(K.ticker).shift(1).fillna(False).astype(bool)
          .groupby(K.ticker).transform(lambda s: s.rolling(20, min_periods=1).max()).fillna(0) > 0)
-N1_COND = (UNI_N & up60 & _within & ~_seen)
+# 조용한 진입 — 최근 3일 평균 거래량 ≤ 최근 한 달 평균(3일 전부터 20일).
+_a20 = K.groupby('ticker', sort=False).volume.transform(lambda s: s.shift(3).rolling(20).mean())
+_remo = K.vm3 / _a20 * 100
+N1_COND = (UNI_N & up60 & _within & ~_seen & (_remo <= 100))
 RULES["N1"] = dict(name="상승장 신고가", hold=40, trail=None, pct=5, mx=8,
                    cond=lambda: N1_COND, drop=[])
 
