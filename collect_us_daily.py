@@ -134,6 +134,22 @@ def metrics(x, bbdates=None):
             _d0 = (_idx[_k] - pd.Timedelta(days=88)).strftime('%Y%m%d')
             _st[_k] = bool(((_bb <= _d1) & (_bb >= _d0)).any())
         bbnew = bool(_st[-1] and not _st[max(0, n - 21):n - 1].any())
+    # pinr = 최근 20일 변동성 ÷ 최근 250일 변동성 (자기 과거 대비 얼마나 죽었나)
+    # hl20 = 최근 20일 고저폭(%)
+    #   인수 합의가 난 종목은 인수가에 못 박혀 **자기 평소보다** 조용해진다. 그런데 규칙이 보는
+    #   신호(고점 근처 + 조용한 거래량)를 완벽하게 만족해 버린다 — 위로는 인수가에서 막히고
+    #   아래로만 열려 있어 기대값이 0 인데도 걸린다(2026-09-10 DV: 인수가 $13.60 에 고정, pinr 0.06).
+    #   **절대** 변동성으로 자르면 KO·WMT 같은 대형 우량주가 걸려 쓸모없다 — 대형주는 원래 조용하다.
+    #   자기 과거 대비로 봐야 갈린다. SPAC(합병 전 $10 고정)·우선주도 같이 걸러진다.
+    #   실측: 묶인 쪽 173건 초과 -0.21 · 절삭 -1.09 · 검증 -1.88 · 양수해 5/11 (us_n1_pinned2.py)
+    pinr = hl20 = None
+    if n >= 251:
+        _r = np.diff(c) / c[:-1] * 100
+        _v250 = float(np.nanstd(_r[-250:]))
+        if _v250 > 0 and vol20 is not None: pinr = float(vol20 / _v250)
+    if n >= 20:
+        _lo = float(np.nanmin(c[-20:]))
+        if _lo > 0: hl20 = float(np.nanmax(c[-20:]) / _lo - 1) * 100
     ch = round(c[-1] - c[-2], 2) if n >= 2 else None
     return dict(
         c=round(float(c[-1]), 2), ch=ch,
@@ -148,6 +164,8 @@ def metrics(x, bbdates=None):
         dev25=round((c[-1] / ma25 - 1) * 100, 2) if ma25 else None,
         su1=round(su1, 2) if su1 is not None else None,
         nh5=nh5, bbnew=bbnew,
+        pinr=round(pinr, 3) if pinr is not None else None,
+        hl20=round(hl20, 2) if hl20 is not None else None,
         remo=round(remo, 1) if remo is not None else None,
         mdd60=round(mdd, 1) if mdd is not None else None,
         vol20=round(vol20, 2) if vol20 is not None else None,

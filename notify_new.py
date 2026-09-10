@@ -168,6 +168,9 @@ FILTERS = [
      lambda r: r.get("mk") == "US" and not r.get("pref")
      and r.get("usliq") is True and r.get("nh5") is True
      and r.get("remo") is not None and r["remo"] <= 100
+     # 가격이 죽은 종목 제외 — 인수 합의로 인수가에 못 박힌 것·SPAC·우선주
+     and not (r.get("pinr") is not None and r["pinr"] < 0.5
+              and r.get("hl20") is not None and r["hl20"] < 8)
      and bool(us_reg.get("up60"))),
     ("N2", "낙폭과대 (20일 보유)",
      lambda r: r.get("mk") == "US" and not r.get("pref")
