@@ -117,9 +117,14 @@ UNI_N = (BASE3 & (K.amt_q >= 0.6)).fillna(False)                # 거래대금 �
 _s = pd.Series(np.nan, index=K.index)
 _s[UNI_N] = K[UNI_N].groupby("date").fromhi.rank(pct=True)
 K["fromhi_q"] = _s
-N1_COND = (UNI_N & up60 & (K.fromhi_q >= 0.7))        # 52주 고점 상위 30%
-# 매수는 후보 중 **거래대금 큰 순**으로 채운다(us_pick.py). 하루 신호가 수백 건이라
-# 무엇을 사느냐로 계좌가 2.14~8.96배까지 갈렸는데, 줄 세우면 결과가 하나로 정해진다.
+# 이벤트형(2026-09-10 채택): 52주 고점 대비 -5% 이내에 **오늘 처음** 들어온 날(최근 20거래일은 밖).
+#   상태형(고점 상위30% 안에 있음)은 상승장에 하루 436종목이 매일 다시 걸렸다. 사건형은 9.6종목.
+#   문턱 -1/-3/-5% × 창 0/10/20/40일 12칸 전부 초과 양수(us_n1_reduce2.py). 상태 이력은 유동성
+#   조건을 빼고 계산한다 — 수집기(collect_us_daily.py metrics)가 종목 자기 이력만으로 만드는 것과 맞춘다.
+_within = (BASE3 & (K.fromhi >= -5)).fillna(False)
+_seen = (_within.groupby(K.ticker).shift(1).fillna(False).astype(bool)
+         .groupby(K.ticker).transform(lambda s: s.rolling(20, min_periods=1).max()).fillna(0) > 0)
+N1_COND = (UNI_N & up60 & _within & ~_seen)
 RULES["N1"] = dict(name="상승장 신고가", hold=40, trail=None, pct=5, mx=8,
                    cond=lambda: N1_COND, drop=[])
 

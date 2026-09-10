@@ -91,6 +91,16 @@ def metrics(x):
     above = float(np.mean(c[-20:] > pd.Series(c).rolling(20).mean().values[-20:]) * 100) if n >= 40 else None
     # su1 = 당일 거래량 / 직전 20일 평균 — [낙폭과대]·[저PBR 낙폭] 이 쓰는 투매 신호
     su1 = (float(v[-1] / np.nanmean(v[-21:-1])) if n >= 21 and np.nanmean(v[-21:-1]) else None)
+    # nh5 = [상승장 신고가] 이벤트 — 52주 고점(고가 기준) 대비 -5% 이내에 **오늘 처음** 들어왔고
+    #   최근 20거래일은 밖에 있었다. '신고가권에 있다'(상태)로 걸면 상승장에 하루 400종목이
+    #   매일 다시 걸리는데, '오늘 들어왔다'(사건)로 걸면 한 종목이 한 번만 걸려 하루 10종목
+    #   안팎이 된다(us_n1_reduce*.py · 2026-09-10 채택). 종목 자기 이력만으로 계산된다.
+    hh = x['High'].astype(float).values if 'High' in x else c
+    nh5 = None
+    if n >= 271:
+        hi250s = pd.Series(hh).rolling(250).max().values
+        within = (c / hi250s - 1) * 100 >= -5
+        nh5 = bool(within[-1] and not np.any(within[-21:-1]))
     ch = round(c[-1] - c[-2], 2) if n >= 2 else None
     return dict(
         c=round(float(c[-1]), 2), ch=ch,
@@ -104,6 +114,7 @@ def metrics(x):
         dma20=round((c[-1] / ma20 - 1) * 100, 2) if ma20 else None,
         dev25=round((c[-1] / ma25 - 1) * 100, 2) if ma25 else None,
         su1=round(su1, 2) if su1 is not None else None,
+        nh5=nh5,
         mdd60=round(mdd, 1) if mdd is not None else None,
         vol20=round(vol20, 2) if vol20 is not None else None,
         above20=round(above, 1) if above is not None else None,
