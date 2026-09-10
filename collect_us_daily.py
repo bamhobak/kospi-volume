@@ -150,6 +150,39 @@ def metrics(x, bbdates=None):
     if n >= 20:
         _lo = float(np.nanmin(c[-20:]))
         if _lo > 0: hl20 = float(np.nanmax(c[-20:]) / _lo - 1) * 100
+    # absr = 최근 60일 **평균 |일간수익률|**(%). [잔잔한 급등주] 가 쓰는 '조용함' 지표다.
+    #   Frog-in-the-Pan(정보 이산성) 계열 — 1년에 크게 올랐는데 하루하루는 잔잔한 종목이
+    #   시장의 반응이 덜 끝나 뒤에 더 간다. 같은 상승폭인데 요란한 쪽(absr>=3)은 정반대로
+    #   승률 40.5% · 초과 -2.59 · 중앙 -9.09 다(us_tech8~12 · 2026-09-11).
+    #   ⚠ 변동성(표준편차)이 아니라 **평균 절댓값**이다. 원논문의 ID(음봉비율-양봉비율)보다
+    #     이 프록시가 실측에서 더 나았다(절삭Δ +0.79 vs -0.08).
+    absr = float(np.nanmean(np.abs(ret[-60:]))) if len(ret) >= 60 else None
+    # qnew = [잔잔한 급등주] 이벤트 — 「1년 120%↑ · 3·6·12개월 전부 양수 · 60일 평균
+    #   일간등락 1.5% 이하」에 **오늘 처음** 들어왔고 최근 20거래일은 밖에 있었다.
+    #   상태로 걸면 한 종목이 평균 5.6일(최대 125일) 연속으로 다시 걸려 화면이 지저분해진다
+    #   — 원시 종목-일이 중복제거 신호의 12.9배다. 사건형은 그것과 성적이 같으면서
+    #   (초과 3.05→3.07) CI 가 +0.92→+1.15, 양수해가 8/11→9/11 로 조금 낫다.
+    #   [상승장 신고가]의 nh5 와 같은 방식·같은 창(20일)이다. 종목 자기 이력만으로 계산한다.
+    #   qage = 그 사건이 **며칠 전**이었나(0=오늘). 규칙은 qage<=3 을 후보로 본다 —
+    #   놓쳐도 사흘 안에는 사도 된다. 늦게 들어가는 대가 실측(2026-09-11):
+    #     당일 초과 +2.94 / 3일 +2.85 / 5일 +2.45 / **10일 +1.76** (절삭Δ +1.00→+0.23 · 9/11→6/11)
+    #   이 규칙이 먹는 게 '조용히 스며드는 정보의 뒤늦은 반영' 이라 며칠 늦어도 남아 있다.
+    #   여기서는 7일치까지 계산해 두고 문턱은 화면·알림이 정한다(나중에 늘리려면 코드만 바꾼다).
+    qnew = None; qage = None
+    if n >= 271:
+        _cs = pd.Series(c)
+        _ar = pd.Series(np.abs(ret)).rolling(60).mean().values            # 60일 평균 |일간등락|
+        _q = np.concatenate([[np.nan], _ar])                              # ret 은 하루 짧다
+        _r = lambda k: _cs / _cs.shift(k) - 1
+        _own = ((_r(250) >= 1.20) & (_r(60) > 0) & (_r(120) > 0) & (_r(250) > 0)
+                & (pd.Series(_q) <= 1.5)).values
+        # 사건 = 오늘 조건 안에 있고 직전 20거래일은 밖에 있었다
+        _pv = np.concatenate([[False], _own[:-1]])
+        _ev = np.array([bool(_own[i] and not _pv[max(0, i - 19):i + 1].any())
+                        for i in range(max(0, n - 8), n)])
+        qnew = bool(_ev[-1])
+        _w = np.where(_ev)[0]
+        if len(_w): qage = int(len(_ev) - 1 - _w[-1])
     ch = round(c[-1] - c[-2], 2) if n >= 2 else None
     return dict(
         c=round(float(c[-1]), 2), ch=ch,
@@ -169,6 +202,8 @@ def metrics(x, bbdates=None):
         remo=round(remo, 1) if remo is not None else None,
         mdd60=round(mdd, 1) if mdd is not None else None,
         vol20=round(vol20, 2) if vol20 is not None else None,
+        absr=round(absr, 3) if absr is not None else None,
+        qnew=qnew, qage=qage,
         above20=round(above, 1) if above is not None else None,
         v=[int(z) if z == z else 0 for z in v[-NDAY:]],
     )
@@ -261,6 +296,12 @@ def main():
         m['sr60'] = round(umed[ind], 2) if ind in umed else None      # 한국 표와 같은 열 이름
         f = FIN.get(m['t']) or {}
         eq, li, sh = f.get('equity'), f.get('liab'), f.get('shares')
+        # ⚠ NaN 은 truthy 다 — `if eq and sh` 를 그냥 통과해 NaN 결과를 만든다.
+        #   그러면 json 에 NaN 이 그대로 실리고, 파이썬은 읽지만 **브라우저 JSON.parse 는 못 읽어**
+        #   사이트가 미장 표를 통째로 버린다(=미장 규칙 전원 사망). 2026-09-11 selftest 가 잡았다.
+        _num = lambda z: (float(z) if z is not None and float(z) == float(z)
+                          and abs(float(z)) != float('inf') else None)
+        eq, sh, li = _num(eq), _num(sh), _num(li)
         m['pbrd'] = (round(m['c'] * sh / eq, 3) if eq and sh and eq > 0 and m.get('c') else None)
         m['dbt'] = (round(li / eq * 100, 1) if eq and li is not None and eq > 0 else None)
         nu += m['sr60'] is not None; npbr += m['pbrd'] is not None; ndbt += m['dbt'] is not None
@@ -326,9 +367,22 @@ def main():
         log(f'  S&P500 국면 실패 — 규칙 판정이 멈춘다: {e!r}'[:120])
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
+    # NaN·inf 청소 — 한 칸만 새어 나가도 사이트가 표 전체를 못 읽는다(브라우저는 NaN 을 거부한다).
+    # allow_nan=False 로 못을 박아 두면 다음에 또 새면 조용히 나가는 대신 **여기서 터진다**.
+    _bad = [0]
+    def _wash(o):
+        if isinstance(o, float):
+            if o != o or abs(o) == float('inf'): _bad[0] += 1; return None
+            return o
+        if isinstance(o, dict): return {k: _wash(v) for k, v in o.items()}
+        if isinstance(o, list): return [_wash(v) for v in o]
+        return o
+    rows = _wash(rows)
+    if _bad[0]: log(f'  ⚠ NaN·inf {_bad[0]}칸을 None 으로 바꿨다 — 안 바꿨으면 사이트가 미장 표를 통째로 버린다')
     json.dump({"dates": dates, "rows": rows, "us": us_reg, "usdates": us_days,
                "updated": datetime.now().strftime("%Y-%m-%d %H:%M")},
-              open(OUT, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
+              open(OUT, "w", encoding="utf-8"), ensure_ascii=False,
+              separators=(",", ":"), allow_nan=False)
     log(f"{OUT.name} {OUT.stat().st_size/1024/1024:.1f}MB")
     # 미장 거래일 달력만 담은 작은 파일 — 10분마다 도는 엣지 함수가 보유일을 세는 데 쓴다.
     #   미장 표는 3.6MB 라 10분마다 받을 수 없다. 달력은 400줄이면 10KB 도 안 된다.

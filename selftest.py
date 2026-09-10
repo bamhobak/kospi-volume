@@ -47,13 +47,31 @@ T = json.loads(tj.read_text(encoding="utf-8"))
 rows, last = T["rows"], T["dates"][-1]
 age = (now.date() - dt.datetime.strptime(last, "%Y%m%d").date()).days
 (ok if age <= 4 else warn)(f"최신 거래일 {last} ({age}일 전) · {len(rows):,}종목")
+
+# 미장 표는 **브라우저가 읽을 수 있는 JSON** 이어야 한다. 파이썬 json 은 NaN·Infinity 를
+# 읽고 쓰지만 JSON.parse 는 거부한다 — 한 칸만 새어도 사이트가 미장 표를 통째로 버려
+# 미장 규칙이 전원 조용히 사망한다(2026-09-11 실제 발생: pbrd·dbt 에 NaN).
+tus = BASE / "site" / "data" / "table_us.json"
+if not tus.exists():
+    warn("table_us.json 이 없다 — 미장 규칙이 쉰다")
+else:
+    _raw = tus.read_text(encoding="utf-8")
+    # ⚠ 문자열 검색으로 찾으면 안 된다 — 'Infinity Natural Resources' 같은 **회사 이름**에 걸린다.
+    #   파이썬 json 의 parse_constant 는 NaN·Infinity·-Infinity **리터럴**에만 불린다.
+    try:
+        json.loads(_raw, parse_constant=lambda z: (_ for _ in ()).throw(ValueError(z)))
+        ok(f"table_us.json 브라우저가 읽을 수 있는 JSON ({len(_raw)/1024/1024:.1f}MB)")
+    except ValueError as e:
+        ng(f"table_us.json 에 {e} 리터럴이 있다 — 브라우저 JSON.parse 가 거부해 미장 규칙 전원 사망")
+    except Exception as e:
+        ng(f"table_us.json 을 못 읽는다: {e}")
 used = set(re.findall(r"r\.([A-Za-z_]\w*)", HTML[HTML.find("const FILTERS="):HTML.find("const LEGACY_ID")]))
 SAFE = {"mk","pref","ticker","name","close","change","th","vols","avg","total","indiv","organ",
         "frgn","last","chpct","fwp","fw","v5","r16","rw1","streak","dilu","get","ratio",
         # n1ok 는 table.json 에 없는 **계산 필드**다. 미장 규칙은 '그날 미장 전체 대비
         # 백분위' 라서 표를 다 읽은 뒤 화면(markUS)·알림에서 각각 매긴다. 수집 실패가 아니다.
         # bbd 는 '마지막 자사주 집행 보고 이후 며칠' 로 미장 표에만 있다(collect_us_daily.py).
-        "nh5","usliq","remo","bbd","bbnew","pinr","hl20",   # nh5 는 미장 수집기의 이벤트 플래그, usliq 는 화면·알림이 매기는 유동성 플래그
+        "nh5","usliq","remo","bbd","bbnew","pinr","hl20","absr","qnew","qage",   # nh5·qnew 는 미장 수집기의 이벤트 플래그(대부분의 날 전부 False 가 정상), usliq 는 화면·알림이 매기는 유동성 플래그
         # su1 도 매핑 필드다 — 미장은 su1, 한국 표는 vs1 을 prep 에서 합쳐 쓴다.
         "su1"}
 # 이벤트성 필드는 '오늘 그 일이 있었나' 라서 값이 전부 비어도 정상일 수 있다

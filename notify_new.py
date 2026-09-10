@@ -197,6 +197,15 @@ FILTERS = [
      and r.get("bbnew") is True
      and r.get("fromhi") is not None and r["fromhi"] <= -30
      and r.get("ret20") is not None and r["ret20"] <= -20),
+    # qnew = 「1년 120%↑ · 3·6·12개월 양수 · 60일 평균 일간등락 1.5% 이하」에 오늘 처음 들어온 날
+    # (최근 20거래일은 밖). qage = 그 사건이 며칠 전인가 — 3거래일까지 후보로 남긴다
+    # (3일 늦게 사도 초과 +2.94→+2.85 로 거의 그대로, 10일부터 꺾인다).
+    # 같은 상승폭인데 요란한 쪽(absr>=3)은 승률 40.5%·초과 -2.59 로 부호가 갈린다.
+    # 국면 게이트 없음 — 안 걸어도 신호가 금융여건 완화기에만 나온다(내생적).
+    ("N5", "잔잔한 급등주 (미장·60일 보유)",
+     lambda r: r.get("mk") == "US" and not r.get("pref")
+     and r.get("usliq") is True and (r.get("c") or 0) >= 3
+     and r.get("qage") is not None and r["qage"] <= 3),
 ]
 
 LEGACY_ID = {1: "P0", 2: "P2", 3: "P3", 4: "P1"}          # 예전 숫자 id 호환
