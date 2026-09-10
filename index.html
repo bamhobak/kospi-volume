@@ -167,6 +167,10 @@ td.l,td.name{font-family:'Noto Sans KR',Pretendard,sans-serif;font-size:13px}
 tr:hover td{background:#ffffff08}tr.sel td{background:#1c1730}
 td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400}
 .pos{color:var(--up)}.neg{color:var(--dn)}
+/* 매도일 임박 — 가까울수록 진해진다. 손익색과 겹치지 않게 초록만 쓴다. */
+.sd2{color:#4ade80;opacity:.5}
+.sd1{color:#4ade80}
+.sd0{color:#22c55e;font-weight:700;background:rgba(34,197,94,.16);padding:1px 6px;border-radius:2px}
 .pct{font-size:11px;opacity:.85;margin-left:3px}
 .hot{background:#f8717122;color:#f87171;border-radius:0;padding:2px 6px;font-weight:600}
 /* 상세 패널은 기본으로 숨긴다 — 목록의 '상세' 버튼이 새 창(?detail=코드)으로 띄운다 */
@@ -1171,7 +1175,10 @@ async function renderPositions(){
       `<td>${(()=>{if(!rule)return '<span class="code">-</span>';
         const sd=sellDate(p.date,rule.hold,p.code);if(!sd)return '<span class="code">-</span>';
         const left=rule.hold-days;   /* 남은 거래일 — 지났으면 매도 시점이다 */
-        return `<span class="${left<=0?'pos':''}" title="${sd.est?'추정':'확정'} · ${left>0?'남은 '+left+'거래일':'매도일 도래'}">`
+        /* D-2 연한 · D-1 중간 · D-DAY(및 지난 것) 진한 초록 */
+        const sdc=left<=0?'sd0':left===1?'sd1':left===2?'sd2':'';
+        const dtxt=left>0?`남은 ${left}거래일 (D-${left})`:(left===0?'매도일 도래 (D-DAY)':`매도일 ${-left}거래일 지남`);
+        return `<span class="${sdc}" title="${sd.est?'추정':'확정'} · ${dtxt}">`
           +`${mdShort(sd.date)}</span>`})()}</td>`,
       `<td>${pmon(hi,p.code)}</td>`,
       `<td>${rule?`${line?`<span class="neg">${pmon(line,p.code)}</span>`:''}${tgt?`<span class="pos">${pmon(tgt,p.code)}</span>`:''}`||'-':'<span class="code">-</span>'}</td>`,
