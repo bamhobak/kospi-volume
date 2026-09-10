@@ -523,6 +523,13 @@ function codeOf(id){
   return nid;
 }
 const fcode=id=>codeOf(id);
+/* 드래그로 글자를 고른 뒤 마우스를 놓으면 그 마우스업도 click 으로 들어온다.
+   그대로 두면 핸들러가 render() 를 불러 화면을 다시 그리고, 그리는 순간 선택이 날아가
+   복사를 못 한다(2026-09-10 사용자 신고 — 종목명을 긁어도 놓으면 사라짐).
+   글자가 실제로 선택된 상태의 클릭은 무시한다. 버튼(매수·삭제 등)은 stopPropagation 이라
+   여기 오지 않으므로 영향이 없다. */
+const isSelecting=()=>{try{const s=window.getSelection();
+  return !!(s&&!s.isCollapsed&&String(s).trim().length)}catch(e){return false}};
 /* 설명문 안의 규칙 참조(P4·D1…)도 현재 표시 번호로 바꿔 준다 */
 const descOf=f=>String(f.desc||'').replace(/(^|[^A-Za-z0-9])([PDA][0-9])(?![0-9A-Za-z])/g,(m,pre,c)=>pre+codeOf(c));
 const fOf=id=>FILTERS.find(x=>x.id===normId(id))||RETIRED[normId(id)]||null;
@@ -832,7 +839,9 @@ function renderCards(rows){
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ind)" stroke-width="2" stroke-linecap="round" style="flex:none"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
         <span>${f.rule.trail?'트레일링 -'+f.rule.trail+'% — 보유 중 종가 최고점에서 이만큼 내려오면 다음날 시가에 팝니다(선이 매일 따라 올라갑니다)':f.rule.stop?'손절 -'+f.rule.stop+'%':'손절이 없습니다 — 보유기간을 끝까지 채우는 것이 규칙입니다'}. 기대 승률 ${f.stats.win}% · 건당 ${f.stats.avg>0?'+':''}${f.stats.avg}%</span>
       </div></div>`}).join('');
-  document.querySelectorAll('#cards .sig').forEach(el=>el.onclick=()=>{sel=el.dataset.c;render();showStock(sel)});
+  document.querySelectorAll('#cards .sig').forEach(el=>el.onclick=()=>{
+    if(isSelecting())return;                 /* 글자를 고르는 중이면 카드를 열지 않는다 */
+    sel=el.dataset.c;render();showStock(sel)});
   document.querySelectorAll('#cards [data-buy]').forEach(b=>b.onclick=e=>{e.stopPropagation();
     const r=view.rows.find(x=>x.ticker===b.dataset.buy);addPosition(r.ticker,r.name,r.close)});
   renderStatus()}
@@ -1101,6 +1110,7 @@ async function renderPositions(){
   renderStatus();
   /* 행을 누르면 상세 패널이 열린다 — 모바일에서는 이 패널이 전체 화면(새 탭처럼)이다 */
   document.querySelectorAll('tbody tr[data-pc]').forEach(tr=>tr.onclick=()=>{
+    if(isSelecting())return;
     sel=tr.dataset.pc;render();showStock(sel)});
   document.querySelectorAll('.pdet[data-detail]').forEach(b=>b.onclick=e=>{
     e.preventDefault();e.stopPropagation();
@@ -1429,7 +1439,9 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
     const k=th.dataset.k;if(sortKey===k)desc=!desc;else{sortKey=k;desc=k!=='name'}rowLimit=100;render()});
   if(total>shown.length)$('#tbl tbody').innerHTML+=`<tr><td colspan="40" style="text-align:center;padding:16px;color:var(--dim)">`
     +`${shown.length.toLocaleString()} / ${total.toLocaleString()} — 아래로 스크롤하면 더 불러옵니다</td></tr>`;
-  document.querySelectorAll('tbody tr[data-c]').forEach(tr=>tr.onclick=()=>{sel=tr.dataset.c;render();showStock(sel)});
+  document.querySelectorAll('tbody tr[data-c]').forEach(tr=>tr.onclick=()=>{
+    if(isSelecting())return;
+    sel=tr.dataset.c;render();showStock(sel)});
   const tw=document.querySelector('.tblwrap');
   if(tw&&!tw.dataset.inf){tw.dataset.inf='1';        /* 스크롤 리스너는 한 번만 */
     tw.addEventListener('scroll',()=>{
