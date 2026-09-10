@@ -344,17 +344,26 @@ const HOLIDAY=new Set(['20260924','20260925','20260928','20261005','20261009','2
 const dkey=dt=>`${dt.getFullYear()}${String(dt.getMonth()+1).padStart(2,'0')}${String(dt.getDate()).padStart(2,'0')}`;
 const dparse=d=>new Date(+d.slice(0,4),+d.slice(4,6)-1,+d.slice(6,8));
 const isTrading=dt=>{const w=dt.getDay();return w!==0&&w!==6&&!HOLIDAY.has(dkey(dt))};
+/* 종목이 속한 시장의 거래일 달력. 미장은 collect_us_daily.py 가 실어 보내는 usdates 다
+   (미국 휴장일은 한국과 달라 국내 달력으로 대신할 수 없다). */
+const calOf=code=>(isUSCode(code)?(raw.usdates||[]):(raw.dates||[]));
+/* 매수일부터 오늘까지 지난 거래일 수 — 매수일을 1일째로 센다(국내 표와 같은 정의) */
+const calDaysHeld=(code,buy)=>calOf(code).filter(d=>d>=buy).length;
 /* 매도일 = 매수일을 1일째로 세어 hold 번째 거래일. 백테스트의 청산일과 같은 정의다
    (신호 다음날 시가 매수 → 신호일+hold 거래일 종가 매도).
    이미 지난 날은 실제 거래일(raw.dates)을 쓰고, 아직 오지 않은 날만 추정한다. */
-function sellDate(buy,hold){
+function sellDate(buy,hold,code){
   if(!buy||!hold)return null;
-  const known=(raw.dates||[]).filter(d=>d>=buy);
+  const known=calOf(code).filter(d=>d>=buy);
   if(known.length>=hold)return {date:known[hold-1],est:false};
   let n=known.length, cur=dparse(known.length?known[known.length-1]:buy);
   if(!n&&isTrading(cur))n=1;              /* 매수일이 거래일인데 아직 일봉이 없는 경우 */
   let guard=0;
-  while(n<hold&&guard++<400){cur.setDate(cur.getDate()+1);if(isTrading(cur))n++}
+  /* 달력에 아직 없는 미래 날짜는 추정한다. 미국 휴장일 목록은 갖고 있지 않으므로
+     미장은 주말만 빼고 센다 — 하루 이틀 밀릴 수 있고 화면에도 '추정' 으로 표시된다. */
+  const usq=isUSCode(code);
+  while(n<hold&&guard++<400){cur.setDate(cur.getDate()+1);
+    if(usq?(cur.getDay()!==0&&cur.getDay()!==6):isTrading(cur))n++}
   return {date:dkey(cur),est:true};
 }
 const mdShort=d=>(+d.slice(4,6))+'/'+(+d.slice(6,8))+'('+WD[dparse(d).getDay()]+')';
@@ -1067,8 +1076,14 @@ async function renderPositions(){
     /* 10분마다 수집하는 실시간 시세가 일봉만큼 최신이면 그쪽을 쓴다(현재가·수익률·평가손익·고점) */
     const useLive=!!(lv&&lv.now&&lvDate&&lvDate>=lastD&&lvDate>=p.date);
     const newDay=useLive&&lvDate>lastD;      /* 일봉에 아직 없는 날이면 보유일 +1 */
-    const now=useLive?lv.now:(rs.length?rs[rs.length-1].close:null);
-    const hi=Math.max(p.price,...rs.map(x=>x.close),useLive&&lv.high?lv.high:0);const days=rs.length+(newDay?1:0);
+    /* 미장은 종목별 일봉 파일(data/stock/*.json)이 없다 — 보유일은 거래일 달력으로 세고,
+       현재가는 미장 표의 종가를 쓴다. 고점은 일별 경로가 없어 매수가와 현재가 중 큰 값까지만
+       알 수 있다(국내처럼 보유 중 최고 종가를 추적하지는 못한다). */
+    const urow=rs.length?null:(view.rows.find(x=>x.ticker===p.code)||null);
+    const now=useLive?lv.now:(rs.length?rs[rs.length-1].close:(urow?urow.close:null));
+    const hi=Math.max(p.price,...rs.map(x=>x.close),useLive&&lv.high?lv.high:0,
+                      (!rs.length&&now!=null)?now:0);
+    const days=rs.length?rs.length+(newDay?1:0):calDaysHeld(p.code,p.date);
     /* 규칙 없이 직접 등록한 종목은 청산 규칙이 없다 — 남의 규칙을 갖다 쓰지 않는다 */
     const rf=(p.filters||[]).map(fOf).find(Boolean);
     const rule=rf?rf.rule:null;
@@ -1107,7 +1122,7 @@ async function renderPositions(){
       `<td class="${cls(ret)}">${p.qty&&now?amon((now-p.price)*p.qty,p.code,1):''}</td>`,
       `<td>${days}일</td>`,
       `<td>${(()=>{if(!rule)return '<span class="code">-</span>';
-        const sd=sellDate(p.date,rule.hold);if(!sd)return '<span class="code">-</span>';
+        const sd=sellDate(p.date,rule.hold,p.code);if(!sd)return '<span class="code">-</span>';
         const left=rule.hold-days;   /* 남은 거래일 — 지났으면 매도 시점이다 */
         return `<span class="${left<=0?'pos':''}" title="${sd.est?'추정':'확정'} · ${left>0?'남은 '+left+'거래일':'매도일 도래'}">`
           +`${mdShort(sd.date)}</span>`})()}</td>`,

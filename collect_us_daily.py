@@ -296,21 +296,27 @@ def main():
 
     # ── 국면 — S&P500 60일선 (사이트 규칙 [상승장 신고가] 가 쓴다) ────────────
     #   한국 표의 kospi 객체와 같은 자리다. 이게 없으면 사이트가 미장 국면을 알 수 없다.
-    us_reg = {}
+    us_reg = {}; us_days = []
     try:
         import yfinance as _yf          # fetch() 안에서만 import 하고 있어 여기선 새로 부른다
-        sp = _yf.download('^GSPC', period='1y', auto_adjust=False, progress=False)
+        sp = _yf.download('^GSPC', period='2y', auto_adjust=False, progress=False)
         c = sp['Close'] if 'Close' in sp else sp.iloc[:, 0]
         c = c.squeeze().dropna()
         ma60 = float(c.rolling(60).mean().iloc[-1])
         us_reg = {'date': c.index[-1].strftime('%Y%m%d'), 'close': float(c.iloc[-1]),
                   'ma60': ma60, 'up60': bool(float(c.iloc[-1]) > ma60)}
+        # 미장 **거래일 달력** — 보유일·규칙상 매도일을 세는 데 쓴다.
+        #   국내는 종목별 일봉 파일(data/stock/*.json)의 행 수로 보유일을 세는데 미장은 그 파일이
+        #   없어서 늘 0일로 나왔다(2026-09-11 사용자 신고: PARR 보유일 0일). 종목 6천 개짜리
+        #   파일을 만드는 대신 달력 하나만 실어 보내면 된다. 미국 휴장일은 한국과 다르므로
+        #   한국 달력으로 대신할 수 없다.
+        us_days = [d.strftime('%Y%m%d') for d in c.index][-400:]
         log(f"  S&P500 {us_reg['close']:,.0f} · 60일선 {ma60:,.0f} · 60일선 위 {us_reg['up60']}")
     except Exception as e:
         log(f'  S&P500 국면 실패 — 규칙 판정이 멈춘다: {e!r}'[:120])
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    json.dump({"dates": dates, "rows": rows, "us": us_reg,
+    json.dump({"dates": dates, "rows": rows, "us": us_reg, "usdates": us_days,
                "updated": datetime.now().strftime("%Y-%m-%d %H:%M")},
               open(OUT, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     log(f"{OUT.name} {OUT.stat().st_size/1024/1024:.1f}MB")
