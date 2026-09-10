@@ -267,17 +267,21 @@ jobs:
       # pipeline 이 site/ 를 지우는데 위 단계는 **푸시 빌드에서 건너뛴다**(6천 종목이라 느리다).
       # 그래서 코드를 한 번 푸시할 때마다 배포본에서 미장 표가 통째로 사라졌고, 다음 수집까지
       # 미장 규칙(N)과 조회 탭이 죽었다. 없으면 지금 서비스 중인 파일을 그대로 되살린다.
-      - name: 미장 표가 없으면 배포본에서 되살린다
+      - name: 미장 파일이 없으면 배포본에서 되살린다
         run: |
-          if [ -s site/data/table_us.json ]; then
-            echo "미장 표 있음 ($(du -h site/data/table_us.json | cut -f1))"; exit 0
-          fi
-          echo "미장 표 없음 — 배포본에서 가져온다"
+          # collect_us_daily.py 가 만드는 파일을 **전부** 적는다. 예전에는 table_us.json 만
+          # 되살려서, 푸시 빌드가 한 번 돌면 uscal.json(거래일 달력·환율)이 조용히 사라졌다
+          # — 그러면 미장 보유일이 0 이 되고 정렬 환율도 없어진다(2026-09-11 발견).
           mkdir -p site/data
-          curl -fsSL "https://bamhobak.github.io/kospi-volume/data/table_us.json" \
-               -o site/data/table_us.json \
-            && echo "되살림 ($(du -h site/data/table_us.json | cut -f1))" \
-            || echo "::warning::배포본에도 없다 — 미장 규칙은 다음 수집까지 쉰다"
+          for f in table_us.json uscal.json; do
+            if [ -s "site/data/$f" ]; then
+              echo "$f 있음 ($(du -h site/data/$f | cut -f1))"; continue
+            fi
+            echo "$f 없음 — 배포본에서 가져온다"
+            curl -fsSL "https://bamhobak.github.io/kospi-volume/data/$f" -o "site/data/$f" \
+              && echo "  되살림 ($(du -h site/data/$f | cut -f1))" \
+              || echo "::warning::배포본에도 $f 가 없다 — 다음 수집까지 그 기능은 쉰다"
+          done
       # 데이터 커밋은 사람이 코드를 밀어넣는 것과 부딪힌다. 2026-09-07 이 그래서 통째로 날아갔다 —
       # 수집은 다 됐는데 `git pull --rebase` 가 충돌해 단계가 실패하고 그날(코스피 +4.6%) 데이터가
       # 저장되지 않았다. 원격이 앞서 있으면 다시 얹어 밀기를 재시도하고, 충돌하면 데이터 파일은
