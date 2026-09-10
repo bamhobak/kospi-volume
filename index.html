@@ -317,7 +317,23 @@ const $=s=>document.querySelector(s);
 function kor(n,sign){if(n==null||isNaN(n))return '';const a=Math.abs(n);let s;
   if(a>=1e8)s=(a/1e8).toFixed(a>=1e9?0:1).replace(/\.0$/,'')+'억';else if(a>=1e4)s=(a/1e4).toFixed(a>=1e6?0:1).replace(/\.0$/,'')+'만';else if(a>=1e3)s=(a/1e3).toFixed(1).replace(/\.0$/,'')+'천';else s=String(Math.round(a));
   return (n<0?'-':(sign&&n>0?'+':''))+s}
-const fmt=n=>n==null?'':Math.round(n).toLocaleString();const cls=n=>n>0?'pos':n<0?'neg':'';const WD=['일','월','화','수','목','금','토'];const md=d=>d.slice(4,6)+'/'+d.slice(6)+'('+WD[new Date(+d.slice(0,4),+d.slice(4,6)-1,+d.slice(6)).getDay()]+')';
+const fmt=n=>n==null?'':Math.round(n).toLocaleString();
+/* 보유 종목은 국내·미장이 섞인다. 미장은 달러라 표기가 달라야 하는데 예전에는 전부 원으로
+   찍어 PARR 매수가 $82.06 이 '83', 매수금액이 '83원' 으로 보였다(2026-09-10 사용자 신고).
+   국내 종목코드는 6자리 숫자이고 미장 티커는 글자라, 미장 표를 아직 안 받았어도 갈린다. */
+const isUSCode=c=>!/^\d{6}$/.test(String(c||''));
+/* 가격 — 미장 $82.06 (소수 둘째까지) · 국내 52,600 */
+const pmon=(v,c)=>(v==null||isNaN(v))?'':isUSCode(c)
+  ? '$'+Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})
+  : fmt(v);
+/* 금액 — 국내는 '300만'(원은 안 붙인다) · 미장은 '$2,462', 1000달러 미만이면 소수 둘째까지 */
+const amon=(v,c,sign)=>{if(v==null||isNaN(v))return '';
+  if(!isUSCode(c))return kor(v,sign);
+  const a=Math.abs(v),dp=a<1000?2:0;
+  return (v<0?'-':(sign&&v>0?'+':''))+'$'
+    +a.toLocaleString(undefined,{minimumFractionDigits:dp,maximumFractionDigits:dp})};
+/* 입력창 단위 안내 */
+const unitOf=c=>isUSCode(c)?'$':'원';const cls=n=>n>0?'pos':n<0?'neg':'';const WD=['일','월','화','수','목','금','토'];const md=d=>d.slice(4,6)+'/'+d.slice(6)+'('+WD[new Date(+d.slice(0,4),+d.slice(4,6)-1,+d.slice(6)).getDay()]+')';
 /* 한국 증시 휴장일 — 매도일 추정에만 쓴다. 주말은 요일로 걸러지니 공휴일만 적는다.
    가장 긴 규칙이 60거래일(약 3개월)이라 반년치면 넉넉하다. 해가 바뀌면 갱신할 것.
    빠진 휴장일이 있으면 매도일이 그만큼 당겨 보인다(알림은 실제 거래일로 세므로 정확하다). */
@@ -971,7 +987,7 @@ function addPosition(code,name,close){
   const _t=new Date(), pad=n=>String(n).padStart(2,'0');
   const today=`${_t.getFullYear()}${pad(_t.getMonth()+1)}${pad(_t.getDate())}`;
   const date=prompt(`${name} 매수일 (YYYYMMDD)`,today);if(!date)return;
-  const price=+prompt(`${name} 매수가 (원)`,close);if(!price)return;
+  const price=+prompt(`${name} 매수가 (${unitOf(code)})`,close);if(!price)return;
   const qty=+(prompt(`${name} 매수 수량 (주)`,'')||0);
   const row=view.rows.find(x=>x.ticker===code);const filters=row?FILTERS.filter(f=>f.fn(row)).map(f=>f.id):[];
   const a=positions();a.push({code,name,date:date.replace(/\D/g,''),price,qty,filters,id:Date.now()});savePositions(a);
@@ -1077,33 +1093,33 @@ async function renderPositions(){
   /* rid0 도 함께 받는다 — 아래 '신호 연속일수' 칸이 P7 강조에 쓴다. 예전엔 빠져 있어
      보유 종목에 streak 가 붙는 순간 ReferenceError 로 표 전체와 상태줄이 죽었다(2026-09-07). */
   $('#tbl tbody').innerHTML=rows.map(({p,now,hi,days,line,tgt,ret,st,sc,streak,rule,useLive,lvDate,rid0})=>{
-    const nowCell=fmt(now);
+    const nowCell=pmon(now,p.code);
     const cells=[
       `<td class="l name">${p.name} <span class="code">${p.code}</span>`
         +`${MOB?'':` <button class="ghost mini pdet" data-detail="${p.code}">상세</button>`}</td>`,
       `<td class="l">${(p.filters||[]).map(f=>{const ff=fOf(f);return `<span class="tag ${ff?mkCls(ff.mkt):''}">${fcode(f)}</span>`}).join('')||'<span class="code">-</span>'}</td>`,
-      `<td class="l">${md(p.date)}</td>`,`<td>${fmt(p.price)}</td>`,`<td>${p.qty?fmt(p.qty)+'주':''}</td>`,
-      `<td>${p.qty?kor(p.price*p.qty)+'원':''}</td>`,`<td class="${cls(ret)}">${nowCell}</td>`,
+      `<td class="l">${md(p.date)}</td>`,`<td>${pmon(p.price,p.code)}</td>`,`<td>${p.qty?fmt(p.qty)+'주':''}</td>`,
+      `<td>${p.qty?amon(p.price*p.qty,p.code):''}</td>`,`<td class="${cls(ret)}">${nowCell}</td>`,
       `<td class="${cls(ret)}">${ret==null?'':(ret>0?'+':'')+ret.toFixed(1)+'%'}</td>`,
-      `<td class="${cls(ret)}">${p.qty&&now?kor((now-p.price)*p.qty,1)+'원':''}</td>`,
+      `<td class="${cls(ret)}">${p.qty&&now?amon((now-p.price)*p.qty,p.code,1):''}</td>`,
       `<td>${days}일</td>`,
       `<td>${(()=>{if(!rule)return '<span class="code">-</span>';
         const sd=sellDate(p.date,rule.hold);if(!sd)return '<span class="code">-</span>';
         const left=rule.hold-days;   /* 남은 거래일 — 지났으면 매도 시점이다 */
         return `<span class="${left<=0?'pos':''}" title="${sd.est?'추정':'확정'} · ${left>0?'남은 '+left+'거래일':'매도일 도래'}">`
           +`${mdShort(sd.date)}</span>`})()}</td>`,
-      `<td>${fmt(hi)}</td>`,
-      `<td>${rule?`${line?`<span class="neg">${fmt(line)}</span>`:''}${tgt?`<span class="pos">${fmt(tgt)}</span>`:''}`||'-':'<span class="code">-</span>'}</td>`,
+      `<td>${pmon(hi,p.code)}</td>`,
+      `<td>${rule?`${line?`<span class="neg">${pmon(line,p.code)}</span>`:''}${tgt?`<span class="pos">${pmon(tgt,p.code)}</span>`:''}`||'-':'<span class="code">-</span>'}</td>`,
       `<td>${streak?`<span class="${(rid0==='P7'&&streak>=2)?'hot':''}">${streak}일</span>`:'<span class="code">-</span>'}</td>`,
       `<td class="l ${sc==='none'?'':sc}" style="font-weight:600">${sc==='none'?'<span class="code">-</span>':st}</td>`,
-      `<td class="${p.sell?cls(pr(p)):''}">${p.sell?fmt(p.sell)+' ('+(pr(p)>0?'+':'')+pr(p).toFixed(1)+'%'+(p.qty?' · '+kor((p.sell-p.price)*p.qty,1)+'원':'')+')':''}</td>`,
+      `<td class="${p.sell?cls(pr(p)):''}">${p.sell?pmon(p.sell,p.code)+' ('+(pr(p)>0?'+':'')+pr(p).toFixed(1)+'%'+(p.qty?' · '+amon((p.sell-p.price)*p.qty,p.code,1):'')+')':''}</td>`,
       `<td class="l">${p.sell?'':`<button class="ghost mini" data-sell="${p.id}">매도</button>`} <button class="ghost mini" data-edit="${p.id}" title="${p.sell?'매도가·매도일 수정':'매수일·매수가·수량 수정'}">수정</button> <button class="ghost mini" data-del="${p.id}">삭제</button></td>`];
     if(DONE){const r_=pr(p),c_=cls(r_);
       const cd=[cells[0],cells[1],cells[2],cells[3],cells[4],cells[5],
         `<td class="l">${p.sellDate?md(p.sellDate):'<span class="code">-</span>'}</td>`,
-        `<td class="${c_}">${fmt(p.sell)}</td>`,
+        `<td class="${c_}">${pmon(p.sell,p.code)}</td>`,
         `<td class="${c_}">${(r_>0?'+':'')+r_.toFixed(1)+'%'}</td>`,
-        `<td class="${c_}">${p.qty?kor((p.sell-p.price)*p.qty,1)+'원':''}</td>`,cells[16]];
+        `<td class="${c_}">${p.qty?amon((p.sell-p.price)*p.qty,p.code,1):''}</td>`,cells[16]];
       return `<tr data-pc="${p.code}" class="${sel===p.code?'sel':''}">`+cd.join('')+'</tr>'}
     return `<tr data-pc="${p.code}" class="${sel===p.code?'sel':''}">`+KEEP.map(i=>cells[i]).join('')+'</tr>'}).join('');
   const open_=rows.filter(r=>!r.p.sell);const avg=open_.length?open_.reduce((a,r)=>a+(r.ret||0),0)/open_.length:0;
@@ -1121,7 +1137,7 @@ async function renderPositions(){
                         'width=560,height=920,scrollbars=yes,resizable=yes');
     if(w)w.focus(); else alert('팝업이 차단되었습니다. 브라우저에서 이 사이트의 팝업을 허용해주세요.');});
   document.querySelectorAll('[data-sell]').forEach(b=>b.onclick=e=>{e.stopPropagation();const a=positions();const p=a.find(x=>x.id==b.dataset.sell);const r=rows.find(r=>r.p.id==p.id);
-    const sell=+prompt(`${p.name} 매도가 (원)`,r.now||p.price);if(!sell)return;
+    const sell=+prompt(`${p.name} 매도가 (${unitOf(p.code)})`,r.now||p.price);if(!sell)return;
     /* 매도일 기본값은 '오늘'. 예전엔 데이터 최신일(전 거래일)을 말없이 넣어 하루씩 어긋났다(2026-09-09). */
     const _t=new Date(),pad=n=>String(n).padStart(2,'0');
     const today=`${_t.getFullYear()}${pad(_t.getMonth()+1)}${pad(_t.getDate())}`;
@@ -1132,12 +1148,12 @@ async function renderPositions(){
   document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=e=>{e.stopPropagation();const a=positions();const p=a.find(x=>x.id==b.dataset.edit);if(!p)return;
     const num=v=>+String(v).replace(/[^\d.]/g,'');
     if(p.sell){
-      const s_=prompt(`${p.name} 매도가 (원)`,p.sell);if(s_==null)return;const sv=num(s_);if(!sv){alert('매도가를 숫자로 입력하세요');return}
+      const s_=prompt(`${p.name} 매도가 (${unitOf(p.code)})`,p.sell);if(s_==null)return;const sv=num(s_);if(!sv){alert('매도가를 숫자로 입력하세요');return}
       const d=prompt(`${p.name} 매도일 (YYYYMMDD)`,p.sellDate||'');if(d==null)return;
       p.sell=sv;if(d.trim())p.sellDate=d.replace(/\D/g,'');
     }else{
       const d=prompt(`${p.name} 매수일 (YYYYMMDD)`,p.date);if(d==null)return;
-      const pr_=prompt(`${p.name} 매수가 (원)`,p.price);if(pr_==null)return;const pv=num(pr_);if(!pv){alert('매수가를 숫자로 입력하세요');return}
+      const pr_=prompt(`${p.name} 매수가 (${unitOf(p.code)})`,p.price);if(pr_==null)return;const pv=num(pr_);if(!pv){alert('매수가를 숫자로 입력하세요');return}
       const q=prompt(`${p.name} 매수 수량 (주, 비우면 0)`,p.qty||'');if(q==null)return;
       if(d.trim())p.date=d.replace(/\D/g,'');p.price=pv;p.qty=Math.floor(num(q))||0;
     }
