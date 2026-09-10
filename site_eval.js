@@ -12,6 +12,17 @@ const FILT_SRC = cut('const FILTERS=', 'const LEGACY_ID');
 const PREP_SRC = cut('function prep()', 'function val(');
 
 const raw = JSON.parse(fs.readFileSync('site/data/table.json', 'utf8'));
+/* 사이트는 첫 화면을 그린 뒤 미장 표를 받아 raw.rows 뒤에 붙인다(loadUS). 점검기가 이걸
+   빼먹으면 미장 규칙(N)이 항상 0 이 나와 '사이트만 없음' 이라는 헛 경보가 뜬다 —
+   실제로 2026-09-10 에는 사이트가 정말로 안 받고 있었고 이 점검이 그 버그를 잡아냈다.
+   이제 사이트가 받으므로 점검기도 같은 행 집합을 봐야 한다. */
+try {
+  const us = JSON.parse(fs.readFileSync('site/data/table_us.json', 'utf8'));
+  raw.us = us.us || null;                 /* 미장 국면 게이트 — loadUS 와 같은 자리에서 채운다 */
+  const z = new Array((raw.dates || []).length).fill(0);
+  raw.rows = raw.rows.concat((us.rows || []).map(r => Object.assign(
+    { fr: null, i: z, o: z, f: z, streak: 0, per: null, pbr: null, pcr: null, dy: null }, r)));
+} catch (e) { console.error('미장 표 없음 — 미장 규칙은 건너뛴다: ' + e.message); }
 const view = { rows: [], dates: [] };
 const sandbox = { raw, view };
 // 규칙 판정에 필요한 최소한만 주고 실행한다. 다른 전역을 참조하면 여기서 터지는데,

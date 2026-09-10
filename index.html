@@ -1150,6 +1150,11 @@ async function load(){
      (매수 대기 = 아직 그 규칙으로 사지 않은 규칙에 걸린 종목) */
   if(cur==='all')cur=homeTab();
   render();
+  /* 미장 규칙(N1~N3)은 미장 표가 있어야 판정된다. 예전엔 '미장 전체' 탭을 눌러야 받았기 때문에
+     텔레그램은 「매수 대기 2건」인데 화면의 N1 은 0 이었다(2026-09-10 사용자 신고 — 알림과
+     화면이 어긋나면 알림을 믿을 수 없게 된다). 첫 화면을 그린 **뒤에** 조용히 받아 다시 그린다:
+     첫 그림은 늦추지 않으면서 규칙 개수는 맞게 만든다. 이미 받아둔 경우엔 그냥 돌아온다. */
+  loadUS(true).then(()=>{if(cur!=='us')render()}).catch(()=>{});
   await pullLive();mktBadge();
   /* 열어둔 화면도 10분마다 지수·현재가를 따라가게 한다 */
   setInterval(async()=>{await pullLive();mktBadge();
@@ -1231,14 +1236,21 @@ function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none
 let USROWS=null;
 /* 미장 자료는 눌렀을 때 한 번만 받아 raw.rows 뒤에 붙인다. 규칙은 mk 로 시장을 가리므로
    미장 종목이 규칙 목록에 섞이지 않는다. 수급(개인·기관·외국인) 자료가 없어 0 배열로 채운다. */
-async function loadUS(){
+async function loadUS(quiet){
   if(USROWS)return USROWS;
   try{
     const d=await (await fetch('data/table_us.json?v='+(raw.updated||''))).json();
     const z=new Array((raw.dates||[]).length).fill(0);
     USROWS=(d.rows||[]).map(r=>Object.assign({fr:null,i:z,o:z,f:z,streak:0,per:null,pbr:null,pcr:null,dy:null},r));
+    /* 미장 국면(S&P500 60일선)은 table.json 이 아니라 이 파일에만 들어 있다. 여기서
+       raw.us 에 옮겨 담지 않으면 GATE.usUp60() 이 항상 거짓이라 미장 규칙이 절대 안 켜진다
+       (2026-09-10 발견 — 알림은 2건인데 화면은 0 이었다). */
+    raw.us=d.us||null;
     raw.usUpdated=d.updated||''; raw.rows=raw.rows.concat(USROWS); prep();
-  }catch(e){USROWS=null;alert('미장 자료를 받지 못했습니다: '+e.message)}
+  }catch(e){USROWS=null;
+    /* 배경으로 받는 중이면 조용히 넘어간다 — 미장 자료가 없다고 매번 경고창이 뜨면 안 된다.
+       탭을 눌러 직접 요청했을 때만 알린다. */
+    if(!quiet)alert('미장 자료를 받지 못했습니다: '+e.message)}
   return USROWS}
 function prep(){const n=7,D=raw.dates,k=Math.max(0,D.length-n);view.dates=D.slice(k);
   view.rows=raw.rows.map(r=>{const vols=r.v.slice(k),valid=vols.filter(x=>x!=null);const sum=a=>a.slice(k).reduce((x,y)=>x+(y||0),0);
