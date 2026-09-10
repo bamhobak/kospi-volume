@@ -167,8 +167,16 @@ print(f"전체 신호 {len(S):,}건 (규칙별: " + " ".join(f"{k}:{int(v)}" for
 dates = sorted(set(KP.date) | set(KQ.date)); DI = {d:i for i,d in enumerate(dates)}
 S["di"] = S.date.map(DI); S = S.sort_values(["di","rid"]).reset_index(drop=True)
 
-def simulate(cash_cap=1.0, scale=1.0, label=""):
-    """cash_cap: 총 투입 상한(1.0=계좌 100%) · scale: 종목당 비중 배율"""
+def simulate(cash_cap=1.0, scale=1.0, label="", throttle=None, quiet=False):
+    """cash_cap: 총 투입 상한(1.0=계좌 100%) · scale: 종목당 비중 배율
+
+    throttle: {날짜:배수} 또는 None. 그날 **신규 진입**의 비중과 규칙별 자리 상한을 배수만큼
+      줄인다(0 이면 그날은 안 산다). 이미 들고 있는 건 건드리지 않는다 — 매크로가 나빠졌다고
+      보유분을 던지는 건 다른 문제고, 청산 규칙은 규칙이 정한다.
+      국면을 '진입 조건'이 아니라 '노출 크기'로 쓰는 도구다: 낙폭은 수익률이 아니라
+      노출의 문제라 원리적으로 이쪽이 맞다(2026-09-10 미장에서 최악낙폭 -23%→-15% 확인).
+      None 이면 예전과 완전히 같은 동작이다.
+    """
     eq = 1.0; open_pos = []; log = []; blocked = 0; taken = 0
     curve = []
     for i, d in enumerate(dates):
@@ -185,12 +193,19 @@ def simulate(cash_cap=1.0, scale=1.0, label=""):
         open_pos = still
         # 신규 진입
         todays = S[S.di == i]
-        if len(todays):
+        # throttle 은 {날짜:배수} 이거나 (날짜, 규칙id)->배수 함수다. 규칙마다 다르게 조일 수
+        # 있어야 한다 — 하락장 규칙은 나쁜 국면에 사는 게 밥줄이라 같이 조이면 밥줄만 끊는다.
+        _fn = callable(throttle)
+        if len(todays) and (_fn or throttle is None or float(throttle.get(d, 1.0)) > 0):
             invested = sum(p["amt"] for p in open_pos)
             for t in todays.itertuples():
+                thr = (1.0 if throttle is None else
+                       float(throttle(d, t.rid)) if _fn else float(throttle.get(d, 1.0)))
+                if thr <= 0: blocked += 1; continue
                 n_rule = sum(1 for p in open_pos if p["rid"]==t.rid)
-                w = eq * t.pct/100 * scale
-                if n_rule >= t.mx or invested + w > eq*cash_cap or any(
+                w = eq * t.pct/100 * scale * thr
+                mx = max(1, int(round(t.mx * thr))) if thr < 1 else t.mx
+                if n_rule >= mx or invested + w > eq*cash_cap or any(
                         p["ticker"]==t.ticker for p in open_pos):
                     blocked += 1; continue
                 open_pos.append(dict(rid=t.rid,ticker=t.ticker,date=t.date,buy=t.buy,exit=t.exit,
@@ -202,10 +217,12 @@ def simulate(cash_cap=1.0, scale=1.0, label=""):
     yrs = (len(dates))/252
     cagr = (C.nav.iloc[-1])**(1/yrs) - 1
     mdd = ((C.nav/C.nav.cummax()) - 1).min()*100
-    print(f"  {label:<22} 최종 {C.nav.iloc[-1]:>6.2f}배 · 연 {cagr*100:>6.2f}% · 최대낙폭 {mdd:>6.1f}% "
-          f"· 거래 {taken:>5}건(막힘 {blocked:>5}) · 평균노출 {C.expo.mean()*100:>4.0f}%")
+    if not quiet:
+        print(f"  {label:<22} 최종 {C.nav.iloc[-1]:>6.2f}배 · 연 {cagr*100:>6.2f}% · 최대낙폭 {mdd:>6.1f}% "
+              f"· 거래 {taken:>5}건(막힘 {blocked:>5}) · 평균노출 {C.expo.mean()*100:>4.0f}%")
     return C, L
 
+# @@ANALYSIS — 여기부터는 이 파일을 직접 돌릴 때의 출력이다. 다른 스크립트는 위까지만 exec 한다.
 print(f"\n## 계좌 시뮬레이션 (2018~2026, {len(dates)}거래일)")
 C, L = simulate(1.0, 1.0, "설정 그대로")
 simulate(1.0, 0.5, "비중 절반")

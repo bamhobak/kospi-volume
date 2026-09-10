@@ -185,6 +185,15 @@ FILTERS = [
      and r.get("su1") is not None and r["su1"] >= 2
      and r.get("sr60") is not None and r["sr60"] <= -10
      and (r.get("amt20") or 0) >= 2 and (r.get("c") or 0) >= 3),
+    # bbnew = 「고점 -30%·20일 -20%·자사주 집행 중」 상태에 오늘 처음 들어왔나(수집기가 계산).
+    # bbd 는 마지막 보고 이후 달력일로, 화면 확인용이다.
+    # 국내 A1 은 '결정 공시' 라는 사건이지만 이쪽은 '집행 중' 이라는 상태다.
+    ("N4", "자사주 낙폭 (미장·60일 보유)",
+     lambda r: r.get("mk") == "US" and not r.get("pref")
+     and r.get("usliq") is True and (r.get("c") or 0) >= 3
+     and r.get("bbnew") is True
+     and r.get("fromhi") is not None and r["fromhi"] <= -30
+     and r.get("ret20") is not None and r["ret20"] <= -20),
 ]
 
 LEGACY_ID = {1: "P0", 2: "P2", 3: "P3", 4: "P1"}          # 예전 숫자 id 호환

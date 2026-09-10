@@ -117,3 +117,16 @@ data/us/raw/
 data/us/finra/
 data/us/companyfacts.zip
 data/panel_us.pkl
+
+# 미장 원자료 — 수GB라 커밋하지 않는다. 필요하면 각 수집기가 다시 만든다.
+# (data/us/buyback_recent.csv 는 사이트 규칙이 쓰는 작은 결과물이라 **커밋한다**)
+data/us/insider/
+data/us/nport/
+data/us/f13/
+data/us/insider_all.pkl
+data/us/nport_flow.pkl
+data/us/nport_hold.pkl
+data/us/f13_hold.pkl
+data/us/buyback.pkl
+data/us/cusip_map.pkl
+data/us/fred.pkl

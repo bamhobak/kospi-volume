@@ -68,8 +68,10 @@ def fetch(syms, start):
     return out
 
 
-def metrics(x):
-    """한국 표와 같은 이름의 지표를 만든다. 값이 모자라면 None."""
+def metrics(x, bbdates=None):
+    """한국 표와 같은 이름의 지표를 만든다. 값이 모자라면 None.
+
+    bbdates: 그 종목의 자사주 집행 보고일(YYYYMMDD) 목록. [자사주 낙폭] 이 쓴다."""
     c = x["Close"].astype(float).values
     v = x["Volume"].astype(float).values
     n = len(c)
@@ -110,6 +112,28 @@ def metrics(x):
         hi250s = pd.Series(hh).rolling(250).max().values
         within = (c / hi250s - 1) * 100 >= -5
         nh5 = bool(within[-1] and not np.any(within[-21:-1]))
+    # bbnew = [자사주 낙폭] 이벤트 — 「52주 고점 -30% 이하 · 20일 -20% 이하 · 자사주 집행 중」
+    #   상태에 **오늘 처음** 들어왔다(최근 20거래일은 그 상태가 아니었다).
+    #   상태로 걸면 하루 평균 4.7종목(최대 92)이 매일 다시 걸리는데, 사건으로 걸면 0.64종목이
+    #   되면서 성적은 그대로다 — 중앙 +6.96→+6.78 · 절삭 +4.71→+4.57 · 양수해 9/11 유지 ·
+    #   스트레스(2009~15)는 오히려 +0.67→+0.79 (us_buyback5.py · 2026-09-10 채택).
+    #   [상승장 신고가]의 nh5 와 같은 설계다. 유동성(그날 미장 전체 대비 백분위)은 종목 하나로는
+    #   알 수 없어 사건 정의에서 빼고 화면·알림이 그날 따로 매긴다.
+    bbnew = None
+    if n >= 271:
+        _hi = pd.Series(c).rolling(250).max().values
+        _fh = (c / _hi - 1) * 100
+        _r20 = np.full(n, np.nan); _r20[20:] = (c[20:] / c[:-20] - 1) * 100
+        _bb = np.array(sorted(bbdates)) if bbdates else np.array([])
+        _idx = x.index
+        _st = np.zeros(n, bool)
+        for _k in range(max(0, n - 21), n):
+            if not (_fh[_k] <= -30 and _r20[_k] <= -20): continue
+            if not len(_bb): continue
+            _d1 = _idx[_k].strftime('%Y%m%d')
+            _d0 = (_idx[_k] - pd.Timedelta(days=88)).strftime('%Y%m%d')
+            _st[_k] = bool(((_bb <= _d1) & (_bb >= _d0)).any())
+        bbnew = bool(_st[-1] and not _st[max(0, n - 21):n - 1].any())
     ch = round(c[-1] - c[-2], 2) if n >= 2 else None
     return dict(
         c=round(float(c[-1]), 2), ch=ch,
@@ -123,7 +147,7 @@ def metrics(x):
         dma20=round((c[-1] / ma20 - 1) * 100, 2) if ma20 else None,
         dev25=round((c[-1] / ma25 - 1) * 100, 2) if ma25 else None,
         su1=round(su1, 2) if su1 is not None else None,
-        nh5=nh5,
+        nh5=nh5, bbnew=bbnew,
         remo=round(remo, 1) if remo is not None else None,
         mdd60=round(mdd, 1) if mdd is not None else None,
         vol20=round(vol20, 2) if vol20 is not None else None,
@@ -161,6 +185,19 @@ def main():
     else:
         log("  data/us/fin.pkl 없음 — 시가총액은 빈칸으로 둔다")
 
+    # ── 자사주 집행 보고일 — collect_us_buyback.py 가 만든 CSV. [자사주 낙폭] 이 쓴다 ──
+    BBD = {}
+    _bp = BASE / "data" / "us" / "buyback_recent.csv"
+    if _bp.exists():
+        try:
+            _B = pd.read_csv(_bp, dtype={"filed": str})
+            BBD = _B.groupby("ticker").filed.apply(lambda z: sorted(set(z))).to_dict()
+            log(f"  자사주 보고 {len(BBD):,}종목 (data/us/buyback_recent.csv)")
+        except Exception as e:
+            log(f"  자사주 CSV 읽기 실패 — [자사주 낙폭] 은 쉰다: {e!r}"[:120])
+    else:
+        log("  data/us/buyback_recent.csv 없음 — [자사주 낙폭] 은 쉰다")
+
     rows, dates, t0, fail = [], [], time.time(), 0
     for i in range(0, len(syms), a.chunk):
         part = syms[i:i + a.chunk]
@@ -170,7 +207,7 @@ def main():
             fail += len(part); log(f"  {i//a.chunk+1}묶음 실패: {e}"); continue
         for s, x in got.items():
             try:
-                m = metrics(x)
+                m = metrics(x, BBD.get(s))
             except Exception:
                 continue
             if not dates or len(x.index) > len(dates):
@@ -210,6 +247,34 @@ def main():
         m['dbt'] = (round(li / eq * 100, 1) if eq and li is not None and eq > 0 else None)
         nu += m['sr60'] is not None; npbr += m['pbrd'] is not None; ndbt += m['dbt'] is not None
     log(f'  업종 60일수익 {nu:,}종목 · PBR {npbr:,} · 부채비율 {ndbt:,} (전체 {len(rows):,})')
+
+    # ── 자사주 — 마지막 집행 보고 이후 며칠 지났나 (사이트 규칙 [자사주 낙폭] 이 쓴다) ──
+    #   collect_us_buyback.py 가 SEC XBRL 에서 뽑아 둔 data/us/buyback_recent.csv 를 읽는다.
+    #   규칙은 '최근 60거래일 안에 자사주 집행을 보고했나' 를 보는데, 화면은 거래일 이력을
+    #   갖고 있지 않으므로 **달력일 88일**(60거래일의 근사)로 잰다. 실측은 거래일 기준이었고
+    #   이웃(20~250거래일)이 넓은 고원이라 이 근사로 결론이 바뀌지 않는다.
+    nbb = 0
+    _bp = BASE / 'data' / 'us' / 'buyback_recent.csv'
+    if _bp.exists():
+        try:
+            _B = pd.read_csv(_bp, dtype={'filed': str})
+            _last = _B.groupby('ticker').filed.max()
+            _today = pd.Timestamp(str(dates[-1])[:10]) if dates else pd.Timestamp.today()
+            _days = (_today - pd.to_datetime(_last, format='%Y%m%d')).dt.days
+            _map = _days.to_dict()
+            for m in rows:
+                d_ = _map.get(m['t'])
+                m['bbd'] = int(d_) if d_ is not None and d_ == d_ and d_ >= 0 else None
+                nbb += m['bbd'] is not None
+            log(f'  자사주 보고 이력 {nbb:,}종목 · 88일 이내 '
+                f'{sum(1 for m in rows if (m.get("bbd") or 999) <= 88):,}종목 · '
+                f'오늘 새로 걸린 종목 {sum(1 for m in rows if m.get("bbnew")):,}')
+        except Exception as e:
+            log(f'  자사주 읽기 실패 — 규칙이 쉰다: {e!r}'[:120])
+            for m in rows: m.setdefault('bbd', None)
+    else:
+        log('  data/us/buyback_recent.csv 없음 — [자사주 낙폭] 은 쉰다')
+        for m in rows: m['bbd'] = None
 
     # ── 국면 — S&P500 60일선 (사이트 규칙 [상승장 신고가] 가 쓴다) ────────────
     #   한국 표의 kospi 객체와 같은 자리다. 이게 없으면 사이트가 미장 국면을 알 수 없다.

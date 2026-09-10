@@ -244,6 +244,19 @@ jobs:
           echo "최신 거래일: $D"
       # 미장(나스닥·NYSE·아멕스) 조회용 목록 — 사이트를 만든 **뒤에** 얹는다(pipeline 이 site/ 를 지운다).
       # 실패해도 나머지는 그대로 배포한다. 실패하면 그 파일이 없어 화면이 '받지 못했습니다' 를 띄운다.
+      # 미장 자사주 — 사이트 [자사주 낙폭] 이 쓰는 재료. SEC companyfacts 벌크(약 1GB)를 받아
+      # 집행 금액만 뽑는다. 분기 보고서라 하루 단위로 바뀌지 않으므로 **월요일에만** 돌린다.
+      # 결과 CSV 는 커밋되므로 다른 날은 그걸 그대로 쓴다(수집 실패해도 어제 것이 남는다).
+      - name: collect US buyback (주 1회 · 월요일)
+        if: github.event_name != 'push' && steps.td.outputs.trading == 'true'
+        continue-on-error: true
+        env: { TZ: Asia/Seoul }
+        run: |
+          if [ "$(date +%u)" = "1" ] || [ ! -s data/us/buyback_recent.csv ]; then
+            python collect_us_buyback.py --force
+          else
+            echo "월요일이 아니고 CSV 도 있다 — 건너뛴다 ($(wc -l < data/us/buyback_recent.csv)줄)"
+          fi
       - name: collect US (미장 전체 조회용)
         if: github.event_name != 'push'
         continue-on-error: true
@@ -276,7 +289,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           git config user.name "kospi-bot"; git config user.email "bot@users.noreply.github.com"
-          git add data/20*.csv data/short_recent.csv data/dilution_recent.csv data/buyback_recent.csv data/insider_recent.csv data/credit_recent.csv data/sector.csv data/industry.csv data/valuation.csv data/vkospi.csv data/feargreed.csv
+          git add data/us/buyback_recent.csv data/20*.csv data/short_recent.csv data/dilution_recent.csv data/buyback_recent.csv data/insider_recent.csv data/credit_recent.csv data/sector.csv data/industry.csv data/valuation.csv data/vkospi.csv data/feargreed.csv
           if git diff --cached --quiet; then echo "바뀐 데이터 없음"; exit 0; fi
           git commit -m "data: $(TZ=Asia/Seoul date +%Y-%m-%d)"
           for i in 1 2 3 4 5; do
