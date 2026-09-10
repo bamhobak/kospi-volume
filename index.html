@@ -1074,8 +1074,11 @@ async function renderPositions(){
       ?d.rows.map(x=>({date:d.dates[x[0]],close:x[1]})).filter(x=>x.date>=p.date):[];
     const lv=live.prices[p.code];const lvDate=lv&&lv.at?lv.at.slice(0,10).replace(/-/g,''):'';
     /* 10분마다 수집하는 실시간 시세가 일봉만큼 최신이면 그쪽을 쓴다(현재가·수익률·평가손익·고점) */
-    const useLive=!!(lv&&lv.now&&lvDate&&lvDate>=lastD&&lvDate>=p.date);
-    const newDay=useLive&&lvDate>lastD;      /* 일봉에 아직 없는 날이면 보유일 +1 */
+    /* 미장은 마지막 거래일이 국내와 다르다 — 국내 달력(lastD)으로 재면 미장 시세가
+       늘 '오래된 것' 으로 판정돼 화면에 안 뜬다. 시장별 달력의 마지막 날과 견준다. */
+    const lastOf=(()=>{const c=calOf(p.code);return c.length?c[c.length-1]:lastD})();
+    const useLive=!!(lv&&lv.now&&lvDate&&lvDate>=lastOf&&lvDate>=p.date);
+    const newDay=useLive&&lvDate>lastOf;      /* 일봉에 아직 없는 날이면 보유일 +1 */
     /* 미장은 종목별 일봉 파일(data/stock/*.json)이 없다 — 보유일은 거래일 달력으로 세고,
        현재가는 미장 표의 종가를 쓴다. 고점은 일별 경로가 없어 매수가와 현재가 중 큰 값까지만
        알 수 있다(국내처럼 보유 중 최고 종가를 추적하지는 못한다). */

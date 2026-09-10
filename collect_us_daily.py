@@ -320,6 +320,12 @@ def main():
                "updated": datetime.now().strftime("%Y-%m-%d %H:%M")},
               open(OUT, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     log(f"{OUT.name} {OUT.stat().st_size/1024/1024:.1f}MB")
+    # 미장 거래일 달력만 담은 작은 파일 — 10분마다 도는 엣지 함수가 보유일을 세는 데 쓴다.
+    #   미장 표는 3.6MB 라 10분마다 받을 수 없다. 달력은 400줄이면 10KB 도 안 된다.
+    cal = OUT.parent / "uscal.json"
+    json.dump({"dates": us_days, "updated": datetime.now().strftime("%Y-%m-%d %H:%M")},
+              open(cal, "w", encoding="utf-8"), separators=(",", ":"))
+    log(f"{cal.name} 미장 거래일 {len(us_days)}일")
     return 0
 
 

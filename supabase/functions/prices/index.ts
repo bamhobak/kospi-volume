@@ -106,6 +106,34 @@ function kst() {
            hour: k.getUTCHours() };
 }
 
+/** 국내 종목코드는 6자리 숫자, 미장 티커는 글자 — 코드 모양으로 시장을 가른다 */
+const isUS = (c: string) => !/^\d{6}$/.test(String(c ?? ""));
+
+/** 미장 시세 — 야후 차트 엔드포인트(키 불필요, 서버에서만 된다).
+ *  토스 Open API 는 국내 전용이라(해외 경로 전부 not-found) 여기엔 쓸 수 없다. */
+async function yahoo(sym: string) {
+  const r = await fetch(
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=5d`,
+    { headers: NAVER });
+  if (!r.ok) throw new Error(`yahoo ${sym} ${r.status}`);
+  const j = await r.json();
+  const m = j?.chart?.result?.[0]?.meta;
+  if (!m || m.regularMarketPrice == null) throw new Error(`yahoo ${sym} 빈 응답`);
+  return m;
+}
+
+/** 미장 거래일 달력 — 보유일을 세는 데 쓴다. 한 번 부르고 재사용한다.
+ *  (국내는 종목별 일봉 JSON 으로 세는데 미장은 그 파일이 없다) */
+let _uscal: string[] | null = null;
+async function usCal(): Promise<string[]> {
+  if (_uscal) return _uscal;
+  try {
+    const r = await fetch(`${SITE}/data/uscal.json`);
+    _uscal = r.ok ? ((await r.json())?.dates ?? []) : [];
+  } catch { _uscal = []; }
+  return _uscal!;
+}
+
 /** 종목의 매수일 이후 일별 종가 — 사이트가 이미 배포한 JSON 을 서버에서 읽는다 */
 async function history(code: string): Promise<[string, number][]> {
   try {
@@ -159,6 +187,22 @@ Deno.serve(async (req) => {
     await Promise.all([
       ...codes.map(async (c) => {
         try {
+          if (isUS(c)) {
+            const m = await yahoo(c);
+            const now = num(m.regularMarketPrice), prev = num(m.chartPreviousClose);
+            // at 은 국내와 같은 모양("YYYY-MM-DD HH:MM:SS")으로 맞춘다 — 화면이 앞 10자를
+            // 잘라 날짜로 쓰기 때문이다. 미장 날짜는 **뉴욕 기준**이어야 맞다.
+            const ny = new Date((Number(m.regularMarketTime ?? 0)) * 1000)
+              .toLocaleString("sv-SE", { timeZone: "America/New_York" });
+            prices[c] = {
+              now, open: num(m.regularMarketOpen), high: num(m.regularMarketDayHigh),
+              low: num(m.regularMarketDayLow),
+              chg: (now != null && prev != null) ? +(now - prev).toFixed(4) : null,
+              vol: num(m.regularMarketVolume),
+              at: ny, status: String(m.marketState ?? ""), mk: "US",
+            };
+            return;
+          }
           const d = await naver(`stock/${c}`);
           prices[c] = {
             now: num(d.closePrice), open: num(d.openPrice), high: num(d.highPrice),
@@ -207,9 +251,14 @@ Deno.serve(async (req) => {
         const rule = RULES[rid];
 
         const buy = String(p.date);
-        const rows = (await history(p.code)).filter(([d]) => d >= buy);
+        const us = isUS(p.code);
+        const rows = us ? [] : (await history(p.code)).filter(([d]) => d >= buy);
+        // 미장은 종목별 일봉 파일이 없어 rows 가 비고, 그대로 두면 보유일이 늘 0 이라
+        // 매도일 알림이 영영 안 나간다(2026-09-11 발견). 거래일 달력으로 센다.
         const liveToday = String(lv.at).slice(0, 10).replace(/-/g, "") === today;
-        const days = rows.filter(([d]) => d < today).length + (liveToday ? 1 : 0);
+        const days = us
+          ? (await usCal()).filter((d) => d >= buy).length
+          : rows.filter(([d]) => d < today).length + (liveToday ? 1 : 0);
         const hi = Math.max(price, ...rows.map(([, c]) => c), liveToday && lv.high ? lv.high : 0);
 
         const now = lv.now, ret = (now / price - 1) * 100;
