@@ -868,7 +868,7 @@ function renderTabs(){
       +`코스피 ${ma}`;
     usState();
   }else $('#mktstate').innerHTML='';
-  $('#fdesc').innerHTML=cur==='done'?`매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요. 수익률은 <b>매매비용 차감 후</b>입니다 — 국내 왕복 ${feeSum(fees().KR)}%(매수 ${fees().KR.b} + 매도 ${fees().KR.s}) · 미장 왕복 ${feeSum(fees().US)}%(매수 ${fees().US.b} + 매도 ${fees().US.s}). <b>슬리피지는 빼지 않습니다</b> — 직접 적은 체결가에 이미 들어 있습니다. 환전 수수료도 빠져 있습니다. <span class="descmore" id="feebtn">▸ 비용 바꾸기</span>`:cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (${holdText()})`:cur==='all'?'':cur==='us'?(USROWS?`나스닥·뉴욕·아멕스 상장 ${USROWS.length.toLocaleString()}종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. <b>가격·시가총액·거래대금은 달러</b>이고, 열 설정은 코스피·코스닥 표와 따로 저장됩니다. ${raw.usUpdated?'기준 '+raw.usUpdated:''}`:'미장 자료를 받는 중입니다…')
+  $('#fdesc').innerHTML=cur==='done'?`매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요. 수익률은 <b>매매비용 차감 후</b>입니다 — 국내 왕복 ${feeSum(fees().KR)}%(매수 ${fees().KR.b} + 매도 ${fees().KR.s}) · 미장 왕복 ${feeSum(fees().US)}%(매수 ${fees().US.b} + 매도 ${fees().US.s}). <b>슬리피지는 빼지 않습니다</b> — 직접 적은 체결가에 이미 들어 있습니다. 환전 수수료도 빠져 있습니다. <span class="descmore" id="feebtn">▸ 비용 바꾸기</span>`:cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (${holdText()}) · 수익률·평가손익은 <b>지금 팔면 받는 돈</b> 기준입니다(매매비용 차감 — 국내 왕복 ${feeSum(fees().KR)}% · 미장 ${feeSum(fees().US)}%). 고점·손절/익절선은 가격 그대로입니다. <span class="descmore" id="feebtn">▸ 비용 바꾸기</span>`:cur==='all'?'':cur==='us'?(USROWS?`나스닥·뉴욕·아멕스 상장 ${USROWS.length.toLocaleString()}종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. <b>가격·시가총액·거래대금은 달러</b>이고, 열 설정은 코스피·코스닥 표와 따로 저장됩니다. ${raw.usUpdated?'기준 '+raw.usUpdated:''}`:'미장 자료를 받는 중입니다…')
       :(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));{const fd=$('#fdesc');
   if(fd&&fd.style){const has=(fd.innerHTML||'').trim();
     fd.style.display=has?'':'none';
@@ -1111,6 +1111,10 @@ const feeSum=f=>+(f.b+f.s).toFixed(3);
 /* 실제로 나간 돈과 들어온 돈으로 낸다 — 매수총액 = 가격×(1+매수비용), 매도실수령 = 가격×(1-매도비용) */
 const costBuy =p=>p.price*(1+feeOf(p.code).b/100);
 const costSell=p=>p.sell *(1-feeOf(p.code).s/100);
+/* 보유 중 평가 — '지금 팔면 받는 돈'. 매도 수수료·세금을 빼야 뜻이 맞고, 그래야 종목이
+   보유→완료로 넘어갈 때 숫자가 이유 없이 떨어지지 않는다(2026-09-11 사용자 요청).
+   ⚠ 고점·손절/익절선은 **가격**이라 그대로 둔다 — 규칙의 청산 판정도 가격 기준이다. */
+const sellNow=(now,code)=>now==null?null:now*(1-feeOf(code).s/100);
 async function setFees(){
   const f=fees();
   const a=await ask('매매비용 설정','국내 매수 수수료 %',f.KR.b,'num'); if(a===null)return;
@@ -1285,7 +1289,7 @@ async function renderPositions(){
     const line=(rule&&rule.trail)?hiC*(1-rule.trail/100)
               :(rule&&rule.stop)?p.price*(1-rule.stop/100):null;
     const tgt=(rule&&rule.target)?p.price*(1+rule.target/100):null;
-    const ret=now?(now/p.price-1)*100:null;
+    const ret=now?(sellNow(now,p.code)/costBuy(p)-1)*100:null;   /* 매매비용 차감 후 */
     /* 이 종목을 산 규칙의 신호가 며칠째 이어지는가. 예전엔 table.json 의 streak 를 썼는데
        그건 폐기된 옛 규칙의 조건을 재는 값이라 지금 규칙과 무관했다. */
     const rid0=rf?rf.id:null;
@@ -1324,7 +1328,7 @@ async function renderPositions(){
       case 0:return p.name||p.code; case 1:return (p.filters||[])[0]||'';
       case 2:return p.date; case 3:return amt(p.price); case 4:return p.qty||0;
       case 5:return amt((p.qty||0)*p.price); case 6:return amt(now);
-      case 7:return ret; case 8:return amt((p.qty&&now)?(now-p.price)*p.qty:null);
+      case 7:return ret; case 8:return amt((p.qty&&now)?(sellNow(now,p.code)-costBuy(p))*p.qty:null);
       case 9:return days;
       case 10:{const sd=rule?sellDate(p.date,rule.hold,p.code):null;return sd?sd.date:''}
       case 11:return amt(hi); case 12:return rule?(rule.trail||rule.stop||rule.target||0):null;
@@ -1345,7 +1349,7 @@ async function renderPositions(){
       `<td class="l">${md(p.date)}</td>`,`<td>${pmon(p.price,p.code)}</td>`,`<td>${p.qty?fmt(p.qty)+'주':''}</td>`,
       `<td>${p.qty?amon((DONE?costBuy(p):p.price)*p.qty,p.code):''}</td>`,`<td class="${cls(ret)}">${nowCell}</td>`,
       `<td class="${cls(ret)}">${ret==null?'':(ret>0?'+':'')+ret.toFixed(1)+'%'}</td>`,
-      `<td class="${cls(ret)}">${p.qty&&now?amon((now-p.price)*p.qty,p.code,1):''}</td>`,
+      `<td class="${cls(ret)}">${p.qty&&now?amon((sellNow(now,p.code)-costBuy(p))*p.qty,p.code,1):''}</td>`,
       `<td>${days}일</td>`,
       `<td>${(()=>{if(!rule)return '<span class="code">-</span>';
         const sd=sellDate(p.date,rule.hold,p.code);if(!sd)return '<span class="code">-</span>';
@@ -1371,7 +1375,7 @@ async function renderPositions(){
     return `<tr data-pc="${p.code}" class="${sel===p.code?'sel':''}">`+KEEP.map(i=>cells[i]).join('')+'</tr>'}).join('');
   const open_=rows.filter(r=>!r.p.sell);const avg=open_.length?open_.reduce((a,r)=>a+(r.ret||0),0)/open_.length:0;
   const closed=rows.filter(r=>r.p.sell);const realized=closed.reduce((a,r)=>a+pr(r.p),0);
-  const inv=open_.reduce((a,r)=>a+(r.p.qty||0)*r.p.price,0),pnl=open_.reduce((a,r)=>a+((r.p.qty&&r.now)?(r.now-r.p.price)*r.p.qty:0),0);
+  const inv=open_.reduce((a,r)=>a+(r.p.qty||0)*costBuy(r.p),0),pnl=open_.reduce((a,r)=>a+((r.p.qty&&r.now)?(sellNow(r.now,r.p.code)-costBuy(r.p))*r.p.qty:0),0);
   renderStatus();
   /* 행을 누르면 상세 패널이 열린다 — 모바일에서는 이 패널이 전체 화면(새 탭처럼)이다 */
   bindCopy();
@@ -1497,8 +1501,8 @@ function renderStatus(){
     const r=(raw.rows||[]).find(x=>x.t===p.code);return r?r.c:null};
   let inv=0,pnl=0;const rets=[];
   open_.forEach(p=>{const now=nowOf(p);
-    if(p.qty&&p.price)inv+=p.price*p.qty;
-    if(p.qty&&now)pnl+=(now-p.price)*p.qty;
+    if(p.qty&&p.price)inv+=costBuy(p)*p.qty;
+    if(p.qty&&now)pnl+=(sellNow(now,p.code)-costBuy(p))*p.qty;
     if(now&&p.price)rets.push((now/p.price-1)*100)});
   const avg=rets.length?rets.reduce((a,b)=>a+b,0)/rets.length:0;
   const realized=closed.reduce((a,p)=>a+(p.sell/p.price-1)*100,0);
