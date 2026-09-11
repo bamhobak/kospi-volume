@@ -116,7 +116,16 @@ def build(mkt):
         if len(E): df = pd.concat([df, E], ignore_index=True)
         log.info(f"  kosdaq.db 에서 {len(E):,}행 추가")
     df["grp"] = "생존"
-    for dbf in ("delisted.db", "delisted_kd.db"):
+    # ⚠ 폐지 DB 는 **시장 열이 없다.** 예전에는 두 파일을 두 시장에 다 붙여서, 폐지 종목
+    #   543개가 코스피·코스닥 패널에 동시에 들어갔다(2026-09-12 발견). 그걸 이어붙인
+    #   kr_scan.pkl 은 6.5%가 중복이었고, 시장별 비용 가정이 달라 선행수익이 0.8%p 갈렸다.
+    #   kospi.db 의 market 을 진실로 삼아 이 시장 것만 남긴다. kospi.db 에 없는 옛 폐지
+    #   종목은 파일 이름으로 정한다(delisted.db=KOSPI · delisted_kd.db=KOSDAQ) — 추정이다.
+    _c0 = sqlite3.connect(f"file:{BASE}/data/kospi.db?mode=ro", uri=True, timeout=600)
+    _mk = pd.read_sql("SELECT ticker,market,COUNT(*) n FROM daily WHERE market IS NOT NULL "
+                      "GROUP BY ticker,market", _c0); _c0.close()
+    _TRUTH = _mk.sort_values("n").drop_duplicates("ticker", keep="last").set_index("ticker").market
+    for dbf, _dfl in (("delisted.db", "KOSPI"), ("delisted_kd.db", "KOSDAQ")):
         p = BASE/"data"/dbf
         if not p.exists(): continue
         c = sqlite3.connect(f"file:{p}?mode=ro", uri=True, timeout=600)
@@ -131,6 +140,11 @@ def build(mkt):
             #   폐지되면 그 종목의 2018~ 이력이 폐지 DB 에만 있는데, 종목이 '이미 있다' 고 통째로
             #   버려서 코스피 74·코스닥 186 종목의 2018 이후가 패널에서 사라졌다(현대미포·두산인프라 등).
             #   (종목, 날짜) 가 겹치는 행만 뺀다.
+            _m = D.ticker.map(_TRUTH).fillna(_dfl)
+            _n0 = D.ticker.nunique()
+            D = D[_m == mkt]
+            if _n0 - D.ticker.nunique():
+                log.info(f"  {dbf}: 다른 시장 {_n0 - D.ticker.nunique()}종목 제외")
             have = set(zip(df.ticker, df.date))
             D = D[[(t, d) not in have for t, d in zip(D.ticker, D.date)]]
             if len(D):
@@ -268,9 +282,27 @@ def build(mkt):
     df["u"] = pd.MultiIndex.from_arrays([df.date, df.up]).map(m)
     lastpos = g.date.transform("max").map(DI); lastclose = g.close.transform("last")
     mypos = df.date.map(DI)
+    # ⚠ 살 수 없는 자리는 성적이 아니라 결측이다(2026-09-12 발견 · [[panel-contamination]]).
+    #   ① 다음 거래일 행이 없으면 '다음날 시가' 가 아니다 — 거래정지 구간이 패널에서 빠져
+    #      '다음 행' 이 몇 달 뒤가 된다(세미콘라이트 2017: 1,305 → 389,560 → n60 +47,498%).
+    #   ② 가격제한폭(±30% · 2015-06-15 이전 ±15%)을 넘는 변화는 물리적으로 불가능하다 —
+    #      전부 감자·병합·액면분할이고 미조정이다. 공백 없이 튀는 것도 있어 ① 로는 못 잡는다.
+    #   보유 구간이 이런 자리를 지나면 그 선행수익을 버린다. 하루 늦은 값이 틀린 값보다 낫다.
+    _nxt = g.date.shift(-1).map(DI)
+    _bad = ((_nxt - mypos != 1) & (mypos != lastpos))
+    _pc = g.close.shift(1)
+    _lim = np.where(df.date.values < "20150615", 0.15, 0.30) + 0.10
+    _ca = ((df.buy.notna() & ((df.buy/C > 1+_lim) | (df.buy/C < 1-_lim)))
+           | (_pc.notna() & ((C/_pc > 1+_lim) | (C/_pc < 1-_lim))))
+    _bad = _bad | _ca
+    _cs = _ca.astype(np.int32).groupby(df.ticker, sort=False).cumsum()
     for h in HZ:
         sell = g.close.shift(-h).where(~(mypos+h > lastpos), lastclose)
-        df["n%d" % h] = (sell/df.buy-1)*100 - df.cost
+        _span = (mypos+h <= lastpos) & (g.date.shift(-h).map(DI) - mypos != h)
+        _thru = (_cs.groupby(df.ticker, sort=False).shift(-h) - _cs > 0).fillna(False)
+        df["n%d" % h] = ((sell/df.buy-1)*100 - df.cost).where(~(_bad | _span | _thru))
+    df.loc[_bad, "buy"] = np.nan
+    log.info(f"  선행수익 결측 처리: 매수불가 {int(_bad.sum()):,}행 · 가격기준 끊김 {int(_ca.sum()):,}행")
     # 2018~ 의 공매도는 DB(daily)가 아니라 기존 패널에만 있다(과거 파이프라인이 별도
     # 경로로 관리해 왔다). 2016~17 은 백필 때 KRX 에서 직접 받아 DB 에 있으므로,
     # 비어 있는 구간만 기존 패널에서 채운다. 이걸 빌드 안에서 하지 않으면 패널을
@@ -289,6 +321,36 @@ def build(mkt):
         for _c in _want:
             df[_c] = df[_c].where(df[_c].notna(), df[_c+"_o"]); df.drop(columns=[_c+"_o"], inplace=True)
         log.info(f"  기존 패널로 보완: srd 결측 {df.srd.isna().mean()*100:.0f}% · marcap 결측 {df.marcap.isna().mean()*100:.0f}%")
+    # 부채비율 — [낙폭과대] 가 쓰는 조건인데 이 패널에 없어서 **전 신호가 무조건 통과**해 왔다
+    # (2026-09-08 발견). 운영 패널·사이트에서는 판정하는데 백테스트만 느슨했다.
+    # ⚠ debt_ratio.csv 는 '현재 시점' 스냅샷이라 과거에 쓰면 미래참조다. DART 분기 재무로
+    #   시점별로 만든다. 보고서는 분기말 뒤 45~90일에 공시되므로 **공시 가능 시점 이후**부터 적용한다.
+    _fp = BASE/"data"/"dart"/"financials.db"
+    if _fp.exists():
+        _c = sqlite3.connect(f"file:{_fp}?mode=ro", uri=True, timeout=600)
+        _F = pd.read_sql("SELECT stock_code ticker, year, reprt, fs_div, account, amount FROM fin "
+                         "WHERE account IN ('부채총계','자본총계')", _c); _c.close()
+        _F = _F.pivot_table(index=["ticker","year","reprt","fs_div"], columns="account",
+                            values="amount", aggfunc="first").reset_index()
+        _F = _F[(_F.get("자본총계", pd.Series(dtype=float)) > 0)]
+        _F["dbt"] = _F["부채총계"] / _F["자본총계"] * 100
+        # 연결(CFS) 우선, 없으면 별도(OFS)
+        _F["_pri"] = (_F.fs_div == "CFS").astype(int)
+        _F = _F.sort_values("_pri", ascending=False).drop_duplicates(["ticker","year","reprt"])
+        # 보고서코드 → 그 재무가 공시돼 실제로 쓸 수 있게 되는 날(보수적으로 분기말 +90일)
+        _AVAIL = {"11013": "0515", "11012": "0815", "11014": "1115", "11011": "0401"}   # 1Q·반기·3Q·사업(익년)
+        _F["avail"] = [f"{y+1}{_AVAIL[r]}" if r == "11011" else f"{y}{_AVAIL[r]}"
+                       for y, r in zip(_F.year, _F.reprt)]
+        # merge_asof 는 문자열 키를 못 쓴다 — 날짜를 정수로 바꾼다
+        _F["availn"] = _F.avail.astype(int)
+        _F = _F[["ticker","availn","dbt"]].dropna().sort_values("availn")
+        # 종목·날짜별로 '그 날 기준 가장 최근에 공시된' 부채비율을 붙인다
+        _L = df[["ticker","date"]].copy(); _L["daten"] = _L.date.astype(int)
+        _L = _L.sort_values("daten")
+        _M = pd.merge_asof(_L, _F, left_on="daten", right_on="availn", by="ticker", direction="backward")
+        df["부채비율"] = pd.Series(_M.dbt.values, index=_L.index).reindex(df.index)
+        log.info(f"  부채비율(DART 시점별) 병합: 유효율 {df['부채비율'].notna().mean()*100:.0f}% "
+                 f"· 2018~ {df.loc[df.date>='20180101','부채비율'].notna().mean()*100:.0f}%")
     # 밸류에이션(PBR) — 2005년부터 krx_daily.db 에 다 받아 뒀는데 패널에 안 붙어 있었다.
     # 그래서 [저PBR 낙폭] 이 21년 검증에서 여섯 구간 전부 0건이었다(2026-09-06 발견).
     _fp = BASE/"data"/"krx_daily.db"
