@@ -285,16 +285,31 @@ def main():
     asof = Counter(lastd).most_common(1)[0][0] if lastd else None
     _stale = Counter(lastd).most_common(3)
     log(f"  기준일 {asof} (종목별 마지막 거래일 분포 {_stale})")
-    if asof and OUT.exists():
+    # ⚠ Actions 에서는 파이프라인이 site/ 를 지운 뒤에 이 스크립트가 돌아서 **로컬 파일이 없다**.
+    #   그래서 비교 대상은 로컬이 아니라 **지금 서비스 중인 배포본**이어야 한다.
+    #   표는 3.7MB 라 매번 받을 수 없지만 uscal.json 은 10KB 이고 같은 수집이 asof 를 적는다.
+    _oa = None
+    if OUT.exists():
         try:
             _old = json.load(open(OUT, encoding="utf-8"))
             _oa = _old.get("asof") or (_old.get("dates") or [None])[-1]
-            if _oa and str(asof) < str(_oa):
-                log(f"::warning::받은 자료가 기존({_oa})보다 오래됐다({asof}) — "
-                    f"덮어쓰지 않는다. 미장 규칙이 하루 묵은 표로 도는 것을 막는다")
-                return 0
         except Exception as e:
-            log(f"  기존 표 확인 실패(계속 진행): {e!r}"[:120])
+            log(f"  로컬 표 확인 실패: {e!r}"[:120])
+    if _oa is None:
+        try:
+            import urllib.request
+            _u = "https://bamhobak.github.io/kospi-volume/data/uscal.json?cb=" + str(int(time.time()))
+            _c = json.loads(urllib.request.urlopen(_u, timeout=30).read().decode("utf-8"))
+            # asof 가 있으면 표끼리 견주고, 없으면(옛 배포본) 달력의 마지막 거래일로 대신한다.
+            # 대체값은 더 엄격하다 — 그날 자료를 못 받았으면 아예 안 올린다. 한 번 올라가면 asof 가 생긴다.
+            _oa = _c.get("asof") or (_c.get("dates") or [None])[-1]
+            log(f"  배포본 기준일 {_oa} (uscal.json)")
+        except Exception as e:
+            log(f"  배포본 확인 실패(계속 진행): {e!r}"[:120])
+    if asof and _oa and str(asof) < str(_oa):
+        log(f"::warning::받은 자료가 서비스 중인 것({_oa})보다 오래됐다({asof}) — "
+            f"덮어쓰지 않는다. 미장 규칙이 하루 묵은 표로 도는 것을 막는다")
+        return 0
 
     # ── [낙폭과대]·[저PBR 낙폭] 이 쓰는 재료 — 업종 60일 수익률 · PBR · 부채비율 ────
     #   한국 규칙을 미국에 대입했을 때 통과한 둘이다(us_rules.py). 사이트에도 얹으려면
@@ -387,6 +402,11 @@ def main():
     except Exception as e:
         log(f'  S&P500 국면 실패 — 규칙 판정이 멈춘다: {e!r}'[:120])
 
+    # 미장 달력이 아는 마지막 거래일보다 뒤처져 있으면 로그에 띄운다(초록불 뒤에 숨지 않게).
+    # us_days 는 S&P500 시세로 만들므로 이 자리에서야 값이 있다.
+    if asof and us_days and str(asof) < str(us_days[-1]):
+        log(f"::warning::미장 표가 묵었다 — 기준일 {asof} 인데 달력의 마지막 거래일은 {us_days[-1]} "
+            f"(그날 난 진입 이벤트 nh5·qnew 가 빠져 미장 규칙이 덜 잡힌다)")
     OUT.parent.mkdir(parents=True, exist_ok=True)
     # NaN·inf 청소 — 한 칸만 새어 나가도 사이트가 표 전체를 못 읽는다(브라우저는 NaN 을 거부한다).
     # allow_nan=False 로 못을 박아 두면 다음에 또 새면 조용히 나가는 대신 **여기서 터진다**.
