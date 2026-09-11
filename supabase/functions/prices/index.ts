@@ -136,24 +136,39 @@ async function yahoo(sym: string) {
 /** 미장 거래일 달력 — 보유일을 세는 데 쓴다. 한 번 부르고 재사용한다.
  *  (국내는 종목별 일봉 JSON 으로 세는데 미장은 그 파일이 없다) */
 let _uscal: string[] | null = null;
+/** 사이트에서 무엇을 받았는지 남긴다 — 실패를 조용히 삼키면 며칠 뒤에나 안다.
+ *  Cloudflare Access 뒤에서는 헤더가 없으면 **로그인 HTML 이 200 으로** 오므로
+ *  r.ok 만 보면 성공처럼 보인다. 그래서 '무엇이 왔는지' 를 따로 기록한다. */
+const SITEDIAG: Record<string, string> = {};
+async function siteJson(path: string): Promise<any | null> {
+  try {
+    const r = await siteFetch(path);
+    const t = await r.text();
+    if (!r.ok) { SITEDIAG[path] = `HTTP ${r.status}`; return null; }
+    if (/^\s*</.test(t)) {            // HTML 이 왔다 = Access 로그인 화면
+      SITEDIAG[path] = "HTML(로그인 화면?) — 서비스 토큰 확인";
+      console.warn(`[site] ${path}: HTML 이 왔다 — Access 헤더를 확인하라`);
+      return null;
+    }
+    SITEDIAG[path] = `ok ${t.length}B`;
+    return JSON.parse(t);
+  } catch (e) {
+    SITEDIAG[path] = `실패 ${String(e).slice(0, 60)}`;
+    console.warn(`[site] ${path}: ${e}`);
+    return null;
+  }
+}
 async function usCal(): Promise<string[]> {
   if (_uscal) return _uscal;
-  try {
-    const r = await siteFetch("/data/uscal.json");
-    _uscal = r.ok ? ((await r.json())?.dates ?? []) : [];
-  } catch { _uscal = []; }
+  _uscal = (await siteJson("/data/uscal.json"))?.dates ?? [];
   return _uscal!;
 }
 
 /** 종목의 매수일 이후 일별 종가 — 사이트가 이미 배포한 JSON 을 서버에서 읽는다 */
 async function history(code: string): Promise<[string, number][]> {
-  try {
-    const r = await siteFetch(`/data/stock/${code}.json`);
-    if (!r.ok) return [];
-    const d = await r.json();
-    if (!Array.isArray(d?.rows) || !Array.isArray(d?.dates)) return [];
-    return d.rows.map((x: any[]) => [d.dates[x[0]], x[1]] as [string, number]);
-  } catch { return []; }
+  const d = await siteJson(`/data/stock/${code}.json`);
+  if (!Array.isArray(d?.rows) || !Array.isArray(d?.dates)) return [];
+  return d.rows.map((x: any[]) => [d.dates[x[0]], x[1]] as [string, number]);
 }
 
 Deno.serve(async (req) => {
@@ -176,6 +191,16 @@ Deno.serve(async (req) => {
 코스피 ${num(kp.closePrice)?.toLocaleString("en-US")}` : ""));
       return new Response(JSON.stringify({ ping: "sent", at: stamp, hasToken: !!TG_TOKEN, hasChat: !!TG_CHAT }),
         { headers: { ...CORS, "Content-Type": "application/json" } });
+    }
+
+    // 진단용 — ?diag=1 이면 사이트에서 실제로 받아지는지 확인만 하고 돌려준다.
+    // (Access 전환 뒤 '조용히 빈 값' 인지 사람이 눈으로 볼 방법이 필요하다)
+    if (q.get("diag") === "1") {
+      const cal = await usCal();
+      return new Response(JSON.stringify({
+        site: SITE, hasToken: !!(CF_ID && CF_SECRET),
+        uscalDates: cal.length, last: cal[cal.length - 1] ?? null, got: SITEDIAG,
+      }), { headers: { ...CORS, "Content-Type": "application/json" } });
     }
 
     // 1) 보유 종목 (모든 PIN, 미매도)
@@ -353,7 +378,10 @@ Deno.serve(async (req) => {
                // 0 이면 보유가 있어도 알림이 나가지 않는다는 뜻이라 바로 눈에 띈다.
                ruled: positions.filter((p: any) =>
                  (p.filters ?? []).some((f: any) => RULES[LEGACY[String(f)] ?? String(f)])).length,
-               held: positions.length, ms: Date.now() - t0 },
+               held: positions.length, ms: Date.now() - t0,
+               // 사이트에서 무엇을 받았는지. Cloudflare Access 뒤에서 서비스 토큰이 빠지면
+               // 'HTML(로그인 화면?)' 로 찍힌다 — 조용히 빈 배열이 되는 걸 막으려고 남긴다.
+               site: SITE, siteGot: SITEDIAG },
     }), { headers: { ...CORS, "Content-Type": "application/json" } });
   } catch (e) {
     console.error(e);
