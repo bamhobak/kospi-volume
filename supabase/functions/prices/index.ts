@@ -25,6 +25,15 @@ const TG_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
 const TG_CHAT = Deno.env.get("TELEGRAM_CHAT_ID") ?? "";
 // 사이트 주소 — 호스팅을 옮기면 Supabase 의 환경변수 SITE_URL 만 바꾸면 된다.
 const SITE = (Deno.env.get("SITE_URL") ?? "https://bamhobak.github.io/kospi-volume").replace(/\/+$/, "");
+// Cloudflare Access 뒤에 있으면 서비스 토큰 헤더가 있어야 통과한다.
+// 없으면 로그인 화면 HTML 이 200 으로 돌아와 JSON.parse 가 조용히 깨진다 — 반드시 붙인다.
+const CF_ID = Deno.env.get("CF_ACCESS_CLIENT_ID") ?? "";
+const CF_SECRET = Deno.env.get("CF_ACCESS_CLIENT_SECRET") ?? "";
+const siteFetch = (path: string) => fetch(`${SITE}${path}`, {
+  headers: (CF_ID && CF_SECRET)
+    ? { "CF-Access-Client-Id": CF_ID, "CF-Access-Client-Secret": CF_SECRET }
+    : {},
+});
 const NAVER = { "User-Agent": "Mozilla/5.0" };
 
 const CORS = {
@@ -130,7 +139,7 @@ let _uscal: string[] | null = null;
 async function usCal(): Promise<string[]> {
   if (_uscal) return _uscal;
   try {
-    const r = await fetch(`${SITE}/data/uscal.json`);
+    const r = await siteFetch("/data/uscal.json");
     _uscal = r.ok ? ((await r.json())?.dates ?? []) : [];
   } catch { _uscal = []; }
   return _uscal!;
@@ -139,7 +148,7 @@ async function usCal(): Promise<string[]> {
 /** 종목의 매수일 이후 일별 종가 — 사이트가 이미 배포한 JSON 을 서버에서 읽는다 */
 async function history(code: string): Promise<[string, number][]> {
   try {
-    const r = await fetch(`${SITE}/data/stock/${code}.json`);
+    const r = await siteFetch(`/data/stock/${code}.json`);
     if (!r.ok) return [];
     const d = await r.json();
     if (!Array.isArray(d?.rows) || !Array.isArray(d?.dates)) return [];

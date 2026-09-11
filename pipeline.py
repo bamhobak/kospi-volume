@@ -383,6 +383,14 @@ def insider_counts(dates, n=60):
 
 # 사이트 주소 — 호스팅을 옮기면 여기 하나만 바꾸면 된다(환경변수 SITE_URL 로도 덮어쓴다).
 SITE_URL = os.environ.get("SITE_URL", "https://bamhobak.github.io/kospi-volume").rstrip("/")
+# Cloudflare Access 를 통과하려면 서비스 토큰 헤더를 붙여야 한다.
+# (사이트가 Access 뒤에 있으면 헤더 없이는 로그인 화면 HTML 이 돌아온다 — JSON 인 줄 알고
+#  파싱하다 죽는 게 아니라 **조용히 이상한 값**이 되므로 반드시 붙인다.)
+def _cf_headers():
+    i = os.environ.get("CF_ACCESS_CLIENT_ID", "")
+    s = os.environ.get("CF_ACCESS_CLIENT_SECRET", "")
+    return {"CF-Access-Client-Id": i, "CF-Access-Client-Secret": s} if i and s else {}
+
 
 def build_site():
     (SITE / "data" / "stock").mkdir(parents=True, exist_ok=True)
@@ -400,8 +408,9 @@ def build_site():
     for _src in (SITE_URL + "/data/ver.json",):
         try:
             import urllib.request
-            _prev = json.loads(urllib.request.urlopen(
-                _src + "?cb=" + str(int(time.time())), timeout=20).read().decode("utf-8"))
+            _rq = urllib.request.Request(_src + "?cb=" + str(int(time.time())),
+                                         headers=_cf_headers())
+            _prev = json.loads(urllib.request.urlopen(_rq, timeout=20).read().decode("utf-8"))
         except Exception as e:
             print(f"  ⚠ 배포본 버전을 못 읽었다(계속 진행): {e!r}"[:120])
     _n = int(_prev.get("n", 0)) if isinstance(_prev, dict) else 0

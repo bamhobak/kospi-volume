@@ -36,6 +36,10 @@ concurrency:
 # (코드를 고치지 않고 값만 바꿔 전환하려고 한 곳에 모아 뒀다 · 2026-09-11)
 env:
   SITE_URL: ${{ vars.SITE_URL || 'https://bamhobak.github.io/kospi-volume' }}
+  # Cloudflare Access 서비스 토큰 — 사이트가 Access 뒤로 가면 이게 있어야 자료를 받는다.
+  # 아직 GitHub Pages 를 보는 동안에는 값이 있어도 무해하다(그쪽은 헤더를 무시한다).
+  CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+  CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
 
 jobs:
   build:
@@ -283,7 +287,9 @@ jobs:
               echo "$f 있음 ($(du -h site/data/$f | cut -f1))"; continue
             fi
             echo "$f 없음 — 배포본에서 가져온다"
-            curl -fsSL "$SITE_URL/data/$f" -o "site/data/$f" \
+            curl -fsSL -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
+                       -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
+                 "$SITE_URL/data/$f" -o "site/data/$f" \
               && echo "  되살림 ($(du -h site/data/$f | cut -f1))" \
               || echo "::warning::배포본에도 $f 가 없다 — 다음 수집까지 그 기능은 쉰다"
           done
@@ -313,6 +319,16 @@ jobs:
           exit 1
       - uses: actions/upload-pages-artifact@v3
         with: { path: site }
+      # Cloudflare Pages 에도 같은 site/ 를 올린다. 전환 기간에는 두 곳이 같은 내용이라
+      # SITE_URL 만 바꾸면 즉시 옮겨갈 수 있고, 문제가 생기면 되돌리기도 쉽다.
+      - name: Cloudflare Pages 배포
+        if: env.CF_API_TOKEN != ''
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 pages deploy site             --project-name kospi-volume --branch main --commit-dirty=true
   deploy:
     needs: build
     runs-on: ubuntu-latest
@@ -365,14 +381,18 @@ jobs:
           SITE: ${{ env.SITE_URL }}/data
         run: |
           mkdir -p site/data
+          # Cloudflare Access 뒤에 있으면 서비스 토큰 헤더가 있어야 받는다.
+          # 없으면 로그인 화면 HTML 이 200 으로 저장돼 json.load 가 깨진다.
+          CFH=(-H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID"
+               -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET")
           for i in $(seq 1 20); do
-            curl -fsSL "$SITE/table.json?cb=$RANDOM$i" -o site/data/table.json || { sleep 15; continue; }
+            curl -fsSL "${CFH[@]}" "$SITE/table.json?cb=$RANDOM$i" -o site/data/table.json || { sleep 15; continue; }
             GOT=$(python -c "import json;print((json.load(open('site/data/table.json',encoding='utf-8'))['dates'] or [''])[-1])" || echo "")
             echo "${i}회차: 배포본 최신 거래일 $GOT (기대 $WANT)"
             if [ "$GOT" = "$WANT" ]; then break; fi
             sleep 15
           done
-          curl -fsSL "$SITE/table_us.json?cb=$RANDOM" -o site/data/table_us.json || echo "미장 표 없음 — 미장 규칙은 건너뛴다"
+          curl -fsSL "${CFH[@]}" "$SITE/table_us.json?cb=$RANDOM" -o site/data/table_us.json || echo "미장 표 없음 — 미장 규칙은 건너뛴다"
           if [ "$GOT" != "$WANT" ]; then echo "::warning::배포본이 아직 $GOT 다(기대 $WANT) — 그래도 진행한다"; fi
       # 스크립트가 죽어도 워크플로가 초록불이라 며칠간 아무도 몰랐던 적이 있다
       # (2026-09-03·04 이틀치 알림 유실). 죽으면 최소한 그 사실은 알린다.

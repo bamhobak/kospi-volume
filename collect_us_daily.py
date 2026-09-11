@@ -26,6 +26,14 @@ TICK = BASE / "data" / "us" / "tickers.csv"
 OUT = BASE / "site" / "data" / "table_us.json"
 # 사이트 주소 — 호스팅을 옮기면 여기 하나만 바꾸면 된다(환경변수 SITE_URL 로도 덮어쓴다).
 SITE_URL = os.environ.get("SITE_URL", "https://bamhobak.github.io/kospi-volume").rstrip("/")
+# Cloudflare Access 를 통과하려면 서비스 토큰 헤더를 붙여야 한다.
+# (사이트가 Access 뒤에 있으면 헤더 없이는 로그인 화면 HTML 이 돌아온다 — JSON 인 줄 알고
+#  파싱하다 죽는 게 아니라 **조용히 이상한 값**이 되므로 반드시 붙인다.)
+def _cf_headers():
+    i = os.environ.get("CF_ACCESS_CLIENT_ID", "")
+    s = os.environ.get("CF_ACCESS_CLIENT_SECRET", "")
+    return {"CF-Access-Client-Id": i, "CF-Access-Client-Secret": s} if i and s else {}
+
 NDAY = 20                     # 화면 미니 차트에 쓸 최근 거래일 수
 
 
@@ -301,7 +309,8 @@ def main():
         try:
             import urllib.request
             _u = SITE_URL + "/data/uscal.json?cb=" + str(int(time.time()))
-            _c = json.loads(urllib.request.urlopen(_u, timeout=30).read().decode("utf-8"))
+            _c = json.loads(urllib.request.urlopen(
+                urllib.request.Request(_u, headers=_cf_headers()), timeout=30).read().decode("utf-8"))
             # asof 가 있으면 표끼리 견주고, 없으면(옛 배포본) 달력의 마지막 거래일로 대신한다.
             # 대체값은 더 엄격하다 — 그날 자료를 못 받았으면 아예 안 올린다. 한 번 올라가면 asof 가 생긴다.
             _oa = _c.get("asof") or (_c.get("dates") or [None])[-1]
