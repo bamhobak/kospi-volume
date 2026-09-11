@@ -284,6 +284,12 @@ button.prim{background:var(--acc);border:1px solid var(--acc);color:#0a0b0e;font
   .rail .it{white-space:nowrap;padding:7px 9px;font-size:12px;flex:0 0 auto}
   .rail .it .n{margin-left:6px}
   .rail .it .bar{height:11px}
+  /* 좁은 화면에서 레일은 **가로 배치**라, 자료 시각 두 줄과 버전이 나란히 서 버린다
+     (2026-09-12 신고). 둘을 한 줄에 눕히고 폭을 꽉 채워 바닥에 붙인다. */
+  .railfoot{width:100%;flex-direction:row;flex-wrap:wrap;gap:4px 14px;
+            margin-top:4px;padding:7px 2px 0;border-top:1px dashed var(--line)}
+  .railfoot .rf{justify-content:flex-start;gap:6px}
+  .ver{width:100%;padding:3px 2px 2px;order:99}
   .main{min-height:0;flex:1;min-width:0}
   .wrap{grid-template-columns:1fr;padding:10px;min-width:0}
   .rule{margin:10px 10px 0;font-size:12px}
