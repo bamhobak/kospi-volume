@@ -435,6 +435,13 @@ def main():
         sp = _yf.download('^GSPC', period='2y', auto_adjust=False, progress=False)
         c = sp['Close'] if 'Close' in sp else sp.iloc[:, 0]
         c = c.squeeze().dropna()
+        # ⚠ 지수와 달력은 fetch() 를 거치지 않는다 — 미완결 봉 가드를 여기에도 따로 걸어야 한다.
+        #   2026-09-11 에 종목 표만 막고 여기를 빼먹어서, 표 기준일은 09/10 인데 달력에는
+        #   09/11 이 들어갔다. 화면이 둘을 견주고 "표가 묵었다" 고 헛경보를 냈다.
+        _os = open_session()
+        if _os and len(c.index) and c.index[-1].strftime('%Y%m%d') == _os:
+            c = c.iloc[:-1]
+            log(f"  아직 안 끝난 미장({_os}) 봉은 지수·달력에서도 뺀다")
         ma60 = float(c.rolling(60).mean().iloc[-1])
         us_reg = {'date': c.index[-1].strftime('%Y%m%d'), 'close': float(c.iloc[-1]),
                   'ma60': ma60, 'up60': bool(float(c.iloc[-1]) > ma60)}
