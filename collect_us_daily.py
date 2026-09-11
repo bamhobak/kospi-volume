@@ -24,6 +24,8 @@ import numpy as np, pandas as pd
 BASE = Path(__file__).parent
 TICK = BASE / "data" / "us" / "tickers.csv"
 OUT = BASE / "site" / "data" / "table_us.json"
+# 사이트 주소 — 호스팅을 옮기면 여기 하나만 바꾸면 된다(환경변수 SITE_URL 로도 덮어쓴다).
+SITE_URL = os.environ.get("SITE_URL", "https://bamhobak.github.io/kospi-volume").rstrip("/")
 NDAY = 20                     # 화면 미니 차트에 쓸 최근 거래일 수
 
 
@@ -298,7 +300,7 @@ def main():
     if _oa is None:
         try:
             import urllib.request
-            _u = "https://bamhobak.github.io/kospi-volume/data/uscal.json?cb=" + str(int(time.time()))
+            _u = SITE_URL + "/data/uscal.json?cb=" + str(int(time.time()))
             _c = json.loads(urllib.request.urlopen(_u, timeout=30).read().decode("utf-8"))
             # asof 가 있으면 표끼리 견주고, 없으면(옛 배포본) 달력의 마지막 거래일로 대신한다.
             # 대체값은 더 엄격하다 — 그날 자료를 못 받았으면 아예 안 올린다. 한 번 올라가면 asof 가 생긴다.

@@ -8,6 +8,9 @@ import re, os, io, json, sys, datetime as dt
 from pathlib import Path
 import requests
 
+# 사이트 주소 — 호스팅을 옮기면 여기 하나만 바꾸면 된다(환경변수 SITE_URL 로도 덮어쓴다).
+SITE_URL = os.environ.get("SITE_URL", "https://bamhobak.github.io/kospi-volume").rstrip("/")
+
 # 윈도우 콘솔은 기본이 cp949 라 이모지가 섞이면 print 에서 죽는다(텔레그램 미설정 시
 # 메시지를 그대로 찍기 때문에 로컬 점검이 항상 실패했다). 표준출력을 UTF-8 로 고정한다.
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -267,7 +270,7 @@ n_new = len(set(newly))
 if n_new and prev_date:   # 첫 실행(비교 대상 없음)에는 보내지 않음
     telegram("🆕 <b>매수 대기 종목이 있습니다</b> (%s/%s)" % (last_date[4:6], last_date[6:])
              + chr(10) + "오늘 새로 걸린 종목 %d개 — 사이트에서 확인해 주세요." % n_new
-             + chr(10) + chr(10) + "https://bamhobak.github.io/kospi-volume/")
+             + chr(10) + chr(10) + SITE_URL + "/")
 elif n_new:
     print("첫 실행 — 기준 목록만 저장:", cur)
 else:

@@ -6,7 +6,7 @@
   4) site/ 정적 사이트 생성: index.html + data/table.json(전 종목 20영업일) + data/stock/{code}.json(60영업일)
 사용: python pipeline.py [--wait] [--no-collect]
 """
-import hashlib, subprocess, time
+import hashlib, os, subprocess, time
 import csv, json, shutil, sqlite3, sys
 from pathlib import Path
 import collect
@@ -381,6 +381,9 @@ def insider_counts(dates, n=60):
                 out[r["ticker"]] = out.get(r["ticker"], 0) + 1
     return out
 
+# 사이트 주소 — 호스팅을 옮기면 여기 하나만 바꾸면 된다(환경변수 SITE_URL 로도 덮어쓴다).
+SITE_URL = os.environ.get("SITE_URL", "https://bamhobak.github.io/kospi-volume").rstrip("/")
+
 def build_site():
     (SITE / "data" / "stock").mkdir(parents=True, exist_ok=True)
     for f in (SITE / "data" / "stock").glob("*.json"): f.unlink()
@@ -394,7 +397,7 @@ def build_site():
     _txt = (BASE / "index.html").read_text(encoding="utf-8").replace(chr(13) + chr(10), chr(10))
     _h = hashlib.md5(_txt.encode("utf-8")).hexdigest()[:8]
     _prev = None
-    for _src in ("https://bamhobak.github.io/kospi-volume/data/ver.json",):
+    for _src in (SITE_URL + "/data/ver.json",):
         try:
             import urllib.request
             _prev = json.loads(urllib.request.urlopen(

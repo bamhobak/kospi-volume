@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 """고친 index.html 을 로컬에서 띄워 실제 브라우저로 렌더까지 확인한다(배포 전 점검)."""
+import os
+# 사이트 주소 — 호스팅을 옮기면 환경변수 SITE_URL 로 덮어쓴다.
+SITE_URL = os.environ.get("SITE_URL", "https://bamhobak.github.io/kospi-volume").rstrip("/")
 import io, sys, threading, http.server, functools, socketserver
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 from playwright.sync_api import sync_playwright
@@ -13,7 +16,7 @@ class H(http.server.SimpleHTTPRequestHandler):
         # data/* 는 배포본에서 끌어온다(로컬엔 site/ 아래에만 있다)
         if self.path.startswith("/data/"):
             self.send_response(302)
-            self.send_header("Location", "https://bamhobak.github.io/kospi-volume"+self.path); self.end_headers(); return
+            self.send_header("Location", SITE_URL+self.path); self.end_headers(); return
         return super().do_GET()
 srv = socketserver.TCPServer(("127.0.0.1", 8899), functools.partial(H, directory=ROOT))
 threading.Thread(target=srv.serve_forever, daemon=True).start()

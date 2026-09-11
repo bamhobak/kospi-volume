@@ -23,7 +23,8 @@ const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const TG_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
 const TG_CHAT = Deno.env.get("TELEGRAM_CHAT_ID") ?? "";
-const SITE = "https://bamhobak.github.io/kospi-volume";
+// 사이트 주소 — 호스팅을 옮기면 Supabase 의 환경변수 SITE_URL 만 바꾸면 된다.
+const SITE = (Deno.env.get("SITE_URL") ?? "https://bamhobak.github.io/kospi-volume").replace(/\/+$/, "");
 const NAVER = { "User-Agent": "Mozilla/5.0" };
 
 const CORS = {
@@ -328,7 +329,7 @@ Deno.serve(async (req) => {
         await telegram(
           `⏰ <b>매도일인 종목이 ${dueToSell.length}개 있습니다</b>` +
           `${String.fromCharCode(10)}장 마감 전에 매도해 주세요 — 사이트에서 확인해 주세요.` +
-          `${String.fromCharCode(10)}${String.fromCharCode(10)}https://bamhobak.github.io/kospi-volume/`,
+          `${String.fromCharCode(10)}${String.fromCharCode(10)}${SITE}/`,
         );
       }
       if (sent.size !== before) {

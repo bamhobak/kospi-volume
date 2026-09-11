@@ -32,6 +32,11 @@ permissions:
 concurrency:
   group: pages
   cancel-in-progress: ${{ github.event_name != 'push' }}
+# 사이트 주소 — Cloudflare 로 옮기면 리포 설정의 Variables 에 SITE_URL 을 넣어 덮어쓴다.
+# (코드를 고치지 않고 값만 바꿔 전환하려고 한 곳에 모아 뒀다 · 2026-09-11)
+env:
+  SITE_URL: ${{ vars.SITE_URL || 'https://bamhobak.github.io/kospi-volume' }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -278,7 +283,7 @@ jobs:
               echo "$f 있음 ($(du -h site/data/$f | cut -f1))"; continue
             fi
             echo "$f 없음 — 배포본에서 가져온다"
-            curl -fsSL "https://bamhobak.github.io/kospi-volume/data/$f" -o "site/data/$f" \
+            curl -fsSL "$SITE_URL/data/$f" -o "site/data/$f" \
               && echo "  되살림 ($(du -h site/data/$f | cut -f1))" \
               || echo "::warning::배포본에도 $f 가 없다 — 다음 수집까지 그 기능은 쉰다"
           done
@@ -357,7 +362,7 @@ jobs:
       - name: 배포된 데이터 내려받기 (최신 거래일이 맞을 때까지)
         env:
           WANT: ${{ needs.build.outputs.last_date }}
-          SITE: https://bamhobak.github.io/kospi-volume/data
+          SITE: ${{ env.SITE_URL }}/data
         run: |
           mkdir -p site/data
           for i in $(seq 1 20); do
