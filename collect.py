@@ -4,7 +4,7 @@
 - 매일 18:30 실행 → 당일까지 수집 (당일 투자자 수치는 잠정치, 다음날 재수집 시 확정치로 덮어씀) (최근 LOOKBACK 영업일 범위 누락분 자동 보충)
 - 저장: data/kospi.db (SQLite), data/kospi_volume.csv
 """
-import sqlite3, sys, time, logging
+import os, sqlite3, sys, time, logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -76,8 +76,25 @@ def export_csv(con):
     pv.to_csv(CSV, index=False, encoding="utf-8-sig")
     log.info(f"CSV 저장: {CSV} ({len(pv)}종목 x {len(recent)}일: {recent[0]}~{recent[-1]})")
 
-def wait_for_today(deadline="21:00", interval=600):
-    """네이버에 당일 투자자 데이터 행이 올라올 때까지 대기 (평일만, deadline까지)"""
+def wait_for_today(deadline=None, interval=600):
+    """네이버에 당일 투자자 데이터 행이 올라올 때까지 대기 (평일만, deadline까지)
+
+    ⚠ 이 대기는 **더 이상 주 경로가 아니다**(2026-09-11). 기다리는 일은 Supabase 엣지 함수
+      `trigger` 로 옮겼다 — cron-job.org 가 19:00~21:00 사이 20분마다 그 함수를 부르고,
+      데이터가 올라온 회차에만 워크플로를 깨운다. 그러니 여기 도착했을 땐 이미 데이터가 있다.
+
+      옮긴 이유는 돈이다. 공개 저장소일 땐 Actions 가 공짜였지만 비공개로 바꾸면 이 sleep 이
+      전부 과금된다(실측 중앙 108분/일 × 22거래일 = 2,376분 > 무료 2,000분). 실제 일하는
+      시간은 13~18분뿐이었다.
+
+      그래서 기본 상한을 21:00 이 아니라 **환경변수 WAIT_DEADLINE(기본 20분 뒤)** 로 둔다.
+      만에 하나 트리거가 헛짚어도 러너가 몇 시간을 자지는 않는다. 예약 보충분(21:30·07:00)은
+      그 시각엔 데이터가 이미 있어 첫 확인에서 통과한다.
+    """
+    if deadline is None:
+        deadline = os.environ.get("WAIT_DEADLINE", "")
+        if not deadline:
+            deadline = (datetime.now() + timedelta(minutes=20)).strftime("%H:%M")
     today = datetime.today()
     if today.weekday() >= 5: return
     # 장 마감 전이면 '오늘 데이터'는 존재할 수 없다. 기다려 봐야 타임아웃이므로
