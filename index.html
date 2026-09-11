@@ -1775,9 +1775,9 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
 function verHtml(){
   const stale=!!(VERLATEST&&VERLATEST!==VERSION);
   return `<div class="ver${stale?' stale':''}" id="verbox" title="${stale
-      ?'배포본은 '+VERLATEST+' 입니다 — 눌러서 새로 받으세요'
-      :'이 화면의 버전입니다'+(VERLATEST?' (배포본과 같습니다)':'')}">`
-    +`v<b>${VERSION}</b>${stale?' · ⚠ 새 버전 '+VERLATEST+' 있음 (누르면 새로고침)':''}</div>`;
+      ?'지금 배포된 것은 '+VERLATEST+' 입니다. 이 화면은 브라우저에 저장된 옛 것이니 눌러서 새로 받으세요'
+      :'이 화면의 버전입니다'+(VERLATEST?' — 배포본과 같습니다(최신)':'')}">`
+    +`v<b>${VERSION}</b>${stale?' · ⚠ 옛 화면 (누르면 최신 '+VERLATEST+' 받기)':''}</div>`;
 }
 async function checkVer(){
   try{

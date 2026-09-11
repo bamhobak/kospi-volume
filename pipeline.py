@@ -6,7 +6,7 @@
   4) site/ 정적 사이트 생성: index.html + data/table.json(전 종목 20영업일) + data/stock/{code}.json(60영업일)
 사용: python pipeline.py [--wait] [--no-collect]
 """
-import subprocess
+import hashlib, subprocess
 import csv, json, shutil, sqlite3, sys
 from pathlib import Path
 import collect
@@ -385,16 +385,14 @@ def build_site():
     (SITE / "data" / "stock").mkdir(parents=True, exist_ok=True)
     for f in (SITE / "data" / "stock").glob("*.json"): f.unlink()
     # 버전 — 사이트가 최신 배포본인지 눈으로 알 수 있게 화면 맨 아래에 찍는다.
-    # 손으로 올리면 깜빡하므로 **git 커밋 수**로 자동 증가시킨다(1.0.<커밋수>).
-    # 같은 값을 data/ver.txt 에도 적어, 열어 둔 화면이 그 파일을 받아 자기 버전과 견준다
-    # — 다르면 "새 버전 있음" 이 뜬다(브라우저가 옛 index.html 을 캐시해도 알아챈다).
-    try:
-        _n = subprocess.run(["git", "rev-list", "--count", "HEAD"], cwd=BASE,
-                            capture_output=True, text=True, timeout=20).stdout.strip()
-        VER = "1.0." + (_n or "0")
-    except Exception:
-        VER = "1.0.0"
-    _html = (BASE / "index.html").read_text(encoding="utf-8").replace("__VER__", VER)
+    # **index.html 내용 해시**를 쓴다. 이유:
+    #   · 커밋 수는 못 쓴다 — Actions 체크아웃이 얕아서(.git 2.35GB라 전체 클론은 무리) 늘 1 이다.
+    #   · 실행 번호는 매일 오르는데, 자료만 바뀐 날에도 '새 버전' 이 떠 헛알림이 된다.
+    #     (표·달력은 늘 캐시를 무시하고 새로 받으므로 자료가 바뀌어도 화면은 안 묵는다.)
+    #   내용 해시는 **화면이 실제로 바뀐 날에만** 달라진다. 그게 알고 싶은 바로 그 신호다.
+    _src = (BASE / "index.html").read_bytes()
+    VER = "1.0." + str(int(hashlib.md5(_src).hexdigest()[:6], 16) % 10000).zfill(4)
+    _html = _src.decode("utf-8").replace("__VER__", VER)
     (SITE / "index.html").write_text(_html, encoding="utf-8")
     (SITE / "data").mkdir(parents=True, exist_ok=True)
     (SITE / "data" / "ver.txt").write_text(VER, encoding="utf-8")
