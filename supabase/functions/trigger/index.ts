@@ -91,8 +91,12 @@ Deno.serve(async (req) => {
 
   if (HOOK_KEY && u.searchParams.get("key") !== HOOK_KEY) return out({ error: "key" }, 403);
 
-  // 진단: 무엇을 보고 있는지, 오늘 쐈는지 — 설정 없이 확인할 수 있어야 한다
-  const diag = u.searchParams.get("diag") === "1";
+  // ⚠ **쏘는 건 POST 로만** 한다. GET 은 무조건 진단이다.
+  //   주소에 키가 들어가는 구조라 링크가 어딘가에 남으면 누가 눌러서 수집이 돈다.
+  //   실제로 2026-09-11 에 대화에 붙여둔 주소를 눌러 수집이 한 번 더 돌았다.
+  //   사람이 누르는 것뿐 아니라 **메신저·채팅앱의 링크 미리보기 봇**이 긁기만 해도
+  //   발사된다 — 그쪽은 전부 GET 이라 이 한 줄로 막힌다. cron-job.org 는 POST 를 보낸다.
+  const diag = u.searchParams.get("diag") === "1" || req.method === "GET";
   const force = u.searchParams.get("force") === "1";
 
   let state: Record<string, unknown> = {};
@@ -123,7 +127,11 @@ Deno.serve(async (req) => {
         tok = r.ok ? `ok ${r.status} (private=${(await r.json()).private})` : `실패 ${r.status}`;
       } catch (e) { tok = `실패 ${String(e).slice(0, 80)}`; }
     }
-    return out({ diag: true, tokenCheck: tok, ...base });
+    return out({
+      diag: true, method: req.method,
+      note: req.method === "GET" ? "GET 은 진단만 한다. 쏘려면 POST 로 불러라." : undefined,
+      tokenCheck: tok, ...base,
+    });
   }
 
   if (t.dow === 0 || t.dow === 6) return out({ skip: "주말", ...base });
