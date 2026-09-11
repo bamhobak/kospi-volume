@@ -59,8 +59,41 @@ def tickers():
     return U.reset_index(drop=True)
 
 
+_UNSET = object()
+_OPEN = _UNSET
+
+
+def open_session():
+    """아직 안 끝난 미국 정규장의 날짜(YYYYMMDD)를 돌려준다. 끝났거나 장 없는 날이면 None.
+
+    ⚠ 2026-09-11 사고: 수집이 22:21~22:30(KST)에 돌아 **개장 6분치**로 만든 봉이
+      그날 종가로 표에 들어갔다. 미장 규칙은 종가로 판정하므로 6분짜리 값을 보고
+      신고가·수익률을 계산한 셈이다. 터지지 않고 조용히 틀리는 부류다.
+
+      평소엔 수집이 22:30(KST) 전에 끝나 이런 일이 없지만, 대기가 길어지거나
+      수동으로 한 번 더 돌리면 개장을 넘긴다. 시각에 기대지 말고 **미완결 봉을
+      아예 버린다**. 하루 늦은 표가 틀린 표보다 낫다 — 어차피 다음 수집이 채운다.
+
+    16:05 로 잡은 건 장 마감(16:00 ET) 뒤 자료가 정리될 여유를 준 것이다.
+    """
+    from datetime import datetime
+    try:
+        from zoneinfo import ZoneInfo
+        n = datetime.now(ZoneInfo("America/New_York"))
+    except Exception:
+        # tz 자료가 없으면 **보수적으로** 판단한다(EST 로 가정 → 실제보다 이른 시각으로 봄).
+        # 이 방향의 오차는 멀쩡한 봉을 한 시간 더 버리는 것뿐이라 안전하다.
+        from datetime import timedelta, timezone
+        n = datetime.now(timezone.utc) - timedelta(hours=5)
+    if n.weekday() >= 5:
+        return None
+    return n.strftime("%Y%m%d") if n.strftime("%H:%M") < "16:05" else None
+
+
 def fetch(syms, start):
     import yfinance as yf
+    global _OPEN
+    if _OPEN is _UNSET: _OPEN = open_session()
     d = yf.download(syms, start=start, auto_adjust=False, progress=False,
                     threads=True, group_by="ticker", timeout=60)
     if d is None or not len(d):
@@ -82,6 +115,10 @@ def fetch(syms, start):
             x.index = x.index.strftime("%Y%m%d")
         except Exception:
             continue
+        if _OPEN and len(x.index) and x.index[-1] == _OPEN:
+            x = x.iloc[:-1]        # 아직 안 끝난 오늘 봉은 버린다
+            if len(x) < 25:
+                continue
         out[s] = x
     return out
 
