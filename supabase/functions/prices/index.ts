@@ -17,7 +17,7 @@
 //
 // prices.py 와 저장 형식·판정이 같아야 한다(화면과 알림이 어긋나면 안 된다):
 //   { updated, prices: { <코드>: {now,open,high,low,chg,vol,at,status} },
-//     index: { kospi|kosdaq|nasdaq: {now,chg,pct,at,status} } }
+//     index: { kospi|kosdaq|nasdaq|krw: {now,chg,pct,at,status} } }
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -257,6 +257,19 @@ Deno.serve(async (req) => {
           };
         } catch (e) { console.error("지수 실패", code, String(e).slice(0, 100)); }
       }),
+      // 달러/원 — 밤에 나스닥과 나란히 보여준다. 지수와 **같은 주기**로 갱신되게 여기 둔다
+      // (uscal.json 의 환율은 하루 한 번 수집 때 받는 값이라 주기가 다르다 · 2026-09-12 요청).
+      (async () => {
+        try {
+          const m = await yahoo("KRW=X");
+          const now = num(m.regularMarketPrice);
+          const prev = num(m.previousClose ?? m.chartPreviousClose);
+          index["krw"] = {
+            now, chg: (now != null && prev != null) ? now - prev : null,
+            pct: (now != null && prev) ? (now / prev - 1) * 100 : null,
+          };
+        } catch (e) { console.error("환율 실패", String(e).slice(0, 100)); }
+      })(),
       // 나스닥 — 한국 밤(20시~08시)에는 화면 위 지수를 이걸로 바꾼다(2026-09-12 요청).
       // 그 시간엔 국내 지수가 멈춰 있어 볼 것이 없고, 미장이 열려 있다.
       // 네이버 지수 API 는 국내 전용이라 야후를 쓴다(미장 시세와 같은 경로).

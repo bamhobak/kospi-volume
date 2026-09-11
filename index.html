@@ -410,7 +410,12 @@ const calOf=code=>(isUSCode(code)
   ?((raw.uscal&&raw.uscal.dates)||raw.usdates||[])
   :(raw.dates||[]));
 /* 정렬 계산에만 쓰는 환율. 화면 표기는 바꾸지 않는다(달러는 달러로 보여준다). */
-const usdkrw=()=>Number((raw.uscal&&raw.uscal.usdkrw)||0)||0;
+/* 달러/원. 실시간값(지수와 같은 10분 주기)이 있으면 그걸 쓰고, 없으면 수집 때 받은 값.
+   화면 표기는 달러 그대로 두고 **원화 환산 계산**에만 쓴다. */
+const usdkrw=()=>{
+  /* ⚠ LIVE 는 이 줄보다 **아래**에서 선언된다(let). 초기화 중에 불리면 터지므로 typeof 로 막는다. */
+  const w=(typeof LIVE!=='undefined'&&LIVE.index&&LIVE.index.krw)?LIVE.index.krw.now:null;
+  return Number(w||(raw.uscal&&raw.uscal.usdkrw)||0)||0;};
 /* 매수일부터 오늘까지 지난 거래일 수 — 매수일을 1일째로 센다(매도일 sellDate 와 같은 규칙).
    ⚠ 달력에는 **끝난 세션만** 들어간다. 미장은 한국 저녁에 열려서 오늘 세션이 도는 동안은
      달력에 오늘이 없다. 그래서 ① 실시간 시세가 달력보다 최신이면 그 하루를 더 세고,
@@ -632,7 +637,15 @@ function ordered(mkt){
   return out;
 }
 /* 공통(BOTH) 규칙은 A1·A2… 로 코스피·코스닥 뒤에 붙는다 */
-const orderedAll=()=>ordered('KOSPI').concat(ordered('KOSDAQ')).concat(ordered('BOTH')).concat(ordered('US'));
+/* 국내를 보는 시간인가 — 08~20시(KST). 밖이면 미장 시간으로 본다.
+   헤더 지수(나스닥·환율)와 규칙 목록 순서가 같은 기준을 쓴다. */
+const krDay=()=>{const h=new Date(Date.now()+9*3600*1000).getUTCHours();return h>=8&&h<20};
+/* 밤에는 미장 규칙을 앞에 둔다(2026-09-12 요청) — 그 시간에 신호가 나는 쪽이 미장이다.
+   ⚠ 숨기지는 않는다. 안 보이면 신호가 나도 모른다 — [[us-rules-never-fired]] 가 그 사고였다.
+     시장 **안의** 순서(직접 끌어 정한 것)는 그대로 둔다. */
+const orderedAll=()=>krDay()
+  ? ordered('KOSPI').concat(ordered('KOSDAQ')).concat(ordered('BOTH')).concat(ordered('US'))
+  : ordered('US').concat(ordered('BOTH')).concat(ordered('KOSPI')).concat(ordered('KOSDAQ'));
 /* 표시 번호 — 순서에서 계산한다. 폐기 규칙(P0)처럼 목록에 없으면 원래 코드 그대로. */
 /* 종목명 뒤에 붙는 건 회사 이름이 아니라 증권 종류다(ADR·Units·Class A …).
    'BP PLC ADR' 이 아니라 'BP PLC (ADR)' 로 보여야 종목명과 증권 종류가 구분된다.
@@ -1616,6 +1629,10 @@ function usState(){
   const cal=(raw.uscal&&raw.uscal.dates)||raw.usdates||[];
   const lastUS=cal.length?cal[cal.length-1]:'';
   const stale=!!(lastUS&&raw.usAsof<lastUS);
+  /* 국내를 보는 시간(08~20시)에는 이 칩을 감춘다(2026-09-12 요청) — 그 시간엔 미장이 닫혀
+     있어 기준일이 바뀔 일이 없다. 다만 **묵었을 때는 낮에도 남긴다**: 그건 '미장 규칙이
+     조용히 0 이 됐다' 는 경보라서 숨기면 안 된다([[us-table-stale]]). */
+  if(krDay()&&!stale){ if(el)el.remove(); return }
   const md=d=>d.slice(4,6)+'/'+d.slice(6,8);
   el.style.color=stale?'var(--up)':'';
   el.title=`미장 표 기준일 ${raw.usAsof}`+(stale
@@ -1633,9 +1650,8 @@ function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none
   /* 밤(20시~08시)에는 나스닥을 보여준다(2026-09-12 요청). 그 시간엔 국내 지수가 멈춰 있고
      미장이 열려 있어 볼 것이 그쪽이다. 나스닥 값이 아직 없으면 국내 지수로 되돌아간다 —
      빈 칸으로 두지 않는다. */
-  const _kh=new Date(Date.now()+9*3600*1000).getUTCHours();
   const nd=ix.nasdaq;
-  if((_kh>=20||_kh<8)&&nd&&nd.now){
+  if(!krDay()&&nd&&nd.now){
     const nc=(nd.pct!=null)?nd.pct:null;
     const nup=nc==null?null:nc>=0;
     const ncls=nup===null?'':(nup?'up':'dn'), narr=nup===null?'':(nup?'▲ ':'▼ ');
@@ -1643,7 +1659,13 @@ function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none
     el.title=(nd.at?nd.at.slice(11,16)+' 기준 ':'')+'나스닥 종합 (한국 밤에는 국내 대신 미장 지수를 봅니다)';
     el.innerHTML=`${narr}<span style="font-size:11px;color:var(--mut);margin-right:3px">NASDAQ</span>`
       +`${Math.round(nd.now).toLocaleString()}`
-      +(nc==null?'':` <span class="${nc>=0?'pos':'neg'}" style="font-size:11px">${nc>=0?'+':''}${nc.toFixed(2)}%</span>`);
+      +(nc==null?'':` <span class="${nc>=0?'pos':'neg'}" style="font-size:11px">${nc>=0?'+':''}${nc.toFixed(2)}%</span>`)
+      +(()=>{const w=ix.krw; if(!w||!w.now)return '';
+        const wc=w.pct==null?null:w.pct;
+        return ` &nbsp;<span class="mkt" style="margin-left:6px"><span style="font-size:11px;color:var(--mut);margin-right:3px">₩</span>`
+          +`${w.now.toLocaleString(undefined,{maximumFractionDigits:1})}`
+          +(wc==null?'':` <span class="${wc>=0?'pos':'neg'}" style="font-size:11px">${wc>=0?'+':''}${wc.toFixed(2)}%</span>`)
+          +`</span>`})();
     return;
   }
   const kv=(ix.kospi&&ix.kospi.now)||k.close, qv=(ix.kosdaq&&ix.kosdaq.now)||k.kq;
