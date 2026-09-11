@@ -130,6 +130,10 @@ header{flex:none}
      padding:19px 21px;display:flex;flex-direction:column;gap:17px}
 .sig.kq{border-left-color:var(--ind)}.sig.bo{border-left-color:var(--bth)}.sig.us{border-left-color:var(--usc)}
 .sig{cursor:pointer}.sig:hover{background:#14171d}.sig.sel{background:#1c1730}
+/* 종목코드 — 누르면 복사된다(증권사 앱에 붙여넣기용). 눌리는 것이라는 표시를 준다. */
+.cpy{cursor:pointer;border-radius:5px;padding:1px 4px;margin:-1px -4px;transition:background .12s}
+.cpy:hover{background:var(--panel2);color:var(--txt)!important}
+.cpy.done{background:var(--acc);color:#12131a!important}
 .sig .hd{display:flex;align-items:flex-start;gap:14px}
 .sig .nm{font-weight:700;font-size:19px;letter-spacing:-.2px}
 .sig .why{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px}
@@ -600,6 +604,30 @@ const fcode=id=>codeOf(id);
    복사를 못 한다(2026-09-10 사용자 신고 — 종목명을 긁어도 놓으면 사라짐).
    글자가 실제로 선택된 상태의 클릭은 무시한다. 버튼(매수·삭제 등)은 stopPropagation 이라
    여기 오지 않으므로 영향이 없다. */
+/* 종목코드 복사 — 증권사 앱에 붙여넣으려고 쓴다. HTTPS 라 Clipboard API 가 되지만
+   안 될 때(구형·권한 거부)를 대비해 textarea 로도 시도한다. 성공하면 잠깐 '복사됨' 을 보여준다. */
+function copyCode(el,txt){
+  const done=()=>{const old=el.textContent;el.textContent='복사됨';el.classList.add('done');
+    setTimeout(()=>{el.textContent=old;el.classList.remove('done')},900)};
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(done).catch(()=>fallback());
+  }else fallback();
+  function fallback(){
+    try{const t=document.createElement('textarea');t.value=txt;
+      t.style.cssText='position:fixed;opacity:0';document.body.appendChild(t);
+      t.select();document.execCommand('copy');t.remove();done()}
+    catch(e){alert('복사하지 못했습니다: '+txt)}}
+}
+/* 화면을 다시 그릴 때마다 코드 칸에 복사 동작을 붙인다(중복 방지 플래그 포함) */
+function bindCopy(){
+  document.querySelectorAll('.cpy[data-cp]').forEach(el=>{
+    if(el.dataset.cb)return; el.dataset.cb='1';
+    el.title='누르면 복사됩니다';
+    el.onclick=e=>{e.stopPropagation();e.preventDefault();
+      if(isSelecting())return;              /* 드래그로 글자를 고르는 중이면 복사하지 않는다 */
+      copyCode(el,el.dataset.cp)};
+  });
+}
 const isSelecting=()=>{try{const s=window.getSelection();
   return !!(s&&!s.isCollapsed&&String(s).trim().length)}catch(e){return false}};
 /* 설명문 안의 규칙 참조(P4·D1…)도 현재 표시 번호로 바꿔 준다 */
@@ -890,7 +918,7 @@ function renderCards(rows){
         <div style="flex-grow:1;min-width:0">
           <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
             <span class="nm">${dispName(r.name)}</span>
-            <span class="code" style="color:var(--dim);font-size:12px">${r.ticker}</span>
+            <span class="code cpy" data-cp="${r.ticker}" style="color:var(--dim);font-size:12px">${r.ticker}</span>
             <span class="tag ${mc}">${codeOf(f.id)}</span>${(()=>{const hp=heldPos(r.ticker);if(!hp)return '';
               const dd=heldDays(hp),pl=hp.price?((r.close/hp.price-1)*100):null;
               const by=(hp.filters||[]).map(codeOf).join('·');
@@ -917,6 +945,7 @@ function renderCards(rows){
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ind)" stroke-width="2" stroke-linecap="round" style="flex:none"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
         <span>${f.rule.trail?'트레일링 -'+f.rule.trail+'% — 보유 중 종가 최고점에서 이만큼 내려오면 다음날 시가에 팝니다(선이 매일 따라 올라갑니다)':f.rule.stop?'손절 -'+f.rule.stop+'%':'손절이 없습니다 — 보유기간을 끝까지 채우는 것이 규칙입니다'}. 기대 승률 ${f.stats.win}% · 건당 ${f.stats.avg>0?'+':''}${f.stats.avg}%</span>
       </div></div>`}).join('');
+  bindCopy();
   document.querySelectorAll('#cards .sig').forEach(el=>el.onclick=()=>{
     if(isSelecting())return;                 /* 글자를 고르는 중이면 카드를 열지 않는다 */
     sel=el.dataset.c;render();showStock(sel)});
@@ -1293,7 +1322,7 @@ async function renderPositions(){
   $('#tbl tbody').innerHTML=rows.map(({p,now,hi,days,line,tgt,ret,st,sc,streak,rule,useLive,lvDate,rid0})=>{
     const nowCell=pmon(now,p.code);
     const cells=[
-      `<td class="l name">${dispName(p.name)} <span class="code">${p.code}</span>`
+      `<td class="l name">${dispName(p.name)} <span class="code cpy" data-cp="${p.code}">${p.code}</span>`
         +`${MOB?'':` <button class="ghost mini pdet" data-detail="${p.code}">상세</button>`}</td>`,
       `<td class="l">${(p.filters||[]).map(f=>{const ff=fOf(f);return `<span class="tag ${ff?mkCls(ff.mkt):''}">${fcode(f)}</span>`}).join('')||'<span class="code">-</span>'}</td>`,
       `<td class="l">${md(p.date)}</td>`,`<td>${pmon(p.price,p.code)}</td>`,`<td>${p.qty?fmt(p.qty)+'주':''}</td>`,
@@ -1328,6 +1357,7 @@ async function renderPositions(){
   const inv=open_.reduce((a,r)=>a+(r.p.qty||0)*r.p.price,0),pnl=open_.reduce((a,r)=>a+((r.p.qty&&r.now)?(r.now-r.p.price)*r.p.qty:0),0);
   renderStatus();
   /* 행을 누르면 상세 패널이 열린다 — 모바일에서는 이 패널이 전체 화면(새 탭처럼)이다 */
+  bindCopy();
   document.querySelectorAll('tbody tr[data-pc]').forEach(tr=>tr.onclick=()=>{
     if(isSelecting())return;
     sel=tr.dataset.pc;render();showStock(sel)});
@@ -1577,7 +1607,7 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
   const total=rows.length,shown=rows.slice(0,rowLimit);rowTotal=total;
   /* 셀을 컬럼 id 로 만들어 cols 순서대로 출력한다 — 모바일 축약 시 머리글과 어긋나지 않게 */
   const cellOf=(r)=>({
-    name:`<td class="l name">${dispName(r.name)} <span class="code">${r.ticker}</span></td>`,
+    name:`<td class="l name">${dispName(r.name)} <span class="code cpy" data-cp="${r.ticker}">${r.ticker}</span></td>`,
     hits:`<td class="l">${orderedAll().filter(f=>f.fn(r)).map(f=>`<span class="tag ${mkCls(f.mkt)}">${codeOf(f.id)}</span>`).join('')}${heldPos(r.ticker)?'<span class="tag hold">보유</span>':''} <button class="ghost mini" data-buy="${r.ticker}">매수</button></td>`,
     cap:`<td class="sc">${r.cap==null?'':(r.mk==='US'?(r.cap>=1e6?'$'+(r.cap/1e6).toFixed(2)+'T':r.cap>=1e3?'$'+(r.cap/1e3).toFixed(1)+'B':'$'+fmt(r.cap)+'M'):(r.cap>=10000?(r.cap/10000).toFixed(1)+'조':fmt(r.cap)+'억'))}</td>`,
     r1m:`<td class="${cls(r.r1m)}">${r.r1m==null?'':(r.r1m>0?'+':'')+r.r1m.toFixed(1)+'%'}</td>`,
@@ -1695,6 +1725,7 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
     const k=th.dataset.k;if(sortKey===k)desc=!desc;else{sortKey=k;desc=k!=='name'}rowLimit=100;render()});
   if(total>shown.length)$('#tbl tbody').innerHTML+=`<tr><td colspan="40" style="text-align:center;padding:16px;color:var(--dim)">`
     +`${shown.length.toLocaleString()} / ${total.toLocaleString()} — 아래로 스크롤하면 더 불러옵니다</td></tr>`;
+  bindCopy();
   document.querySelectorAll('tbody tr[data-c]').forEach(tr=>tr.onclick=()=>{
     if(isSelecting())return;
     sel=tr.dataset.c;render();showStock(sel)});
@@ -1712,12 +1743,13 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
                         'width=560,height=920,scrollbars=yes,resizable=yes');
     if(w)w.focus(); else alert('팝업이 차단되었습니다. 브라우저에서 이 사이트의 팝업을 허용해주세요.');});
   document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=e=>{e.stopPropagation();const r=view.rows.find(x=>x.ticker===b.dataset.buy);addPosition(r.ticker,r.name,r.close)});
+  bindCopy();
 }
 async function showStock(code){
   const d=await (await fetch(`data/stock/${code}.json?v=${raw.updated}`)).json();
   const n=20;const rows=d.rows.slice(-n).map(x=>({date:d.dates[x[0]],close:x[1],change:x[2],volume:x[3],indiv:x[4],organ:x[5],frgn:x[6],fr:x[7]}));
   if(!rows.length)return;const L=rows[rows.length-1],labels=rows.map(r=>md(r.date));const sum=k=>rows.reduce((a,r)=>a+(r[k]||0),0);
-  $('#side').innerHTML=`<div style="display:flex;align-items:flex-start"><div><h2>${dispName(d.name)} <span style="color:var(--mut);font-size:13px">${d.ticker}</span></h2><div class="sub">종가 <b style="color:var(--txt)">${fmt(L.close)}</b> ${chg(L.close,L.change)} · ${md(L.date)} 기준 · 외국인 보유 ${L.fr}%</div>
+  $('#side').innerHTML=`<div style="display:flex;align-items:flex-start"><div><h2>${dispName(d.name)} <span class="cpy" data-cp="${d.ticker}" style="color:var(--mut);font-size:13px">${d.ticker}</span></h2><div class="sub">종가 <b style="color:var(--txt)">${fmt(L.close)}</b> ${chg(L.close,L.change)} · ${md(L.date)} 기준 · 외국인 보유 ${L.fr}%</div>
   ${(()=>{const row=raw.rows.find(x=>x.t===d.ticker);if(!row)return '';const TR=raw.themeRet||{};
     const tags=(row.th||[]).map(g=>`<span class="thtag ${(TR[g]||0)>0?'up':''}">${g}${TR[g]!=null?` <b>${TR[g]>0?'+':''}${TR[g]}%</b>`:''}</span>`).join('');
     return (row.up||tags)?`<div class="themes">${row.up?`<span class="thtag sector">${row.up}</span>`:''}${tags}</div>`:''})()}</div><div style="display:flex;gap:6px;flex:none;align-items:flex-start">${(()=>{const hp=heldPos(d.ticker);
