@@ -1278,9 +1278,9 @@ async function renderPositions(){
     const selF=posRule?fOf(posRule):null;
     const stat=`<div class="dstat">`
       +`<b class="${selF?mkCls(selF.mkt):''}">${posRule?codeOf(posRule)+' · '+((selF&&selF.name&&selF.name.split(' · ')[1])||posRule):'전체'}</b>`
-      +`<span><span class="k">매수금액</span>${m.inv?kor(m.inv)+'원'+(m.noFX?' (국내만)':''):'—'}</span>`
+      +`<span><span class="k">매수금액</span>${m.inv?kor(m.inv)+(m.noFX?' (국내만)':''):'—'}</span>`
       +`<span><span class="k">수익률</span><span class="${sg(m.ret)}">${m.inv?(m.ret>0?'+':'')+m.ret.toFixed(1)+'%':'—'}</span></span>`
-      +`<span><span class="k">평가손익</span><span class="${sg(m.pnl)}">${m.inv?kor(m.pnl,1)+'원':'—'}</span></span></div>`;
+      +`<span><span class="k">평가손익</span><span class="${sg(m.pnl)}">${m.inv?kor(m.pnl,1):'—'}</span></span></div>`;
     const box=$('#pchips');
     if(box){
       box.style.display=all.length?'':'none';
