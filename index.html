@@ -1027,13 +1027,23 @@ function addPosition(code,name,close){
      우리 규칙은 신호 다음날 시가 매수라 기록하는 날이 곧 매수일이다. */
   const _t=new Date(), pad=n=>String(n).padStart(2,'0');
   const today=`${_t.getFullYear()}${pad(_t.getMonth()+1)}${pad(_t.getDate())}`;
-  const date=prompt(`${name} 매수일 (YYYYMMDD)`,today);if(!date)return;
-  const price=+prompt(`${name} 매수가 (${unitOf(code)})`,close);if(!price)return;
-  const qty=+(prompt(`${name} 매수 수량 (주)`,'')||0);
+  const nm=dispNameTxt(name);
+  const _num=v=>+String(v).replace(/[^\d.]/g,'');
+  const date=prompt(`${nm} 매수일 (YYYYMMDD)`,today);if(!date)return;
+  const _p=prompt(`${nm} 매수가 (${unitOf(code)})`,close);
+  if(_p===null)return;                       /* 취소는 조용히 빠진다 */
+  const price=_num(_p);
+  if(!price||price<=0){alert('매수가를 숫자로 입력하세요');return}
+  /* 수량은 **반드시** 받는다. 예전엔 비우면 0 으로 넘어갔는데, 수량이 0 이면
+     평가손익·금액가중 수익률을 계산할 수 없어 보유 화면이 반쪽이 된다(2026-09-11 사용자 요청). */
+  const _q=prompt(`${nm} 매수 수량 (주)`,'');
+  if(_q===null)return;                       /* 취소 */
+  const qty=Math.floor(_num(_q));
+  if(!qty||qty<=0){alert('매수 수량을 입력하세요 — 수량이 없으면 평가손익을 계산할 수 없습니다');return}
   const row=view.rows.find(x=>x.ticker===code);const filters=row?FILTERS.filter(f=>f.fn(row)).map(f=>f.id):[];
   const a=positions();a.push({code,name,date:date.replace(/\D/g,''),price,qty,filters,id:Date.now()});savePositions(a);
   if(DETAIL){                    /* 상세 새 창에는 목록 화면이 없다 — 알리고 원래 창을 갱신 */
-    alert(`${name} 매수 기록 완료 (${price.toLocaleString()}원)`+(filters.length?` · 통과 규칙 ${filters.join('·')}`:' · 규칙 통과 없음'));
+    alert(`${nm} 매수 기록 완료 (${price.toLocaleString()}${unitOf(code)} × ${qty}주)`+(filters.length?` · 통과 규칙 ${filters.join('·')}`:' · 규칙 통과 없음'));
     try{if(window.opener&&!window.opener.closed)window.opener.location.reload()}catch(e){}
     showStock(code); return}
   cur='pos';render()}
