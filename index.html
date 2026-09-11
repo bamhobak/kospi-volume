@@ -1251,7 +1251,11 @@ async function renderPositions(){
     else if(days>=rule.hold){st='⏰ '+rule.hold+'일 도래 (매도)';sc='pos'}
     else if(rid0==='P7'&&ret!=null&&ret>0&&streak>=2){st='🔥 추가매수 고려 (신호 '+streak+'일째 + 이익 중)';sc='pos'}
     return {p,now,hi,days,line,tgt,ret,st,sc,streak,rule,useLive,lvDate,rid0}}));
-  const pr=p=>(p.sell/p.price-1)*100;
+  /* 완료 탭의 모든 숫자는 **비용 차감 후**다 — 수익률·손익·매수금액·실현합계까지.
+     매수 수수료는 매수금액에, 매도 세금은 매도금액에 붙으므로 따로 적용한다(costBuy/costSell).
+     슬리피지는 빼지 않는다: 직접 적은 체결가에 이미 들어 있다. */
+  const pr=p=>(costSell(p)/costBuy(p)-1)*100;
+  const pmoney=p=>(costSell(p)-costBuy(p))*(p.qty||0);
   /* 셀을 배열로 만들어 KEEP 인덱스만 출력한다 — 모바일에서 머리글과 어긋나지 않게 */
   /* rid0 도 함께 받는다 — 아래 '신호 연속일수' 칸이 P7 강조에 쓴다. 예전엔 빠져 있어
      보유 종목에 streak 가 붙는 순간 ReferenceError 로 표 전체와 상태줄이 죽었다(2026-09-07). */
@@ -1293,7 +1297,7 @@ async function renderPositions(){
         +`${MOB?'':` <button class="ghost mini pdet" data-detail="${p.code}">상세</button>`}</td>`,
       `<td class="l">${(p.filters||[]).map(f=>{const ff=fOf(f);return `<span class="tag ${ff?mkCls(ff.mkt):''}">${fcode(f)}</span>`}).join('')||'<span class="code">-</span>'}</td>`,
       `<td class="l">${md(p.date)}</td>`,`<td>${pmon(p.price,p.code)}</td>`,`<td>${p.qty?fmt(p.qty)+'주':''}</td>`,
-      `<td>${p.qty?amon(p.price*p.qty,p.code):''}</td>`,`<td class="${cls(ret)}">${nowCell}</td>`,
+      `<td>${p.qty?amon((DONE?costBuy(p):p.price)*p.qty,p.code):''}</td>`,`<td class="${cls(ret)}">${nowCell}</td>`,
       `<td class="${cls(ret)}">${ret==null?'':(ret>0?'+':'')+ret.toFixed(1)+'%'}</td>`,
       `<td class="${cls(ret)}">${p.qty&&now?amon((now-p.price)*p.qty,p.code,1):''}</td>`,
       `<td>${days}일</td>`,
@@ -1309,14 +1313,14 @@ async function renderPositions(){
       `<td>${rule?`${line?`<span class="neg">${pmon(line,p.code)}</span>`:''}${tgt?`<span class="pos">${pmon(tgt,p.code)}</span>`:''}`||'-':'<span class="code">-</span>'}</td>`,
       `<td>${streak?`<span class="${(rid0==='P7'&&streak>=2)?'hot':''}">${streak}일</span>`:'<span class="code">-</span>'}</td>`,
       `<td class="l ${sc==='none'?'':sc}" style="font-weight:600">${sc==='none'?'<span class="code">-</span>':st}</td>`,
-      `<td class="${p.sell?cls(pr(p)):''}">${p.sell?pmon(p.sell,p.code)+' ('+(pr(p)>0?'+':'')+pr(p).toFixed(1)+'%'+(p.qty?' · '+amon((p.sell-p.price)*p.qty,p.code,1):'')+')':''}</td>`,
+      `<td class="${p.sell?cls(pr(p)):''}">${p.sell?pmon(p.sell,p.code)+' ('+(pr(p)>0?'+':'')+pr(p).toFixed(1)+'%'+(p.qty?' · '+amon(pmoney(p),p.code,1):'')+')':''}</td>`,
       `<td class="l">${p.sell?'':`<button class="ghost mini" data-sell="${p.id}">매도</button>`} <button class="ghost mini" data-edit="${p.id}" title="${p.sell?'매도가·매도일 수정':'매수일·매수가·수량 수정'}">수정</button> <button class="ghost mini" data-del="${p.id}">삭제</button></td>`];
     if(DONE){const r_=pr(p),c_=cls(r_);
       const cd=[cells[0],cells[1],cells[2],cells[3],cells[4],cells[5],
         `<td class="l">${p.sellDate?md(p.sellDate):'<span class="code">-</span>'}</td>`,
         `<td class="${c_}">${pmon(p.sell,p.code)}</td>`,
         `<td class="${c_}">${(r_>0?'+':'')+r_.toFixed(1)+'%'}</td>`,
-        `<td class="${c_}">${p.qty?amon((p.sell-p.price)*p.qty,p.code,1):''}</td>`,cells[16]];
+        `<td class="${c_}">${p.qty?amon(pmoney(p),p.code,1):''}</td>`,cells[16]];
       return `<tr data-pc="${p.code}" class="${sel===p.code?'sel':''}">`+cd.join('')+'</tr>'}
     return `<tr data-pc="${p.code}" class="${sel===p.code?'sel':''}">`+KEEP.map(i=>cells[i]).join('')+'</tr>'}).join('');
   const open_=rows.filter(r=>!r.p.sell);const avg=open_.length?open_.reduce((a,r)=>a+(r.ret||0),0)/open_.length:0;
