@@ -260,15 +260,32 @@ Deno.serve(async (req) => {
       // 달러/원 — 밤에 나스닥과 나란히 보여준다. 지수와 **같은 주기**로 갱신되게 여기 둔다
       // (uscal.json 의 환율은 하루 한 번 수집 때 받는 값이라 주기가 다르다 · 2026-09-12 요청).
       (async () => {
+        // ⚠ 야후 KRW=X 는 국제 인터뱅크 호가라 **국내 앱이 보여주는 값과 다르다**
+        //   (2026-09-12: 야후 1,339.77 -0.39% vs 하나은행 고시 1,340.60 -0.77%.
+        //    값보다 **등락률이 두 배** 차이 났다 — 기준 전일 종가가 다르기 때문).
+        //   토스·네이버가 쓰는 하나은행 고시 매매기준율을 먼저 쓰고, 실패하면 야후로 간다.
         try {
-          const m = await yahoo("KRW=X");
-          const now = num(m.regularMarketPrice);
-          const prev = num(m.previousClose ?? m.chartPreviousClose);
-          index["krw"] = {
-            now, chg: (now != null && prev != null) ? now - prev : null,
-            pct: (now != null && prev) ? (now / prev - 1) * 100 : null,
-          };
-        } catch (e) { console.error("환율 실패", String(e).slice(0, 100)); }
+          const r = await fetch("https://api.stock.naver.com/marketindex/exchange/FX_USDKRW",
+                                { headers: NAVER });
+          if (!r.ok) throw new Error(`naver fx ${r.status}`);
+          const e0 = (await r.json())?.exchangeInfo;
+          const now = num(String(e0?.closePrice ?? "").replace(/,/g, ""));
+          if (now == null) throw new Error("naver fx 빈 응답");
+          index["krw"] = { now, pct: num(e0?.fluctuationsRatio),
+                           chg: num(String(e0?.fluctuations ?? "").replace(/,/g, "")),
+                           at: e0?.localTradedAt ?? "", src: "hana" };
+        } catch (e1) {
+          console.error("환율(네이버) 실패", String(e1).slice(0, 100));
+          try {
+            const m = await yahoo("KRW=X");
+            const now = num(m.regularMarketPrice);
+            const prev = num(m.previousClose ?? m.chartPreviousClose);
+            index["krw"] = {
+              now, chg: (now != null && prev != null) ? now - prev : null,
+              pct: (now != null && prev) ? (now / prev - 1) * 100 : null, src: "yahoo",
+            };
+          } catch (e2) { console.error("환율(야후)도 실패", String(e2).slice(0, 100)); }
+        }
       })(),
       // 나스닥 — 한국 밤(20시~08시)에는 화면 위 지수를 이걸로 바꾼다(2026-09-12 요청).
       // 그 시간엔 국내 지수가 멈춰 있어 볼 것이 없고, 미장이 열려 있다.
