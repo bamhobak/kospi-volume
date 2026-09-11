@@ -61,6 +61,17 @@ else:
     try:
         json.loads(_raw, parse_constant=lambda z: (_ for _ in ()).throw(ValueError(z)))
         ok(f"table_us.json 브라우저가 읽을 수 있는 JSON ({len(_raw)/1024/1024:.1f}MB)")
+        # 미장 표가 **하루 묵으면** 그날 난 진입 이벤트(nh5·qnew)가 통째로 빠져
+        # 미장 규칙이 조용히 0 이 된다. 국내와 장 시간이 달라 따로 봐야 한다.
+        _T = json.loads(_raw)
+        _asof = _T.get("asof") or (_T.get("dates") or [None])[-1]
+        _cal = (_T.get("usdates") or [])
+        _lastcal = _cal[-1] if _cal else None
+        if _asof and _lastcal and str(_asof) < str(_lastcal):
+            ng(f"미장 표가 묵었다 — 기준일 {_asof} 인데 달력의 마지막 거래일은 {_lastcal} "
+               f"(그날 난 미장 진입 이벤트가 빠져 규칙이 덜 잡힌다)")
+        else:
+            ok(f"미장 표 기준일 {_asof} (달력 마지막 {_lastcal})")
     except ValueError as e:
         ng(f"table_us.json 에 {e} 리터럴이 있다 — 브라우저 JSON.parse 가 거부해 미장 규칙 전원 사망")
     except Exception as e:
@@ -180,7 +191,7 @@ except Exception as e: ng(f"시세 상태 확인 실패: {e}")
 
 print("\n## 6) 화면")
 try:
-    js = subprocess.run([r"node", "-e", """
+    js = subprocess.run([r"node", "-e", r"""
       const fs=require('fs'),h=fs.readFileSync('index.html','utf8');
       const m=[...h.matchAll(/<script(?![^>]*src=)[^>]*>([\s\S]*?)<\/script>/g)];
       let bad=0; m.forEach(x=>{try{new Function(x[1])}catch(e){bad++;console.log(e.message)}});

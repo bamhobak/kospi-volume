@@ -799,8 +799,12 @@ function renderTabs(){
     /* 화살표 뒤가 '오늘 열린 규칙' 이라는 건 마우스를 올리면 나온다 — 한 줄을 지키려 라벨은 뺐다 */
     $('#mktstate').title=open.length?`오늘 열린 규칙: ${open.join('·')} (시장 조건을 만족해 신호가 날 수 있는 규칙)`
                                     :'오늘은 시장 조건을 만족하는 규칙이 없습니다';
+    /* 미장은 국내와 장 시간이 달라 표의 기준일이 하루씩 어긋날 수 있다. 하루 이상 묵으면
+       그날 난 진입 이벤트(nh5·qnew)가 통째로 빠져 미장 규칙이 조용히 0 이 되므로 눈에 보이게 한다
+       (2026-09-11: 정규 수집이 09-10 대신 09-09 자료를 받아 [상승장 신고가]가 사라졌다). */
     $('#mktstate').innerHTML=`<i style="background:${open.length?'var(--org)':'var(--faint)'}"></i>`
       +`코스피 ${ma} → ${open.length?`<b>${open.join('·')}</b>`:'<b>열린 규칙 없음</b>'}`;
+    usState();
   }else $('#mktstate').innerHTML='';
   $('#fdesc').innerHTML=cur==='done'?'매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요.':cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (${holdText()})`:cur==='all'?'':cur==='us'?(USROWS?`나스닥·뉴욕·아멕스 상장 ${USROWS.length.toLocaleString()}종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. <b>가격·시가총액·거래대금은 달러</b>이고, 열 설정은 코스피·코스닥 표와 따로 저장됩니다. ${raw.usUpdated?'기준 '+raw.usUpdated:''}`:'미장 자료를 받는 중입니다…')
       :(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));{const fd=$('#fdesc');
@@ -1344,6 +1348,27 @@ function renderStatus(){
     +g('장중 시세',LIVE.updated?LIVE.updated.slice(5):'없음',LIVE.updated?'':'off')
     +g('데이터',(raw.updated||'').slice(5)||'—');
 }
+/* 미장 표의 기준일 칩 — 국내와 장 시간이 달라 하루씩 어긋날 수 있다.
+   하루 이상 묵으면 그날 난 진입 이벤트(nh5·qnew)가 통째로 빠져 미장 규칙이 조용히 0 이 된다
+   (2026-09-11: 정규 수집이 09-10 대신 09-09 자료를 받아 [상승장 신고가]가 사라졌다).
+   #mktstate 옆에 **한 칸만** 두고 매번 갈아 끼운다(render 가 여러 번 불려도 늘어나지 않게). */
+function usState(){
+  const host=$('#mktstate'); if(!host)return;
+  let el=$('#usstate');
+  if(!raw.usAsof){ if(el)el.remove(); return }
+  if(!el){ el=document.createElement('span'); el.id='usstate'; el.className='mktstate';
+           el.style.marginLeft='6px'; host.insertAdjacentElement('afterend',el) }
+  const cal=(raw.uscal&&raw.uscal.dates)||raw.usdates||[];
+  const lastUS=cal.length?cal[cal.length-1]:'';
+  const stale=!!(lastUS&&raw.usAsof<lastUS);
+  const md=d=>d.slice(4,6)+'/'+d.slice(6,8);
+  el.style.color=stale?'var(--up)':'';
+  el.title=`미장 표 기준일 ${raw.usAsof}`+(stale
+    ? ` — 달력의 마지막 미장 거래일(${lastUS})보다 오래됐습니다. 그날 난 미장 진입 이벤트가 빠져 있어 미장 규칙이 덜 잡힐 수 있습니다`
+    : ' — 최신입니다');
+  el.innerHTML=`<i style="background:${stale?'var(--up)':'var(--usc)'}"></i>미장 ${md(raw.usAsof)}`
+    +(stale?' ⚠ 묵음':'');
+}
 function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none';return}
   /* 지수는 값만 보여준다. 이평선은 규칙 활성 여부와 함께 상태 칩에서 한 번에 안내한다.
      코스닥 20일선은 어떤 규칙도 쓰지 않아 표시하지 않는다 (D1 도 코스피 60일선을 본다). */
@@ -1369,14 +1394,20 @@ let USROWS=null;
 async function loadUS(quiet){
   if(USROWS)return USROWS;
   try{
-    const d=await (await fetch('data/table_us.json?v='+(raw.updated||''))).json();
+    /* ⚠ 캐시 키는 **미장 표 자기 시각**이어야 한다. 예전엔 국내 표의 updated 를 썼는데,
+       미장 수집(새벽 6시·미국 장 마감 후)과 국내 수집(전날 19시)은 시계가 달라서
+       미장 표만 새로 나온 시간대에는 URL 이 안 바뀌어 브라우저가 **옛 미장 표를 썼다**.
+       uscal.json 은 같은 수집이 만드는 작은 파일이고 Date.now() 로 늘 새로 받으므로
+       그 updated 를 키로 쓰면 미장이 갱신될 때만 정확히 새로 받는다(2026-09-11). */
+    const uv=(raw.uscal&&raw.uscal.updated)||raw.updated||'';
+    const d=await (await fetch('data/table_us.json?v='+uv)).json();
     const z=new Array((raw.dates||[]).length).fill(0);
     USROWS=(d.rows||[]).map(r=>Object.assign({fr:null,i:z,o:z,f:z,streak:0,per:null,pbr:null,pcr:null,dy:null},r));
     /* 미장 국면(S&P500 60일선)은 table.json 이 아니라 이 파일에만 들어 있다. 여기서
        raw.us 에 옮겨 담지 않으면 GATE.usUp60() 이 항상 거짓이라 미장 규칙이 절대 안 켜진다
        (2026-09-10 발견 — 알림은 2건인데 화면은 0 이었다). */
     raw.us=d.us||null;
-    raw.usUpdated=d.updated||''; raw.rows=raw.rows.concat(USROWS); prep();
+    raw.usUpdated=d.updated||''; raw.usAsof=d.asof||((d.dates||[]).slice(-1)[0])||''; raw.rows=raw.rows.concat(USROWS); prep();
   }catch(e){USROWS=null;
     /* 배경으로 받는 중이면 조용히 넘어간다 — 미장 자료가 없다고 매번 경고창이 뜨면 안 된다.
        탭을 눌러 직접 요청했을 때만 알린다. */

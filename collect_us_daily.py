@@ -252,6 +252,7 @@ def main():
         log("  data/us/buyback_recent.csv 없음 — [자사주 낙폭] 은 쉰다")
 
     rows, dates, t0, fail = [], [], time.time(), 0
+    lastd = []          # 종목마다 마지막 거래일 — 표의 '기준일' 을 최빈값으로 정한다
     for i in range(0, len(syms), a.chunk):
         part = syms[i:i + a.chunk]
         try:
@@ -265,6 +266,7 @@ def main():
                 continue
             if not dates or len(x.index) > len(dates):
                 dates = list(x.index[-NDAY:])
+            if len(x.index): lastd.append(str(x.index[-1]))
             m.update(t=s, n=str(NM.get(s, s)), mk="US", ex=str(MK.get(s, "")),
                      pref=False, th=[],
                      cap=(round(SHR[s] * m["c"] / 1e6, 1) if SHR.get(s) and m.get("c") else None))
@@ -274,6 +276,25 @@ def main():
     log(f"완료 {len(rows):,}종목 (실패 {fail:,}) · {time.time()-t0:.0f}초")
     if not rows:
         log("한 종목도 못 받았다 — 파일을 덮어쓰지 않는다"); return 1
+
+    # ── 기준일 가드 — 미장 표가 **뒤로 가는 것**을 막는다 ──────────────────
+    # 2026-09-11 사고: 정규 수집이 09-10 이 아니라 **09-09** 자료를 받아 덮어썼다.
+    # 그러면 그날 난 [상승장 신고가] 진입 이벤트(nh5)가 통째로 사라져 규칙이 조용히 0 이 된다.
+    # 미장은 국내와 장 시간이 달라 '오늘' 의 뜻이 다르므로, 표 자신의 기준일로 판단해야 한다.
+    from collections import Counter
+    asof = Counter(lastd).most_common(1)[0][0] if lastd else None
+    _stale = Counter(lastd).most_common(3)
+    log(f"  기준일 {asof} (종목별 마지막 거래일 분포 {_stale})")
+    if asof and OUT.exists():
+        try:
+            _old = json.load(open(OUT, encoding="utf-8"))
+            _oa = _old.get("asof") or (_old.get("dates") or [None])[-1]
+            if _oa and str(asof) < str(_oa):
+                log(f"::warning::받은 자료가 기존({_oa})보다 오래됐다({asof}) — "
+                    f"덮어쓰지 않는다. 미장 규칙이 하루 묵은 표로 도는 것을 막는다")
+                return 0
+        except Exception as e:
+            log(f"  기존 표 확인 실패(계속 진행): {e!r}"[:120])
 
     # ── [낙폭과대]·[저PBR 낙폭] 이 쓰는 재료 — 업종 60일 수익률 · PBR · 부채비율 ────
     #   한국 규칙을 미국에 대입했을 때 통과한 둘이다(us_rules.py). 사이트에도 얹으려면
@@ -380,6 +401,7 @@ def main():
     rows = _wash(rows)
     if _bad[0]: log(f'  ⚠ NaN·inf {_bad[0]}칸을 None 으로 바꿨다 — 안 바꿨으면 사이트가 미장 표를 통째로 버린다')
     json.dump({"dates": dates, "rows": rows, "us": us_reg, "usdates": us_days,
+               "asof": asof,
                "updated": datetime.now().strftime("%Y-%m-%d %H:%M")},
               open(OUT, "w", encoding="utf-8"), ensure_ascii=False,
               separators=(",", ":"), allow_nan=False)
@@ -387,7 +409,7 @@ def main():
     # 미장 거래일 달력만 담은 작은 파일 — 10분마다 도는 엣지 함수가 보유일을 세는 데 쓴다.
     #   미장 표는 3.6MB 라 10분마다 받을 수 없다. 달력은 400줄이면 10KB 도 안 된다.
     cal = OUT.parent / "uscal.json"
-    json.dump({"dates": us_days, "usdkrw": usdkrw,
+    json.dump({"dates": us_days, "usdkrw": usdkrw, "asof": asof,
                "updated": datetime.now().strftime("%Y-%m-%d %H:%M")},
               open(cal, "w", encoding="utf-8"), separators=(",", ":"))
     log(f"{cal.name} 미장 거래일 {len(us_days)}일")
