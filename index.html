@@ -353,7 +353,7 @@ const $=s=>document.querySelector(s);
 /* 버전. 배포할 때 pipeline.py 가 git 커밋 수로 '1.0.<n>' 을 박아 넣는다.
    로컬에서 파일을 그냥 열면 치환이 안 되므로 그때는 '개발' 로 보인다. */
 const VERSION=(()=>{const v='__VER__';return /^\d/.test(v)?v:'개발'})();
-let VERLATEST=null;                       /* 배포본 버전(data/ver.txt) — 다르면 옛 화면이다 */
+let VERLATEST=null;                       /* 배포본 버전(data/ver.json) — 다르면 옛 화면이다 */
 // 천/만/억 단위 축약
 function kor(n,sign){if(n==null||isNaN(n))return '';const a=Math.abs(n);let s;
   if(a>=1e8)s=(a/1e8).toFixed(a>=1e9?0:1).replace(/\.0$/,'')+'억';else if(a>=1e4)s=(a/1e4).toFixed(a>=1e6?0:1).replace(/\.0$/,'')+'만';else if(a>=1e3)s=(a/1e3).toFixed(1).replace(/\.0$/,'')+'천';else s=String(Math.round(a));
@@ -1771,7 +1771,7 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
    상세 패널(.side)은 데스크톱에서 CSS 로 숨겨 두고 목록의 '상세' 버튼이 새 창을 띄우는 구조다.
    그래서 카드에서 showStock 만 부르면 **화면에 아무 일도 안 일어났다**(2026-09-11 사용자 신고).
    '상세' 버튼과 같은 동작을 한 곳에 모아 두고 카드·표가 함께 쓴다. */
-/* 버전 칸. 배포본(data/ver.txt)과 다르면 '새 버전 있음' 을 띄우고 누르면 새로고침한다.
+/* 버전 칸. 배포본(data/ver.json)과 다르면 '옛 화면' 을 띄우고 누르면 새로고침한다.
    브라우저가 옛 index.html 을 캐시하고 있어도 이 파일은 늘 새로 받으므로 알아챌 수 있다
    (2026-09-11: 표 수정이 배포됐는데 화면이 안 바뀌어 한참 헤맸다). */
 function verHtml(){
@@ -1783,7 +1783,8 @@ function verHtml(){
 }
 async function checkVer(){
   try{
-    const t=(await (await fetch('data/ver.txt?cb='+Date.now())).text()).trim();
+    const j=await (await fetch('data/ver.json?cb='+Date.now())).json();
+    const t=String(j&&j.v||'').trim();
     if(/^\d/.test(t)&&t!==VERLATEST){VERLATEST=t;renderTabs&&renderTabs()}
   }catch(e){}
 }

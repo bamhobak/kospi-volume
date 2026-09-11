@@ -6,7 +6,7 @@
   4) site/ 정적 사이트 생성: index.html + data/table.json(전 종목 20영업일) + data/stock/{code}.json(60영업일)
 사용: python pipeline.py [--wait] [--no-collect]
 """
-import hashlib, subprocess
+import hashlib, subprocess, time
 import csv, json, shutil, sqlite3, sys
 from pathlib import Path
 import collect
@@ -385,20 +385,33 @@ def build_site():
     (SITE / "data" / "stock").mkdir(parents=True, exist_ok=True)
     for f in (SITE / "data" / "stock").glob("*.json"): f.unlink()
     # 버전 — 사이트가 최신 배포본인지 눈으로 알 수 있게 화면 맨 아래에 찍는다.
-    # **index.html 내용 해시**를 쓴다. 이유:
-    #   · 커밋 수는 못 쓴다 — Actions 체크아웃이 얕아서(.git 2.35GB라 전체 클론은 무리) 늘 1 이다.
-    #   · 실행 번호는 매일 오르는데, 자료만 바뀐 날에도 '새 버전' 이 떠 헛알림이 된다.
-    #     (표·달력은 늘 캐시를 무시하고 새로 받으므로 자료가 바뀌어도 화면은 안 묵는다.)
-    #   내용 해시는 **화면이 실제로 바뀐 날에만** 달라진다. 그게 알고 싶은 바로 그 신호다.
-    #   ⚠ 줄바꿈을 맞춰서 센다 — 윈도우 체크아웃은 CRLF, Actions(리눅스)는 LF 라
-    #     같은 파일인데 바이트가 달라 로컬과 배포본의 번호가 어긋난다(2026-09-11 확인).
-    _txt = (BASE / "index.html").read_text(encoding="utf-8").replace("\r\n", "\n")
-    VER = "1.0." + str(int(hashlib.md5(_txt.encode("utf-8")).hexdigest()[:6], 16) % 10000).zfill(4)
+    # **1씩 올라가는 번호**를 쓴다(1.0.00 → 1.0.01 … 1.0.99 → 1.1.00).
+    #   · 커밋 수는 못 쓴다 — Actions 체크아웃이 얕아(.git 2.35GB) 늘 1 이다.
+    #   · 실행 번호는 매일 오르는데 자료만 바뀐 날에도 '옛 화면' 이 떠 헛알림이 된다.
+    #   · 내용 해시를 두 자리로 줄이면 100개뿐이라 **다른 버전이 같은 번호**가 될 수 있다(1%).
+    #   그래서 해시는 '바뀌었나' 판정에만 쓰고, 번호는 배포본에서 읽어 바뀐 날에만 +1 한다.
+    #   기록은 배포본 자신(data/ver.json)에 둔다 — 리포에 커밋하지 않아도 이어진다.
+    _txt = (BASE / "index.html").read_text(encoding="utf-8").replace(chr(13) + chr(10), chr(10))
+    _h = hashlib.md5(_txt.encode("utf-8")).hexdigest()[:8]
+    _prev = None
+    for _src in ("https://bamhobak.github.io/kospi-volume/data/ver.json",):
+        try:
+            import urllib.request
+            _prev = json.loads(urllib.request.urlopen(
+                _src + "?cb=" + str(int(time.time())), timeout=20).read().decode("utf-8"))
+        except Exception as e:
+            print(f"  ⚠ 배포본 버전을 못 읽었다(계속 진행): {e!r}"[:120])
+    _n = int(_prev.get("n", 0)) if isinstance(_prev, dict) else 0
+    if not (isinstance(_prev, dict) and _prev.get("h") == _h):
+        _n += 1                                  # 화면이 바뀐 날에만 올린다
+    VER = f"1.{_n // 100}.{_n % 100:02d}"
     _html = _txt.replace("__VER__", VER)
     (SITE / "index.html").write_text(_html, encoding="utf-8")
     (SITE / "data").mkdir(parents=True, exist_ok=True)
-    (SITE / "data" / "ver.txt").write_text(VER, encoding="utf-8")
-    print(f"  버전 {VER}")
+    json.dump({"v": VER, "n": _n, "h": _h},
+              open(SITE / "data" / "ver.json", "w", encoding="utf-8"))
+    print(f"  버전 {VER} (n={_n} · h={_h}"
+          + (f" · 이전 {_prev.get('v')}/{_prev.get('h')}" if isinstance(_prev, dict) else " · 이전 없음") + ")")
     for f in (BASE / "assets").glob("*"): shutil.copy(f, SITE / f.name)
     con = sqlite3.connect(collect.DB); con.row_factory = sqlite3.Row
     UP, TH, SNAP = load_sector(con)
