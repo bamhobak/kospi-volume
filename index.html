@@ -923,8 +923,21 @@ function renderTabs(){
        (2026-09-11: 정규 수집이 09-10 대신 09-09 자료를 받아 [상승장 신고가]가 사라졌다). */
     /* 열린 규칙 목록(→ P2·P3·…)은 화면에서 뺐다(2026-09-11 사용자 요청) — 레일에 규칙별
        건수가 이미 있어 겹치고, 줄이 길어 모바일에서 가로로 밀렸다. 마우스를 올리면 여전히 나온다. */
-    $('#mktstate').innerHTML=`<i style="background:${open.length?'var(--org)':'var(--faint)'}"></i>`
-      +`코스피 ${ma}`;
+    /* 밤(20~08시)에는 미장 기준으로 바꾼다(2026-09-12 요청) — 지수를 나스닥으로 바꾼 것과
+       같은 이유다. 국내 이평선은 '오늘 어떤 **국내** 규칙이 열렸나' 를 말하는데, 국내장이
+       닫힌 시간에는 볼 일이 없고 그 시간에 신호가 나는 쪽은 미장이다.
+       미장 게이트는 S&P500 60일선 하나뿐이다([상승장 신고가]가 쓴다). */
+    const U=raw.us;
+    if(!krDay()&&U&&U.up60!=null){
+      const uo=orderedAll().filter(f=>f.mkt==='US'&&GATE[f.gate||'always'](K)).map(f=>codeOf(f.id));
+      $('#mktstate').title=uo.length?`지금 열린 미장 규칙: ${uo.join('·')} (S&P500 ${U.up60?'60일선 위':'60일선 아래'})`
+                                    :'지금은 조건을 만족하는 미장 규칙이 없습니다';
+      $('#mktstate').innerHTML=`<i style="background:${uo.length?'var(--org)':'var(--faint)'}"></i>`
+        +`S&P500 60일선 ${U.up60?'위':'아래'}`;
+    }else{
+      $('#mktstate').innerHTML=`<i style="background:${open.length?'var(--org)':'var(--faint)'}"></i>`
+        +`코스피 ${ma}`;
+    }
     usState();
   }else $('#mktstate').innerHTML='';
   $('#fdesc').innerHTML=cur==='done'?`매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요. 수익률은 <b>매매비용 차감 후</b>입니다 — 국내 왕복 ${feeSum(fees().KR)}%(매수 ${fees().KR.b} + 매도 ${fees().KR.s}) · 미장 왕복 ${feeSum(fees().US)}%(매수 ${fees().US.b} + 매도 ${fees().US.s}). <b>슬리피지는 빼지 않습니다</b> — 직접 적은 체결가에 이미 들어 있습니다. 환전 수수료도 빠져 있습니다.`:cur==='pos'?''   /* 보유 탭 설명은 없앴다(2026-09-12 요청) — 규칙 칩과 표가 자리를 차지한다 */:cur==='all'?'':cur==='us'?(USROWS?`나스닥·뉴욕·아멕스 상장 ${USROWS.length.toLocaleString()}종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. <b>가격·시가총액·거래대금은 달러</b>이고, 열 설정은 코스피·코스닥 표와 따로 저장됩니다. ${raw.usUpdated?'기준 '+raw.usUpdated:''}`:'미장 자료를 받는 중입니다…')
@@ -1228,7 +1241,11 @@ async function addPosition(code,name,close){
   const _q =await ask(nm,'매수 수량 (주)','','int');          if(_q===null)return;
   const price=+_p, qty=Math.floor(+_q);
   const row=view.rows.find(x=>x.ticker===code);const filters=row?FILTERS.filter(f=>f.fn(row)).map(f=>f.id):[];
-  const a=positions();a.push({code,name,date:date.replace(/\D/g,''),price,qty,filters,id:Date.now()});savePositions(a);
+  /* 미장은 **그때 환율**을 함께 적는다(2026-09-12). 완료된 건을 원화로 합칠 때 지금 환율로
+     환산하면 그때 실제로 오간 돈과 달라진다 — 끝난 거래의 값은 끝난 시점의 값이어야 한다.
+     환율을 못 받았으면 null 로 두고, 합산할 때 현재 환율로 대신한다(옛 기록도 같은 취급). */
+  const _fx=isUSCode(code)?(usdkrw()||null):null;
+  const a=positions();a.push({code,name,date:date.replace(/\D/g,''),price,qty,filters,fx:_fx,id:Date.now()});savePositions(a);
   if(DETAIL){                    /* 상세 새 창에는 목록 화면이 없다 — 알리고 원래 창을 갱신 */
     alert(`${nm} 매수 기록 완료 (${price.toLocaleString()}${unitOf(code)} × ${qty}주)`+(filters.length?` · 통과 규칙 ${filters.join('·')}`:' · 규칙 통과 없음'));
     try{if(window.opener&&!window.opener.closed)window.opener.location.reload()}catch(e){}
@@ -1260,7 +1277,13 @@ async function renderPositions(){
       const f=k==='전체'?null:fOf(k), kq=f&&mkCls(f.mkt);
       const avg=list.reduce((a,p)=>a+ret(p),0)/list.length;
       const wl=list.filter(p=>(p.qty||0)>0);
-      const cost=wl.reduce((a,p)=>a+costBuy(p)*p.qty,0), sum=wl.reduce((a,p)=>a+pnl(p),0);
+      /* 원화로 합친다. 미장은 **매수 때 환율로 산 돈**, **매도 때 환율로 받은 돈**을 쓴다 —
+         지금 환율로 다시 환산하면 실제로 오간 돈과 달라진다. 환율이 없는 옛 기록은
+         현재 환율로 대신한다(그 경우만 어쩔 수 없이 근사값이다). */
+      const fxB=p=>isUSCode(p.code)?(p.fx||usdkrw()||0):1;
+      const fxS=p=>isUSCode(p.code)?(p.sellFx||p.fx||usdkrw()||0):1;
+      const cost=wl.reduce((a,p)=>a+costBuy(p)*p.qty*fxB(p),0);
+      const sum=wl.reduce((a,p)=>a+(costSell(p)*fxS(p)-costBuy(p)*fxB(p))*p.qty,0);
       const wavg=cost?sum/cost*100:null;
       const sg=x=>x>0?'pos':x<0?'neg':'';
       const miss=list.length-wl.length;
@@ -1486,7 +1509,9 @@ async function renderPositions(){
     const _t=new Date(),pad=n=>String(n).padStart(2,'0');
     const today=`${_t.getFullYear()}${pad(_t.getMonth()+1)}${pad(_t.getDate())}`;
     const sd=await ask(nm,'매도일',today,'date');if(sd===null)return;
-    p.sell=+sell;p.sellDate=sd;savePositions(a);render()});
+    p.sell=+sell;p.sellDate=sd;
+    if(isUSCode(p.code))p.sellFx=usdkrw()||null;   /* 매도 시점 환율 — 아래 합산이 이걸 쓴다 */
+    savePositions(a);render()});
   /* 수정 — 잘못 넣은 값을 고친다. 보유 상태면 매수 때 넣은 값(매수일·매수가·수량),
      완료 상태면 매도 때 넣은 값(매도가·매도일). 취소(null)하면 아무것도 안 바꾼다. */
   document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=async e=>{e.stopPropagation();const a=positions();const p=a.find(x=>x.id==b.dataset.edit);if(!p)return;
@@ -1638,10 +1663,10 @@ function usState(){
   const cal=(raw.uscal&&raw.uscal.dates)||raw.usdates||[];
   const lastUS=cal.length?cal[cal.length-1]:'';
   const stale=!!(lastUS&&raw.usAsof<lastUS);
-  /* 국내를 보는 시간(08~20시)에는 이 칩을 감춘다(2026-09-12 요청) — 그 시간엔 미장이 닫혀
-     있어 기준일이 바뀔 일이 없다. 다만 **묵었을 때는 낮에도 남긴다**: 그건 '미장 규칙이
-     조용히 0 이 됐다' 는 경보라서 숨기면 안 된다([[us-table-stale]]). */
-  if(krDay()&&!stale){ if(el)el.remove(); return }
+  /* 평소에는 이 칩을 아예 감춘다(2026-09-12 요청). 기준일이 정상이면 볼 일이 없다.
+     다만 **묵었을 때는 남긴다**: 그건 '미장 규칙이 조용히 0 이 됐다' 는 경보라서
+     숨기면 안 된다([[us-table-stale]] 가 그 사고였다). */
+  if(!stale){ if(el)el.remove(); return }
   const md=d=>d.slice(4,6)+'/'+d.slice(6,8);
   el.style.color=stale?'var(--up)':'';
   el.title=`미장 표 기준일 ${raw.usAsof}`+(stale
