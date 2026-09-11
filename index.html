@@ -823,7 +823,7 @@ function renderTabs(){
       +`코스피 ${ma} → ${open.length?`<b>${open.join('·')}</b>`:'<b>열린 규칙 없음</b>'}`;
     usState();
   }else $('#mktstate').innerHTML='';
-  $('#fdesc').innerHTML=cur==='done'?'매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요.':cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (${holdText()})`:cur==='all'?'':cur==='us'?(USROWS?`나스닥·뉴욕·아멕스 상장 ${USROWS.length.toLocaleString()}종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. <b>가격·시가총액·거래대금은 달러</b>이고, 열 설정은 코스피·코스닥 표와 따로 저장됩니다. ${raw.usUpdated?'기준 '+raw.usUpdated:''}`:'미장 자료를 받는 중입니다…')
+  $('#fdesc').innerHTML=cur==='done'?`매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요. 수익률은 <b>매매비용 차감 후</b>입니다 — 국내 ${fees().KR}% · 미장 ${fees().US}% 왕복(거래세+수수료, <b>슬리피지 제외</b> — 직접 적은 체결가에 이미 들어 있습니다). <span class="descmore" id="feebtn">▸ 비용 바꾸기</span>`:cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (${holdText()})`:cur==='all'?'':cur==='us'?(USROWS?`나스닥·뉴욕·아멕스 상장 ${USROWS.length.toLocaleString()}종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. <b>가격·시가총액·거래대금은 달러</b>이고, 열 설정은 코스피·코스닥 표와 따로 저장됩니다. ${raw.usUpdated?'기준 '+raw.usUpdated:''}`:'미장 자료를 받는 중입니다…')
       :(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));{const fd=$('#fdesc');
   if(fd&&fd.style){const has=(fd.innerHTML||'').trim();
     fd.style.display=has?'':'none';
@@ -831,7 +831,9 @@ function renderTabs(){
       fd.innerHTML='<span class="descmore">▸ 설명 보기</span>'}
     else if(has&&MOB&&DESCOPEN&&!fd.querySelector('.descmore')){
       fd.innerHTML=fd.innerHTML+' <span class="descmore">▴ 접기</span>'}
-    const dm=fd.querySelector('.descmore');
+    const fb=fd.querySelector('#feebtn');
+    if(fb)fb.onclick=e=>{e.stopPropagation();setFees()};
+    const dm=fd.querySelector('.descmore:not(#feebtn)');
     if(dm)dm.onclick=()=>{DESCOPEN=!DESCOPEN;
       try{localStorage.setItem('descopen',DESCOPEN?'1':'0')}catch(e){}; renderTabs()};}}
   const rb=$('#rule');
@@ -1039,6 +1041,25 @@ async function setPin(){const cur_=getPin();const v=prompt('기기 간 공유용
   if(remote&&Array.isArray(remote.positions)&&remote.positions.length){if(POS.length&&!confirm(`이 PIN에 저장된 보유 종목 ${remote.positions.length}건을 불러옵니다. 현재 기기의 ${POS.length}건은 덮어씁니다. 계속?`))return;POS=remote.positions;try{localStorage.setItem('positions',JSON.stringify(POS))}catch(e){}}
   else if(POS.length){await pushRemote()}
   render()}
+/* 실전 기록의 매매비용 — **거래세 + 증권사 수수료만** 뺀다(왕복 %).
+   ⚠ 슬리피지는 빼지 않는다. 백테스트는 '신호 다음날 시가에 산다' 를 가정하므로 원하는 가격에
+   못 사는 몫(0.10~1.00%)을 비용에 넣지만, 실전 기록은 **네가 실제 체결된 가격을 직접 적는다**.
+   그 값에는 슬리피지가 이미 들어 있어 또 빼면 이중 차감이다(2026-09-11 사용자 지적).
+   그래서 백테스트 비용(국내 0.35~1.15% · 미장 0.10~0.60%)보다 훨씬 작다.
+   기본값: 국내 0.165%(거래세 0.15 + 수수료 0.015) · 미장 0.20%(수수료+환전). 계좌마다 다르니 고칠 수 있다. */
+const DEFFEE={KR:0.165,US:0.20};
+function fees(){try{return Object.assign({},DEFFEE,JSON.parse(localStorage.getItem('fees')||'{}'))}
+  catch(e){return Object.assign({},DEFFEE)}}
+function feeOf(code){const f=fees();return isUSCode(code)?f.US:f.KR}
+async function setFees(){
+  const f=fees();
+  const k=await ask('매매비용 설정','국내 왕복 % (거래세+수수료 · 슬리피지 제외)',f.KR,'num');
+  if(k===null)return;
+  const u=await ask('매매비용 설정','미장 왕복 % (수수료+환전)',f.US,'num');
+  if(u===null)return;
+  try{localStorage.setItem('fees',JSON.stringify({KR:+k,US:+u}))}catch(e){}
+  render();
+}
 /* 숫자 전용 입력창. prompt() 를 대신한다 — 네이티브 창은 입력 제한도 키패드 지정도 못 한다.
    kind: 'num'(소수 허용 · 가격) · 'int'(정수 · 수량) · 'date'(YYYYMMDD 8자리)
    반환: 확인 → 문자열 · 취소 → null (prompt 와 같은 약속이라 호출부가 그대로 읽힌다) */
@@ -1106,7 +1127,10 @@ async function renderPositions(){
   const rid=p=>normId((p.filters||[])[0])||'-';          // 매수 당시 규칙 (첫 번째)
   let ps=positions().filter(p=>DONE?p.sell:!p.sell);     // 보유 탭은 미매도, 완료 탭은 매도된 것만
   if(DONE){
-    const all=ps, ret=p=>(p.sell/p.price-1)*100, pnl=p=>(p.sell-p.price)*(p.qty||0);
+    /* 수익률·수익금 모두 **비용 차감 후**다. 백테스트 숫자도 비용을 뺀 값이라 그래야 나란히 놓인다.
+       수익금은 수익률에서 그대로 환산해 둘이 어긋나지 않게 한다. */
+    const all=ps, ret=p=>(p.sell/p.price-1)*100-feeOf(p.code),
+          pnl=p=>ret(p)/100*p.price*(p.qty||0);
     const by={};
     all.forEach(p=>{const k=rid(p);(by[k]=by[k]||[]).push(p)});
     /* 수익률을 두 가지로 나눠 보여준다(2026-09-09 사용자 요청).
@@ -1127,7 +1151,8 @@ async function renderPositions(){
       const wavg=cost?sum/cost*100:null;
       const sg=x=>x>0?'pos':x<0?'neg':'';
       const miss=list.length-wl.length;
-      return `<div class="dstat" title="동일가중 = 건별 수익률의 단순 평균(규칙 자체의 성적, 백테스트와 비교용)&#10;금액가중 = 총손익 ÷ 총매수금액(내 계좌가 실제로 번 비율)${miss?'&#10;수량 없는 기록 '+miss+'건은 금액가중에서 제외':''}">`
+      const _f=fees();
+      return `<div class="dstat" title="동일가중 = 건별 수익률의 단순 평균(규칙 자체의 성적, 백테스트와 비교용)&#10;금액가중 = 총손익 ÷ 총매수금액(내 계좌가 실제로 번 비율)&#10;&#10;매매비용 차감 후입니다 — 국내 ${_f.KR}% · 미장 ${_f.US}% (왕복).&#10;슬리피지는 빼지 않습니다: 직접 적은 체결가에 이미 들어 있습니다.${miss?'&#10;수량 없는 기록 '+miss+'건은 금액가중에서 제외':''}">`
         +`<b class="${kq||''}">${k==='전체'?k:(f&&f.name?codeOf(k)+' · '+(f.name.split(' · ')[1]||f.name):codeOf(k))}</b>`
         +`<span><span class="k">동일</span><span class="${sg(avg)}">${avg>0?'+':''}${avg.toFixed(1)}%</span></span>`
         +`<span><span class="k">금액</span><span class="${sg(wavg)}">${wavg==null?'—':(wavg>0?'+':'')+wavg.toFixed(1)+'%'}</span></span>`
