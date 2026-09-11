@@ -348,7 +348,7 @@ button.prim{background:var(--acc);border:1px solid var(--acc);color:#0a0b0e;font
   <div class="main">
     <div id="fdesc" class="fdesc"></div>
     <div class="rule" id="rule" style="display:none"></div>
-    <div id="pchips" class="dsum" style="display:none"></div>
+    <div id="pchips" style="display:none"></div>
     <div class="wrap">
       <div class="card" id="tblcard"><div class="tblwrap"><table id="tbl"><thead></thead><tbody></tbody></table></div></div>
       <div id="cards" class="cards" style="display:none"></div>
@@ -1269,10 +1269,27 @@ async function renderPositions(){
       return `<span class="dchip ${on?'on':''} ${kq||''}" data-pr="${k}"`
         +`${f&&al&&al.max?` title="자리 ${al.max}개 중 ${list.length}개 사용${al.pct?' · 종목당 '+al.pct+'%':''}"`:''}>`
         +`<b>${k==='전체'?k:(f&&f.name?codeOf(k)+' · '+(f.name.split(' · ')[1]||f.name):codeOf(k))}</b>${slot}</span>`};
+    /* 칩 아래에 고른 묶음의 요약 — 완료 탭과 같은 자리·같은 모양이다.
+       예전에는 헤더에 늘 떠 있었는데, 규칙을 고르면 표만 걸러지고 헤더는 전체여서
+       두 값이 따로 놀았다. 이제 칩 바로 아래에서 같이 움직인다. */
+    const sel=posRule&&by[posRule]?by[posRule]:all;
+    const m=sumMoney(sel);
+    const sg=x=>x>0?'pos':x<0?'neg':'';
+    const selF=posRule?fOf(posRule):null;
+    const al=selF&&selF.alloc;
+    const stat=`<div class="dstat">`
+      +`<b class="${selF?mkCls(selF.mkt):''}">${posRule?codeOf(posRule)+' · '+((selF&&selF.name&&selF.name.split(' · ')[1])||posRule):'전체'}</b>`
+      +`<span><span class="k">보유</span>${sel.length}종목`
+      +`${al&&al.max?`<span class="k" style="margin-left:4px">/ 자리 ${al.max}</span>`:''}</span>`
+      +`<span><span class="k">매수금액</span>${m.inv?kor(m.inv)+'원'+(m.noFX?' (국내만)':''):'—'}</span>`
+      +`<span><span class="k">수익률</span><span class="${sg(m.ret)}">${m.inv?(m.ret>0?'+':'')+m.ret.toFixed(1)+'%':'—'}</span></span>`
+      +`<span><span class="k">평가손익</span><span class="${sg(m.pnl)}">${m.inv?kor(m.pnl,1)+'원':'—'}</span></span></div>`;
     const box=$('#pchips');
     if(box){
       box.style.display=all.length?'':'none';
-      box.innerHTML=[chip('전체',all,posRule===null)].concat(keys.map(k=>chip(k,by[k],posRule===k))).join('');
+      box.innerHTML=`<div class="dsum">`
+        +[chip('전체',all,posRule===null)].concat(keys.map(k=>chip(k,by[k],posRule===k))).join('')
+        +`</div>`+stat;
       box.querySelectorAll('.dchip').forEach(el=>el.onclick=()=>{
         posRule=el.dataset.pr==='전체'?null:el.dataset.pr;render()});
     }
@@ -1539,48 +1556,36 @@ function holdText(){
     (by[k]=by[k]||[]).push(codeOf(f.id))});
   return Object.keys(by).map(k=>by[k].join('·')+': '+k).join(' / ');
 }
-function renderStatus(){
-  const el=$('#status'); if(!el)return;
-  const g=(k,v,c='')=>`<span class="sgrp"><i>${k}</i><b class="${c}">${v}</b></span>`;
-  const ps=positions();
-  /* 보유 탭에서 규칙 칩을 고르면 **위 숫자도 그 규칙만** 센다. 표는 걸러졌는데 요약이
-     전체면 두 값이 따로 놀아 무엇을 보는지 알 수 없다(2026-09-12 사용자 신고).
-     완료 건수는 그대로 둔다 — 그건 완료 탭이 따로 고른다. */
-  const _sel=(cur==='pos'&&posRule)?posRule:null;
-  const open_=ps.filter(p=>!p.sell&&(!_sel||normId((p.filters||[])[0])===_sel));
-  const closed=ps.filter(p=>p.sell);
+/* 보유 묶음의 돈 합계. **원화로 환산해** 더한다 — 예전에는 통화를 안 가려 $83 이 83원으로
+   들어갔다(2026-09-12). 환율을 못 받았으면 미장을 빼고 noFX 로 알린다: 0원으로 세어
+   조용히 줄이지 않는다. 현재가는 **시장별 달력**과 견준다(국내 달력으로 재면 미국장이
+   닫힌 시간에 미장 종목이 통째로 빠진다). */
+function sumMoney(list){
+  const FX=usdkrw();
   const lastD=(raw.dates&&raw.dates.length)?raw.dates[raw.dates.length-1]:'';
-  /* 현재가: 10분 간격 실시간값이 일봉만큼 최신이면 그것, 아니면 마지막 종가.
-     ⚠ 시장별 달력의 마지막 날과 견줘야 한다 — 국내 달력으로 재면 미장 시세가 늘
-       '오래된 것' 으로 판정돼 미장 종목이 평가손익에서 통째로 빠진다. */
   const nowOf=p=>{const lv=(LIVE.prices||{})[p.code];
     const c=calOf(p.code), lo=c.length?c[c.length-1]:lastD;
     const d=lv&&lv.at?lv.at.slice(0,10).replace(/-/g,''):'';
     if(lv&&lv.now&&d&&d>=lo)return lv.now;
     const v=(view.rows||[]).find(x=>x.ticker===p.code); if(v&&v.close!=null)return v.close;
     const r=(raw.rows||[]).find(x=>x.t===p.code);return r?r.c:null};
-  /* 원화로 모아 센다. 예전에는 통화를 가리지 않고 더해서 $83 이 83원으로 들어갔다
-     (2026-09-12 사용자 신고: 매수금액이 국내분만인 것처럼 보였다).
-     환율을 못 받았으면 미장을 **빼고** 그렇다고 적는다 — 0원으로 세어 조용히 줄이지 않는다. */
-  const FX=usdkrw();
-  const hasUS=open_.some(p=>isUSCode(p.code));
-  const noFX=hasUS&&!FX;
-  let inv=0,pnl=0;
-  open_.forEach(p=>{
-    if(isUSCode(p.code)&&!FX)return;
-    const fx=isUSCode(p.code)?FX:1, now=nowOf(p);
+  let inv=0,pnl=0,noFX=false;
+  list.forEach(p=>{const us=isUSCode(p.code);
+    if(us&&!FX){noFX=true;return}
+    const fx=us?FX:1, now=nowOf(p);
     if(p.qty&&p.price)inv+=costBuy(p)*p.qty*fx;
     if(p.qty&&now)pnl+=(sellNow(now,p.code)-costBuy(p))*p.qty*fx});
-  /* 수익률은 **넣은 돈 대비 번 돈**이다. 예전에는 종목별 수익률의 단순 평균이라
-     300만원짜리와 $83 짜리를 같은 무게로 세었고, 비용도 안 뺐다. 옆의 두 숫자와
-     아귀가 맞지 않아 뜻을 알 수 없었다. */
-  const avg=inv?pnl/inv*100:0;
+  return {inv,pnl,ret:inv?pnl/inv*100:0,noFX};
+}
+function renderStatus(){
+  const el=$('#status'); if(!el)return;
+  const g=(k,v,c='')=>`<span class="sgrp"><i>${k}</i><b class="${c}">${v}</b></span>`;
+  const ps=positions(),closed=ps.filter(p=>p.sell);
+  /* 보유 요약(보유·매수금액·수익률·평가손익)은 **표 위 규칙 칩 아래**로 옮겼다
+     (2026-09-12 요청) — 완료 탭 요약과 같은 자리다. 헤더에는 어느 탭에서나 뜻이 같은
+     것만 남긴다. */
   const realized=closed.reduce((a,p)=>a+(costSell(p)/costBuy(p)-1)*100,0);
-  el.innerHTML=g(_sel?'보유 · '+codeOf(_sel):'보유',open_.length+'종목')
-    +(inv?g('매수금액',kor(inv)+'원'+(noFX?' (국내만)':'')):'')
-    +(inv?g('수익률',(avg>0?'+':'')+avg.toFixed(1)+'%',cls(avg)):'')
-    +(inv?g('평가손익',kor(pnl,1)+'원',cls(pnl)):'')
-    +(closed.length?g('완료',closed.length+'건 '+(realized>0?'+':'')+realized.toFixed(1)+'%',cls(realized)):'')
+  el.innerHTML=(closed.length?g('완료',closed.length+'건 '+(realized>0?'+':'')+realized.toFixed(1)+'%',cls(realized)):'')
     +g('장중 시세',LIVE.updated?LIVE.updated.slice(5):'없음',LIVE.updated?'':'off')
     +g('데이터',(raw.updated||'').slice(5)||'—');
 }
