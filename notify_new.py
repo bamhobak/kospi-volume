@@ -9,7 +9,7 @@ from pathlib import Path
 import requests
 
 # 사이트 주소 — 호스팅을 옮기면 여기 하나만 바꾸면 된다(환경변수 SITE_URL 로도 덮어쓴다).
-SITE_URL = os.environ.get("SITE_URL", "https://bamhobak.github.io/kospi-volume").rstrip("/")
+SITE_URL = os.environ.get("SITE_URL", "https://kospi-volume.pages.dev").rstrip("/")
 
 # 윈도우 콘솔은 기본이 cp949 라 이모지가 섞이면 print 에서 죽는다(텔레그램 미설정 시
 # 메시지를 그대로 찍기 때문에 로컬 점검이 항상 실패했다). 표준출력을 UTF-8 로 고정한다.

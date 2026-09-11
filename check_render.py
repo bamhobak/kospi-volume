@@ -2,7 +2,7 @@
 """고친 index.html 을 로컬에서 띄워 실제 브라우저로 렌더까지 확인한다(배포 전 점검)."""
 import os
 # 사이트 주소 — 호스팅을 옮기면 환경변수 SITE_URL 로 덮어쓴다.
-SITE_URL = os.environ.get("SITE_URL", "https://bamhobak.github.io/kospi-volume").rstrip("/")
+SITE_URL = os.environ.get("SITE_URL", "https://kospi-volume.pages.dev").rstrip("/")
 import io, sys, threading, http.server, functools, socketserver
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 from playwright.sync_api import sync_playwright

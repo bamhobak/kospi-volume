@@ -24,7 +24,7 @@ const SB_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const TG_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
 const TG_CHAT = Deno.env.get("TELEGRAM_CHAT_ID") ?? "";
 // 사이트 주소 — 호스팅을 옮기면 Supabase 의 환경변수 SITE_URL 만 바꾸면 된다.
-const SITE = (Deno.env.get("SITE_URL") ?? "https://bamhobak.github.io/kospi-volume").replace(/\/+$/, "");
+const SITE = (Deno.env.get("SITE_URL") ?? "https://kospi-volume.pages.dev").replace(/\/+$/, "");
 // Cloudflare Access 뒤에 있으면 서비스 토큰 헤더가 있어야 통과한다.
 // 없으면 로그인 화면 HTML 이 200 으로 돌아와 JSON.parse 가 조용히 깨진다 — 반드시 붙인다.
 const CF_ID = Deno.env.get("CF_ACCESS_CLIENT_ID") ?? "";
