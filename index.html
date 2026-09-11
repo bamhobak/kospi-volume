@@ -1723,8 +1723,12 @@ function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none
   el.title=t?`${t} 기준 실시간 지수 (10분 간격) · 화살표는 전 거래일 종가 대비 등락`
              :'전 거래일 종가 기준';
   const pct=(x)=>x==null?'':` <span class="${x>=0?'pos':'neg'}" style="font-size:11px">${x>=0?'+':''}${x.toFixed(2)}%</span>`;
-  el.innerHTML=`${arr(kc)}P ${kv.toLocaleString()}${pct(kc)}`
-    +(qv?` &nbsp;<span class="mkt ${cls(qc)}" style="margin-left:6px">${arr(qc)}D ${qv.toLocaleString()}${pct(qc)}</span>`:'')}
+  /* 좁은 화면에서는 소수점을 뗀다 — 제목과 한 줄에 들어가야 한다(2026-09-12 요청).
+     밤의 나스닥·S&P 도 정수로 보여주므로 낮밤 표기가 같아진다. 지수는 소수 둘째 자리를
+     보고 판단할 일이 없다. */
+  const ixf=v=>v.toLocaleString(undefined,{maximumFractionDigits:isMobile()?0:2});
+  el.innerHTML=`${arr(kc)}P ${ixf(kv)}${pct(kc)}`
+    +(qv?` &nbsp;<span class="mkt ${cls(qc)}" style="margin-left:6px">${arr(qc)}D ${ixf(qv)}${pct(qc)}</span>`:'')}
 let USROWS=null;
 /* 미장 자료는 눌렀을 때 한 번만 받아 raw.rows 뒤에 붙인다. 규칙은 mk 로 시장을 가리므로
    미장 종목이 규칙 목록에 섞이지 않는다. 수급(개인·기관·외국인) 자료가 없어 0 배열로 채운다. */
