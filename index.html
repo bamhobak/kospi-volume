@@ -1276,11 +1276,8 @@ async function renderPositions(){
     const m=sumMoney(sel);
     const sg=x=>x>0?'pos':x<0?'neg':'';
     const selF=posRule?fOf(posRule):null;
-    const al=selF&&selF.alloc;
     const stat=`<div class="dstat">`
       +`<b class="${selF?mkCls(selF.mkt):''}">${posRule?codeOf(posRule)+' · '+((selF&&selF.name&&selF.name.split(' · ')[1])||posRule):'전체'}</b>`
-      +`<span><span class="k">보유</span>${sel.length}종목`
-      +`${al&&al.max?`<span class="k" style="margin-left:4px">/ 자리 ${al.max}</span>`:''}</span>`
       +`<span><span class="k">매수금액</span>${m.inv?kor(m.inv)+'원'+(m.noFX?' (국내만)':''):'—'}</span>`
       +`<span><span class="k">수익률</span><span class="${sg(m.ret)}">${m.inv?(m.ret>0?'+':'')+m.ret.toFixed(1)+'%':'—'}</span></span>`
       +`<span><span class="k">평가손익</span><span class="${sg(m.pnl)}">${m.inv?kor(m.pnl,1)+'원':'—'}</span></span></div>`;
@@ -1580,13 +1577,9 @@ function sumMoney(list){
 function renderStatus(){
   const el=$('#status'); if(!el)return;
   const g=(k,v,c='')=>`<span class="sgrp"><i>${k}</i><b class="${c}">${v}</b></span>`;
-  const ps=positions(),closed=ps.filter(p=>p.sell);
-  /* 보유 요약(보유·매수금액·수익률·평가손익)은 **표 위 규칙 칩 아래**로 옮겼다
-     (2026-09-12 요청) — 완료 탭 요약과 같은 자리다. 헤더에는 어느 탭에서나 뜻이 같은
-     것만 남긴다. */
-  const realized=closed.reduce((a,p)=>a+(costSell(p)/costBuy(p)-1)*100,0);
-  el.innerHTML=(closed.length?g('완료',closed.length+'건 '+(realized>0?'+':'')+realized.toFixed(1)+'%',cls(realized)):'')
-    +g('장중 시세',LIVE.updated?LIVE.updated.slice(5):'없음',LIVE.updated?'':'off')
+  /* 보유 요약은 표 위 규칙 칩 아래로, 완료 요약은 완료 탭 안으로 옮겼다(2026-09-12 요청).
+     헤더에는 **어느 탭에서나 뜻이 같은 것**만 남긴다 — 자료가 언제 것인지. */
+  el.innerHTML=g('장중 시세',LIVE.updated?LIVE.updated.slice(5):'없음',LIVE.updated?'':'off')
     +g('데이터',(raw.updated||'').slice(5)||'—');
 }
 /* 미장 표의 기준일 칩 — 국내와 장 시간이 달라 하루씩 어긋날 수 있다.
