@@ -1261,8 +1261,8 @@ async function renderPositions(){
     if(posRule&&!by[posRule])posRule=null;          /* 마지막 한 종목을 팔면 그 칩이 사라진다 */
     const chip=(k,list,on)=>{
       const f=k==='전체'?null:fOf(k), kq=f&&mkCls(f.mkt);
-      const al=f&&f.alloc, slot=(al&&al.max)?` <span class="c">${list.length}/${al.max}</span>`
-                                            :` <span class="c">${list.length}</span>`;
+      const al=f&&f.alloc;
+      const slot=` <span class="c">${list.length}</span>`;
       return `<span class="dchip ${on?'on':''} ${kq||''}" data-pr="${k}"`
         +`${f&&al&&al.max?` title="자리 ${al.max}개 중 ${list.length}개 사용${al.pct?' · 종목당 '+al.pct+'%':''}"`:''}>`
         +`<b>${k==='전체'?k:(f&&f.name?codeOf(k)+' · '+(f.name.split(' · ')[1]||f.name):codeOf(k))}</b>${slot}</span>`};
@@ -1539,7 +1539,13 @@ function holdText(){
 function renderStatus(){
   const el=$('#status'); if(!el)return;
   const g=(k,v,c='')=>`<span class="sgrp"><i>${k}</i><b class="${c}">${v}</b></span>`;
-  const ps=positions(),open_=ps.filter(p=>!p.sell),closed=ps.filter(p=>p.sell);
+  const ps=positions();
+  /* 보유 탭에서 규칙 칩을 고르면 **위 숫자도 그 규칙만** 센다. 표는 걸러졌는데 요약이
+     전체면 두 값이 따로 놀아 무엇을 보는지 알 수 없다(2026-09-12 사용자 신고).
+     완료 건수는 그대로 둔다 — 그건 완료 탭이 따로 고른다. */
+  const _sel=(cur==='pos'&&posRule)?posRule:null;
+  const open_=ps.filter(p=>!p.sell&&(!_sel||normId((p.filters||[])[0])===_sel));
+  const closed=ps.filter(p=>p.sell);
   const lastD=(raw.dates&&raw.dates.length)?raw.dates[raw.dates.length-1]:'';
   /* 현재가: 10분 간격 실시간값이 일봉만큼 최신이면 그것, 아니면 마지막 종가.
      ⚠ 시장별 달력의 마지막 날과 견줘야 한다 — 국내 달력으로 재면 미장 시세가 늘
@@ -1567,7 +1573,7 @@ function renderStatus(){
      아귀가 맞지 않아 뜻을 알 수 없었다. */
   const avg=inv?pnl/inv*100:0;
   const realized=closed.reduce((a,p)=>a+(costSell(p)/costBuy(p)-1)*100,0);
-  el.innerHTML=g('보유',open_.length+'종목')
+  el.innerHTML=g(_sel?'보유 · '+codeOf(_sel):'보유',open_.length+'종목')
     +(inv?g('매수금액',kor(inv)+'원'+(noFX?' (국내만)':'')):'')
     +(inv?g('수익률',(avg>0?'+':'')+avg.toFixed(1)+'%',cls(avg)):'')
     +(inv?g('평가손익',kor(pnl,1)+'원',cls(pnl)):'')
