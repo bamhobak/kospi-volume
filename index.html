@@ -2,7 +2,7 @@
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>밤호박 종목 선별기</title>
 <meta name="theme-color" content="#0a0b0e">
-<link rel="icon" type="image/svg+xml" href="icon.svg"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="icon.svg"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="manifest" href="manifest.json" crossorigin="use-credentials"><!-- crossorigin="use-credentials" 가 없으면 브라우저가 매니페스트를 **쿠키 없이** 받는다. Cloudflare Access 뒤에서는 그러면 302 로 로그인 화면이 와서 매니페스트가 깨지고 "앱 설치" 가 안 뜬다(바로가기 추가만 된다 · 2026-09-11). -->
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -1887,4 +1887,5 @@ async function showStock(code){
 
 
 load();
-</script></body></html>
+</script><script>/* 설치형 앱(PWA) 조건 — Chrome 은 fetch 핸들러가 있는 서비스워커를 요구한다. 캐시는 하지 않는다(자료가 매일 바뀌고, 캐시 때문에 옛 화면을 보는 사고가 이미 있었다). 오프라인 대응이 아니라 **설치 가능하게 만드는 것**이 목적이다. */if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(e=>console.warn('SW 등록 실패',e)));</script>
+</body></html>

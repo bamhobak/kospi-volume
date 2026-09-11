@@ -30,9 +30,17 @@ SITE_URL = os.environ.get("SITE_URL", "https://bamhobak.github.io/kospi-volume")
 # (사이트가 Access 뒤에 있으면 헤더 없이는 로그인 화면 HTML 이 돌아온다 — JSON 인 줄 알고
 #  파싱하다 죽는 게 아니라 **조용히 이상한 값**이 되므로 반드시 붙인다.)
 def _cf_headers():
+    # ⚠ User-Agent 를 반드시 준다. 파이썬 기본값(Python-urllib/3.x)은 Cloudflare 가
+    #   봇으로 보고 **403** 을 던진다 — Access 헤더가 맞아도 막힌다.
+    #   curl 은 기본 UA 로도 통과하는데 urllib 만 막혀서, 전환 직후 pipeline 의
+    #   버전 읽기가 실패해 번호가 1.0.02 -> 1.0.01 로 거꾸로 갔다(2026-09-11).
+    h = {"User-Agent": "Mozilla/5.0 (compatible; kospi-volume-bot)"}
     i = os.environ.get("CF_ACCESS_CLIENT_ID", "")
     s = os.environ.get("CF_ACCESS_CLIENT_SECRET", "")
-    return {"CF-Access-Client-Id": i, "CF-Access-Client-Secret": s} if i and s else {}
+    if i and s:
+        h["CF-Access-Client-Id"] = i
+        h["CF-Access-Client-Secret"] = s
+    return h
 
 NDAY = 20                     # 화면 미니 차트에 쓸 최근 거래일 수
 

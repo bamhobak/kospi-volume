@@ -387,9 +387,17 @@ SITE_URL = os.environ.get("SITE_URL", "https://bamhobak.github.io/kospi-volume")
 # (사이트가 Access 뒤에 있으면 헤더 없이는 로그인 화면 HTML 이 돌아온다 — JSON 인 줄 알고
 #  파싱하다 죽는 게 아니라 **조용히 이상한 값**이 되므로 반드시 붙인다.)
 def _cf_headers():
+    # ⚠ User-Agent 를 반드시 준다. 파이썬 기본값(Python-urllib/3.x)은 Cloudflare 가
+    #   봇으로 보고 **403** 을 던진다 — Access 헤더가 맞아도 막힌다.
+    #   curl 은 기본 UA 로도 통과하는데 urllib 만 막혀서, 전환 직후 pipeline 의
+    #   버전 읽기가 실패해 번호가 1.0.02 → 1.0.01 로 거꾸로 갔다(2026-09-11).
+    h = {"User-Agent": "Mozilla/5.0 (compatible; kospi-volume-bot)"}
     i = os.environ.get("CF_ACCESS_CLIENT_ID", "")
     s = os.environ.get("CF_ACCESS_CLIENT_SECRET", "")
-    return {"CF-Access-Client-Id": i, "CF-Access-Client-Secret": s} if i and s else {}
+    if i and s:
+        h["CF-Access-Client-Id"] = i
+        h["CF-Access-Client-Secret"] = s
+    return h
 
 
 def build_site():
@@ -404,15 +412,26 @@ def build_site():
     #   기록은 배포본 자신(data/ver.json)에 둔다 — 리포에 커밋하지 않아도 이어진다.
     _txt = (BASE / "index.html").read_text(encoding="utf-8").replace(chr(13) + chr(10), chr(10))
     _h = hashlib.md5(_txt.encode("utf-8")).hexdigest()[:8]
-    _prev = None
-    for _src in (SITE_URL + "/data/ver.json",):
-        try:
-            import urllib.request
-            _rq = urllib.request.Request(_src + "?cb=" + str(int(time.time())),
-                                         headers=_cf_headers())
-            _prev = json.loads(urllib.request.urlopen(_rq, timeout=20).read().decode("utf-8"))
-        except Exception as e:
-            print(f"  ⚠ 배포본 버전을 못 읽었다(계속 진행): {e!r}"[:120])
+    # ⚠ 여기서 실패하면 **번호가 0 부터 다시 센다** — 실제로 Cloudflare 전환 직후
+    #   헤더가 안 먹어 1.0.02 → 1.0.01 로 거꾸로 갔다(2026-09-11). 그러면 배포마다
+    #   번호가 1씩 올라 '옛 화면' 경고가 헛으로 뜬다. 무엇이 왔는지 기록하고 크게 알린다.
+    _prev, _src_why = None, "없음"
+    _hdr = _cf_headers()
+    _url = SITE_URL + "/data/ver.json"
+    try:
+        import urllib.request
+        _rq = urllib.request.Request(_url + "?cb=" + str(int(time.time())), headers=_hdr)
+        _raw = urllib.request.urlopen(_rq, timeout=20).read().decode("utf-8", "replace")
+        if _raw.lstrip().startswith("<"):
+            _src_why = "HTML(로그인 화면) — Access 헤더 확인"
+            print(f"::warning::배포본 버전을 못 읽었다 — {_url} 이 HTML 을 돌려줬다."
+                  f" CF_ACCESS_CLIENT_ID/SECRET 을 확인하라"
+                  f" (Access 헤더 {'있음' if 'CF-Access-Client-Id' in _hdr else '없음'})")
+        else:
+            _prev = json.loads(_raw); _src_why = "ok"
+    except Exception as e:
+        _src_why = f"실패 {e!r}"[:60]
+        print(f"::warning::배포본 버전을 못 읽었다: {e!r}"[:160])
     _n = int(_prev.get("n", 0)) if isinstance(_prev, dict) else 0
     if not (isinstance(_prev, dict) and _prev.get("h") == _h):
         _n += 1                                  # 화면이 바뀐 날에만 올린다
@@ -420,7 +439,8 @@ def build_site():
     _html = _txt.replace("__VER__", VER)
     (SITE / "index.html").write_text(_html, encoding="utf-8")
     (SITE / "data").mkdir(parents=True, exist_ok=True)
-    json.dump({"v": VER, "n": _n, "h": _h},
+    # src 는 진단용 — 배포본만 보고도 '이전 번호를 읽었는지' 알 수 있다(로그를 못 볼 때).
+    json.dump({"v": VER, "n": _n, "h": _h, "src": _src_why, "hdr": "CF-Access-Client-Id" in _hdr},
               open(SITE / "data" / "ver.json", "w", encoding="utf-8"))
     print(f"  버전 {VER} (n={_n} · h={_h}"
           + (f" · 이전 {_prev.get('v')}/{_prev.get('h')}" if isinstance(_prev, dict) else " · 이전 없음") + ")")
