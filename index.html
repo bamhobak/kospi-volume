@@ -389,8 +389,22 @@ const calOf=code=>(isUSCode(code)
   :(raw.dates||[]));
 /* 정렬 계산에만 쓰는 환율. 화면 표기는 바꾸지 않는다(달러는 달러로 보여준다). */
 const usdkrw=()=>Number((raw.uscal&&raw.uscal.usdkrw)||0)||0;
-/* 매수일부터 오늘까지 지난 거래일 수 — 매수일을 1일째로 센다(국내 표와 같은 정의) */
-const calDaysHeld=(code,buy)=>calOf(code).filter(d=>d>=buy).length;
+/* 매수일부터 오늘까지 지난 거래일 수 — 매수일을 1일째로 센다(매도일 sellDate 와 같은 규칙).
+   ⚠ 달력에는 **끝난 세션만** 들어간다. 미장은 한국 저녁에 열려서 오늘 세션이 도는 동안은
+     달력에 오늘이 없다. 그래서 ① 실시간 시세가 달력보다 최신이면 그 하루를 더 세고,
+     ② 매수일이 거래일인데 달력에 아직 없으면 1일째로 친다.
+     국내 경로(rs.length)는 원래 둘 다 하고 있었고 **미장만 빠져 있었다** — 그래서
+     09/10 매수분이 1일, 09/11 매수분이 0일로 나왔다(2026-09-12 사용자 신고).
+     매도일은 이미 ②를 하고 있어서 두 열이 하루씩 어긋나 보였다. */
+const calDaysHeld=(code,buy,live)=>{
+  const cal=calOf(code), last=cal.length?cal[cal.length-1]:'';
+  let n=cal.filter(d=>d>=buy).length;
+  if(live&&live>last&&live>=buy)n++;                 /* 아직 안 끝난 오늘 세션 */
+  if(n)return n;
+  /* 미국 휴장일 목록은 갖고 있지 않다 — 미장은 주말만 보고 판단한다(sellDate 와 같다) */
+  const dt=dparse(buy), w=dt.getDay();
+  return (isUSCode(code)?(w!==0&&w!==6):isTrading(dt))?1:0;
+};
 /* 매도일 = 매수일을 1일째로 세어 hold 번째 거래일. 백테스트의 청산일과 같은 정의다
    (신호 다음날 시가 매수 → 신호일+hold 거래일 종가 매도).
    이미 지난 날은 실제 거래일(raw.dates)을 쓰고, 아직 오지 않은 날만 추정한다. */
@@ -1271,7 +1285,7 @@ async function renderPositions(){
     const now=useLive?lv.now:(rs.length?rs[rs.length-1].close:(urow?urow.close:null));
     const hi=Math.max(p.price,...rs.map(x=>x.close),useLive&&lv.high?lv.high:0,
                       (!rs.length&&now!=null)?now:0);
-    const days=rs.length?rs.length+(newDay?1:0):calDaysHeld(p.code,p.date);
+    const days=rs.length?rs.length+(newDay?1:0):calDaysHeld(p.code,p.date,lvDate);
     /* 규칙 없이 직접 등록한 종목은 청산 규칙이 없다 — 남의 규칙을 갖다 쓰지 않는다 */
     const rf=(p.filters||[]).map(fOf).find(Boolean);
     const rule=rf?rf.rule:null;
