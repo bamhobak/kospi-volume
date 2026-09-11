@@ -134,6 +134,12 @@ header{flex:none}
 .cpy{cursor:pointer;border-radius:5px;padding:1px 4px;margin:-1px -4px;transition:background .12s}
 .cpy:hover{background:var(--panel2);color:var(--txt)!important}
 .cpy.done{background:var(--acc);color:#12131a!important}
+/* 버전 — 레일 맨 아래. 배포본과 다르면(옛 화면을 보고 있으면) 빨갛게 알린다. */
+.ver{margin-top:auto;padding:10px 10px 12px;color:var(--faint);font-size:10.5px;
+  letter-spacing:.3px;border-top:1px solid var(--line);cursor:default}
+.ver b{color:var(--dim);font-weight:600}
+.ver.stale{color:var(--up);cursor:pointer}
+.ver.stale b{color:var(--up)}
 .sig .hd{display:flex;align-items:flex-start;gap:14px}
 .sig .nm{font-weight:700;font-size:19px;letter-spacing:-.2px;cursor:pointer;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:4px;transition:text-decoration-color .12s}
 .sig .nm:hover{text-decoration-color:var(--acc)}
@@ -344,6 +350,10 @@ button.prim{background:var(--acc);border:1px solid var(--acc);color:#0a0b0e;font
 </div>
 <script>
 const $=s=>document.querySelector(s);
+/* 버전. 배포할 때 pipeline.py 가 git 커밋 수로 '1.0.<n>' 을 박아 넣는다.
+   로컬에서 파일을 그냥 열면 치환이 안 되므로 그때는 '개발' 로 보인다. */
+const VERSION=(()=>{const v='__VER__';return /^\d/.test(v)?v:'개발'})();
+let VERLATEST=null;                       /* 배포본 버전(data/ver.txt) — 다르면 옛 화면이다 */
 // 천/만/억 단위 축약
 function kor(n,sign){if(n==null||isNaN(n))return '';const a=Math.abs(n);let s;
   if(a>=1e8)s=(a/1e8).toFixed(a>=1e9?0:1).replace(/\.0$/,'')+'억';else if(a>=1e4)s=(a/1e4).toFixed(a>=1e6?0:1).replace(/\.0$/,'')+'만';else if(a>=1e3)s=(a/1e3).toFixed(1).replace(/\.0$/,'')+'천';else s=String(Math.round(a));
@@ -758,6 +768,7 @@ function renderTabs(){
     + nrow('kq','kq','코스닥 전체',view.rows.filter(r=>r.mk==='KOSDAQ').length,'<span class="bar"></span>')
     /* 미장은 파일이 커서(≈4MB) 누를 때 받는다 — 안 보는 사람에게 짐을 지우지 않는다 */
     + nrow('us','us','미장 전체',USROWS?view.rows.filter(r=>r.mk==='US').length:'…','<span class="bar"></span>') + `</div>`
+    + verHtml()
     :'');
   /* 규칙 행을 끌어 순서 변경 — 코스피↔코스닥은 서로 넘어가지 못한다.
      바뀌는 건 '보이는 번호'뿐이고 저장되는 식별자(f.id)는 그대로다. */
@@ -820,6 +831,9 @@ function renderTabs(){
   })();
   {const rt=$('#railtog');if(rt)rt.onclick=()=>{RAILOPEN=!RAILOPEN;
     try{localStorage.setItem('railopen',RAILOPEN?'1':'0')}catch(e){}; renderTabs()};}
+  {const vb=$('#verbox');
+   if(vb&&vb.classList.contains('stale'))
+     vb.onclick=()=>location.reload(true);}
   document.querySelectorAll('#rail .it').forEach(b=>b.onclick=()=>{
     if(Date.now()-RDRAG_AT<400)return;            /* 순서를 끈 직후의 클릭은 탭 이동이 아니다 */
     if(isMobile()){RAILOPEN=false;try{localStorage.setItem('railopen','0')}catch(e){}}  /* 고른 뒤엔 접어 자리를 돌려준다 */
@@ -1433,6 +1447,8 @@ async function load(){
      화면이 어긋나면 알림을 믿을 수 없게 된다). 첫 화면을 그린 **뒤에** 조용히 받아 다시 그린다:
      첫 그림은 늦추지 않으면서 규칙 개수는 맞게 만든다. 이미 받아둔 경우엔 그냥 돌아온다. */
   loadUS(true).then(()=>{if(cur!=='us')render()}).catch(()=>{});
+  checkVer();                                   /* 배포본 버전과 견준다 */
+  setInterval(checkVer,600000);                 /* 열어 둔 화면도 10분마다 다시 본다 */
   await pullLive();mktBadge();
   /* 열어둔 화면도 10분마다 지수·현재가를 따라가게 한다 */
   setInterval(async()=>{await pullLive();mktBadge();
@@ -1753,6 +1769,22 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
    상세 패널(.side)은 데스크톱에서 CSS 로 숨겨 두고 목록의 '상세' 버튼이 새 창을 띄우는 구조다.
    그래서 카드에서 showStock 만 부르면 **화면에 아무 일도 안 일어났다**(2026-09-11 사용자 신고).
    '상세' 버튼과 같은 동작을 한 곳에 모아 두고 카드·표가 함께 쓴다. */
+/* 버전 칸. 배포본(data/ver.txt)과 다르면 '새 버전 있음' 을 띄우고 누르면 새로고침한다.
+   브라우저가 옛 index.html 을 캐시하고 있어도 이 파일은 늘 새로 받으므로 알아챌 수 있다
+   (2026-09-11: 표 수정이 배포됐는데 화면이 안 바뀌어 한참 헤맸다). */
+function verHtml(){
+  const stale=!!(VERLATEST&&VERLATEST!==VERSION);
+  return `<div class="ver${stale?' stale':''}" id="verbox" title="${stale
+      ?'배포본은 '+VERLATEST+' 입니다 — 눌러서 새로 받으세요'
+      :'이 화면의 버전입니다'+(VERLATEST?' (배포본과 같습니다)':'')}">`
+    +`v<b>${VERSION}</b>${stale?' · ⚠ 새 버전 '+VERLATEST+' 있음 (누르면 새로고침)':''}</div>`;
+}
+async function checkVer(){
+  try{
+    const t=(await (await fetch('data/ver.txt?cb='+Date.now())).text()).trim();
+    if(/^\d/.test(t)&&t!==VERLATEST){VERLATEST=t;renderTabs&&renderTabs()}
+  }catch(e){}
+}
 function openDetail(code){
   if(isMobile()){sel=code;render();showStock(code);return}
   const base=location.href.split('?')[0].split('#')[0];
