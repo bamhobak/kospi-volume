@@ -135,7 +135,8 @@ header{flex:none}
 .cpy:hover{background:var(--panel2);color:var(--txt)!important}
 .cpy.done{background:var(--acc);color:#12131a!important}
 .sig .hd{display:flex;align-items:flex-start;gap:14px}
-.sig .nm{font-weight:700;font-size:19px;letter-spacing:-.2px}
+.sig .nm{font-weight:700;font-size:19px;letter-spacing:-.2px;cursor:pointer;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:4px;transition:text-decoration-color .12s}
+.sig .nm:hover{text-decoration-color:var(--acc)}
 .sig .why{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px}
 .sig .why div{background:var(--panel2);padding:11px 12px}
 .sig .why .l{color:var(--dim);font-size:10px;margin-bottom:5px}
@@ -917,7 +918,7 @@ function renderCards(rows){
       <div class="hd">
         <div style="flex-grow:1;min-width:0">
           <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
-            <span class="nm">${dispName(r.name)}</span>
+            <span class="nm" title="누르면 상세 화면이 열립니다">${dispName(r.name)}</span>
             <span class="code cpy" data-cp="${r.ticker}" style="color:var(--dim);font-size:12px">${r.ticker}</span>
             <span class="tag ${mc}">${codeOf(f.id)}</span>${(()=>{const hp=heldPos(r.ticker);if(!hp)return '';
               const dd=heldDays(hp),pl=hp.price?((r.close/hp.price-1)*100):null;
@@ -1745,8 +1746,66 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
   document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=e=>{e.stopPropagation();const r=view.rows.find(x=>x.ticker===b.dataset.buy);addPosition(r.ticker,r.name,r.close)});
   bindCopy();
 }
+/* 미장 상세 — 표 한 줄로 그린다. 국내처럼 수급·일별 종가가 없어 구성이 다르다. */
+function showUS(code){
+  const r=view.rows.find(x=>x.ticker===code); if(!r)return;
+  const pct=(v,d=1)=>v==null?'-':(v>0?'+':'')+Number(v).toFixed(d)+'%';
+  const kv=(l,v,c)=>`<div><small>${l}</small><b class="${c||''}">${v}</b></div>`;
+  const hp=heldPos(code);
+  const f=fees();
+  $('#side').innerHTML=`<div style="display:flex;align-items:flex-start"><div>`
+   +`<h2>${dispName(r.name)} <span class="cpy" data-cp="${code}" style="color:var(--mut);font-size:13px">${code}</span></h2>`
+   +`<div class="sub">종가 <b style="color:var(--txt)">${pmon(r.close,code)}</b> `
+   +`<span class="${cls(r.chpct)}">${pct(r.chpct,2)}</span> · ${r.ex||'미국'}`
+   +`${r.cap?' · 시총 '+(r.cap>=1e6?'$'+(r.cap/1e6).toFixed(2)+'T':r.cap>=1e3?'$'+(r.cap/1e3).toFixed(1)+'B':'$'+fmt(r.cap)+'M'):''}</div>`
+   +(r.up?`<div class="themes"><span class="thtag sector">${r.up}</span></div>`:'')
+   +`</div><div style="display:flex;gap:6px;flex:none;align-items:flex-start">`
+   +`<button class="ghost mini" id="buyhere">${hp?'추가 매수':'매수'}</button>`
+   +`<button class="ghost mini" id="close">닫기</button></div></div>`
+   +`<div class="kpi">`
+   +kv('1개월',pct(r.r1m),cls(r.r1m))+kv('3개월',pct(r.r3m),cls(r.r3m))
+   +kv('6개월',pct(r.r6m),cls(r.r6m))+kv('1년',pct(r.r1y),cls(r.r1y))+`</div>`
+   +`<div class="kpi">`
+   +kv('52주 고점 대비',pct(r.fromhi))+kv('52주 저점 대비',pct(r.fromlo))
+   +kv('20일 거래대금','$'+fmt(Math.round(r.amt20||0))+'M')
+   +kv('60일 최대낙폭',pct(r.mdd60))+`</div>`
+   +`<div class="kpi">`
+   +kv('일간 등락(60일 평균)',r.absr==null?'-':r.absr.toFixed(2)+'%')
+   +kv('20일 변동성',r.vol20==null?'-':r.vol20.toFixed(2)+'%')
+   +kv('20일 고저폭',r.hl20==null?'-':r.hl20.toFixed(1)+'%')
+   +kv('20일선 위 비율',r.above20==null?'-':Math.round(r.above20)+'%')+`</div>`
+   +`<div class="legend"><span><i style="background:#a78bfa"></i>거래량</span>`
+   +`<span style="margin-left:auto">최근 ${(r.vols||[]).length}거래일</span></div>`
+   +`<div class="chart"><canvas id="c1"></canvas></div>`
+   +`<div class="sub" style="margin-top:10px;color:var(--mut);font-size:12px">`
+   +`미장은 종목별 일별 자료가 없어 수급·주가 그래프는 그리지 못합니다. `
+   +`매매비용은 매수 ${f.US.b}% · 매도 ${f.US.s}% 로 계산합니다.</div>`;
+  $('#side').classList.add('open');
+  $('#close').onclick=()=>$('#side').classList.remove('open');
+  const bb=$('#buyhere'); if(bb)bb.onclick=()=>addPosition(code,r.name,r.close);
+  bindCopy();
+  charts.forEach(c=>c.destroy());charts=[];
+  const v=(r.vols||[]).map(x=>x||0);
+  if(v.length){
+    const lab=(calOf(code).slice(-v.length)).map(md);
+    charts.push(new Chart($('#c1'),{type:'bar',
+      data:{labels:lab.length===v.length?lab:v.map((_,i)=>i+1),
+            datasets:[{label:'거래량',data:v,backgroundColor:'#a78bfa99',borderRadius:3}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' 거래량: '+kor(c.raw,1)}}},
+        scales:{x:{grid:{display:false},ticks:{color:'#858c99',font:{size:10},maxTicksLimit:8}},
+                y:{grid:{color:'#272b34'},ticks:{color:'#858c99',font:{size:10},
+                   callback:z=>kor(z,0)}}}}}));
+  }
+}
 async function showStock(code){
-  const d=await (await fetch(`data/stock/${code}.json?v=${raw.updated}`)).json();
+  /* 미장은 종목별 일봉 파일(data/stock/*.json)이 없다 — 그걸 받으려다 404 로 조용히 죽어
+     **미국 종목은 상세가 아예 안 열렸다**(2026-09-11 사용자 신고: 카드를 눌러도 반응 없음).
+     미장 표가 이미 가진 것(등락·기간수익·거래량 20일·업종·규칙 재료)으로 따로 그린다.
+     수급(개인·기관·외국인)과 일별 종가 경로는 자료가 없어 못 그린다. */
+  if(isUSCode(code))return showUS(code);
+  let d; try{d=await (await fetch(`data/stock/${code}.json?v=${raw.updated}`)).json()}
+  catch(e){console.warn('상세 자료를 못 받았습니다',code,e);return}
   const n=20;const rows=d.rows.slice(-n).map(x=>({date:d.dates[x[0]],close:x[1],change:x[2],volume:x[3],indiv:x[4],organ:x[5],frgn:x[6],fr:x[7]}));
   if(!rows.length)return;const L=rows[rows.length-1],labels=rows.map(r=>md(r.date));const sum=k=>rows.reduce((a,r)=>a+(r[k]||0),0);
   $('#side').innerHTML=`<div style="display:flex;align-items:flex-start"><div><h2>${dispName(d.name)} <span class="cpy" data-cp="${d.ticker}" style="color:var(--mut);font-size:13px">${d.ticker}</span></h2><div class="sub">종가 <b style="color:var(--txt)">${fmt(L.close)}</b> ${chg(L.close,L.change)} · ${md(L.date)} 기준 · 외국인 보유 ${L.fr}%</div>
