@@ -134,6 +134,12 @@ RULES = {
  "D2": (KQ, 40, None, 5, 3, base(KQ,5)&dn60(KQ)&(KQ.PBR>0)&(KQ.PBR<=0.8)&(KQ.ret20<=-10)
         &(KQ.su1>=2)&(KQ.u<=-10)&(KQ.ow20>=0)&(KQ.srd==True)),
 }
+# 규칙을 빼고 돌려보는 스위치 — SKIP=P4 처럼 준다. 규칙 하나를 빼면 그 자리가 다른 규칙에
+# 가므로, '기여가 작다' 와 '빼면 나아진다' 는 다른 얘기다. 계좌로 확인해야 한다.
+_skip = {x for x in _os0.environ.get("SKIP", "").replace(" ", "").split(",") if x}
+if _skip:
+    RULES = {k: v for k, v in RULES.items() if k not in _skip}
+    print(f"## SKIP={','.join(sorted(_skip))} — 남은 규칙 {len(RULES)}개: {','.join(RULES)}")
 # 신호를 한 표로 모은다 (매수가·청산가·보유중 최저가)
 sig = []
 for rid,(K,hold,stop,pct,mx,cond) in RULES.items():
