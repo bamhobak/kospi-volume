@@ -623,9 +623,9 @@ function bindCopy(){
   document.querySelectorAll('.cpy[data-cp]').forEach(el=>{
     if(el.dataset.cb)return; el.dataset.cb='1';
     el.title='누르면 복사됩니다';
-    el.onclick=e=>{e.stopPropagation();e.preventDefault();
-      if(isSelecting())return;              /* 드래그로 글자를 고르는 중이면 복사하지 않는다 */
-      copyCode(el,el.dataset.cp)};
+    /* 글자를 고르는 중이어도 그냥 복사한다 — 코드를 누르면 언제나 복사되는 게 예측 가능하다.
+       (예전엔 드래그로 골라서 복사하라고 막아 뒀는데, 이제 눌러서 복사하므로 필요 없다) */
+    el.onclick=e=>{e.stopPropagation();e.preventDefault();copyCode(el,el.dataset.cp)};
   });
 }
 const isSelecting=()=>{try{const s=window.getSelection();
