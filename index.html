@@ -19,6 +19,8 @@ button{background:var(--acc);border:0;color:#0a0b0e;border-radius:0;padding:8px 
 button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
 #q{flex:none;width:180px;padding:6px 10px;font-size:12px;border-radius:0}
 #q:focus{border-color:var(--acc)}
+/* 자료 시각을 레일 바닥으로 옮긴 뒤로 헤더의 이 칸은 비어 있다 — 비면 자리를 안 잡게 한다 */
+#status:empty{display:none}
 #status{color:var(--mut);font-size:12px;margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;min-width:0}
 /* 헤더 상태줄 — 항목마다 라벨(작게)+값(굵게), 사이에 세로 구분선 */
 #status .sgrp{display:inline-flex;align-items:baseline;gap:5px;padding:0 12px;flex:none;
@@ -138,8 +140,14 @@ header{flex:none}
 .cpy:hover{background:var(--panel2);color:var(--txt)!important}
 .cpy.done{background:var(--acc);color:#12131a!important}
 /* 버전 — 레일 맨 아래. 배포본과 다르면(옛 화면을 보고 있으면) 빨갛게 알린다. */
-.ver{margin-top:auto;padding:10px 10px 12px;color:var(--faint);font-size:10.5px;
-  letter-spacing:.3px;border-top:1px solid var(--line);cursor:default}
+/* 버전 줄과 같은 색·크기로 맞춘다(2026-09-12 요청) — 둘 다 '이 화면의 상태' 라 한 덩어리로 읽힌다 */
+.railfoot{margin-top:auto;padding:9px 10px 4px;color:var(--faint);font-size:10.5px;
+  letter-spacing:.3px;display:flex;flex-direction:column;gap:3px;border-top:1px solid var(--line)}
+.railfoot .rf{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.railfoot b{color:var(--dim);font-weight:600}
+.railfoot b.off{color:var(--up)}
+.ver{padding:2px 10px 12px;color:var(--faint);font-size:10.5px;
+  letter-spacing:.3px;cursor:default}
 .ver b{color:var(--dim);font-weight:600}
 .ver.stale{color:var(--up);cursor:pointer}
 .ver.stale b{color:var(--up)}
@@ -796,6 +804,10 @@ function renderTabs(){
     + nrow('kq','kq','코스닥 전체',view.rows.filter(r=>r.mk==='KOSDAQ').length,'<span class="bar"></span>')
     /* 미장은 파일이 커서(≈4MB) 누를 때 받는다 — 안 보는 사람에게 짐을 지우지 않는다 */
     + nrow('us','us','미장 전체',USROWS?view.rows.filter(r=>r.mk==='US').length:'…','<span class="bar"></span>') + `</div>`
+    /* 자료 시각은 레일 바닥, 버전 바로 위로 옮겼다(2026-09-12 요청). 값은 renderStatus 가
+       10분마다 갈아 끼운다 — 레일은 그때 다시 그리지 않으므로 **id 로 찍어** 둔다. */
+    + `<div class="railfoot"><div class="rf"><i>장중 시세</i><b id="lvtime">—</b></div>`
+    + `<div class="rf"><i>데이터</i><b id="dtime">—</b></div></div>`
     + verHtml()
     :'');
   /* 규칙 행을 끌어 순서 변경 — 코스피↔코스닥은 서로 넘어가지 못한다.
@@ -1574,13 +1586,16 @@ function sumMoney(list){
     if(p.qty&&now)pnl+=(sellNow(now,p.code)-costBuy(p))*p.qty*fx});
   return {inv,pnl,ret:inv?pnl/inv*100:0,noFX};
 }
+/* 자료 시각 갱신. 보유·완료 요약은 각자 탭 안으로 옮겼고, 시각은 레일 바닥으로 갔다
+   (2026-09-12 요청). 헤더의 #status 는 이제 비어 있다.
+   ⚠ 레일은 10분 주기에 다시 그리지 않는다 — 그래서 **요소를 찾아 값만** 갈아 끼운다.
+     레일이 접혀 있으면(모바일) 요소가 없으므로 없을 때를 대비한다. */
 function renderStatus(){
-  const el=$('#status'); if(!el)return;
-  const g=(k,v,c='')=>`<span class="sgrp"><i>${k}</i><b class="${c}">${v}</b></span>`;
-  /* 보유 요약은 표 위 규칙 칩 아래로, 완료 요약은 완료 탭 안으로 옮겼다(2026-09-12 요청).
-     헤더에는 **어느 탭에서나 뜻이 같은 것**만 남긴다 — 자료가 언제 것인지. */
-  el.innerHTML=g('장중 시세',LIVE.updated?LIVE.updated.slice(5):'없음',LIVE.updated?'':'off')
-    +g('데이터',(raw.updated||'').slice(5)||'—');
+  const st=$('#status'); if(st)st.innerHTML='';
+  const lv=$('#lvtime');
+  if(lv){lv.textContent=LIVE.updated?LIVE.updated.slice(5):'없음';
+         lv.className=LIVE.updated?'':'off'}
+  const dt=$('#dtime'); if(dt)dt.textContent=(raw.updated||'').slice(5)||'—';
 }
 /* 미장 표의 기준일 칩 — 국내와 장 시간이 달라 하루씩 어긋날 수 있다.
    하루 이상 묵으면 그날 난 진입 이벤트(nh5·qnew)가 통째로 빠져 미장 규칙이 조용히 0 이 된다
