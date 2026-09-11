@@ -1694,14 +1694,17 @@ function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none
     el.innerHTML=`${narr}<span style="font-size:11px;color:var(--mut);margin-right:3px">NASDAQ</span>`
       +`${Math.round(nd.now).toLocaleString()}`
       +(nc==null?'':` <span class="${nc>=0?'pos':'neg'}" style="font-size:11px">${nc>=0?'+':''}${nc.toFixed(2)}%</span>`)
-      +(()=>{const w=ix.krw; if(!w||!w.now)return '';
-        const wc=w.pct==null?null:w.pct;
-        /* ⚠ 자기 등락으로 색을 칠한다. class 를 비워 두면 바깥 el 의 색(=나스닥 방향)을
-           물려받아, 환율이 내렸는데 빨갛게 보였다(2026-09-12 신고). */
-        const wcls=wc==null?'':(wc>=0?'up':'dn');
-        return ` &nbsp;<span class="mkt ${wcls}" style="margin-left:6px"><span style="font-size:11px;color:var(--mut);margin-right:3px">₩</span>`
-          +`${w.now.toLocaleString(undefined,{maximumFractionDigits:1})}`
-          +(wc==null?'':` <span class="${wc>=0?'pos':'neg'}" style="font-size:11px">${wc>=0?'+':''}${wc.toFixed(2)}%</span>`)
+      /* 환율은 화면에서 뺐다(2026-09-12 요청) — 출처마다 '어제' 가 달라 등락률이 토스와
+         계속 어긋났고, 정작 쓰이는 건 **원화 환산 레벨**이라 값만 받아 계산에 쓴다.
+         대신 S&P500 을 나란히 둔다: [상승장 신고가]의 국면 게이트가 이 지수의 60일선이라
+         오늘 움직임이 곧 '그 규칙이 열려 있나' 와 이어진다. 낮의 코스피+코스닥과 짝이 맞는다. */
+      +(()=>{const sp=ix.sp500; if(!sp||!sp.now)return '';
+        const sc=sp.pct==null?null:sp.pct, sup=sc==null?null:sc>=0;
+        const scls=sup===null?'':(sup?'up':'dn'), sarr=sup===null?'':(sup?'▲ ':'▼ ');
+        return ` &nbsp;<span class="mkt ${scls}" style="margin-left:6px">${sarr}`
+          +`<span style="font-size:11px;color:var(--mut);margin-right:3px">S&P</span>`
+          +`${sp.now.toLocaleString(undefined,{maximumFractionDigits:0})}`
+          +(sc==null?'':` <span class="${sc>=0?'pos':'neg'}" style="font-size:11px">${sc>=0?'+':''}${sc.toFixed(2)}%</span>`)
           +`</span>`})();
     return;
   }

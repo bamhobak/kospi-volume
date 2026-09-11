@@ -17,7 +17,8 @@
 //
 // prices.py 와 저장 형식·판정이 같아야 한다(화면과 알림이 어긋나면 안 된다):
 //   { updated, prices: { <코드>: {now,open,high,low,chg,vol,at,status} },
-//     index: { kospi|kosdaq|nasdaq|krw: {now,chg,pct,at,status} } }
+//     index: { kospi|kosdaq|nasdaq|sp500|krw: {now,chg,pct,at,status} } }
+//            krw 는 화면에 안 띄우고 **원화 환산 계산에만** 쓴다(2026-09-12).
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -304,6 +305,18 @@ Deno.serve(async (req) => {
             };
           } catch (e2) { console.error("환율(야후)도 실패", String(e2).slice(0, 100)); }
         }
+      })(),
+      // S&P500 — 밤에 나스닥과 나란히. 우리 미장 규칙([상승장 신고가])의 국면 게이트가
+      // 이 지수의 60일선이라, 오늘 얼마나 움직였는지가 곧 '그 규칙이 열려 있나' 와 이어진다.
+      (async () => {
+        try {
+          const m = await yahoo("^GSPC");
+          const now = num(m.regularMarketPrice), prev = num(m.prevClose);
+          index["sp500"] = {
+            now, chg: (now != null && prev != null) ? now - prev : null,
+            pct: (now != null && prev) ? (now / prev - 1) * 100 : null,
+          };
+        } catch (e) { console.error("S&P500 실패", String(e).slice(0, 100)); }
       })(),
       // 나스닥 — 한국 밤(20시~08시)에는 화면 위 지수를 이걸로 바꾼다(2026-09-12 요청).
       // 그 시간엔 국내 지수가 멈춰 있어 볼 것이 없고, 미장이 열려 있다.
