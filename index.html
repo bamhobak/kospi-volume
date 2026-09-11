@@ -1696,7 +1696,10 @@ function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none
       +(nc==null?'':` <span class="${nc>=0?'pos':'neg'}" style="font-size:11px">${nc>=0?'+':''}${nc.toFixed(2)}%</span>`)
       +(()=>{const w=ix.krw; if(!w||!w.now)return '';
         const wc=w.pct==null?null:w.pct;
-        return ` &nbsp;<span class="mkt" style="margin-left:6px"><span style="font-size:11px;color:var(--mut);margin-right:3px">₩</span>`
+        /* ⚠ 자기 등락으로 색을 칠한다. class 를 비워 두면 바깥 el 의 색(=나스닥 방향)을
+           물려받아, 환율이 내렸는데 빨갛게 보였다(2026-09-12 신고). */
+        const wcls=wc==null?'':(wc>=0?'up':'dn');
+        return ` &nbsp;<span class="mkt ${wcls}" style="margin-left:6px"><span style="font-size:11px;color:var(--mut);margin-right:3px">₩</span>`
           +`${w.now.toLocaleString(undefined,{maximumFractionDigits:1})}`
           +(wc==null?'':` <span class="${wc>=0?'pos':'neg'}" style="font-size:11px">${wc>=0?'+':''}${wc.toFixed(2)}%</span>`)
           +`</span>`})();
