@@ -153,6 +153,10 @@ header{flex:none}
 .sig .warn{display:flex;align-items:center;gap:9px;color:var(--dim);font-size:11px;line-height:1.5}
 .k{color:var(--dim);font-size:10px;font-weight:700;letter-spacing:.08em}
 .dsum{display:flex;gap:8px;flex-wrap:wrap;padding-bottom:2px}
+/* 보유 탭의 규칙 칩은 #fdesc 바깥에 따로 있다 — 설명의 접기/펴기 배선을 건드리지 않으려고
+   같은 자리에 끼워 넣지 않았다. 좌우 여백만 설명·표와 맞춘다. */
+#pchips{padding:10px 18px 0}
+@media(max-width:760px){#pchips{padding:10px 10px 0}}
 .dchip{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;background:var(--panel2);
        border:1px solid var(--line);cursor:pointer;font-size:12px;white-space:nowrap}
 .dchip:hover{border-color:var(--acc)}
@@ -341,6 +345,7 @@ button.prim{background:var(--acc);border:1px solid var(--acc);color:#0a0b0e;font
   <div class="main">
     <div id="fdesc" class="fdesc"></div>
     <div class="rule" id="rule" style="display:none"></div>
+    <div id="pchips" class="dsum" style="display:none"></div>
     <div class="wrap">
       <div class="card" id="tblcard"><div class="tblwrap"><table id="tbl"><thead></thead><tbody></tbody></table></div></div>
       <div id="cards" class="cards" style="display:none"></div>
@@ -574,6 +579,8 @@ let cur='all';  // 'all' = 하나라도 통과(OR), 숫자 = 해당 필터만
    그 사이 사람이 탭을 골랐다면 밑에서 바꿔치기하면 안 된다. 쓰는 곳(탭 클릭)보다
    먼저 선언해 둔다 — 선언이 뒤에 있어도 지금은 돌지만, 읽는 순서가 거꾸로다. */
 let TABPICKED=false;
+/* 보유 탭에서 지금 고른 규칙(null = 전체). 완료 탭의 doneRule 과 같은 노릇을 한다. */
+let posRule=null;
 const LEGACY_ID={1:'P0',2:'P2',3:'P3',4:'P1'};       // 아주 예전(2026-08 이전) 숫자 id 호환.
 // 그때의 4번은 코스닥 낙폭과대(현 D1)가 아니라 코스피 조용한신고가(현 P1)였다. 문자열 'P4' 와는 무관하다.
 // 폐기된 규칙 — 이미 매수한 종목이 원래 매매규칙을 잃지 않도록 남겨둔다.
@@ -1241,6 +1248,32 @@ async function renderPositions(){
     document.querySelectorAll('.dchip').forEach(el=>el.onclick=()=>{
       doneRule=el.dataset.r==='전체'?null:el.dataset.r;render()});
     if(doneRule)ps=ps.filter(p=>rid(p)===doneRule);
+  }else{
+    /* 보유 탭에도 규칙 칩을 둔다(2026-09-12 사용자 요청). 규칙이 14개라 표에 섞여 있으면
+       '이 규칙으로 뭘 들고 있나 · 자리가 남았나 · 지금 벌고 있나' 를 한눈에 못 본다.
+       고르면 **표를 그 규칙만으로 바꾼다** — 오른쪽에 따로 띄우면 좁은 화면에서 둘 다 못 읽는다. */
+    const all=ps, by={};
+    all.forEach(p=>{const k=rid(p);(by[k]=by[k]||[]).push(p)});
+    const ordIds=orderedAll().map(f=>f.id);
+    const keys=Object.keys(by).sort((x,y)=>{
+      const a_=ordIds.indexOf(normId(x)),b_=ordIds.indexOf(normId(y));
+      return (a_<0?99:a_)-(b_<0?99:b_)||String(x).localeCompare(String(y))});
+    if(posRule&&!by[posRule])posRule=null;          /* 마지막 한 종목을 팔면 그 칩이 사라진다 */
+    const chip=(k,list,on)=>{
+      const f=k==='전체'?null:fOf(k), kq=f&&mkCls(f.mkt);
+      const al=f&&f.alloc, slot=(al&&al.max)?` <span class="c">${list.length}/${al.max}</span>`
+                                            :` <span class="c">${list.length}</span>`;
+      return `<span class="dchip ${on?'on':''} ${kq||''}" data-pr="${k}"`
+        +`${f&&al&&al.max?` title="자리 ${al.max}개 중 ${list.length}개 사용${al.pct?' · 종목당 '+al.pct+'%':''}"`:''}>`
+        +`<b>${k==='전체'?k:(f&&f.name?codeOf(k)+' · '+(f.name.split(' · ')[1]||f.name):codeOf(k))}</b>${slot}</span>`};
+    const box=$('#pchips');
+    if(box){
+      box.style.display=all.length?'':'none';
+      box.innerHTML=[chip('전체',all,posRule===null)].concat(keys.map(k=>chip(k,by[k],posRule===k))).join('');
+      box.querySelectorAll('.dchip').forEach(el=>el.onclick=()=>{
+        posRule=el.dataset.pr==='전체'?null:el.dataset.pr;render()});
+    }
+    if(posRule)ps=ps.filter(p=>rid(p)===posRule);
   }
   await pullLive(false); const live=LIVE;   /* 탭 전환마다 새로 받지 않는다 — 접속 시와 10분 주기에만 갱신 */
   await pullStreaks();
@@ -1630,7 +1663,11 @@ const isMobile=()=>(typeof window!=='undefined'&&window.innerWidth<=900);
    key 는 열 번호(cols 인덱스), null 이면 기본 순서(등록순)다. */
 let POSSORT={key:null,desc:true};
 const isCardView=()=>cur==='all'||FILTERS.some(f=>f.id===cur);   /* 규칙·매수대기는 카드, 조회는 표 */
-function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);renderPositions();return}
+function render(){renderTabs();
+  /* 규칙 칩은 보유 탭 전용이다. 다른 탭으로 가면 숨기고 고른 것도 푼다 —
+     안 그러면 완료·조회 탭에 남의 칩이 남아 있고, 돌아왔을 때 표가 걸러진 채로 보인다. */
+  if(cur!=='pos'){posRule=null;const _b=$('#pchips');if(_b)_b.style.display='none'}
+  if(cur==='pos'||cur==='done'){showTable(true);renderPositions();return}
   const q=query.trim().toLowerCase();const D=view.dates;
   let rows=view.rows.filter(r=>!q||r.name.toLowerCase().includes(q)||r.ticker.includes(q));
   const th2=200;
