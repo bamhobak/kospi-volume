@@ -168,6 +168,23 @@ tr:hover td{background:#ffffff08}tr.sel td{background:#1c1730}
 td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400}
 /* 종목명 뒤의 ADR·Units·Class A 는 회사 이름이 아니라 증권 종류다 — 흐리게 괄호로 뺀다 */
 .sfx{color:var(--dim);font-size:.85em;font-weight:400}
+/* 숫자 입력창 — 브라우저 기본 prompt() 는 네이티브라 입력 제한을 못 건다.
+   폰에서 숫자 키패드가 뜨고(inputmode), 숫자 아닌 글자는 아예 들어가지 않는다. */
+.askbg{position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:9999;display:flex;
+  align-items:center;justify-content:center;padding:18px}
+.askbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:18px 18px 14px;width:min(420px,100%);box-shadow:0 18px 50px rgba(0,0,0,.55)}
+.askbox h4{margin:0 0 3px;font-size:15px;color:var(--txt);font-weight:600}
+.askbox .asksub{color:var(--mut);font-size:12px;margin-bottom:12px}
+.askbox input{width:100%;box-sizing:border-box;background:var(--panel2);color:var(--txt);
+  border:1px solid var(--line);border-radius:9px;padding:11px 12px;font-size:17px;
+  font-family:inherit;letter-spacing:.3px}
+.askbox input:focus{outline:none;border-color:var(--acc)}
+.askbox .askerr{color:var(--up);font-size:12px;margin-top:7px;min-height:15px}
+.askbox .askrow{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
+.askbox button{border-radius:9px;padding:9px 18px;font-size:14px;font-family:inherit;
+  border:1px solid var(--line);background:var(--panel2);color:var(--txt);cursor:pointer}
+.askbox button.ok{background:var(--acc);border-color:var(--acc);color:#12131a;font-weight:600}
 .pos{color:var(--up)}.neg{color:var(--dn)}
 /* 매도일 임박 — 가까울수록 진해진다. 손익색과 겹치지 않게 초록만 쓴다. */
 .sd2{color:#4ade80;opacity:.5}
@@ -1022,24 +1039,61 @@ async function setPin(){const cur_=getPin();const v=prompt('기기 간 공유용
   if(remote&&Array.isArray(remote.positions)&&remote.positions.length){if(POS.length&&!confirm(`이 PIN에 저장된 보유 종목 ${remote.positions.length}건을 불러옵니다. 현재 기기의 ${POS.length}건은 덮어씁니다. 계속?`))return;POS=remote.positions;try{localStorage.setItem('positions',JSON.stringify(POS))}catch(e){}}
   else if(POS.length){await pushRemote()}
   render()}
-function addPosition(code,name,close){
+/* 숫자 전용 입력창. prompt() 를 대신한다 — 네이티브 창은 입력 제한도 키패드 지정도 못 한다.
+   kind: 'num'(소수 허용 · 가격) · 'int'(정수 · 수량) · 'date'(YYYYMMDD 8자리)
+   반환: 확인 → 문자열 · 취소 → null (prompt 와 같은 약속이라 호출부가 그대로 읽힌다) */
+function ask(title, sub, value, kind){
+  return new Promise(resolve=>{
+    const bg=document.createElement('div'); bg.className='askbg';
+    const dec=kind==='num', dateMode=kind==='date';
+    bg.innerHTML=`<div class="askbox"><h4></h4><div class="asksub"></div>`
+      +`<input type="text" inputmode="${dec?'decimal':'numeric'}" autocomplete="off"`
+      +` ${dateMode?'maxlength="8" placeholder="YYYYMMDD"':''}>`
+      +`<div class="askerr"></div><div class="askrow">`
+      +`<button class="cancel">취소</button><button class="ok">확인</button></div></div>`;
+    bg.querySelector('h4').textContent=title;
+    bg.querySelector('.asksub').textContent=sub||'';
+    const inp=bg.querySelector('input'), err=bg.querySelector('.askerr');
+    inp.value=(value==null?'':String(value));
+    /* 숫자 아닌 글자는 타이핑·붙여넣기 모두 그 자리에서 걸러낸다 */
+    const clean=v=>{
+      v=String(v).replace(dec?/[^\d.]/g:/[^\d]/g,'');
+      if(dec){const i=v.indexOf('.'); if(i>=0)v=v.slice(0,i+1)+v.slice(i+1).replace(/\./g,'')}
+      return dateMode?v.slice(0,8):v};
+    inp.addEventListener('input',()=>{const raw0=inp.value, c=clean(raw0);
+      if(c!==raw0){const at=inp.selectionStart-(raw0.length-c.length);
+        inp.value=c; try{inp.setSelectionRange(at,at)}catch(e){}}
+      /* 정수 칸(수량)에 소수점을 치면 그냥 지워져 10.5 → 105 가 된다. 조용히 틀린 숫자가
+         들어가는 것이 제일 위험하므로 그 경우만 따로 알린다(2026-09-11). */
+      err.textContent=(kind==='int'&&/\./.test(raw0))?'수량은 정수로 입력하세요':'';});
+    const close=v=>{document.removeEventListener('keydown',key);bg.remove();resolve(v)};
+    const done=()=>{
+      const v=clean(inp.value);
+      if(!v){err.textContent='값을 입력하세요';return}
+      if(dateMode&&v.length!==8){err.textContent='YYYYMMDD 8자리로 입력하세요';return}
+      if(!dateMode&&!(+v>0)){err.textContent='0보다 큰 숫자를 입력하세요';return}
+      close(v)};
+    const key=e=>{if(e.key==='Escape')close(null); else if(e.key==='Enter'){e.preventDefault();done()}};
+    bg.querySelector('.ok').onclick=done;
+    bg.querySelector('.cancel').onclick=()=>close(null);
+    bg.onclick=e=>{if(e.target===bg)close(null)};
+    document.addEventListener('keydown',key);
+    document.body.appendChild(bg);
+    setTimeout(()=>{inp.focus();inp.select()},30);
+  });
+}
+async function addPosition(code,name,close){
   /* 기본값은 '오늘'. 데이터 최신일(전 거래일)을 넣으면 실제 매수일과 하루씩 어긋난다 —
      우리 규칙은 신호 다음날 시가 매수라 기록하는 날이 곧 매수일이다. */
   const _t=new Date(), pad=n=>String(n).padStart(2,'0');
   const today=`${_t.getFullYear()}${pad(_t.getMonth()+1)}${pad(_t.getDate())}`;
   const nm=dispNameTxt(name);
-  const _num=v=>+String(v).replace(/[^\d.]/g,'');
-  const date=prompt(`${nm} 매수일 (YYYYMMDD)`,today);if(!date)return;
-  const _p=prompt(`${nm} 매수가 (${unitOf(code)})`,close);
-  if(_p===null)return;                       /* 취소는 조용히 빠진다 */
-  const price=_num(_p);
-  if(!price||price<=0){alert('매수가를 숫자로 입력하세요');return}
-  /* 수량은 **반드시** 받는다. 예전엔 비우면 0 으로 넘어갔는데, 수량이 0 이면
-     평가손익·금액가중 수익률을 계산할 수 없어 보유 화면이 반쪽이 된다(2026-09-11 사용자 요청). */
-  const _q=prompt(`${nm} 매수 수량 (주)`,'');
-  if(_q===null)return;                       /* 취소 */
-  const qty=Math.floor(_num(_q));
-  if(!qty||qty<=0){alert('매수 수량을 입력하세요 — 수량이 없으면 평가손익을 계산할 수 없습니다');return}
+  /* 세 값 모두 ask() 로 받는다 — 숫자 아닌 글자는 애초에 안 들어가고, 비거나 0 이면 확인이 막힌다.
+     수량이 0 이면 평가손익·금액가중 수익률을 계산할 수 없어 보유 화면이 반쪽이 된다. */
+  const date=await ask(nm,'매수일',today,'date');            if(date===null)return;
+  const _p =await ask(nm,`매수가 (${unitOf(code)})`,close,'num'); if(_p===null)return;
+  const _q =await ask(nm,'매수 수량 (주)','','int');          if(_q===null)return;
+  const price=+_p, qty=Math.floor(+_q);
   const row=view.rows.find(x=>x.ticker===code);const filters=row?FILTERS.filter(f=>f.fn(row)).map(f=>f.id):[];
   const a=positions();a.push({code,name,date:date.replace(/\D/g,''),price,qty,filters,id:Date.now()});savePositions(a);
   if(DETAIL){                    /* 상세 새 창에는 목록 화면이 없다 — 알리고 원래 창을 갱신 */
@@ -1239,26 +1293,29 @@ async function renderPositions(){
     const w=window.open(base+'?detail='+b.dataset.detail,'detail_'+b.dataset.detail,
                         'width=560,height=920,scrollbars=yes,resizable=yes');
     if(w)w.focus(); else alert('팝업이 차단되었습니다. 브라우저에서 이 사이트의 팝업을 허용해주세요.');});
-  document.querySelectorAll('[data-sell]').forEach(b=>b.onclick=e=>{e.stopPropagation();const a=positions();const p=a.find(x=>x.id==b.dataset.sell);const r=rows.find(r=>r.p.id==p.id);
-    const sell=+prompt(`${dispNameTxt(p.name)} 매도가 (${unitOf(p.code)})`,r.now||p.price);if(!sell)return;
+  document.querySelectorAll('[data-sell]').forEach(b=>b.onclick=async e=>{e.stopPropagation();const a=positions();const p=a.find(x=>x.id==b.dataset.sell);const r=rows.find(r=>r.p.id==p.id);
+    const nm=dispNameTxt(p.name);
+    const sell=await ask(nm,`매도가 (${unitOf(p.code)})`,r.now||p.price,'num');if(sell===null)return;
     /* 매도일 기본값은 '오늘'. 예전엔 데이터 최신일(전 거래일)을 말없이 넣어 하루씩 어긋났다(2026-09-09). */
     const _t=new Date(),pad=n=>String(n).padStart(2,'0');
     const today=`${_t.getFullYear()}${pad(_t.getMonth()+1)}${pad(_t.getDate())}`;
-    const sd=prompt(`${dispNameTxt(p.name)} 매도일 (YYYYMMDD)`,today);if(sd==null)return;
-    p.sell=sell;p.sellDate=(sd.replace(/\D/g,'')||today);savePositions(a);render()});
+    const sd=await ask(nm,'매도일',today,'date');if(sd===null)return;
+    p.sell=+sell;p.sellDate=sd;savePositions(a);render()});
   /* 수정 — 잘못 넣은 값을 고친다. 보유 상태면 매수 때 넣은 값(매수일·매수가·수량),
      완료 상태면 매도 때 넣은 값(매도가·매도일). 취소(null)하면 아무것도 안 바꾼다. */
-  document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=e=>{e.stopPropagation();const a=positions();const p=a.find(x=>x.id==b.dataset.edit);if(!p)return;
-    const num=v=>+String(v).replace(/[^\d.]/g,'');
+  document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=async e=>{e.stopPropagation();const a=positions();const p=a.find(x=>x.id==b.dataset.edit);if(!p)return;
+    const nm=dispNameTxt(p.name);
+    /* 고치는 자리에서도 빈 값·0 을 받지 않는다. 예전엔 수량만 '비우면 0' 이라 매수 기록을
+       고치다가 수량이 0 이 되곤 했다(2026-09-11 사용자 요청). */
     if(p.sell){
-      const s_=prompt(`${dispNameTxt(p.name)} 매도가 (${unitOf(p.code)})`,p.sell);if(s_==null)return;const sv=num(s_);if(!sv){alert('매도가를 숫자로 입력하세요');return}
-      const d=prompt(`${dispNameTxt(p.name)} 매도일 (YYYYMMDD)`,p.sellDate||'');if(d==null)return;
-      p.sell=sv;if(d.trim())p.sellDate=d.replace(/\D/g,'');
+      const s_=await ask(nm,`매도가 (${unitOf(p.code)})`,p.sell,'num');if(s_===null)return;
+      const d =await ask(nm,'매도일',p.sellDate||'','date');if(d===null)return;
+      p.sell=+s_;p.sellDate=d;
     }else{
-      const d=prompt(`${dispNameTxt(p.name)} 매수일 (YYYYMMDD)`,p.date);if(d==null)return;
-      const pr_=prompt(`${dispNameTxt(p.name)} 매수가 (${unitOf(p.code)})`,p.price);if(pr_==null)return;const pv=num(pr_);if(!pv){alert('매수가를 숫자로 입력하세요');return}
-      const q=prompt(`${dispNameTxt(p.name)} 매수 수량 (주, 비우면 0)`,p.qty||'');if(q==null)return;
-      if(d.trim())p.date=d.replace(/\D/g,'');p.price=pv;p.qty=Math.floor(num(q))||0;
+      const d  =await ask(nm,'매수일',p.date,'date');if(d===null)return;
+      const pr_=await ask(nm,`매수가 (${unitOf(p.code)})`,p.price,'num');if(pr_===null)return;
+      const q  =await ask(nm,'매수 수량 (주)',p.qty||'','int');if(q===null)return;
+      p.date=d;p.price=+pr_;p.qty=Math.floor(+q);
     }
     savePositions(a);render()});
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=e=>{e.stopPropagation();if(!confirm('삭제할까요?'))return;savePositions(positions().filter(x=>x.id!=b.dataset.del));render()});
