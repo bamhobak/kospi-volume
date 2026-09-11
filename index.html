@@ -1630,6 +1630,22 @@ function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none
   /* 화살표와 색은 '오늘 등락'을 따른다. 예전엔 20일선 위/아래였는데, 바로 옆의 등락률과
      어긋나 보였다(지수 +1.58% 인데 파란 ▼). 이평선 상태는 아래 상태 칩이 이미 말해 준다. */
   const ix=LIVE.index||{};
+  /* 밤(20시~08시)에는 나스닥을 보여준다(2026-09-12 요청). 그 시간엔 국내 지수가 멈춰 있고
+     미장이 열려 있어 볼 것이 그쪽이다. 나스닥 값이 아직 없으면 국내 지수로 되돌아간다 —
+     빈 칸으로 두지 않는다. */
+  const _kh=new Date(Date.now()+9*3600*1000).getUTCHours();
+  const nd=ix.nasdaq;
+  if((_kh>=20||_kh<8)&&nd&&nd.now){
+    const nc=(nd.pct!=null)?nd.pct:null;
+    const nup=nc==null?null:nc>=0;
+    const ncls=nup===null?'':(nup?'up':'dn'), narr=nup===null?'':(nup?'▲ ':'▼ ');
+    el.className='mkt '+ncls;
+    el.title=(nd.at?nd.at.slice(11,16)+' 기준 ':'')+'나스닥 종합 (한국 밤에는 국내 대신 미장 지수를 봅니다)';
+    el.innerHTML=`${narr}<span style="font-size:11px;color:var(--mut);margin-right:3px">NASDAQ</span>`
+      +`${Math.round(nd.now).toLocaleString()}`
+      +(nc==null?'':` <span class="${nc>=0?'pos':'neg'}" style="font-size:11px">${nc>=0?'+':''}${nc.toFixed(2)}%</span>`);
+    return;
+  }
   const kv=(ix.kospi&&ix.kospi.now)||k.close, qv=(ix.kosdaq&&ix.kosdaq.now)||k.kq;
   const t=(ix.kospi&&ix.kospi.at)?ix.kospi.at.slice(11,16):'';
   /* 등락률은 전 거래일 종가 대비. 실시간 값이 있으면 그 값으로 계산한다. */
