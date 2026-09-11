@@ -949,7 +949,7 @@ function renderCards(rows){
   bindCopy();
   document.querySelectorAll('#cards .sig').forEach(el=>el.onclick=()=>{
     if(isSelecting())return;                 /* 글자를 고르는 중이면 카드를 열지 않는다 */
-    sel=el.dataset.c;render();showStock(sel)});
+    openDetail(el.dataset.c)});
   document.querySelectorAll('#cards [data-buy]').forEach(b=>b.onclick=e=>{e.stopPropagation();
     const r=view.rows.find(x=>x.ticker===b.dataset.buy);addPosition(r.ticker,r.name,r.close)});
   renderStatus()}
@@ -1363,11 +1363,7 @@ async function renderPositions(){
     if(isSelecting())return;
     sel=tr.dataset.pc;render();showStock(sel)});
   document.querySelectorAll('.pdet[data-detail]').forEach(b=>b.onclick=e=>{
-    e.preventDefault();e.stopPropagation();
-    const base=location.href.split('?')[0].split('#')[0];
-    const w=window.open(base+'?detail='+b.dataset.detail,'detail_'+b.dataset.detail,
-                        'width=560,height=920,scrollbars=yes,resizable=yes');
-    if(w)w.focus(); else alert('팝업이 차단되었습니다. 브라우저에서 이 사이트의 팝업을 허용해주세요.');});
+    e.preventDefault();e.stopPropagation();openDetail(b.dataset.detail)});
   document.querySelectorAll('[data-sell]').forEach(b=>b.onclick=async e=>{e.stopPropagation();const a=positions();const p=a.find(x=>x.id==b.dataset.sell);const r=rows.find(r=>r.p.id==p.id);
     const nm=dispNameTxt(p.name);
     const sell=await ask(nm,`매도가 (${unitOf(p.code)})`,r.now||p.price,'num');if(sell===null)return;
@@ -1412,7 +1408,13 @@ function goHome(){
 async function load(){
   if(DETAIL){                       /* 새 창 상세 모드: 헤더·목록 숨기고 종목 하나만 */
     document.body.classList.add('detail');
-    raw=await (await fetch('data/table.json?v='+Date.now())).json(); prep();
+    raw=await (await fetch('data/table.json?v='+Date.now())).json();
+    /* 미국 종목이면 미장 표와 달력도 받아야 한다 — table.json 에는 미장이 없어서
+       예전엔 새 창을 열어도 빈 화면이었다(2026-09-11). */
+    if(isUSCode(DETAIL)){
+      try{raw.uscal=await (await fetch('data/uscal.json?v='+Date.now())).json()}catch(e){raw.uscal=null}
+      prep(); await loadUS(true);
+    }else prep();
     const r=raw.rows.find(x=>x.t===DETAIL);
     document.title=(r?dispNameTxt(r.n)+' · ':'')+'상세 · 밤호박 종목 선별기';
     await showStock(DETAIL); return;
@@ -1747,6 +1749,18 @@ function render(){renderTabs();if(cur==='pos'||cur==='done'){showTable(true);ren
   bindCopy();
 }
 /* 미장 상세 — 표 한 줄로 그린다. 국내처럼 수급·일별 종가가 없어 구성이 다르다. */
+/* 상세 열기 — 데스크톱은 새 창, 모바일은 전체화면 패널.
+   상세 패널(.side)은 데스크톱에서 CSS 로 숨겨 두고 목록의 '상세' 버튼이 새 창을 띄우는 구조다.
+   그래서 카드에서 showStock 만 부르면 **화면에 아무 일도 안 일어났다**(2026-09-11 사용자 신고).
+   '상세' 버튼과 같은 동작을 한 곳에 모아 두고 카드·표가 함께 쓴다. */
+function openDetail(code){
+  if(isMobile()){sel=code;render();showStock(code);return}
+  const base=location.href.split('?')[0].split('#')[0];
+  const w=window.open(base+'?detail='+code,'detail_'+code,
+                      'width=560,height=920,scrollbars=yes,resizable=yes');
+  if(w)w.focus();
+  else alert('팝업이 차단되었습니다. 브라우저에서 이 사이트의 팝업을 허용해주세요.');
+}
 function showUS(code){
   const r=view.rows.find(x=>x.ticker===code); if(!r)return;
   const pct=(v,d=1)=>v==null?'-':(v>0?'+':'')+Number(v).toFixed(d)+'%';
