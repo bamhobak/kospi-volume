@@ -872,7 +872,7 @@ function renderTabs(){
       +`코스피 ${ma}`;
     usState();
   }else $('#mktstate').innerHTML='';
-  $('#fdesc').innerHTML=cur==='done'?`매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요. 수익률은 <b>매매비용 차감 후</b>입니다 — 국내 왕복 ${feeSum(fees().KR)}%(매수 ${fees().KR.b} + 매도 ${fees().KR.s}) · 미장 왕복 ${feeSum(fees().US)}%(매수 ${fees().US.b} + 매도 ${fees().US.s}). <b>슬리피지는 빼지 않습니다</b> — 직접 적은 체결가에 이미 들어 있습니다. 환전 수수료도 빠져 있습니다. <span class="descmore" id="feebtn">▸ 비용 바꾸기</span>`:cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (${holdText()}) · 수익률·평가손익은 <b>지금 팔면 받는 돈</b> 기준입니다(매매비용 차감 — 국내 왕복 ${feeSum(fees().KR)}% · 미장 ${feeSum(fees().US)}%). 고점·손절/익절선은 가격 그대로입니다. <span class="descmore" id="feebtn">▸ 비용 바꾸기</span>`:cur==='all'?'':cur==='us'?(USROWS?`나스닥·뉴욕·아멕스 상장 ${USROWS.length.toLocaleString()}종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. <b>가격·시가총액·거래대금은 달러</b>이고, 열 설정은 코스피·코스닥 표와 따로 저장됩니다. ${raw.usUpdated?'기준 '+raw.usUpdated:''}`:'미장 자료를 받는 중입니다…')
+  $('#fdesc').innerHTML=cur==='done'?`매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요. 수익률은 <b>매매비용 차감 후</b>입니다 — 국내 왕복 ${feeSum(fees().KR)}%(매수 ${fees().KR.b} + 매도 ${fees().KR.s}) · 미장 왕복 ${feeSum(fees().US)}%(매수 ${fees().US.b} + 매도 ${fees().US.s}). <b>슬리피지는 빼지 않습니다</b> — 직접 적은 체결가에 이미 들어 있습니다. 환전 수수료도 빠져 있습니다.`:cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (${holdText()}) · 수익률·평가손익은 <b>지금 팔면 받는 돈</b> 기준입니다(매매비용 차감 — 국내 왕복 ${feeSum(fees().KR)}% · 미장 ${feeSum(fees().US)}%). 고점·손절/익절선은 가격 그대로입니다.`:cur==='all'?'':cur==='us'?(USROWS?`나스닥·뉴욕·아멕스 상장 ${USROWS.length.toLocaleString()}종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. <b>가격·시가총액·거래대금은 달러</b>이고, 열 설정은 코스피·코스닥 표와 따로 저장됩니다. ${raw.usUpdated?'기준 '+raw.usUpdated:''}`:'미장 자료를 받는 중입니다…')
       :(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));{const fd=$('#fdesc');
   if(fd&&fd.style){const has=(fd.innerHTML||'').trim();
     fd.style.display=has?'':'none';
@@ -880,9 +880,7 @@ function renderTabs(){
       fd.innerHTML='<span class="descmore">▸ 설명 보기</span>'}
     else if(has&&MOB&&DESCOPEN&&!fd.querySelector('.descmore')){
       fd.innerHTML=fd.innerHTML+' <span class="descmore">▴ 접기</span>'}
-    const fb=fd.querySelector('#feebtn');
-    if(fb)fb.onclick=e=>{e.stopPropagation();setFees()};
-    const dm=fd.querySelector('.descmore:not(#feebtn)');
+    const dm=fd.querySelector('.descmore');
     if(dm)dm.onclick=()=>{DESCOPEN=!DESCOPEN;
       try{localStorage.setItem('descopen',DESCOPEN?'1':'0')}catch(e){}; renderTabs()};}}
   const rb=$('#rule');
@@ -1106,10 +1104,10 @@ async function setPin(){const cur_=getPin();const v=prompt('기기 간 공유용
      것을 또 빼면 이중 차감이다(2026-09-11 사용자 지적).
    매수 수수료는 매수금액에, 매도 세금은 매도금액에 붙으므로 따로 적용한다. */
 const DEFFEE={KR:{b:0.015,s:0.215},US:{b:0.1,s:0.10206}};
-function fees(){
-  try{const j=JSON.parse(localStorage.getItem('fees')||'{}');
-    return {KR:Object.assign({},DEFFEE.KR,j.KR),US:Object.assign({},DEFFEE.US,j.US)}}
-  catch(e){return {KR:Object.assign({},DEFFEE.KR),US:Object.assign({},DEFFEE.US)}}}
+/* 요율은 토스 실제 표(2026-09-11 확인)로 고정한다. 바꾸는 화면을 없앴으므로
+   localStorage 도 읽지 않는다 — 읽기만 하고 고칠 수 없으면 예전에 넣어 둔 값이
+   보이지 않는 채로 계속 먹는다. 요율이 바뀌면 DEFFEE 를 고쳐 배포한다. */
+function fees(){return {KR:Object.assign({},DEFFEE.KR),US:Object.assign({},DEFFEE.US)}}
 function feeOf(code){const f=fees();return isUSCode(code)?f.US:f.KR}
 const feeSum=f=>+(f.b+f.s).toFixed(3);
 /* 실제로 나간 돈과 들어온 돈으로 낸다 — 매수총액 = 가격×(1+매수비용), 매도실수령 = 가격×(1-매도비용) */
@@ -1119,15 +1117,6 @@ const costSell=p=>p.sell *(1-feeOf(p.code).s/100);
    보유→완료로 넘어갈 때 숫자가 이유 없이 떨어지지 않는다(2026-09-11 사용자 요청).
    ⚠ 고점·손절/익절선은 **가격**이라 그대로 둔다 — 규칙의 청산 판정도 가격 기준이다. */
 const sellNow=(now,code)=>now==null?null:now*(1-feeOf(code).s/100);
-async function setFees(){
-  const f=fees();
-  const a=await ask('매매비용 설정','국내 매수 수수료 %',f.KR.b,'num'); if(a===null)return;
-  const b=await ask('매매비용 설정','국내 매도 수수료+세금 %',f.KR.s,'num'); if(b===null)return;
-  const c=await ask('매매비용 설정','미장 매수 수수료 %',f.US.b,'num'); if(c===null)return;
-  const d=await ask('매매비용 설정','미장 매도 수수료+세금 %',f.US.s,'num'); if(d===null)return;
-  try{localStorage.setItem('fees',JSON.stringify({KR:{b:+a,s:+b},US:{b:+c,s:+d}}))}catch(e){}
-  render();
-}
 /* 숫자 전용 입력창. prompt() 를 대신한다 — 네이티브 창은 입력 제한도 키패드 지정도 못 한다.
    kind: 'num'(소수 허용 · 가격) · 'int'(정수 · 수량) · 'date'(YYYYMMDD 8자리)
    반환: 확인 → 문자열 · 취소 → null (prompt 와 같은 약속이라 호출부가 그대로 읽힌다) */
