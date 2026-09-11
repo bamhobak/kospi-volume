@@ -1727,8 +1727,10 @@ function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none
      좁은 화면에서는 제목과 한 줄에 들어가야 하고, 넓은 화면에서는 자리가 남는다.
      낮(코스피·코스닥)과 밤(나스닥·S&P)이 같은 규칙을 쓴다. */
   const ixf=v=>v.toLocaleString(undefined,{maximumFractionDigits:isMobile()?0:2});
-  el.innerHTML=`${arr(kc)}P ${ixf(kv)}${pct(kc)}`
-    +(qv?` &nbsp;<span class="mkt ${cls(qc)}" style="margin-left:6px">${arr(qc)}D ${ixf(qv)}${pct(qc)}</span>`:'')}
+  /* 이름표도 폭에 맞춘다 — 좁으면 P·D, 넓으면 코스피·코스닥(2026-09-12 요청). */
+  const kn=isMobile()?'P':'코스피', qn=isMobile()?'D':'코스닥';
+  el.innerHTML=`${arr(kc)}${kn} ${ixf(kv)}${pct(kc)}`
+    +(qv?` &nbsp;<span class="mkt ${cls(qc)}" style="margin-left:6px">${arr(qc)}${qn} ${ixf(qv)}${pct(qc)}</span>`:'')}
 let USROWS=null;
 /* 미장 자료는 눌렀을 때 한 번만 받아 raw.rows 뒤에 붙인다. 규칙은 mk 로 시장을 가리므로
    미장 종목이 규칙 목록에 섞이지 않는다. 수급(개인·기관·외국인) 자료가 없어 0 배열로 채운다. */
