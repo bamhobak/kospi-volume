@@ -1304,14 +1304,21 @@ async function renderPositions(){
        예전에는 헤더에 늘 떠 있었는데, 규칙을 고르면 표만 걸러지고 헤더는 전체여서
        두 값이 따로 놀았다. 이제 칩 바로 아래에서 같이 움직인다. */
     const sel=posRule&&by[posRule]?by[posRule]:all;
-    const m=sumMoney(sel);
-    const sg=x=>x>0?'pos':x<0?'neg':'';
     const selF=posRule?fOf(posRule):null;
+    /* 미장 규칙 탭은 **달러 그대로** 보여준다(2026-09-12 요청) — 그 규칙 안은 전부 달러라
+       원화로 바꾸면 실제 체결 금액과 달라 보인다. '전체' 탭만 원화로 합치고, 그때 쓰는
+       환율은 실시간값(지수와 같은 10분 주기)이다. */
+    const usdOnly=!!(selF&&selF.mkt==='US');
+    const m=sumMoney(sel,usdOnly);
+    const sg=x=>x>0?'pos':x<0?'neg':'';
+    const usd=(v,sign)=>(v<0?'-':(sign&&v>0?'+':''))+'$'
+      +Math.abs(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+    const amt=(v,sign)=>usdOnly?usd(v,sign):kor(v,sign);
     const stat=`<div class="dstat">`
       +`<b class="${selF?mkCls(selF.mkt):''}">${posRule?codeOf(posRule)+' · '+((selF&&selF.name&&selF.name.split(' · ')[1])||posRule):'전체'}</b>`
-      +`<span><span class="k">매수금액</span>${m.inv?kor(m.inv)+(m.noFX?' (국내만)':''):'—'}</span>`
+      +`<span><span class="k">매수금액</span>${m.inv?amt(m.inv)+(m.noFX?' (국내만)':''):'—'}</span>`
       +`<span><span class="k">수익률</span><span class="${sg(m.ret)}">${m.inv?(m.ret>0?'+':'')+m.ret.toFixed(1)+'%':'—'}</span></span>`
-      +`<span><span class="k">평가손익</span><span class="${sg(m.pnl)}">${m.inv?kor(m.pnl,1):'—'}</span></span></div>`;
+      +`<span><span class="k">평가손익</span><span class="${sg(m.pnl)}">${m.inv?amt(m.pnl,1):'—'}</span></span></div>`;
     const box=$('#pchips');
     if(box){
       box.style.display=all.length?'':'none';
@@ -1588,8 +1595,10 @@ function holdText(){
    들어갔다(2026-09-12). 환율을 못 받았으면 미장을 빼고 noFX 로 알린다: 0원으로 세어
    조용히 줄이지 않는다. 현재가는 **시장별 달력**과 견준다(국내 달력으로 재면 미국장이
    닫힌 시간에 미장 종목이 통째로 빠진다). */
-function sumMoney(list){
-  const FX=usdkrw();
+function sumMoney(list,asIs){
+  /* asIs=true 면 환산하지 않고 **원래 통화 그대로** 더한다 — 미장 규칙 탭은 달러로 보여준다.
+     한 규칙 안에서는 통화가 섞이지 않으므로(국내 규칙은 원, 미장 규칙은 달러) 그대로 더해도 된다. */
+  const FX=asIs?1:usdkrw();
   const lastD=(raw.dates&&raw.dates.length)?raw.dates[raw.dates.length-1]:'';
   const nowOf=p=>{const lv=(LIVE.prices||{})[p.code];
     const c=calOf(p.code), lo=c.length?c[c.length-1]:lastD;
@@ -1600,7 +1609,7 @@ function sumMoney(list){
   let inv=0,pnl=0,noFX=false;
   list.forEach(p=>{const us=isUSCode(p.code);
     if(us&&!FX){noFX=true;return}
-    const fx=us?FX:1, now=nowOf(p);
+    const fx=(us&&!asIs)?FX:1, now=nowOf(p);
     if(p.qty&&p.price)inv+=costBuy(p)*p.qty*fx;
     if(p.qty&&now)pnl+=(sellNow(now,p.code)-costBuy(p))*p.qty*fx});
   return {inv,pnl,ret:inv?pnl/inv*100:0,noFX};
