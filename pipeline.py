@@ -390,9 +390,11 @@ def build_site():
     #   · 실행 번호는 매일 오르는데, 자료만 바뀐 날에도 '새 버전' 이 떠 헛알림이 된다.
     #     (표·달력은 늘 캐시를 무시하고 새로 받으므로 자료가 바뀌어도 화면은 안 묵는다.)
     #   내용 해시는 **화면이 실제로 바뀐 날에만** 달라진다. 그게 알고 싶은 바로 그 신호다.
-    _src = (BASE / "index.html").read_bytes()
-    VER = "1.0." + str(int(hashlib.md5(_src).hexdigest()[:6], 16) % 10000).zfill(4)
-    _html = _src.decode("utf-8").replace("__VER__", VER)
+    #   ⚠ 줄바꿈을 맞춰서 센다 — 윈도우 체크아웃은 CRLF, Actions(리눅스)는 LF 라
+    #     같은 파일인데 바이트가 달라 로컬과 배포본의 번호가 어긋난다(2026-09-11 확인).
+    _txt = (BASE / "index.html").read_text(encoding="utf-8").replace("\r\n", "\n")
+    VER = "1.0." + str(int(hashlib.md5(_txt.encode("utf-8")).hexdigest()[:6], 16) % 10000).zfill(4)
+    _html = _txt.replace("__VER__", VER)
     (SITE / "index.html").write_text(_html, encoding="utf-8")
     (SITE / "data").mkdir(parents=True, exist_ok=True)
     (SITE / "data" / "ver.txt").write_text(VER, encoding="utf-8")

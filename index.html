@@ -862,8 +862,10 @@ function renderTabs(){
     /* 미장은 국내와 장 시간이 달라 표의 기준일이 하루씩 어긋날 수 있다. 하루 이상 묵으면
        그날 난 진입 이벤트(nh5·qnew)가 통째로 빠져 미장 규칙이 조용히 0 이 되므로 눈에 보이게 한다
        (2026-09-11: 정규 수집이 09-10 대신 09-09 자료를 받아 [상승장 신고가]가 사라졌다). */
+    /* 열린 규칙 목록(→ P2·P3·…)은 화면에서 뺐다(2026-09-11 사용자 요청) — 레일에 규칙별
+       건수가 이미 있어 겹치고, 줄이 길어 모바일에서 가로로 밀렸다. 마우스를 올리면 여전히 나온다. */
     $('#mktstate').innerHTML=`<i style="background:${open.length?'var(--org)':'var(--faint)'}"></i>`
-      +`코스피 ${ma} → ${open.length?`<b>${open.join('·')}</b>`:'<b>열린 규칙 없음</b>'}`;
+      +`코스피 ${ma}`;
     usState();
   }else $('#mktstate').innerHTML='';
   $('#fdesc').innerHTML=cur==='done'?`매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요. 수익률은 <b>매매비용 차감 후</b>입니다 — 국내 왕복 ${feeSum(fees().KR)}%(매수 ${fees().KR.b} + 매도 ${fees().KR.s}) · 미장 왕복 ${feeSum(fees().US)}%(매수 ${fees().US.b} + 매도 ${fees().US.s}). <b>슬리피지는 빼지 않습니다</b> — 직접 적은 체결가에 이미 들어 있습니다. 환전 수수료도 빠져 있습니다. <span class="descmore" id="feebtn">▸ 비용 바꾸기</span>`:cur==='pos'?`내가 매수한 종목 관리 · 매수 시 통과한 규칙이 자동 적용됩니다 (${holdText()})`:cur==='all'?'':cur==='us'?(USROWS?`나스닥·뉴욕·아멕스 상장 ${USROWS.length.toLocaleString()}종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. <b>가격·시가총액·거래대금은 달러</b>이고, 열 설정은 코스피·코스닥 표와 따로 저장됩니다. ${raw.usUpdated?'기준 '+raw.usUpdated:''}`:'미장 자료를 받는 중입니다…')
