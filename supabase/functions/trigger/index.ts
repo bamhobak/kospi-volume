@@ -2,14 +2,15 @@
 // 준비됐을 때만 워크플로를 깨운다.
 //
 // 왜 만들었나(2026-09-11):
-//   전에는 cron-job.org 가 19:00 에 GitHub 을 바로 때리고, 러너 안에서 collect.wait_for_today()
+//   전에는 cron-job.org 가 18:00 에 GitHub 을 바로 때리고, 러너 안에서 collect.wait_for_today()
 //   가 21:00 까지 10분 간격으로 자면서 기다렸다. 공개 저장소일 때는 Actions 가 공짜라 괜찮았지만
 //   비공개로 바꾸면 **그 대기가 전부 과금**된다. 실측 중앙 108분/일 × 22거래일 = 2,376분으로
 //   무료 2,000분을 넘긴다(실제 일하는 시간은 13~18분뿐이다).
 //
-//   그래서 '기다리는 일' 을 여기로 옮겼다. cron-job.org 가 19:00~21:00 사이 20분 간격으로
+//   그래서 '기다리는 일' 을 여기로 옮겼다. cron-job.org 가 17:40~21:00 사이 20분 간격으로
 //   이 함수를 부르고, 함수는 네이버를 한 번 보고 아직이면 그냥 돌아간다. 데이터가 올라온
 //   그 회차에만 repository_dispatch 를 쏜다. Actions 는 실제로 일할 때만 돈다.
+//   창을 17:40 부터 여는 건 네이버 반영 시각이 들쭉날쭉해서다(실측 17:25·19:35·20:21·20:47).
 //
 // 중복 발사 방지: kospi_state 의 __collect__ 핀에 '오늘 쐈다' 를 적는다.
 //   ⚠ 이게 없으면 20분마다 계속 쏘게 되고, 워크플로의 concurrency(cancel-in-progress)가
@@ -74,7 +75,9 @@ async function dispatch(): Promise<void> {
       "User-Agent": "kospi-volume-trigger",
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ event_type: "collect" }),
+    // ready:true 는 "네이버에 오늘 데이터가 있는 걸 보고 부른다" 는 표시다.
+    // 워크플로는 이게 있을 때만 러너 대기 상한을 20분으로 줄인다(없으면 예전대로 21:00).
+    body: JSON.stringify({ event_type: "collect", client_payload: { ready: true } }),
   });
   // 204 가 정상이다. 그 외에는 본문을 그대로 올려 보내 원인이 보이게 한다.
   if (r.status !== 204) throw new Error(`dispatch ${r.status} ${(await r.text()).slice(0, 200)}`);

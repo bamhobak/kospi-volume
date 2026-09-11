@@ -87,14 +87,18 @@ def wait_for_today(deadline=None, interval=600):
       전부 과금된다(실측 중앙 108분/일 × 22거래일 = 2,376분 > 무료 2,000분). 실제 일하는
       시간은 13~18분뿐이었다.
 
-      그래서 기본 상한을 21:00 이 아니라 **환경변수 WAIT_DEADLINE(기본 20분 뒤)** 로 둔다.
-      만에 하나 트리거가 헛짚어도 러너가 몇 시간을 자지는 않는다. 예약 보충분(21:30·07:00)은
-      그 시각엔 데이터가 이미 있어 첫 확인에서 통과한다.
+      상한은 **WAIT_MINUTES 가 있을 때만** 짧아진다(트리거가 client_payload.ready 로 알려준
+      경우에만 워크플로가 넣는다). 없으면 예전 그대로 21:00 이다.
+
+      ⚠ 무조건 짧게 잡으면 안 된다. 외부 트리거가 데이터보다 **먼저** 때리는 경로가 아직
+        살아 있고(cron-job.org 는 18:00 에 쏜다), 그때 20분 만에 포기하면 **어제치를 오늘로
+        수집**한다 — 터지지 않고 조용히 틀린 데이터가 쌓이는, 이 프로젝트가 반복해서 당한
+        그 부류다. 그래서 "데이터가 있다고 확인하고 부른 경우" 에만 상한을 줄인다.
     """
     if deadline is None:
-        deadline = os.environ.get("WAIT_DEADLINE", "")
-        if not deadline:
-            deadline = (datetime.now() + timedelta(minutes=20)).strftime("%H:%M")
+        m = os.environ.get("WAIT_MINUTES", "").strip()
+        deadline = ((datetime.now() + timedelta(minutes=int(m))).strftime("%H:%M")
+                    if m.isdigit() and int(m) > 0 else "21:00")
     today = datetime.today()
     if today.weekday() >= 5: return
     # 장 마감 전이면 '오늘 데이터'는 존재할 수 없다. 기다려 봐야 타임아웃이므로

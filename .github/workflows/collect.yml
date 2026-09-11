@@ -79,7 +79,14 @@ jobs:
       # 데이터 수집은 스케줄(평일 18:30)과 수동 실행에서만 — 하루 한 번이면 충분하다.
       - name: collect (wait for today's data)
         if: github.event_name != 'push' && steps.td.outputs.trading == 'true'
-        env: { TZ: Asia/Seoul }
+        # WAIT_MINUTES 는 **엣지 함수 trigger 가 깨운 경우에만** 들어간다(client_payload.ready).
+        # 그쪽은 네이버에 당일 데이터가 있는 걸 보고 쏘므로 여기 도착했을 땐 기다릴 게 없다.
+        # 나머지 경로(예약 보충분·수동·옛 cron-job.org)는 값이 비어 예전대로 21:00 까지 기다린다 —
+        # 데이터보다 먼저 때리는 경로가 아직 살아 있어서, 무조건 짧게 잡으면 어제치를
+        # 오늘로 수집하게 된다(조용히 틀리는 사고).
+        env:
+          TZ: Asia/Seoul
+          WAIT_MINUTES: ${{ github.event.client_payload.ready == true && '20' || '' }}
         run: python pipeline.py --wait --no-site
       - name: collect sector/theme (테마 주1회·업종 분기1회)
         if: github.event_name != 'push' && steps.td.outputs.trading == 'true'
