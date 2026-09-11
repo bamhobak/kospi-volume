@@ -1508,21 +1508,35 @@ function renderStatus(){
   const g=(k,v,c='')=>`<span class="sgrp"><i>${k}</i><b class="${c}">${v}</b></span>`;
   const ps=positions(),open_=ps.filter(p=>!p.sell),closed=ps.filter(p=>p.sell);
   const lastD=(raw.dates&&raw.dates.length)?raw.dates[raw.dates.length-1]:'';
-  /* 현재가: 10분 간격 실시간값이 일봉만큼 최신이면 그것, 아니면 마지막 종가 */
+  /* 현재가: 10분 간격 실시간값이 일봉만큼 최신이면 그것, 아니면 마지막 종가.
+     ⚠ 시장별 달력의 마지막 날과 견줘야 한다 — 국내 달력으로 재면 미장 시세가 늘
+       '오래된 것' 으로 판정돼 미장 종목이 평가손익에서 통째로 빠진다. */
   const nowOf=p=>{const lv=(LIVE.prices||{})[p.code];
+    const c=calOf(p.code), lo=c.length?c[c.length-1]:lastD;
     const d=lv&&lv.at?lv.at.slice(0,10).replace(/-/g,''):'';
-    if(lv&&lv.now&&d&&d>=lastD)return lv.now;
+    if(lv&&lv.now&&d&&d>=lo)return lv.now;
+    const v=(view.rows||[]).find(x=>x.ticker===p.code); if(v&&v.close!=null)return v.close;
     const r=(raw.rows||[]).find(x=>x.t===p.code);return r?r.c:null};
-  let inv=0,pnl=0;const rets=[];
-  open_.forEach(p=>{const now=nowOf(p);
-    if(p.qty&&p.price)inv+=costBuy(p)*p.qty;
-    if(p.qty&&now)pnl+=(sellNow(now,p.code)-costBuy(p))*p.qty;
-    if(now&&p.price)rets.push((now/p.price-1)*100)});
-  const avg=rets.length?rets.reduce((a,b)=>a+b,0)/rets.length:0;
-  const realized=closed.reduce((a,p)=>a+(p.sell/p.price-1)*100,0);
+  /* 원화로 모아 센다. 예전에는 통화를 가리지 않고 더해서 $83 이 83원으로 들어갔다
+     (2026-09-12 사용자 신고: 매수금액이 국내분만인 것처럼 보였다).
+     환율을 못 받았으면 미장을 **빼고** 그렇다고 적는다 — 0원으로 세어 조용히 줄이지 않는다. */
+  const FX=usdkrw();
+  const hasUS=open_.some(p=>isUSCode(p.code));
+  const noFX=hasUS&&!FX;
+  let inv=0,pnl=0;
+  open_.forEach(p=>{
+    if(isUSCode(p.code)&&!FX)return;
+    const fx=isUSCode(p.code)?FX:1, now=nowOf(p);
+    if(p.qty&&p.price)inv+=costBuy(p)*p.qty*fx;
+    if(p.qty&&now)pnl+=(sellNow(now,p.code)-costBuy(p))*p.qty*fx});
+  /* 수익률은 **넣은 돈 대비 번 돈**이다. 예전에는 종목별 수익률의 단순 평균이라
+     300만원짜리와 $83 짜리를 같은 무게로 세었고, 비용도 안 뺐다. 옆의 두 숫자와
+     아귀가 맞지 않아 뜻을 알 수 없었다. */
+  const avg=inv?pnl/inv*100:0;
+  const realized=closed.reduce((a,p)=>a+(costSell(p)/costBuy(p)-1)*100,0);
   el.innerHTML=g('보유',open_.length+'종목')
-    +(inv?g('매수금액',kor(inv)+'원'):'')
-    +(rets.length?g('평균',(avg>0?'+':'')+avg.toFixed(1)+'%',cls(avg)):'')
+    +(inv?g('매수금액',kor(inv)+'원'+(noFX?' (국내만)':'')):'')
+    +(inv?g('수익률',(avg>0?'+':'')+avg.toFixed(1)+'%',cls(avg)):'')
     +(inv?g('평가손익',kor(pnl,1)+'원',cls(pnl)):'')
     +(closed.length?g('완료',closed.length+'건 '+(realized>0?'+':'')+realized.toFixed(1)+'%',cls(realized)):'')
     +g('장중 시세',LIVE.updated?LIVE.updated.slice(5):'없음',LIVE.updated?'':'off')
