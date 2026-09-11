@@ -123,14 +123,32 @@ const isUS = (c: string) => !/^\d{6}$/.test(String(c ?? ""));
 /** 미장 시세 — 야후 차트 엔드포인트(키 불필요, 서버에서만 된다).
  *  토스 Open API 는 국내 전용이라(해외 경로 전부 not-found) 여기엔 쓸 수 없다. */
 async function yahoo(sym: string) {
+  // range 는 넉넉히 — 연휴가 끼면 5일로는 직전 거래일을 못 담는다.
   const r = await fetch(
-    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=5d`,
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=1mo`,
     { headers: NAVER });
   if (!r.ok) throw new Error(`yahoo ${sym} ${r.status}`);
   const j = await r.json();
-  const m = j?.chart?.result?.[0]?.meta;
+  const res = j?.chart?.result?.[0];
+  const m = res?.meta;
   if (!m || m.regularMarketPrice == null) throw new Error(`yahoo ${sym} 빈 응답`);
-  return m;
+  /* ⚠ **전일 종가를 meta 에서 읽으면 안 된다**(2026-09-12 사용자 신고로 발견).
+       · `previousClose` 는 비어 있을 때가 있다(^IXIC 가 그랬다).
+       · `chartPreviousClose` 는 '어제' 가 아니라 **조회 구간 시작 직전**의 종가다.
+     둘을 이어 쓰다가 나스닥이 열흘 전 값과 비교돼 **+1.09% 를 -0.66% 로** 보여줬다.
+     미장 종목 전일비도 같은 값을 써서 5일 전 대비로 계산되고 있었다.
+
+     종가 배열에서 직접 고른다. 마지막 칸이 지금 값과 같으면(장중이거나 장 마감 후)
+     그 칸이 **오늘**이므로 하나 앞이 전일 종가이고, 다르면(개장 전) 마지막 칸이 곧 전일이다. */
+  const cl: number[] = (res?.indicators?.quote?.[0]?.close ?? []).filter((x: unknown) => x != null);
+  const now = Number(m.regularMarketPrice);
+  let prev: number | null = null;
+  if (cl.length >= 2) {
+    const lastIsToday = Math.abs(cl[cl.length - 1] - now) < Math.max(0.01, Math.abs(now) * 1e-6);
+    prev = lastIsToday ? cl[cl.length - 2] : cl[cl.length - 1];
+  } else if (cl.length === 1) prev = cl[0];
+  if (prev == null) prev = m.previousClose ?? m.chartPreviousClose ?? null;
+  return { ...m, prevClose: prev };
 }
 
 /** 미장 거래일 달력 — 보유일을 세는 데 쓴다. 한 번 부르고 재사용한다.
@@ -225,7 +243,7 @@ Deno.serve(async (req) => {
         try {
           if (isUS(c)) {
             const m = await yahoo(c);
-            const now = num(m.regularMarketPrice), prev = num(m.chartPreviousClose);
+            const now = num(m.regularMarketPrice), prev = num(m.prevClose);
             // at 은 국내와 같은 모양("YYYY-MM-DD HH:MM:SS")으로 맞춘다 — 화면이 앞 10자를
             // 잘라 날짜로 쓰기 때문이다. 미장 날짜는 **뉴욕 기준**이어야 맞다.
             const ny = new Date((Number(m.regularMarketTime ?? 0)) * 1000)
@@ -279,7 +297,7 @@ Deno.serve(async (req) => {
           try {
             const m = await yahoo("KRW=X");
             const now = num(m.regularMarketPrice);
-            const prev = num(m.previousClose ?? m.chartPreviousClose);
+            const prev = num(m.prevClose);
             index["krw"] = {
               now, chg: (now != null && prev != null) ? now - prev : null,
               pct: (now != null && prev) ? (now / prev - 1) * 100 : null, src: "yahoo",
@@ -294,7 +312,7 @@ Deno.serve(async (req) => {
         try {
           const m = await yahoo("^IXIC");
           const now = num(m.regularMarketPrice);
-          const prev = num(m.previousClose ?? m.chartPreviousClose);
+          const prev = num(m.prevClose);
           index["nasdaq"] = {
             now, chg: (now != null && prev != null) ? now - prev : null,
             pct: (now != null && prev) ? (now / prev - 1) * 100 : null,
