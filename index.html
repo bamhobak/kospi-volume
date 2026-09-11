@@ -1696,7 +1696,7 @@ function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none
     el.className='mkt '+ncls;
     el.title=(nd.at?nd.at.slice(11,16)+' 기준 ':'')+'나스닥 종합 (한국 밤에는 국내 대신 미장 지수를 봅니다)';
     el.innerHTML=`${narr}<span class="ixn" style="font-size:11px;color:var(--mut);margin-right:3px">${isMobile()?'NAS':'NASDAQ'}</span>`
-      +`${Math.round(nd.now).toLocaleString()}`
+      +`${nd.now.toLocaleString(undefined,{maximumFractionDigits:isMobile()?0:2})}`
       +(nc==null?'':` <span class="${nc>=0?'pos':'neg'}" style="font-size:11px">${nc>=0?'+':''}${nc.toFixed(2)}%</span>`)
       /* 환율은 화면에서 뺐다(2026-09-12 요청) — 출처마다 '어제' 가 달라 등락률이 토스와
          계속 어긋났고, 정작 쓰이는 건 **원화 환산 레벨**이라 값만 받아 계산에 쓴다.
@@ -1707,7 +1707,7 @@ function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none
         const scls=sup===null?'':(sup?'up':'dn'), sarr=sup===null?'':(sup?'▲ ':'▼ ');
         return ` &nbsp;<span class="mkt ${scls}" style="margin-left:6px">${sarr}`
           +`<span class="ixn" style="font-size:11px;color:var(--mut);margin-right:3px">S&P</span>`
-          +`${sp.now.toLocaleString(undefined,{maximumFractionDigits:0})}`
+          +`${sp.now.toLocaleString(undefined,{maximumFractionDigits:isMobile()?0:2})}`
           +(sc==null?'':` <span class="${sc>=0?'pos':'neg'}" style="font-size:11px">${sc>=0?'+':''}${sc.toFixed(2)}%</span>`)
           +`</span>`})();
     return;
@@ -1723,9 +1723,9 @@ function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none
   el.title=t?`${t} 기준 실시간 지수 (10분 간격) · 화살표는 전 거래일 종가 대비 등락`
              :'전 거래일 종가 기준';
   const pct=(x)=>x==null?'':` <span class="${x>=0?'pos':'neg'}" style="font-size:11px">${x>=0?'+':''}${x.toFixed(2)}%</span>`;
-  /* 좁은 화면에서는 소수점을 뗀다 — 제목과 한 줄에 들어가야 한다(2026-09-12 요청).
-     밤의 나스닥·S&P 도 정수로 보여주므로 낮밤 표기가 같아진다. 지수는 소수 둘째 자리를
-     보고 판단할 일이 없다. */
+  /* 지수 표기 규칙(2026-09-12): **모바일은 정수 · PC는 소수 둘째 자리.**
+     좁은 화면에서는 제목과 한 줄에 들어가야 하고, 넓은 화면에서는 자리가 남는다.
+     낮(코스피·코스닥)과 밤(나스닥·S&P)이 같은 규칙을 쓴다. */
   const ixf=v=>v.toLocaleString(undefined,{maximumFractionDigits:isMobile()?0:2});
   el.innerHTML=`${arr(kc)}P ${ixf(kv)}${pct(kc)}`
     +(qv?` &nbsp;<span class="mkt ${cls(qc)}" style="margin-left:6px">${arr(qc)}D ${ixf(qv)}${pct(qc)}</span>`:'')}
