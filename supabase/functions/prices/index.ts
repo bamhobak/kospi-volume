@@ -44,14 +44,17 @@ const CORS = {
 };
 
 // 규칙별 청산 — index.html FILTERS 의 rule 과 같아야 한다
-// trail = 트레일링(보유 중 **종가** 최고점 대비). 2026-09-08 채택 — 고정 손절을 대체한다.
+// trail = 트레일링(보유 중 **종가** 최고점 대비).
+// ⚠ 2026-09-12 트레일링 전면 폐지 — 채택 근거였던 계좌 개선이 낙관 체결 가정의 산물이었다.
+//   보수 체결로 재면 트레일 없는 쪽이 더 벌고 덜 아프다(15.76배·낙폭 -10.7% vs 14.97배·-12.3%).
+//   필드는 남겨 둔다 — 되살릴 때 여기만 고치면 되도록.
 const RULES: Record<string, { stop: number | null; trail?: number | null; target: number | null; hold: number }> = {
-  P1: { stop: null, trail: 0.08, target: null, hold: 40 },
+  P1: { stop: null, target: null, hold: 40 },
   P2: { stop: null, target: null, hold: 10 },
   P3: { stop: null, target: null, hold: 20 },
-  P4: { stop: null, trail: 0.08, target: null, hold: 5 },
+  P4: { stop: null, target: null, hold: 5 },
   P5: { stop: null, target: null, hold: 10 },
-  P6: { stop: null, trail: 0.08, target: null, hold: 5 },
+  P6: { stop: null, target: null, hold: 5 },
   P7: { stop: null, target: null, hold: 60 },
   D1: { stop: null, target: null, hold: 20 },
   D2: { stop: null, target: null, hold: 40 },

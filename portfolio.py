@@ -131,11 +131,18 @@ def dn60(K): return K.date.map(UP60).fillna(True) == False
 def up60(K): return K.date.map(UP60).fillna(False) == True
 
 # 청산: hold 일 뒤 종가가 기본. stop 은 고정 손절(매수가 대비), TRAIL 은 트레일링이다.
-# **트레일링**(2026-09-08 채택) — 보유 중 **종가** 최고점(시작값 매수가) 대비 8% 아래로
-#   종가가 내려온 날 판정하고 **다음날 시가**에 판다. 장중 감시가 아니다(백테스트가 종가 기준).
-#   고정 손절을 이걸로 바꾸자 계좌 5.64→7.24배(12/12 시드) · 낙폭 -10% 유지 ·
-#   11년 중 나빠진 해 없음 · 2026 +19.4→+23.4%. 문턱 -3~-10% 어디서도 6.9~7.2배로 둔감하다.
-TRAIL = {"P1": 0.08, "P4": 0.08, "P6": 0.08}
+#
+# ⚠ **2026-09-12 트레일링 전면 폐지.** 2026-09-08 에 P1·P4·P6 에 -8% 트레일링을 넣으면서
+#   근거로 삼은 '계좌 5.64→7.24배' 는 **낙관 체결로 잰 값**이었다. 이 코드는 트레일이 걸린
+#   날 `고점*(1-0.08)` **그 가격에** 팔린다고 봤는데, 실측하니 발동일 종가가 그 가정보다
+#   중앙 -5.0~-5.5% 아래였다(trail_fill.py). 종가로 알고 다음날 시가에 파는 보수판으로
+#   같은 잣대를 대면 트레일이 **없는 쪽이 더 벌고 덜 아프다**:
+#       트레일 -8%  14.97배 · 연 13.61% · 낙폭 -12.3%
+#       트레일 없음  15.76배 · 연 13.89% · 낙폭 -10.7%    (거래대금 큰 순 · 보수 체결)
+#   랜덤 30시드 짝비교도 같은 방향(최종자산 22/30 · 낙폭 19/30 승). 스탑을 더 다는 쪽은
+#   더 나쁘다(전 규칙 트레일 -15% → 12.89배 · 낙폭 -16.0%). stop_sweep*.py · trail_seeds.py
+#   비워 두면 모든 규칙이 '정해진 날까지 보유' 다. 되돌려 재볼 때만 값을 넣는다.
+TRAIL = {}
 RULES = {
  "P1": (KP, 40, None, 12, 7, base(KP,200)&(KP.fromhi>=-10)&(KP.r16<120)&(KP.rw1<=120)&(KP.fw5>=3)
         &(KP.fw60>=1)&(KP.vol20<=2)&(KP.sr20<=0.5)&(KP.ret20<=5)
@@ -189,13 +196,21 @@ for rid,(K,hold,stop,pct,mx,cond) in RULES.items():
         X["trail"] = t
     else:
         X["trail"] = np.nan
-    sig.append(X[["date","ticker","name","mk","rid","hold","stop","trail","pct","mx","buy","exit","low","cost"]])
+    sig.append(X[["date","ticker","name","mk","rid","hold","stop","trail","pct","mx","buy","exit","low","cost","amt20"]])
 S = pd.concat(sig).dropna(subset=["buy","exit","cost"])
 S = S[S.buy > 0]
 print(f"전체 신호 {len(S):,}건 (규칙별: " + " ".join(f"{k}:{int(v)}" for k,v in S.rid.value_counts().items()) + ")")
 
 dates = sorted(set(KP.date) | set(KQ.date)); DI = {d:i for i,d in enumerate(dates)}
-S["di"] = S.date.map(DI); S = S.sort_values(["di","rid"]).reset_index(drop=True)
+S["di"] = S.date.map(DI)
+# ⚠ **자리보다 후보가 많을 때 무엇을 먼저 사는가** (2026-09-12 명시).
+#   전에는 ["di","rid"] 로만 정렬했고 그 안의 순서는 패널 순서(= **티커 코드 오름차순**)였다.
+#   국내는 코드가 작을수록 오래된 회사라 그 경로만 유별나게 좋았다 — 랜덤 30시드의
+#   **최고값보다도 높았다**(19.03배 vs 최고 17.51). 우리가 고른 적 없는 우선순위다.
+#       티커 작은 순 19.03 · 티커 큰 순 14.77 · 거래대금 큰 순 14.97 · 작은 순 14.41 · 랜덤중앙 14.80
+#   미장 규칙에 이미 적어 둔 '거래대금 큰 순' 으로 통일한다 — 정해진 정책 중 수익·낙폭
+#   양쪽에서 가장 낫고, 실제로 주문을 넣을 때도 유동성 큰 쪽이 체결이 낫다. tiebreak.py
+S = S.sort_values(["di","amt20"], ascending=[True,False], kind="stable").reset_index(drop=True)
 
 def simulate(cash_cap=1.0, scale=1.0, label="", throttle=None, quiet=False):
     """cash_cap: 총 투입 상한(1.0=계좌 100%) · scale: 종목당 비중 배율
