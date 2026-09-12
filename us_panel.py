@@ -50,6 +50,13 @@ log(f"  {df.ticker.nunique():,}종목 · {len(df):,}행 · {df.date.min()}~{df.d
 
 # 이상치 정리 — 종가 0 이하, 거래량 음수
 df = df[(df.close > 0) & (df.open > 0) & (df.volume >= 0)]
+# ⚠ 수정주가(adj)가 0 이하인 종목은 통째로 뺀다(2026-09-12 감사). yfinance 가 adj 계수를
+#   음수로 준 종목이 있었다(VATE·CBIO·DEC) — 원주가는 멀쩡한데 수정주가가 -2,788 이라
+#   fromhi +527%, n60 -1,007%/inf 가 나왔다. 수익률은 -100% 아래로 갈 수 없다.
+_badadj = set(df.loc[df.adj <= 0, "ticker"])
+if _badadj:
+    log(f"  수정주가 ≤0 종목 {len(_badadj)}개 제거: {sorted(_badadj)[:8]}")
+    df = df[~df.ticker.isin(_badadj)]
 
 # ── 2. 수정주가로 통일 ────────────────────────────────────────────────
 # yfinance 의 adj 는 배당·분할이 반영된 값이다. 수익 계산은 adj 로 해야 분할일에
@@ -67,6 +74,15 @@ g = df.groupby("ticker", sort=False)
 # ── 3. 가격 파생 — 한국 패널과 같은 정의 ─────────────────────────────
 log("가격 파생 계산")
 df["buy"] = g.p_open.shift(-1)                       # 다음날 시가에 산다(한국과 동일)
+# ⚠ '다음 행' 이 다음 거래일이 아니면(정지·자료 공백) 그 시가에 살 수 없다. 다음날 거래가
+#   없어도(volume 0) 못 산다. 한국 패널과 같은 병이었다(2026-09-12 감사: 5,764행).
+_ud = sorted(df.date.unique()); _DI = {d: i for i, d in enumerate(_ud)}
+_pos = df.date.map(_DI).astype(np.int64)
+_nxt = g.date.shift(-1).map(_DI)
+_lastpos = g.date.transform("max").map(_DI)
+_buybad = ((_nxt - _pos != 1) & (_pos != _lastpos)) | (g.volume.shift(-1).fillna(0) <= 0)
+df.loc[_buybad, "buy"] = np.nan
+log(f"  매수 불가(공백·다음날 거래량 0) {int(_buybad.sum()):,}행 → buy 결측")
 df["gap"] = (df.buy / df.px - 1) * 100
 df["amt"] = df.px * df.volume / 1e6                  # 백만달러
 df["amt20"] = g.amt.transform(lambda s: s.rolling(20).mean())
@@ -105,7 +121,11 @@ log("  비용 모델: 거래대금 구간별 0.10~0.60% (한국 대비 거래세
 
 # ── 5. 선도수익 n1~n60 ────────────────────────────────────────────────
 for h in HS:
-    df[f"n{h}"] = (g.px.shift(-h) / df.buy - 1) * 100 - df.cost
+    # 보유 구간이 달력상 h 일과 어긋나거나(공백) 팔 날 거래가 없으면 그 값은 성적이 아니라 결측이다
+    _sp = g.date.shift(-h).map(_DI)
+    _span = ((_pos + h) <= _lastpos) & (_sp - _pos != h)
+    _sv0 = (g.volume.shift(-h).fillna(1) <= 0)
+    df[f"n{h}"] = ((g.px.shift(-h) / df.buy - 1) * 100 - df.cost).where(~(_span | _sv0))
 log(f"  선도수익 n{HS[0]}~n{HS[-1]} 계산")
 
 # ── 6. 업종 ───────────────────────────────────────────────────────────

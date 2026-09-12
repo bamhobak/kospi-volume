@@ -101,7 +101,31 @@ _C = ["ticker","date","name","close","low","buy","cost","ret60","dil","amt20","b
 KB = pd.concat([KP[_C], KQ[_C]], ignore_index=True).sort_values(["ticker","date"]).reset_index(drop=True)
 KB["pref"] = ~KB.ticker.str.endswith("0")
 
-def base(K, amt): return ((~K.pref)&(K.close>=1000)&(~K.dil.fillna(False))&(K.amt20.fillna(0)>=amt))
+# 미조정 가격 점프(감자·병합·분할·이음새) 뒤 250거래일은 과거 피처(ret·dev25·fromhi·dd)가
+# 가짜다 — 1:10 분할이면 dev25 가 -90% 로 찍혀 폭락 규칙이 산다. MASKJUMP=1 이면 그 창을 뺀다.
+# (2026-09-12 감사: 유니버스의 dev25≤-25 신호 18.9%, ret20≤-25 신호 10.8% 가 이 창 안이었다)
+# 기본 ON. 실측(2026-09-12): 빼면 21.46 → 23.58배, 9규칙 전부 평균이 오르거나 같았다 —
+# 가짜 폭락 신호는 성적을 부풀리는 게 아니라 **희석**하고 있었다. MASKJUMP=0 으로 끈다.
+MASKJUMP = _os0.environ.get("MASKJUMP", "1") != "0"
+def _jumpwin(K):
+    g = K.groupby("ticker", sort=False); pc = g.close.shift(1)
+    lim = np.where(K.date.values < "20150615", 0.15, 0.30) + 0.10
+    ca = (pc.notna() & ((K.close/pc > 1+lim) | (K.close/pc < 1-lim))).astype(int)
+    cs = ca.groupby(K.ticker).cumsum()
+    jw = (cs - cs.groupby(K.ticker).shift(250).fillna(0)) > 0
+    # 이음새 잔여 종목: 점프는 지웠지만 2018 의 과거 피처가 옛 기준이라 2018-01-02 부터 250행을 창으로
+    _sr = BASE/"data"/"seam_residual.csv"
+    if _sr.exists():
+        _st = set(pd.read_csv(_sr, dtype={"ticker": str}).ticker)
+        _in = K.ticker.isin(_st) & (K.date >= "20180102")
+        jw = jw | (_in & (_in.groupby(K.ticker).cumsum() <= 250))
+    return jw
+if MASKJUMP:
+    for _K in (KP, KQ): _K["jw"] = _jumpwin(_K)
+    print(f"## MASKJUMP — 점프 뒤 250일 창 제외: 코스피 {int(KP.jw.sum()):,}행 · 코스닥 {int(KQ.jw.sum()):,}행")
+def base(K, amt):
+    b = ((~K.pref)&(K.close>=1000)&(~K.dil.fillna(False))&(K.amt20.fillna(0)>=amt))
+    return b & ~K.jw if MASKJUMP and "jw" in K.columns else b
 def dn20(K): return K.date.map(UP20).fillna(True) == False
 def dn60(K): return K.date.map(UP60).fillna(True) == False
 def up60(K): return K.date.map(UP60).fillna(False) == True

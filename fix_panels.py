@@ -92,6 +92,58 @@ def fix(fn, want):
     df = df[~drop].copy()
     del m, drop, unk; gc.collect()
 
+    # ⓪ 2018-01-02 이음새 잔여 — build_panel 의 seam_factor 는 네이버 수정주가가 있는 종목만
+    #    덮는다. 폐지 종목(88개)은 그 자료가 없어 2017 까지 원주가, 2018 부터 수정주가가 그대로
+    #    붙어 있다(2026-09-12 감사: 97종목이 경계에서 ±30% 넘게 튐). 경계 비율이 가격제한폭(30%)
+    #    을 넘으면 하루 실제 움직임일 수 없으므로 이음새로 보고, 2018 이전 행에 그 비율을 곱한다.
+    #    ⚠ 판정은 **원본(.bak)** 기준으로 한다 — 한 번 곱한 뒤 다시 돌리면 경계 비율이 1 이 되어
+    #      목록이 비고, 그러면 아래 '잔여 목록' 이 사라져 마스크가 풀린다(멱등하게).
+    bak0 = p.with_suffix(".pkl.bak")
+    src = pd.read_pickle(bak0)[["date", "ticker", "close"]] if bak0.exists() else df
+    a = src[src.date == "20171228"].set_index("ticker").close
+    b = src[src.date == "20180102"].set_index("ticker").close
+    j = a.index.intersection(b.index); r = (b[j] / a[j])
+    seam = r[(r < 0.7) | (r > 1.35)]
+    seam = seam[seam.index.isin(df.ticker.unique())]
+    del src; gc.collect()
+    # 지금 패널의 경계 비율이 이미 1 근처면(앞서 곱했음) 다시 곱지 않는다
+    a2 = df[df.date == "20171228"].set_index("ticker").close
+    b2 = df[df.date == "20180102"].set_index("ticker").close
+    j2 = a2.index.intersection(b2.index).intersection(seam.index)
+    need = seam[j2][((b2[j2] / a2[j2]) < 0.7) | ((b2[j2] / a2[j2]) > 1.35)]
+    if len(need):
+        fac = df.ticker.map(need).where(df.date < "20180101", 1.0).fillna(1.0)
+        for c in ("open", "high", "low", "close"):
+            if c in df.columns: df[c] = df[c] * fac
+        if "volume" in df.columns: df["volume"] = df["volume"] / fac
+        log(f"  ⓪ 이음새 잔여 {len(need)}종목 · 2018 이전 {int((fac != 1).sum()):,}행에 계수 적용 "
+            f"(비율 중앙 {need.median():.2f} · 최소 {need.min():.3f} · 최대 {need.max():.1f})")
+    else:
+        log(f"  ⓪ 이음새 잔여 {len(seam)}종목 — 이미 계수 적용됨(재실행)")
+    # 가격을 바꿨으면 buy(다음 행 시가)도 같은 기준이어야 한다. 전 행 재계산(값이 같은 곳은 그대로).
+    if "open" in df.columns and len(seam):
+        _g0 = df.sort_values(["ticker", "date"]).groupby("ticker", sort=False)
+        _nb = _g0.open.shift(-1)
+        _chg = int(((df.buy - _nb).abs() > 1e-6).fillna(False).sum())
+        df["buy"] = _nb.values if df.index.equals(_nb.index) else _nb.reindex(df.index).values
+        log(f"  ⓪-a buy 재계산 — 달라진 행 {_chg:,}")
+    # ⚠ 과거 피처(ret·dma·fromhi·dev25·dd·mdd60)는 빌드 때 옛 기준으로 계산된 채다. 여기서 다시
+    #   계산하지 않고, 이 종목들의 2018-01-02 부터 250거래일을 **점프 창으로 취급**하도록 목록을
+    #   남긴다(kr_scan_cache 의 jw · portfolio 의 MASKJUMP 가 읽는다).
+    _sr = BASE / "data" / "seam_residual.csv"
+    _old = pd.read_csv(_sr, dtype={"ticker": str}) if _sr.exists() else pd.DataFrame(columns=["ticker", "ratio"])
+    _new = pd.DataFrame({"ticker": seam.index, "ratio": seam.values.round(4)})
+    pd.concat([_old, _new]).drop_duplicates("ticker").to_csv(_sr, index=False)
+    log(f"  ⓪-c 잔여 목록 저장 {_sr.name} ({len(seam)}종목 추가)")
+
+    # ⓪-b 꼬리 잘라내기 — 수집 도중에 만든 패널은 마지막 며칠이 반쪽이다(2026-08-31 90종목·09-01 89종목).
+    #     그 날은 유니버스(거래대금 상위 40%) 자체가 틀어진다.
+    cnt = df.groupby("date").size(); med = cnt.rolling(60, min_periods=20).median()
+    thin = cnt[(cnt < med * 0.6)].index
+    if len(thin):
+        log(f"  ⓪-b 반쪽 수집일 {len(thin)}일 제거: {', '.join(list(thin)[:5])}")
+        df = df[~df.date.isin(thin)].copy()
+
     # ② 거래일이 끊긴 자리의 선행수익을 결측으로
     ud = sorted(df.date.unique())
     DI = {d: i for i, d in enumerate(ud)}
@@ -117,6 +169,11 @@ def fix(fn, want):
     # 종목 안에서 '앞으로 h일 안에 그런 날이 있는가' 를 누적합으로 센다
     cs = pd.Series(ca.astype(np.int32), index=df.index).groupby(df.ticker, sort=False).cumsum()
     buybad = buybad | pd.Series(ca, index=df.index)   # 그날 자체도 매수 기준이 깨졌다
+    # ②-c 다음날 거래량이 0 이면 그 시가에 살 수 없다(정지 첫날의 기준가). 팔 날 거래량이 0 이어도
+    #     그 종가에 팔 수 없다. 유니버스 안에서는 2천 행 남짓이지만 '못 사는 걸 산' 것은 결측이 맞다.
+    nv0 = (g.volume.shift(-1).fillna(0) <= 0)
+    buybad = buybad | nv0
+    log(f"  ②-c 다음날 거래량 0 → 매수 불가 {int(nv0.sum()):,}행")
 
     cnt = {}
     for h in HZ:
@@ -129,7 +186,8 @@ def fix(fn, want):
         spanbad = (~endlife) & (sp - pos != h)
         # 보유 구간(오늘~h일 뒤) 안에 가격 기준이 끊긴 날이 하나라도 있으면 결측
         csh = g.date.shift(-h).notna() & (cs.groupby(df.ticker, sort=False).shift(-h) - cs > 0)
-        bad = buybad | spanbad | csh.fillna(False)
+        sv0 = (g.volume.shift(-h).fillna(1) <= 0)            # 팔 날 거래량 0
+        bad = buybad | spanbad | csh.fillna(False) | sv0
         before = df[col].notna().sum()
         df.loc[bad & df[col].notna(), col] = np.nan
         cnt[h] = (int(bad.sum()), before - df[col].notna().sum())
