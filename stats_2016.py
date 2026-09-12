@@ -25,16 +25,42 @@ ORDER = ["P7","P1","P2","P3","P4","P6","P5","D1","D2"]
 PER = [("스트레스2005~15","20050101","20151231"), ("학습2016~22","20160101","20221231"),
        ("검증2023~26","20230101","20991231"), ("기준2016~","20160101","20991231")]
 
+TRAIL = ns["TRAIL"]
+
 def take(rid):
     K, hold, stop, pct, mx, cond = RULES[rid]
     g = K.groupby("ticker", sort=False)
-    if stop:
+    t = TRAIL.get(rid)
+    rc = None                      # 보수 체결판(트레일 규칙만) — 발동 다음날 시가에 판다
+    if t:
+        # ⚠ 2026-09-12 추가. 전에는 트레일링을 **안 쓰고** 쟀다 — 사이트에 '트레일링 -8%' 라고
+        #   적어 놓고 숫자는 무트레일이라 최악이 -90% 로 나왔다. portfolio.py 와 같은 계산을 쓴다.
+        C = np.column_stack([g.close.shift(-i).values for i in range(1, hold+1)])
+        run = np.maximum.accumulate(np.column_stack([K.buy.values, C]), axis=1)[:, 1:]
+        hit = C <= run*(1-t)
+        ok = hit.any(axis=1); first = np.where(ok, hit.argmax(axis=1), hold-1)
+        ar = np.arange(len(C))
+        px = np.where(ok, run[ar, first]*(1-t), C[:, -1])
+        r = (px/K.buy.values - 1)*100 - K.cost.values
+        # 위 가정은 낙관적이다 — 발동가 그대로 체결된다고 본다. 현실은 종가로 알고 다음날 판다.
+        O = np.column_stack([g.open.shift(-i).values for i in range(1, hold+2)])
+        pxc = np.where(ok, O[ar, first+1], C[:, -1])
+        rc = (pxc/K.buy.values - 1)*100 - K.cost.values
+    elif stop:
         low = pd.concat([g.low.shift(-i) for i in range(hold)], axis=1).min(axis=1)
         r = np.where((low <= K.buy*(1-stop)).fillna(False), -stop*100 - K.cost, K[f"n{hold}"])
     else: r = K[f"n{hold}"].values
-    m = cond.fillna(False); X = K[m].copy(); X["_r"] = r[m.values]; X = X.dropna(subset=["_r"])
+    m = cond.fillna(False); X = K[m].copy(); X["_r"] = r[m.values]
+    X["_rc"] = rc[m.values] if rc is not None else np.nan
+    X = X.dropna(subset=["_r"])
     di = {x: i for i, x in enumerate(sorted(K.date.unique()))}
     X["di"] = X.date.map(di); X = X.sort_values("di")
+    # ⚠ 2026-09-12. build_panel 은 보유기간이 패널 끝을 넘으면 **마지막 종가**로 청산 처리한다.
+    #   폐지 종목이면 그게 맞다(정리매매 손실을 그대로 먹는다). 그러나 아직 살아 있는데
+    #   패널이 끝났을 뿐이면 **덜 끝난 거래를 끝난 것처럼** 세는 것이다 — 최근 구간 성적이
+    #   그만큼 왜곡된다([저PBR 낙폭] 기준구간의 12%가 그랬다). 끝까지 못 간 것은 뺀다.
+    _lastpos = len(di) - 1
+    X = X[X.di + hold + 1 <= _lastpos]
     keep, last = [], {}
     for t, i, ix in zip(X.ticker.values, X.di.values, X.index):
         if last.get(t, -10**9) >= i: continue
@@ -70,9 +96,14 @@ for rid in ORDER:
                  pf=pf(z._r), worst=z._r.min(), ci=ci(z), months=mo.nunique(),
                  span=span, permo_med=float(mo.value_counts().median()),
                  top_mo=str(mo.value_counts().index[0]), top_n=int(mo.value_counts().iloc[0]))
+        if z._rc.notna().any():          # 트레일 규칙: 보수 체결판도 같이 남긴다
+            zc = z._rc.dropna()
+            d.update(avg_c=zc.mean(), med_c=zc.median(), win_c=(zc>0).mean()*100, worst_c=zc.min())
         OUT[rid][pn] = d
         print(f"{NAME[rid]:<14}{pn:<14}{d['n']:>6}{d['avg']:>+7.2f}%{d['med']:>+7.2f}%{d['win']:>5.0f}%"
-              f"{d['pf']:>7.2f}{d['worst']:>+7.1f}%{d['ci']:>+7.1f}%{d['months']:>5}")
+              f"{d['pf']:>7.2f}{d['worst']:>+7.1f}%{d['ci']:>+7.1f}%{d['months']:>5}"
+              + (f"   보수: 평균{d['avg_c']:+.2f}% 중앙{d['med_c']:+.2f}% 승률{d['win_c']:.0f}% 최악{d['worst_c']:+.1f}%"
+                 if 'avg_c' in d else ""))
     OUT[rid]["hold"] = hold; OUT[rid]["stop"] = stop; OUT[rid]["disp"] = DISP[rid]
     OUT[rid]["yearly"] = {y: dict(n=len(g), avg=g._r.mean(), win=(g._r>0).mean()*100)
                           for y, g in Z[Z.date >= "20160101"].groupby("y")}
