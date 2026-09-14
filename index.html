@@ -22,11 +22,11 @@ button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--t
    화면 밖에서 소켓을 붙들 이유도 없다 · 2026-09-14 요청) */
 .rtsw{display:none;align-items:center;gap:6px;flex:none;background:var(--panel2);
   border:1px solid var(--line);color:var(--mut);padding:5px 11px;font-size:12px;
-  font-weight:500;cursor:pointer;white-space:nowrap}
+  font-weight:400;cursor:pointer;white-space:nowrap}
 .rtsw::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--faint)}
-.rtsw b{font-weight:700;color:var(--mut)}
-.rtsw.on{border-color:var(--acc);color:var(--txt)}
-.rtsw.on b{color:var(--acc)}
+.rtsw b{font-weight:400;color:var(--mut)}
+.rtsw.on{color:var(--txt)}   /* 테두리는 기본선 그대로 */
+.rtsw.on b{color:var(--txt)}
 /* 켜짐 표시 — 글자·테두리는 강조색(보라) 그대로 두고 **동그라미만 초록**으로 낸다.
    '살아 있다' 는 신호는 색을 달리해야 한눈에 들어온다(2026-09-14 요청) */
 .rtsw.on::before{background:var(--bth);box-shadow:0 0 7px var(--bth)}
