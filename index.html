@@ -1452,9 +1452,12 @@ async function renderPositions(){
     const usd=(v,sign)=>(v<0?'-':(sign&&v>0?'+':''))+'$'
       +Math.abs(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
     const amt=(v,sign)=>usdOnly?usd(v,sign):kor(v,sign);
-    const stat=`<div class="dstat">`
+    /* '동일' 은 완료 탭에 있던 것을 보유 탭에도 놓은 것이다(2026-09-14 요청) — 종목마다
+       넣은 돈이 달라도 **다 똑같이 넣었다면 몇 %였나**. 그 옆 '수익률' 은 금액가중이다. */
+    const stat=`<div class="dstat" title="동일 = 건별 수익률의 단순 평균 — 종목마다 넣은 돈이 달라도 &#10;       전부 같은 금액을 넣었다면 지금 몇 % 인가 (규칙 자체의 성적 · 백테스트와 비교용)&#10;수익률 = 총평가손익 ÷ 총매수금액 — 내 계좌가 실제로 벌고 있는 비율&#10;&#10;둘 다 매매비용 차감 후입니다.${m.navg&&m.navg!==(sel||[]).length?'&#10;현재가를 모르는 '+((sel||[]).length-m.navg)+'건은 동일가중에서 제외':''}">`
       +`<b class="${selF?mkCls(selF.mkt):''}">${posRule?codeOf(posRule)+' · '+((selF&&selF.name&&selF.name.split(' · ')[1])||posRule):'전체'}</b>`
       +`<span><span class="k">매수금액</span>${m.inv?amt(m.inv)+(m.noFX?' (국내만)':''):'—'}</span>`
+      +`<span><span class="k">동일</span><span class="${sg(m.avg)}">${m.avg==null?'—':(m.avg>0?'+':'')+m.avg.toFixed(1)+'%'}</span></span>`
       +`<span><span class="k">수익률</span><span class="${sg(m.ret)}">${m.inv?(m.ret>0?'+':'')+m.ret.toFixed(1)+'%':'—'}</span></span>`
       +`<span><span class="k">평가손익</span><span class="${sg(m.pnl)}">${m.inv?amt(m.pnl,1):'—'}</span></span></div>`;
     const box=$('#pchips');
@@ -1908,12 +1911,19 @@ function sumMoney(list,asIs){
     const v=(view.rows||[]).find(x=>x.ticker===p.code); if(v&&v.close!=null)return v.close;
     const r=(raw.rows||[]).find(x=>x.t===p.code);return r?r.c:null};
   let inv=0,pnl=0,noFX=false;
+  /* 동일가중 — 건별 수익률의 단순 평균. **얼마를 넣었는지와 무관한 규칙 자체의 성적**이라
+     백테스트 숫자(전부 같은 비중을 전제)와 나란히 볼 수 있다. 완료 탭의 '동일' 과 같은 뜻이다.
+     비율이므로 환율도 수량도 필요 없다 — 그 둘이 없어 금액가중에서 빠지는 기록도 여기엔 센다. */
+  const rets=[];
   list.forEach(p=>{const us=isUSCode(p.code);
+    const now=nowOf(p);
+    if(now&&p.price)rets.push((sellNow(now,p.code)/costBuy(p)-1)*100);
     if(us&&!FX){noFX=true;return}
-    const fx=(us&&!asIs)?FX:1, now=nowOf(p);
+    const fx=(us&&!asIs)?FX:1;
     if(p.qty&&p.price)inv+=costBuy(p)*p.qty*fx;
     if(p.qty&&now)pnl+=(sellNow(now,p.code)-costBuy(p))*p.qty*fx});
-  return {inv,pnl,ret:inv?pnl/inv*100:0,noFX};
+  return {inv,pnl,ret:inv?pnl/inv*100:0,noFX,
+          avg:rets.length?rets.reduce((x,y)=>x+y,0)/rets.length:null, navg:rets.length};
 }
 /* 자료 시각 갱신. 보유·완료 요약은 각자 탭 안으로 옮겼고, 시각은 레일 바닥으로 갔다
    (2026-09-12 요청). 헤더의 #status 는 이제 비어 있다.
