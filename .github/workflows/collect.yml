@@ -328,12 +328,20 @@ jobs:
           git add data/us/buyback_recent.csv data/20*.csv data/short_recent.csv data/dilution_recent.csv data/buyback_recent.csv data/insider_recent.csv data/credit_recent.csv data/sector.csv data/industry.csv data/valuation.csv data/vkospi.csv data/feargreed.csv
           if git diff --cached --quiet; then echo "바뀐 데이터 없음"; exit 0; fi
           git commit -m "data: $(TZ=Asia/Seoul date +%Y-%m-%d)"
+          # ⚠ 2026-09-14: 전에는 `git pull --rebase ... && git push` 였다. pull 이 실패하면
+          #   **push 가 아예 실행되지 않아** 다섯 번이 같은 자리에서 막혔다(그날 커밋 유실).
+          #   checkout@v4 는 기본이 fetch-depth 1(얕은 클론)이라 rebase 가 공통 조상을 못 찾는
+          #   경우가 있다. 그래서 ① 먼저 그냥 밀어 보고(경합이 없으면 이걸로 끝난다)
+          #   ② 밀리면 그때 깊이를 늘려 rebase 한다.
           for i in 1 2 3 4 5; do
+            if git push; then echo "데이터 커밋 성공 (${i}회차 · 경합 없음)"; exit 0; fi
+            echo "원격이 앞섰다 — 깊이를 늘려 다시 얹는다 (${i}회차)"
+            git fetch --deepen=50 origin main 2>/dev/null               || git fetch --unshallow origin 2>/dev/null || git fetch origin main || true
             if git pull --rebase -X theirs origin main && git push; then
-              echo "데이터 커밋 성공 (${i}회차)"; exit 0
+              echo "데이터 커밋 성공 (${i}회차 · 재얹기)"; exit 0
             fi
             git rebase --abort 2>/dev/null || true
-            echo "커밋 경합 — ${i}회차 실패, 재시도"; sleep $((i * 15))
+            sleep $((i * 15))
           done
           curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage"             -d chat_id="$TELEGRAM_CHAT_ID"             -d text="⚠ 오늘 수집 데이터를 저장하지 못했습니다(커밋 경합 5회 실패). 데이터는 받았으나 리포지토리에 없습니다 — Actions 로그를 확인하세요." > /dev/null
           echo "::error::데이터 커밋 5회 실패"
