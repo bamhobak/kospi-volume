@@ -830,6 +830,7 @@ function renderTabs(){
     /* 자료 시각은 레일 바닥, 버전 바로 위로 옮겼다(2026-09-12 요청). 값은 renderStatus 가
        10분마다 갈아 끼운다 — 레일은 그때 다시 그리지 않으므로 **id 로 찍어** 둔다. */
     + `<div class="railfoot"><div class="rf"><i>장중 시세</i><b id="lvtime">—</b></div>`
+    + `<div class="rf"><i>실시간</i><b id="rtbtn" class="off" title="켜면 보유 종목 현재가를 체결 단위로 받습니다(표시 전용). 끄거나 사이트를 나가면 10분 주기로 돌아갑니다.">꺼짐</b></div>`
     + `<div class="rf"><i>데이터</i><b id="dtime">—</b></div></div>`
     + verHtml()
     :'');
@@ -1593,8 +1594,116 @@ async function load(){
   await pullLive();mktBadge();
   /* 열어둔 화면도 10분마다 지수·현재가를 따라가게 한다 */
   setInterval(async()=>{await pullLive();mktBadge();
-    if(cur==='pos'||cur==='done')render()},600000)}
+    if(cur==='pos'||cur==='done')render()},600000);
+  /* 실시간 토글 — 저장된 값으로 되살리고, 장이 열리면 붙고 닫히면 놓는다 */
+  try{RT.on=localStorage.getItem('rt_on')==='1'}catch(e){}
+  RT.stat=RT.on?'대기':'꺼짐';
+  document.addEventListener('click',e=>{
+    if(e.target&&e.target.id==='rtbtn'){e.preventDefault();rtToggle()}});
+  window.addEventListener('beforeunload',()=>rtStop(true));
+  setInterval(()=>{ if(!RT.on)return;
+    if(rtWindow()){ if(!RT.ws)rtStart() } else if(RT.ws)rtStop(); },60000);
+  if(RT.on)rtStart(); else rtBadge()}
 let LIVE={updated:'',prices:{},index:null};      /* 10분마다 갱신되는 실시간 스냅샷 */
+/* ══ 토스 실시간 시세 (토글 ON 일 때만) ═══════════════════════════════════
+   **표시 전용이다.** 규칙은 전부 종가로 판정하고 다음날 시가에 사고판다 — 이 값으로는
+   아무것도 판정하지 않는다. 보유 종목 현재가·수익률 숫자만 체결 단위로 갈아 끼운다.
+
+   왜 토큰만 서버가 받나(2026-09-14 실측):
+     · 토스 토큰 엔드포인트는 **Origin 화이트리스트**다. 우리 주소로 부르면
+       403 `Invalid CORS request` 다. Origin 없는 서버 요청은 200 이다.
+     · 반면 **소켓(wss)은 Origin 을 보지 않아** 브라우저가 직접 붙는다.
+   그래서 `prices?utk=1` 이 토큰과 코드 매핑만 주고, 연결은 여기서 한다.
+
+   코드 매핑: 국내는 'A'+종목코드, 미장은 토스 상품코드(US19801212001 꼴)다.
+   틱 본문(실측): {code, close(현재가), base(기준가), volume, cumulativeVolume, dt, session}
+
+   ⚠ 비공식 경로다. 실패하면 **조용히 10분 폴링으로 돌아간다** — 끊겨도 화면은 멀쩡해야 한다. */
+const RT={on:false,ws:null,hb:null,rev:{},map:{},tmr:null,fail:0,ticks:0,stat:'꺼짐'};
+function rtSave(v){try{localStorage.setItem('rt_on',v?'1':'0')}catch(e){}}
+function rtWindow(){                       /* 국내장 또는 미장 시간대인가 (KST) */
+  const d=new Date(),w=d.getDay(),t=d.getHours()*60+d.getMinutes();
+  const kr=(w>=1&&w<=5)&&t>=540&&t<=940;                   /* 09:00~15:40 */
+  const us=((w>=1&&w<=5)&&t>=1320)||((w>=2&&w<=6)&&t<=370);/* 22:00~ / ~06:10 */
+  return kr||us;
+}
+function rtBadge(){
+  const b=$('#rtbtn'); if(!b)return;
+  b.textContent=RT.stat; b.className=RT.on?(RT.ws?'':'off'):'off';
+}
+function rtStop(quiet){
+  if(RT.hb){clearInterval(RT.hb);RT.hb=null}
+  if(RT.ws){try{RT.ws.onclose=null;RT.ws.close()}catch(e){} RT.ws=null}
+  if(!quiet){RT.stat=RT.on?'대기':'꺼짐';rtBadge()}
+}
+function rtTick(o){
+  const our=RT.rev[o.code]; if(!our)return;
+  const now=+o.close; if(!(now>0))return;
+  const base=+o.base||0, prev=(LIVE.prices||{})[our]||{};
+  LIVE.prices=LIVE.prices||{};
+  LIVE.prices[our]=Object.assign({},prev,{now:now,at:o.dt,status:'실시간',
+    chg:base?now-base:prev.chg, vol:o.cumulativeVolume!=null?o.cumulativeVolume:prev.vol});
+  RT.ticks++;
+  /* 체결마다 다시 그리면 화면이 못 버틴다 — 0.4초에 한 번만 */
+  if(!RT.tmr)RT.tmr=setTimeout(()=>{RT.tmr=null;
+    RT.stat='켜짐 '+RT.ticks;rtBadge();
+    if(cur==='pos'||cur==='done')render()},400);
+}
+async function rtStart(){
+  if(!RT.on||RT.ws)return;
+  if(!rtWindow()){RT.stat='대기';rtBadge();return}
+  RT.stat='연결 중';rtBadge();
+  let info;
+  try{
+    const r=await fetch(`${SB.url}/functions/v1/prices?utk=1`,{method:'POST',
+      headers:{apikey:SB.key,Authorization:'Bearer '+SB.key,'Content-Type':'application/json'}});
+    info=await r.json();
+  }catch(e){info=null}
+  if(!info||!info.utk||!info.rev||!Object.keys(info.rev).length){
+    RT.fail++; RT.stat='실패'; rtBadge();
+    if(RT.fail>=3){RT.on=false;rtSave(false);RT.stat='꺼짐';rtBadge()}
+    return;
+  }
+  RT.rev=info.rev; RT.map=info.map||{};
+  let ws;
+  try{ws=new WebSocket('wss://realtime-socket.tossinvest.com/ws','v12.stomp')}
+  catch(e){RT.fail++;RT.stat='실패';rtBadge();return}
+  RT.ws=ws;
+  const dev='WTS-'+Math.random().toString(36).slice(2,12);
+  let buf='';
+  ws.onopen=()=>{
+    ws.send('CONNECT\ndevice-id:'+dev+'\nconnection-id:'+dev
+      +'\nauthorization:'+info.utk+'\nplatform:Web/wts\naccept-version:1.2'
+      +'\nheart-beat:4000,4000\n\n\u0000');
+    /* 4초마다 개행 한 바이트 — 안 보내면 서버가 ERROR RSE-5 로 끊는다 */
+    RT.hb=setInterval(()=>{try{ws.send('\n')}catch(e){}},4000);
+    Object.keys(RT.map).forEach((our,i)=>{
+      const tc=RT.map[our], mk=tc.charAt(0)==='A'?'kr':'us';
+      ws.send('SUBSCRIBE\nid:sub-'+i+'\ndestination:/topic/v1/'+mk+'/stock/trade/'+tc+'\n\n\u0000');
+    });
+    RT.fail=0; RT.stat='켜짐'; rtBadge();
+  };
+  ws.onmessage=e=>{
+    if(typeof e.data!=='string')return;
+    buf+=e.data;
+    for(;;){
+      buf=buf.replace(/^\n+/,'');                 /* 서버 하트비트는 맨 개행이다 */
+      const i=buf.indexOf('\u0000'); if(i<0)break;
+      const raw=buf.slice(0,i); buf=buf.slice(i+1);
+      const p=raw.indexOf('\n\n'); if(p<0)continue;
+      if(raw.slice(0,7)!=='MESSAGE')continue;
+      try{rtTick(JSON.parse(raw.slice(p+2)))}catch(_){}
+    }
+    if(buf.length>1e6)buf='';                     /* 이상하면 버린다 */
+  };
+  ws.onclose=()=>{RT.ws=null;if(RT.hb){clearInterval(RT.hb);RT.hb=null}
+    if(RT.on){RT.stat='끊김';rtBadge();setTimeout(rtStart,5000)}};
+  ws.onerror=()=>{RT.fail++};
+}
+function rtToggle(){
+  RT.on=!RT.on; rtSave(RT.on); RT.fail=0; RT.ticks=0;
+  if(RT.on)rtStart(); else{rtStop();pullLive()}
+}
 /* 시세를 새로 받아온다.
    네이버 API 는 브라우저 출처를 403 으로 막기 때문에 페이지가 직접 못 받는다 —
    Supabase Edge Function 이 서버에서 받아 저장하고 돌려준다(접속할 때마다 최신).
@@ -1657,6 +1766,7 @@ function renderStatus(){
   if(lv){lv.textContent=LIVE.updated?LIVE.updated.slice(5):'없음';
          lv.className=LIVE.updated?'':'off'}
   const dt=$('#dtime'); if(dt)dt.textContent=(raw.updated||'').slice(5)||'—';
+  rtBadge();
 }
 /* 미장 표의 기준일 칩 — 국내와 장 시간이 달라 하루씩 어긋날 수 있다.
    하루 이상 묵으면 그날 난 진입 이벤트(nh5·qnew)가 통째로 빠져 미장 규칙이 조용히 0 이 된다

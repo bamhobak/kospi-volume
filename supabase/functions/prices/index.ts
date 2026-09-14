@@ -124,6 +124,52 @@ function kst() {
 /** 국내 종목코드는 6자리 숫자, 미장 티커는 글자 — 코드 모양으로 시장을 가른다 */
 const isUS = (c: string) => !/^\d{6}$/.test(String(c ?? ""));
 
+// ── 토스 실시간 소켓 보조 (2026-09-14) ─────────────────────────────────────
+// 브라우저가 보유 종목을 **체결 단위로** 받게 해 준다. 화면 표시 전용이다 —
+// 규칙 판정은 전부 종가 기준이므로 이 값으로는 아무것도 판정하지 않는다.
+//
+// 왜 서버가 끼는가: 토스는 **Origin 화이트리스트**를 쓴다. 토큰 엔드포인트를 우리 주소로
+// 부르면 403 `Invalid CORS request` 다(실측). Origin 이 없는 서버 요청은 200 이다.
+// 반면 **소켓(wss)은 Origin 을 보지 않아** 브라우저가 직접 붙을 수 있다(실측).
+// 그래서 토큰만 여기서 받아 넘기고 연결은 브라우저가 한다.
+const TOSS_UA = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+    "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+};
+
+async function tossUtk(): Promise<string> {
+  const r = await fetch("https://wts-api.tossinvest.com/api/v1/refresh-utk", { headers: TOSS_UA });
+  const m = (r.headers.get("set-cookie") ?? "").match(/UTK=([^;]+)/);
+  if (!m) throw new Error(`UTK 없음 (HTTP ${r.status})`);
+  return m[1];
+}
+
+/** 미장 티커 → 토스 상품코드(US19801212001 꼴). 국내는 'A'+코드라 검색이 필요 없다. */
+async function tossCodeUS(sym: string): Promise<string | null> {
+  const r = await fetch("https://wts-info-api.tossinvest.com/api/v3/search-all/wts-auto-complete", {
+    method: "POST",
+    headers: { ...TOSS_UA, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query: sym,
+      sections: [{ type: "PRODUCT", option: { addIntegratedSearchResult: true } }],
+    }),
+  });
+  if (!r.ok) return null;
+  let j: unknown;
+  try { j = await r.json(); } catch { return null; }
+  // ⚠ 심볼이 **정확히 같은** 것만 쓴다 — 'BP' 로 찾으면 BPRE·BPOP·BPAY 가 같이 온다.
+  let hit: string | null = null;
+  const walk = (x: any) => {
+    if (hit || !x || typeof x !== "object") return;
+    if (Array.isArray(x)) { x.forEach(walk); return; }
+    const pc = x.productCode ?? x.code;
+    if (x.symbol === sym && typeof pc === "string" && pc) { hit = pc; return; }
+    Object.values(x).forEach(walk);
+  };
+  walk(j);
+  return hit;
+}
+
 /** 미장 시세 — 야후 차트 엔드포인트(키 불필요, 서버에서만 된다).
  *  토스 Open API 는 국내 전용이라(해외 경로 전부 not-found) 여기엔 쓸 수 없다. */
 async function yahoo(sym: string) {
@@ -212,6 +258,39 @@ Deno.serve(async (req) => {
         (kp ? `
 코스피 ${num(kp.closePrice)?.toLocaleString("en-US")}` : ""));
       return new Response(JSON.stringify({ ping: "sent", at: stamp, hasToken: !!TG_TOKEN, hasChat: !!TG_CHAT }),
+        { headers: { ...CORS, "Content-Type": "application/json" } });
+    }
+
+    // ?utk=1 — 브라우저가 토스 실시간 소켓에 붙는 데 필요한 둘을 준다(시세는 안 받는다).
+    //   ① 게스트 토큰  ② 우리 종목코드 ↔ 토스 코드 매핑
+    // 미장 코드는 검색 API 로만 알 수 있어 __tosscode__ 핀에 캐시한다(티커는 잘 안 바뀐다).
+    if (q.get("utk") === "1") {
+      const _r = await fetch(`${SB_URL}/rest/v1/kospi_state?select=pin,data`,
+        { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } });
+      const _rows2: any[] = _r.ok ? await _r.json() : [];
+      const held = [...new Set(_rows2
+        .filter((r) => !String(r.pin ?? "").startsWith("__"))
+        .flatMap((r) => (r.data?.positions ?? []))
+        .filter((p: any) => p && p.code && !p.sell)
+        .map((p: any) => String(p.code)))];
+      const cache: Record<string, string> =
+        ((await rpc("kospi_state_get", { p_pin: "__tosscode__" })) ?? {}) as any;
+      const map: Record<string, string> = {};
+      let grew = false;
+      for (const c of held) {
+        if (!isUS(c)) { map[c] = "A" + c; continue; }
+        if (cache[c]) { map[c] = cache[c]; continue; }
+        const tc = await tossCodeUS(c).catch(() => null);
+        if (tc) { map[c] = tc; cache[c] = tc; grew = true; }
+      }
+      if (grew) {
+        try { await rpc("kospi_state_set", { p_pin: "__tosscode__", p_data: cache }); } catch { /* 캐시 실패는 무시 */ }
+      }
+      let utk = "", err = "";
+      try { utk = await tossUtk(); } catch (e) { err = String(e).slice(0, 140); }
+      const rev: Record<string, string> = {};
+      for (const [k, v] of Object.entries(map)) rev[v] = k;
+      return new Response(JSON.stringify({ utk, map, rev, at: stamp, error: err || undefined }),
         { headers: { ...CORS, "Content-Type": "application/json" } });
     }
 
