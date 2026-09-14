@@ -144,25 +144,25 @@ def up60(K): return K.date.map(UP60).fillna(False) == True
 #   비워 두면 모든 규칙이 '정해진 날까지 보유' 다. 되돌려 재볼 때만 값을 넣는다.
 TRAIL = {}
 RULES = {
- "P1": (KP, 40, None, 12, 7, base(KP,200)&(KP.fromhi>=-10)&(KP.r16<120)&(KP.rw1<=120)&(KP.fw5>=3)
+ "P1": (KP, 40, None, 14.4, 7, base(KP,200)&(KP.fromhi>=-10)&(KP.r16<120)&(KP.rw1<=120)&(KP.fw5>=3)
         &(KP.fw60>=1)&(KP.vol20<=2)&(KP.sr20<=0.5)&(KP.ret20<=5)
         &~((KP.above20>70)&(KP.ret250>120))),
- "P2": (KP, 10, None, 15, 2, base(KP,3)&dn20(KP)&(KP.r16<30)&(KP.rw1>=200)&(KP.fw5>=2)
+ "P2": (KP, 10, None, 18, 2, base(KP,3)&dn20(KP)&(KP.r16<30)&(KP.rw1>=200)&(KP.fw5>=2)
         &(KP.ret3<=-5)&(KP.ret10<=0)&(KP.srd==True)),
- "P3": (KP, 20, None, 5, 3, base(KP,3)&dn60(KP)&(KP.ret20<=-25)&(KP.su1>=1.5)&(KP.fw60>=1)
+ "P3": (KP, 20, None, 6, 3, base(KP,3)&dn60(KP)&(KP.ret20<=-25)&(KP.su1>=1.5)&(KP.fw60>=1)
         &(KP.u<=-10)&(KP.srd==True)&(KP.cr_chg20<=-15)),
  # 2026-09-09 거래대금 10→5억, 신용잔고 20일 -15% 추가 — 같은 폭락 달 안에서 종목을 가른 유일한 재료
  #   (2020-03 +12.3p · 2026-07 +6.0p, 2008 도 같은 방향). p4_refresh2/p4_within/p4_solo/p4_final.py
- "P4": (KP, 5, None, 3, 4, base(KP,5)&dn60(KP)&(KP.u<=-20)&(KP.dma20<=-10)&(KP.mdd60<=-40)&(KP.srd==True)&(KP.cr_chg20<=-15)),
- "P5": (KB, 10, None, 5, 3, base(KB,3)&dn60(KB)&KB.bb&(KB.ret60<=-20)),   # 공통(A1)
- "P6": (KP, 5, None, 4, 4, base(KP,10)&dn60(KP)&(KP.dev25<=-25)&(KP.u<=-20)),
- "P7": (KP, 60, None, 4, 5, base(KP,30)&up60(KP)&(KP["cap조"]>=1)&(KP["cap조"]<10)&(KP.fw20>=1)
+ "P4": (KP, 5, None, 3.6, 4, base(KP,5)&dn60(KP)&(KP.u<=-20)&(KP.dma20<=-10)&(KP.mdd60<=-40)&(KP.srd==True)&(KP.cr_chg20<=-15)),
+ "P5": (KB, 10, None, 6, 3, base(KB,3)&dn60(KB)&KB.bb&(KB.ret60<=-20)),   # 공통(A1)
+ "P6": (KP, 5, None, 4.8, 4, base(KP,10)&dn60(KP)&(KP.dev25<=-25)&(KP.u<=-20)),
+ "P7": (KP, 60, None, 4.8, 5, base(KP,30)&up60(KP)&(KP["cap조"]>=1)&(KP["cap조"]<10)&(KP.fw20>=1)
         &(KP.ow60<0.4)&(KP.r16>=100)&(KP.r16<150)&(KP.fromhi>=-15)&(KP.fromlo>=70)
         &(KP.ins60.fillna(0)>0)),
- "D1": (KQ, 20, None, 5, 3, base(KQ,2)&dn60(KQ)&(KQ.ret20<=-30)&(KQ.su1>=1.5)&(KQ.fw60>=1)
+ "D1": (KQ, 20, None, 6, 3, base(KQ,2)&dn60(KQ)&(KQ.ret20<=-30)&(KQ.su1>=1.5)&(KQ.fw60>=1)
         &(KQ.u<=-20)&(KQ.srd==True)&(KQ.ow20>=0)
         &(KQ['부채비율'].isna()|(KQ['부채비율']<=200))),
- "D2": (KQ, 40, None, 5, 3, base(KQ,5)&dn60(KQ)&(KQ.PBR>0)&(KQ.PBR<=0.8)&(KQ.ret20<=-10)
+ "D2": (KQ, 40, None, 6, 3, base(KQ,5)&dn60(KQ)&(KQ.PBR>0)&(KQ.PBR<=0.8)&(KQ.ret20<=-10)
         &(KQ.su1>=2)&(KQ.u<=-10)&(KQ.ow20>=0)&(KQ.srd==True)),
 }
 # 규칙을 빼고 돌려보는 스위치 — SKIP=P4 처럼 준다. 규칙 하나를 빼면 그 자리가 다른 규칙에
