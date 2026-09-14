@@ -22,12 +22,14 @@ button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--t
    화면 밖에서 소켓을 붙들 이유도 없다 · 2026-09-14 요청) */
 /* 글자 없이 **점 하나**다 — 꺼지면 회색, 켜지면 초록. 상태 낱말은 title 로만 남긴다
    (2026-09-14 요청: "나만 알아보면 된다"). */
-.rtsw{display:none;width:24px;height:24px;padding:0;flex:none;background:var(--panel2);
-  border:1px solid var(--line);cursor:pointer;align-items:center;justify-content:center}
+.rtsw{display:none;width:22px;height:22px;padding:0;flex:none;background:none;border:0;
+  outline:0;-webkit-appearance:none;appearance:none;box-shadow:none;cursor:pointer;
+  align-items:center;justify-content:center}
+/* 테두리·배경·눌린 표시 전부 없앤다 — 화면에는 점 하나만 남는다 (2026-09-14 요청) */
+.rtsw:focus,.rtsw:focus-visible,.rtsw:active,.rtsw:hover{background:none;border:0;outline:0;box-shadow:none}
 .rtsw::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--faint)}
 .rtsw:hover::before{background:var(--mut)}
-.rtsw.on::before{background:var(--bth);box-shadow:0 0 7px var(--bth)}
-.rtsw.on:hover::before{background:var(--bth)}
+.rtsw.on::before,.rtsw.on:hover::before{background:var(--bth);box-shadow:0 0 7px var(--bth)}
 @media(min-width:761px){.rtsw{display:inline-flex}}
 #q:focus{border-color:var(--acc)}
 /* 자료 시각을 레일 바닥으로 옮긴 뒤로 헤더의 이 칸은 비어 있다 — 비면 자리를 안 잡게 한다 */
