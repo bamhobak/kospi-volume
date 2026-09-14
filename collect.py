@@ -146,9 +146,12 @@ def apply_snapshot(con, listing, date):
             except Exception: vals.append(None)
         rows.append(tuple(vals) + (date, r.Code))
     sets = ", ".join(f"{cols[c]}=COALESCE(?, {cols[c]})" for c in have)
+    # ⚠ len(rows) 를 돌려주면 안 된다 — 그건 '시도한 종목 수'다. 그 날 행이 아예 없으면
+    #   UPDATE 는 0건인데 로그만 943종목 이라 **수집된 것처럼 보인다**(2026-09-14에 속았다).
+    before = con.total_changes
     con.executemany(f"UPDATE daily SET {sets} WHERE date=? AND ticker=?", rows)
     con.commit()
-    return len(rows)
+    return con.total_changes - before
 
 def main(progress=None):
     today = datetime.today()
@@ -171,7 +174,8 @@ def main(progress=None):
     con.commit()
     try:
         n = apply_snapshot(con, listing, yesterday)
-        log.info(f"시세 스냅샷 반영({yesterday}): {n}종목 (OHLC·거래대금·시총·상장주식수)")
+        if n: log.info(f"시세 스냅샷 반영({yesterday}): {n}종목 (OHLC·거래대금·시총·상장주식수)")
+        else: log.info(f"시세 스냅샷 미반영 — {yesterday} 일별 행이 아직 없다(수급이 저녁에 올라온다)")
     except Exception as e:
         log.warning(f"스냅샷 반영 실패: {e}")
     if KEEP_DAYS > 0:

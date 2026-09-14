@@ -29,7 +29,10 @@ button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--t
 .rtsw:focus,.rtsw:focus-visible,.rtsw:active,.rtsw:hover{background:none;border:0;outline:0;box-shadow:none}
 .rtsw::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--faint)}
 .rtsw:hover::before{background:var(--mut)}
-.rtsw.on::before,.rtsw.on:hover::before{background:var(--bth);box-shadow:0 0 7px var(--bth)}
+/* 켜면 곧장 초록이다. 실제로 소켓이 붙는 건 장중뿐이라 '붙었을 때만 초록' 으로 두면
+   장외에 눌렀을 때 아무 반응이 없어 고장으로 보인다(2026-09-14). 붙은 상태는 빛으로만 구분. */
+.rtsw.on::before,.rtsw.on:hover::before{background:var(--bth)}
+.rtsw.live::before,.rtsw.live:hover::before{box-shadow:0 0 7px var(--bth)}
 @media(min-width:761px){.rtsw{display:inline-flex}}
 #q:focus{border-color:var(--acc)}
 /* 자료 시각을 레일 바닥으로 옮긴 뒤로 헤더의 이 칸은 비어 있다 — 비면 자리를 안 잡게 한다 */
@@ -1763,7 +1766,7 @@ function rtWindow(){                       /* 국내장 또는 미장 시간대�
 }
 function rtBadge(){
   const el=$('#rtsw'); if(!el)return;
-  el.className='rtsw'+((RT.on&&RT.ws)?' on':'');
+  el.className='rtsw'+(RT.on?' on':'')+((RT.on&&RT.ws)?' live':'');
   /* 점만 보이므로 낱말은 툴팁으로 남긴다 — 대기·연결 중·끊김·실패를 구분해야 할 때가 있다 */
   el.title='실시간 시세 — '+RT.stat+' (보유 종목 현재가를 체결 단위로 받습니다 · 표시 전용)';
 }

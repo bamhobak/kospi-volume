@@ -95,6 +95,10 @@ FILTERS = [
      # 최근 3거래일 거래량 >= 2개월 평균의 200%. 사이트(rw1>=200)에는 있는데 여기만
      # 빠져 있어 알림이 더 헐겁게 나갔다(2026-09-03 selftest 로 발견).
      and r.get("aw") and r.get("a1") and r["aw"] / r["a1"] >= 2
+     # 2개월 평균 거래대금 3억. 사이트((r.amt||0)>=3)에만 있고 여기엔 없어서, 잔챙이까지
+     # 알림이 나갔다 — 2026-09-14 부일이엔에스(거래대금 0.22억)로 드러났다. 같은 부류의
+     # 누락이 이 규칙에서만 두 번째다(앞은 rw1). 조건을 고칠 땐 양쪽을 함께 본다.
+     and (r.get("amt") or 0) >= 3
      and r.get("ret3") is not None and r["ret3"] <= -5
      and r.get("ret10") is not None and r["ret10"] <= 0
      and not bool(kospi.get("up20"))
