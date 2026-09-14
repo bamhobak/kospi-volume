@@ -1712,8 +1712,19 @@ async function load(){
   setInterval(checkVer,600000);                 /* 열어 둔 화면도 10분마다 다시 본다 */
   await pullLive();mktBadge();
   /* 열어둔 화면도 10분마다 지수·현재가를 따라가게 한다 */
-  setInterval(async()=>{await pullLive();mktBadge();
-    if(cur==='pos'||cur==='done')render()},600000);
+  /* 장중 시세 주기 — 평소 10분, **실시간 모드에서는 1분**.
+     지수(코스피·코스닥·나스닥·S&P)와 환율은 토스 소켓으로 못 받는다(지수 코드가 공개돼
+     있지 않다 · 2026-09-14 확인). 그래서 실시간일 때는 폴링을 촘촘히 해 헤더를 따라가게 한다.
+     ⚠ 이때 render() 를 부르면 안 된다 — 레일까지 새로 그려 깜빡인다(1.0.32 에서 고친 그것).
+        표는 rtPaint() 로 제자리만 고친다. */
+  let LVTICK=0;
+  setInterval(async()=>{
+    LVTICK++;
+    const fast=!!(RT.on&&RT.ws);
+    if(!fast&&LVTICK%10!==0)return;
+    await pullLive(); mktBadge();
+    if(fast)rtPaint();
+    else if(cur==='pos'||cur==='done')render()},60000);
   /* 실시간 토글 — 저장된 값으로 되살리고, 장이 열리면 붙고 닫히면 놓는다 */
   try{RT.on=localStorage.getItem('rt_on')==='1'}catch(e){}
   if(isMobile())RT.on=false;        /* 모바일은 토글 자체를 안 띄운다 — 붙지도 않는다 */
