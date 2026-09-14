@@ -1442,15 +1442,17 @@ async function renderPositions(){
   /* 열을 **키**로 다룬다(2026-09-14). 위치(인덱스)로 두면 순서 바꾸기·너비 조절·숨기기를
      조회 표와 같은 기구(wireCols)로 쓸 수 없다. '상세' 도 종목 칸에서 떼어 제 열로 냈다. */
   const ALLCOLS=DONE
-    ?[['name','종목','l'],['detail','상세'],['rule','규칙','l'],['bdate','매수일','l'],['bprice','매수가'],
+    ?[['name','종목','l'],['rule','규칙','l'],['bdate','매수일','l'],['bprice','매수가'],
       ['qty','수량'],['bamt','매수금액'],['sdate2','매도일|기록한 실제 매도일','l'],['sprice','매도가'],
-      ['dret','수익률'],['dpnl','손익'],['act','','l']]
-    :[['name','종목','l'],['detail','상세'],['rule','규칙','l'],['bdate','매수일','l'],['bprice','매수가'],
+      ['dret','수익률'],['dpnl','손익'],['act','작업','l']]
+    :[['name','종목','l'],['rule','규칙','l'],['bdate','매수일','l'],['bprice','매수가'],
       ['qty','수량'],['bamt','매수금액'],['now','현재가'],['ret','수익률'],['pnl','평가손익'],
       ['days','보유일'],['sdate','매도일|규칙상 매도일 — 매수일을 1일째로 세어 보유기간이 되는 거래일. 아직 오지 않은 날은 주말·공휴일을 빼서 추정한 값이라 휴장일에 따라 하루 이틀 밀릴 수 있습니다','l'],['hi','고점|매수 후 최고가 — 매수가와 매수일 이후 일별 종가, 오늘 실시간 고가 중 최댓값'],
-      ['line','손절/익절선'],['streak','신호 유지'],['state','상태','l'],['sellinfo','매도가/손익'],['act','','l']];
-  /* 모바일에선 '상세' 를 뺀다 — 새 창 팝업이 모바일에서 쓸모없고, 행을 누르면 어차피 열린다 */
-  const cols=applyColCfg(MOB?ALLCOLS.filter(c=>c[0]!=='detail'):ALLCOLS);
+      ['line','손절/익절선'],['streak','신호 유지'],['state','상태','l'],['act','작업','l']];
+  /* ⚠ '매도가/손익'(sellinfo) 은 뺐다(2026-09-14). 보유 탭은 **미매도만** 담는데 그 칸은
+     p.sell 이 있을 때만 값을 내므로 **늘 빈 칸**이었다. 완료 탭이 매도가·수익률·손익
+     세 칸으로 쪼개지면서 보유 탭에만 남은 잔재다. */
+  const cols=applyColCfg(ALLCOLS);
   $('#tbl thead').innerHTML='<tr>'+cols.map(c=>{
     const[h,tip]=String(c[1]).split('|');
     const arrow=POSSORT.key===c[0]?(POSSORT.desc?' \u25be':' \u25b4'):'';
@@ -1528,7 +1530,7 @@ async function renderPositions(){
       pnl:amt((p.qty&&now)?(sellNow(now,p.code)-costBuy(p))*p.qty:null), days:days,
       sdate:(()=>{const sd=rule?sellDate(p.date,rule.hold,p.code):null;return sd?sd.date:''})(),
       hi:amt(hi), line:rule?(rule.trail||rule.stop||rule.target||0):null,
-      streak:streak, state:st, sellinfo:amt(p.sell??null)})[k];};
+      streak:streak, state:st})[k];};
   if(POSSORT.key!=null){const k=POSSORT.key,sg=POSSORT.desc?-1:1;
     rows.sort((a,b)=>{const x=posVal(a,k),y=posVal(b,k);
       /* 값이 없는 행은 방향과 무관하게 늘 아래로 — 위로 올라오면 표를 읽기 어렵다 */
@@ -1539,7 +1541,6 @@ async function renderPositions(){
     const nowCell=pmon(now,p.code);
     const C={
       name:`<td class="l name">${dispName(p.name)} <span class="code cpy" data-cp="${p.code}">${p.code}</span></td>`,
-      detail:`<td><button class="ghost mini pdet" data-detail="${p.code}">상세</button></td>`,
       rule:`<td class="l">${(p.filters||[]).map(f=>{const ff=fOf(f);return `<span class="tag ${ff?mkCls(ff.mkt):''}">${fcode(f)}</span>`}).join('')||'<span class="code">-</span>'}</td>`,
       bdate:`<td class="l">${md(p.date)}</td>`,
       bprice:`<td>${pmon(p.price,p.code)}</td>`,
@@ -1559,8 +1560,7 @@ async function renderPositions(){
       line:`<td>${rule?`${line?`<span class="neg">${pmon(line,p.code)}</span>`:''}${tgt?`<span class="pos">${pmon(tgt,p.code)}</span>`:''}`||'-':'<span class="code">-</span>'}</td>`,
       streak:`<td>${streak?`<span class="${(rid0==='P7'&&streak>=2)?'hot':''}">${streak}일</span>`:'<span class="code">-</span>'}</td>`,
       state:`<td class="l ${sc==='none'?'':sc}" style="font-weight:600">${sc==='none'?'<span class="code">-</span>':st}</td>`,
-      sellinfo:`<td class="${p.sell?cls(pr(p)):''}">${p.sell?pmon(p.sell,p.code)+' ('+(pr(p)>0?'+':'')+pr(p).toFixed(1)+'%'+(p.qty?' · '+amon(pmoney(p),p.code,1):'')+')':''}</td>`,
-      act:`<td class="l">${p.sell?'':`<button class="ghost mini" data-sell="${p.id}">매도</button>`} <button class="ghost mini" data-edit="${p.id}" title="${p.sell?'매도가·매도일 수정':'매수일·매수가·수량 수정'}">수정</button> <button class="ghost mini" data-del="${p.id}">삭제</button></td>`};
+      act:`<td class="l">${p.sell?'':`<button class="ghost mini" data-sell="${p.id}">매도</button>`} <button class="ghost mini" data-edit="${p.id}" title="${p.sell?'매도가·매도일 수정':'매수일·매수가·수량 수정'}">수정</button> <button class="ghost mini" data-del="${p.id}">삭제</button>${MOB?'':` <button class="ghost mini pdet" data-detail="${p.code}">상세</button>`}</td>`};
     if(DONE){const r_=pr(p),c_=cls(r_);
       C.sdate2=`<td class="l">${p.sellDate?md(p.sellDate):'<span class="code">-</span>'}</td>`;
       C.sprice=`<td class="${c_}">${pmon(p.sell,p.code)}</td>`;
@@ -1570,10 +1570,10 @@ async function renderPositions(){
       +cols.map(c=>C[c[0]]||'<td></td>').join('')+'</tr>'}).join('');
   applyColWidths(cols);
   /* 조회 표와 같은 기구 — 머리글 끌어 너비, 드래그로 순서, '열 설정' 으로 숨기기 */
-  {const fd=$('#fdesc');
+  if(!DONE){const fd=$('#fdesc');
    if(fd&&fd.insertAdjacentHTML&&!(fd.innerHTML||'').includes('colbtn'))
      fd.insertAdjacentHTML('beforeend',' <button class="ghost mini colbtn" id="colbtn">열 설정</button><span id="colwrap"></span>');}
-  wireCols(cols,ALLCOLS);
+  wireCols(cols,ALLCOLS);   /* 버튼이 없어도 머리글 끌기(너비)·드래그(순서)는 그대로 */
   /* 머리글 클릭 = 그 열로 정렬. 같은 열을 다시 누르면 역순, 세 번째면 원래 순서. */
   document.querySelectorAll('#tbl thead th[data-k]').forEach(th=>th.onclick=()=>{
     if(Date.now()-RESIZED_AT<400)return;           /* 너비를 끈 직후의 클릭은 무시 */
