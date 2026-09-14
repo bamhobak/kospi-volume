@@ -18,6 +18,17 @@ input:focus{border-color:var(--acc)}input:not([type=checkbox]){flex:1;min-width:
 button{background:var(--acc);border:0;color:#0a0b0e;border-radius:0;padding:8px 14px;font-weight:600;cursor:pointer;font-size:13px}
 button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
 #q{flex:none;width:180px;padding:6px 10px;font-size:12px;border-radius:0}
+/* 실시간 토글 — 검색창 오른쪽. **PC 에서만** 띄운다(모바일은 배터리·데이터를 먹고
+   화면 밖에서 소켓을 붙들 이유도 없다 · 2026-09-14 요청) */
+.rtsw{display:none;align-items:center;gap:6px;flex:none;background:var(--panel2);
+  border:1px solid var(--line);color:var(--mut);padding:5px 11px;font-size:12px;
+  font-weight:500;cursor:pointer;white-space:nowrap}
+.rtsw::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--faint)}
+.rtsw b{font-weight:700;color:var(--mut)}
+.rtsw.on{border-color:var(--acc);color:var(--txt)}
+.rtsw.on b{color:var(--acc)}
+.rtsw.on::before{background:var(--acc);box-shadow:0 0 6px var(--acc)}
+@media(min-width:761px){.rtsw{display:inline-flex}}
 #q:focus{border-color:var(--acc)}
 /* 자료 시각을 레일 바닥으로 옮긴 뒤로 헤더의 이 칸은 비어 있다 — 비면 자리를 안 잡게 한다 */
 #status:empty{display:none}
@@ -361,6 +372,7 @@ button.prim{background:var(--acc);border:1px solid var(--acc);color:#0a0b0e;font
   <span id="mkt" class="mkt"></span>
   <span id="mktstate" class="mktstate"></span>
   <input id="q" type="search" placeholder="종목명·코드 검색" autocomplete="off">
+  <button id="rtsw" class="rtsw" type="button" title="보유 종목 현재가를 체결 단위로 받습니다(표시 전용). 끄거나 사이트를 나가면 10분 주기로 돌아갑니다.">실시간 <b>꺼짐</b></button>
   <div id="status">불러오는 중…</div>
 </header>
 <div class="shell">
@@ -832,7 +844,6 @@ function renderTabs(){
     /* 자료 시각은 레일 바닥, 버전 바로 위로 옮겼다(2026-09-12 요청). 값은 renderStatus 가
        10분마다 갈아 끼운다 — 레일은 그때 다시 그리지 않으므로 **id 로 찍어** 둔다. */
     + `<div class="railfoot"><div class="rf"><i>장중 시세</i><b id="lvtime">—</b></div>`
-    + `<div class="rf"><i>실시간</i><b id="rtbtn" class="off" title="켜면 보유 종목 현재가를 체결 단위로 받습니다(표시 전용). 끄거나 사이트를 나가면 10분 주기로 돌아갑니다.">꺼짐</b></div>`
     + `<div class="rf"><i>데이터</i><b id="dtime">—</b></div></div>`
     + verHtml()
     :'');
@@ -1705,9 +1716,11 @@ async function load(){
     if(cur==='pos'||cur==='done')render()},600000);
   /* 실시간 토글 — 저장된 값으로 되살리고, 장이 열리면 붙고 닫히면 놓는다 */
   try{RT.on=localStorage.getItem('rt_on')==='1'}catch(e){}
+  if(isMobile())RT.on=false;        /* 모바일은 토글 자체를 안 띄운다 — 붙지도 않는다 */
   RT.stat=RT.on?'대기':'꺼짐';
   document.addEventListener('click',e=>{
-    if(e.target&&e.target.id==='rtbtn'){e.preventDefault();rtToggle()}});
+    const sw=e.target&&e.target.closest&&e.target.closest('#rtsw');
+    if(sw){e.preventDefault();rtToggle()}});
   window.addEventListener('beforeunload',()=>rtStop(true));
   setInterval(()=>{ if(!RT.on)return;
     if(rtWindow()){ if(!RT.ws)rtStart() } else if(RT.ws)rtStop(); },60000);
@@ -1736,8 +1749,9 @@ function rtWindow(){                       /* 국내장 또는 미장 시간대�
   return kr||us;
 }
 function rtBadge(){
-  const b=$('#rtbtn'); if(!b)return;
-  b.textContent=RT.stat; b.className=RT.on?(RT.ws?'':'off'):'off';
+  const el=$('#rtsw'); if(!el)return;
+  const v=el.querySelector('b'); if(v)v.textContent=RT.stat;
+  el.className='rtsw'+((RT.on&&RT.ws)?' on':'');
 }
 function rtStop(quiet){
   if(RT.hb){clearInterval(RT.hb);RT.hb=null}
@@ -1756,7 +1770,7 @@ function rtTick(o){
      가 초기값으로 깜빡이고, renderPositions 가 종목별 일봉 JSON 을 매번 다시 받는다
      (2026-09-14 사용자 신고: 두 화면이 왔다 갔다 함). 값이 바뀌는 칸만 제자리에서 고친다. */
   if(!RT.tmr)RT.tmr=setTimeout(()=>{RT.tmr=null;
-    RT.stat='켜짐 '+RT.ticks;rtBadge();rtPaint()},600);
+    rtPaint()},600);                              /* 틱 수는 표시하지 않는다(요청) */
 }
 /* 실시간 틱으로 바뀌는 칸만 갈아 끼운다 — 현재가·수익률·평가손익.
    나머지(보유일·매도일·상태·요약)는 10분 주기와 탭 전환 때 갱신된다. */
