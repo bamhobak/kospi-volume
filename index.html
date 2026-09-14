@@ -250,7 +250,9 @@ th .rz:hover::after,th .rz.on::after{background:var(--acc);top:0;bottom:0}
 .colitem.on{color:var(--txt)}
 /* 이미 보유 중인 종목 표시 — 규칙 카드·조회 표 공용 */
 .tag.hold{background:#2e2205;border-color:var(--ind);color:var(--ind);font-weight:700}
-.pdet{margin-left:8px;vertical-align:middle;opacity:.75}.pdet:hover{opacity:1}
+/* .pdet 는 이제 '작업' 칸에서 수정·삭제와 나란히 선다 — 따로 띄우거나 흐리게 하지 않는다.
+   (종목 칸 안에 있던 시절엔 8px 띄우고 opacity .75 로 낮춰 뒀다 · 2026-09-14 정리)
+   클래스는 남긴다 — 클릭 배선이 .pdet[data-detail] 로 잡는다. */
 .colmenu .colft{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;
   border-top:1px solid var(--line);color:var(--mut);font-size:11px}
 .colmenu .sp{margin-left:auto}
@@ -1561,11 +1563,14 @@ async function renderPositions(){
       streak:`<td>${streak?`<span class="${(rid0==='P7'&&streak>=2)?'hot':''}">${streak}일</span>`:'<span class="code">-</span>'}</td>`,
       state:`<td class="l ${sc==='none'?'':sc}" style="font-weight:600">${sc==='none'?'<span class="code">-</span>':st}</td>`,
       act:`<td class="l">${p.sell?'':`<button class="ghost mini" data-sell="${p.id}">매도</button>`} <button class="ghost mini" data-edit="${p.id}" title="${p.sell?'매도가·매도일 수정':'매수일·매수가·수량 수정'}">수정</button> <button class="ghost mini" data-del="${p.id}">삭제</button>${MOB?'':` <button class="ghost mini pdet" data-detail="${p.code}">상세</button>`}</td>`};
+    /* 셀마다 열 키를 달아 둔다 — 실시간 틱이 표 전체를 다시 그리지 않고
+       현재가·수익률·평가손익만 제자리에서 갈아 끼울 수 있게(2026-09-14) */
     if(DONE){const r_=pr(p),c_=cls(r_);
       C.sdate2=`<td class="l">${p.sellDate?md(p.sellDate):'<span class="code">-</span>'}</td>`;
       C.sprice=`<td class="${c_}">${pmon(p.sell,p.code)}</td>`;
       C.dret=`<td class="${c_}">${(r_>0?'+':'')+r_.toFixed(1)+'%'}</td>`;
       C.dpnl=`<td class="${c_}">${p.qty?amon(pmoney(p),p.code,1):''}</td>`}
+    Object.keys(C).forEach(k=>{C[k]=C[k].replace('<td','<td data-k="'+k+'"')});
     return `<tr data-pc="${p.code}" class="${sel===p.code?'sel':''}">`
       +cols.map(c=>C[c[0]]||'<td></td>').join('')+'</tr>'}).join('');
   applyColWidths(cols);
@@ -1726,10 +1731,28 @@ function rtTick(o){
   LIVE.prices[our]=Object.assign({},prev,{now:now,at:o.dt,status:'실시간',
     chg:base?now-base:prev.chg, vol:o.cumulativeVolume!=null?o.cumulativeVolume:prev.vol});
   RT.ticks++;
-  /* 체결마다 다시 그리면 화면이 못 버틴다 — 0.4초에 한 번만 */
+  /* ⚠ 여기서 render() 를 부르면 안 된다 — 레일까지 통째로 다시 그려 '장중 시세·실시간·데이터'
+     가 초기값으로 깜빡이고, renderPositions 가 종목별 일봉 JSON 을 매번 다시 받는다
+     (2026-09-14 사용자 신고: 두 화면이 왔다 갔다 함). 값이 바뀌는 칸만 제자리에서 고친다. */
   if(!RT.tmr)RT.tmr=setTimeout(()=>{RT.tmr=null;
-    RT.stat='켜짐 '+RT.ticks;rtBadge();
-    if(cur==='pos'||cur==='done')render()},400);
+    RT.stat='켜짐 '+RT.ticks;rtBadge();rtPaint()},600);
+}
+/* 실시간 틱으로 바뀌는 칸만 갈아 끼운다 — 현재가·수익률·평가손익.
+   나머지(보유일·매도일·상태·요약)는 10분 주기와 탭 전환 때 갱신된다. */
+function rtPaint(){
+  if(cur!=='pos'&&cur!=='done')return;
+  const PS=positions();
+  document.querySelectorAll('#tbl tbody tr[data-pc]').forEach(tr=>{
+    const code=tr.dataset.pc, lv=(LIVE.prices||{})[code];
+    if(!lv||!(lv.now>0))return;
+    const p=PS.find(x=>String(x.code)===code&&!x.sell); if(!p)return;
+    const now=lv.now, ret=(sellNow(now,code)/costBuy(p)-1)*100, c=cls(ret);
+    const set=(k,html)=>{const td=tr.querySelector('td[data-k="'+k+'"]');
+      if(td){td.innerHTML=html; td.className=c}};
+    set('now',pmon(now,code));
+    set('ret',(ret>0?'+':'')+ret.toFixed(1)+'%');
+    set('pnl',p.qty?amon((sellNow(now,code)-costBuy(p))*p.qty,code,1):'');
+  });
 }
 async function rtStart(){
   if(!RT.on||RT.ws)return;
