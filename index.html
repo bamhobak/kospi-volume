@@ -1069,6 +1069,10 @@ function statsHtml(f){const t=f.stats;
     <span class="s-item" title="Profit Factor — 이익 거래의 합 ÷ 손실 거래의 합. 1.0이면 본전, 높을수록 손실 대비 이익이 큽니다."><b>${t.pf}</b></span>
     <span class="s-item" title="건당 평균 순수익 — **검증기간(2023~26)** 기준. 수수료·세금·슬리피지를 모두 뺀 값입니다. 중앙값은 이보다 낮을 수 있습니다(큰 수익 몇 건이 평균을 끌어올림)."><b>+${t.avg}%</b></span>
     <span class="s-item" title="${f.regime==='both'?`출현 빈도·발현 장세 — 이 규칙은 **국면 조건이 없습니다**. 지수가 오르든 내리든 조건만 맞으면 신호가 납니다(실측: 거래의 45%가 상승 국면). 「낙폭」은 시장이 아니라 **그 종목이 52주 고점 대비 얼마나 떨어졌는가**를 뜻합니다. 검증기간 ${t.spanMonths||44}개월 중 ${t.monthsActive||'?'}개월에 신호가 났고 모두 합쳐 ${t.n}건입니다(월 평균 ${t.perMonth}건).`:f.regime==='up'?`출현 빈도·발현 장세 — 검증기간 ${t.spanMonths||44}개월 중 ${t.monthsActive||'?'}개월에만 신호가 났고 모두 합쳐 ${t.n}건입니다(신호가 난 달 기준 중앙 ${t.medPerActive||'?'}건, 가장 많았던 달 ${t.topMonth?t.topMonth.slice(0,4)+'-'+t.topMonth.slice(4):'-'} ${t.topN||0}건). 월 평균으로 나누면 ${t.perMonth}건이지만 실제로는 몰려서 납니다. 신호는 주로 코스피 60일선 위(상승·횡보장)에서 납니다(실측: P1 실거래 60건의 80%가 60일선 위, 거기서 평균 +8.6%). 신호가 없는 달도 많으니 조용하다고 고장난 게 아닙니다.`:`출현 빈도·발현 장세 — 검증기간 ${t.spanMonths||44}개월 중 ${t.monthsActive||'?'}개월에만 신호가 났고 모두 합쳐 ${t.n}건입니다(신호가 난 달 기준 중앙 ${t.medPerActive||'?'}건, 가장 많았던 달 ${t.topMonth?t.topMonth.slice(0,4)+'-'+t.topMonth.slice(4):'-'} ${t.topN||0}건). 월 평균으로 나누면 ${t.perMonth}건이지만 실제로는 몰려서 납니다. 신호는 코스피 60일선 아래(하락장)에서 납니다(P3·P5·D1·D2 는 조건 자체에 하락장 게이트, P4 는 실거래 816건의 92%·P2 는 98%가 하락장). 하락장이 없으면 몇 달씩 조용한 것이 정상입니다.`}"><b>월 ${t.perMonth}건</b></span>
+    ${(()=>{const a=f.alloc; if(!a||!a.pct)return '';
+      /* 종목당 비중 / 자리 수 (2026-09-15 요청). 값은 portfolio.py RULES 의 pct·mx 와 같다 —
+         백테스트를 이 비중으로 돌려서 정한 것이라 둘이 어긋나면 화면이 거짓말을 하게 된다. */
+      return `<span class="s-item" title="종목당 투입 / 동시 보유 자리 — 계좌 전체를 100 으로 볼 때 이 규칙은 한 종목에 ${a.pct} 을 넣고 동시에 최대 ${a.max}종목까지 듭니다 (다 차면 ${a.pct*a.max}).&#10;백테스트를 이 비중으로 돌려서 정한 값입니다.&#10;&#10;⚠ 14규칙 자리를 전부 더하면 322 지만 동시에 다 차는 일은 없습니다 — 실측 평균 노출은 국내 25% · 미장 68% 입니다.&#10;자리가 남아도 현금이 모자라면 그날 먼저 걸러진 신호(거래대금 큰 순)가 우선입니다."><b>${a.pct}/${a.max}</b></span>`})()}
     <span class="s-item info-card" id="infobtn2" title="규칙 상세 조건과 연도별 성적 보기">${showInfo?'✕':'ⓘ'}</span></div>`;
   if(!showInfo) return cards;
   return cards+`
