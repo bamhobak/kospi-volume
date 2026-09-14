@@ -820,8 +820,8 @@ function renderTabs(){
       + `<span class="n">${RAILOPEN?orderedAll().length+'개 규칙':'현재: '+curName()}</span></div>`:'')
     + (railOpen?
     `<div class="grp">`
-    + nrow('pos','pos','보유 종목',positions().filter(p=>!p.sell).length)
     + nrow('all','','매수 대기',wait)
+    + nrow('pos','pos','보유 종목',positions().filter(p=>!p.sell).length)
     + nrow('done','done','완료',positions().filter(p=>p.sell).length) + `</div>`
     + `<div class="grp"><div class="k khead">규칙${freqNote()}</div>${rules}</div>`
     + `<div class="grp"><div class="k">조회</div>`
@@ -1562,7 +1562,7 @@ async function renderPositions(){
       line:`<td>${rule?`${line?`<span class="neg">${pmon(line,p.code)}</span>`:''}${tgt?`<span class="pos">${pmon(tgt,p.code)}</span>`:''}`||'-':'<span class="code">-</span>'}</td>`,
       streak:`<td>${streak?`<span class="${(rid0==='P7'&&streak>=2)?'hot':''}">${streak}일</span>`:'<span class="code">-</span>'}</td>`,
       state:`<td class="l ${sc==='none'?'':sc}" style="font-weight:600">${sc==='none'?'<span class="code">-</span>':st}</td>`,
-      act:`<td class="l">${p.sell?'':`<button class="ghost mini" data-sell="${p.id}">매도</button>`} <button class="ghost mini" data-edit="${p.id}" title="${p.sell?'매도가·매도일 수정':'매수일·매수가·수량 수정'}">수정</button> <button class="ghost mini" data-del="${p.id}">삭제</button>${MOB?'':` <button class="ghost mini pdet" data-detail="${p.code}">상세</button>`}</td>`};
+      act:`<td class="l">${MOB?'':`<button class="ghost mini pdet" data-detail="${p.code}">상세</button> `}${p.sell?'':`<button class="ghost mini" data-sell="${p.id}">매도</button> `}<button class="ghost mini" data-edit="${p.id}" title="${p.sell?'매도가·매도일 수정':'매수일·매수가·수량 수정'}">수정</button> <button class="ghost mini" data-del="${p.id}">삭제</button></td>`};
     /* 셀마다 열 키를 달아 둔다 — 실시간 틱이 표 전체를 다시 그리지 않고
        현재가·수익률·평가손익만 제자리에서 갈아 끼울 수 있게(2026-09-14) */
     if(DONE){const r_=pr(p),c_=cls(r_);
@@ -2016,12 +2016,12 @@ function render(){renderTabs();
      아예 없어서 늘 빈칸이었다. 그래서 미장 탭은 **값이 있는 열만** 따로 세운다.
      대신 한국 표에 없던 것(고점·저점 대비, 이격, 변동성, 20일선 위 비율, 낙폭)을 꺼내 준다. */
   let cols = cur==='us'
-    ? [['name','종목','l'],['hits','통과 규칙'],['ex','거래소'],['cap','시가총액'],['close','종가'],['chpct','전일비'],
+    ? [['name','종목','l'],['hits','통과 규칙'],['today','금일'],['ex','거래소'],['cap','시가총액'],['close','종가'],['chpct','전일비'],
        ['amt','거래대금'],['fromhi','고점대비'],['fromlo','저점대비'],['dma20','20일선 이격'],
        ['dev25','25일선 이격'],['vol20','변동성'],['above20','20일선 위'],['mdd60','60일 낙폭'],
        ['ret3','3일'],['ret10','10일'],['ret20','20일'],['ret60','60일'],['r1y','1년'],
        ['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['detail','상세']]
-    : [['name','종목','l'],...(browse?[]:[['hits','통과 규칙']]),['cap','시가총액'],['r1m','1개월'],['r3m','3개월'],['r6m','6개월'],['r1y','1년'],['detail','상세'],['per','PER'],['pbr','PBR'],['pcr','PCR'],['up','업종','l'],['sr60','업종 60일'],['streak','연속'],['ret3','3일'],['ret10','10일'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','3일평균'],['r16','2M/1Y'],['rw1','3일/2M'],['fw','외국인 1W'],['fwp','외인/거래량'],['amt','2M 거래대금'],['amt20','20일 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
+    : [['name','종목','l'],...(browse?[]:[['hits','통과 규칙']]),['today','금일'],['cap','시가총액'],['r1m','1개월'],['r3m','3개월'],['r6m','6개월'],['r1y','1년'],['detail','상세'],['per','PER'],['pbr','PBR'],['pcr','PCR'],['up','업종','l'],['sr60','업종 60일'],['streak','연속'],['ret3','3일'],['ret10','10일'],['close','종가'],['chpct','전일비'],['last','최근 거래량'],['avg','평균'],['ratio','최근/평균'],['a6','1Y평균'],['a1','2M평균'],['aw','3일평균'],['r16','2M/1Y'],['rw1','3일/2M'],['fw','외국인 1W'],['fwp','외인/거래량'],['amt','2M 거래대금'],['amt20','20일 거래대금'],['indiv','개인'],['organ','기관'],['frgn','외국인'],['foreign_ratio','외인비율']];
   /* 모바일에선 '상세' 열을 뺀다 — 팝업 새 창이 모바일에서 쓸모없고, 행을 누르면 어차피 상세가 열린다 */
   if(isMobile())cols=cols.filter(c=>c[0]!=='detail');
   const ALLCOLS=cols; cols=applyColCfg(cols);
@@ -2060,6 +2060,9 @@ function render(){renderTabs();
     ret10:`<td class="${cls(r.ret10)}">${r.ret10==null?'':(r.ret10>0?'+':'')+r.ret10.toFixed(1)+'%'}</td>`,
     close:`<td>${r.close==null?'':(r.mk==='US'?r.close.toFixed(2):fmt(r.close))}</td>`,
     chpct:`<td>${chg(r.close,r.change)}</td>`,
+    /* 금일 = 그날 등락률만. 전일비(chpct)는 가격 변화까지 같이 보여 줘서 따로 뒀다
+       (2026-09-14 요청: 매수 대기에서 '+3%·-2.4%' 처럼 비율만 보고 싶다). */
+    today:`<td class="${cls(r.chpct===-999?null:r.chpct)}">${(r.chpct==null||r.chpct===-999)?'':(r.chpct>0?'+':'')+r.chpct.toFixed(1)+'%'}</td>`,
     last:`<td class="name">${kor(r.last<0?null:r.last)}</td>`,
     avg:`<td>${kor(r.avg)}</td>`,
     ratio:`<td>${r.ratio==null?'':(r.ratio>=200?`<span class="hot">${Math.round(r.ratio)}%</span>`:Math.round(r.ratio)+'%')}</td>`,
