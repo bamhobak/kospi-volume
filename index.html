@@ -1091,8 +1091,16 @@ function applyColCfg(cols){
     const seen=new Set();
     out=[];
     c.order.forEach(k=>{if(by[k]&&!seen.has(k)){out.push(by[k]);seen.add(k)}});
-    /* 저장 이후 새로 생긴 열은 뒤에 원래 순서대로 붙인다 (앞의 순서를 밀지 않는다) */
-    cols.forEach(x=>{if(!seen.has(x[0]))out.push(x)});
+    /* 저장 이후 **새로 생긴 열**은 원래 목록에서의 이웃 옆에 끼워 넣는다.
+       예전엔 맨 뒤에 붙였는데, 열이 서른 개 넘는 표에서는 화면 밖이라 "안 보인다" 가 됐다
+       (2026-09-14 신고: '금일'·'전일비' 가 안 보임). 앞 열의 순서는 그대로 두고 자리만 찾아 준다. */
+    cols.forEach((x,i)=>{
+      if(seen.has(x[0]))return;
+      let at=out.length;
+      for(let j=i-1;j>=0;j--){const q=out.findIndex(y=>y[0]===cols[j][0]);
+        if(q>=0){at=q+1;break}}
+      out.splice(at,0,x); seen.add(x[0]);
+    });
   }
   const hid=new Set(c.hidden||[]);
   return out.filter(x=>!hid.has(x[0]));
