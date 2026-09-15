@@ -22,6 +22,7 @@ button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--t
    화면 밖에서 소켓을 붙들 이유도 없다 · 2026-09-14 요청) */
 /* 글자 없이 **점 하나**다 — 꺼지면 회색, 켜지면 초록. 상태 낱말은 title 로만 남긴다
    (2026-09-14 요청: "나만 알아보면 된다"). */
+.tag.goto:hover{outline:1px solid currentColor;outline-offset:1px}
 .rtsw{display:none;width:22px;height:22px;padding:0;flex:none;background:none;border:0;
   outline:0;-webkit-appearance:none;appearance:none;box-shadow:none;cursor:pointer;
   align-items:center;justify-content:center}
@@ -688,6 +689,19 @@ function codeOf(id){
   return nid;
 }
 const fcode=id=>codeOf(id);
+/* 탭 이동 — 레일 항목과 카드의 규칙 태그가 함께 쓴다(2026-09-15).
+   ⚠ 태그가 레일 항목의 click 을 대신 부르는 방식은 안 된다 — 모바일에서 레일이 접혀
+     있으면 그 항목이 DOM 에 없어 조용히 아무 일도 안 일어난다. */
+function gotoTab(f){
+  if(isMobile()){RAILOPEN=false;try{localStorage.setItem('railopen','0')}catch(e){}}  /* 고른 뒤엔 접어 자리를 돌려준다 */
+  cur=f; TABPICKED=true;   /* 직접 고른 탭은 미장이 늦게 와도 건드리지 않는다 */
+  rowLimit=100;
+  if(f==='kp'||f==='kq'){sortKey='cap';desc=true}          /* 전체 종목은 시총 순 */
+  else if(f!=='us'&&f!=='pos'&&f!=='done'&&f!=='all'){sortKey='amt20';desc=true}   /* 규칙 탭은 **거래대금 큰 순** */
+  if(f==='us'){sortKey='cap';desc=true;                     /* 미장도 시총 순 */
+    if(!USROWS){showInfo=false;render();loadUS().then(render);return}}
+  showInfo=false;render();
+}
 /* 드래그로 글자를 고른 뒤 마우스를 놓으면 그 마우스업도 click 으로 들어온다.
    그대로 두면 핸들러가 render() 를 불러 화면을 다시 그리고, 그리는 순간 선택이 날아가
    복사를 못 한다(2026-09-10 사용자 신고 — 종목명을 긁어도 놓으면 사라짐).
@@ -918,15 +932,7 @@ function renderTabs(){
      vb.onclick=()=>location.reload(true);}
   document.querySelectorAll('#rail .it').forEach(b=>b.onclick=()=>{
     if(Date.now()-RDRAG_AT<400)return;            /* 순서를 끈 직후의 클릭은 탭 이동이 아니다 */
-    if(isMobile()){RAILOPEN=false;try{localStorage.setItem('railopen','0')}catch(e){}}  /* 고른 뒤엔 접어 자리를 돌려준다 */
-    const f=b.dataset.f;
-    cur=f; TABPICKED=true;   /* 직접 고른 탭은 미장이 늦게 와도 건드리지 않는다 */
-    rowLimit=100;
-    if(f==='kp'||f==='kq'){sortKey='cap';desc=true}          /* 전체 종목은 시총 순 */
-    else if(f!=='us'&&f!=='pos'&&f!=='done'&&f!=='all'){sortKey='amt20';desc=true}   /* 규칙 탭은 **거래대금 큰 순** — 자리보다 후보가 많을 때의 우선순위와 같게(2026-09-12) */
-    if(f==='us'){sortKey='cap';desc=true;                     /* 미장도 시총 순 (SEC 주식수로 채운다) */
-      if(!USROWS){showInfo=false;render();loadUS().then(render);return}}
-    showInfo=false;render()});
+    gotoTab(b.dataset.f)});
   const K=raw.kospi||{};
   /* 시장 조건으로 오늘 열린 규칙과 그 근거를 한 줄로 */
   if(K.close!=null){
@@ -1028,9 +1034,9 @@ function renderCards(rows){
       <div class="hd">
         <div style="flex-grow:1;min-width:0">
           <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
-            <span class="nm" title="누르면 상세 화면이 열립니다">${dispName(r.name)}</span>
+            <span class="nm" title="누르면 상세 화면이 열립니다 (카드의 다른 곳은 눌러도 반응하지 않습니다)">${dispName(r.name)}</span>
             <span class="code cpy" data-cp="${r.ticker}" style="color:var(--dim);font-size:12px">${r.ticker}</span>
-            <span class="tag ${mc}">${codeOf(f.id)}</span>${(()=>{const hp=heldPos(r.ticker);if(!hp)return '';
+            <span class="tag ${mc} goto" data-goto="${f.id}" style="cursor:pointer" title="${codeOf(f.id)} · ${f.name.split(' · ')[1]||f.name} 규칙 탭으로 이동">${codeOf(f.id)}</span>${(()=>{const hp=heldPos(r.ticker);if(!hp)return '';
               const dd=heldDays(hp),pl=hp.price?((r.close/hp.price-1)*100):null;
               const by=(hp.filters||[]).map(codeOf).join('·');
               return `<span class="tag hold" title="${hp.date} 에 ${fmt(hp.price)}원으로 매수 기록됨 — 지금 이 규칙에 다시 걸렸습니다">${by?by+'로 ':''}보유 중${dd!=null?' '+dd+'일':''}${pl!=null?' · '+(pl>0?'+':'')+pl.toFixed(1)+'%':''}</span>`})()}</div>
@@ -1057,11 +1063,18 @@ function renderCards(rows){
         <span>${f.rule.trail?'트레일링 -'+f.rule.trail+'% — 보유 중 종가 최고점에서 이만큼 내려오면 다음날 시가에 팝니다(선이 매일 따라 올라갑니다)':f.rule.stop?'손절 -'+f.rule.stop+'%':'손절이 없습니다 — 보유기간을 끝까지 채우는 것이 규칙입니다'}. 기대 승률 ${f.stats.win}% · 건당 ${f.stats.avg>0?'+':''}${f.stats.avg}%</span>
       </div></div>`}).join('');
   bindCopy();
-  document.querySelectorAll('#cards .sig').forEach(el=>el.onclick=()=>{
-    if(isSelecting())return;                 /* 글자를 고르는 중이면 카드를 열지 않는다 */
-    openDetail(el.dataset.c)});
+  /* 상세는 **종목명을 눌렀을 때만** 연다(2026-09-15 요청). 예전에는 카드 어디를 눌러도
+     열려서, 규칙 태그나 버튼을 살짝 비껴 누를 때마다 새 창이 떴다. */
+  document.querySelectorAll('#cards .sig .nm').forEach(el=>el.onclick=e=>{
+    e.stopPropagation();
+    if(isSelecting())return;                 /* 글자를 고르는 중이면 열지 않는다 */
+    const c=el.closest('.sig'); if(c)openDetail(c.dataset.c)});
   document.querySelectorAll('#cards [data-buy]').forEach(b=>b.onclick=e=>{e.stopPropagation();
     const r=view.rows.find(x=>x.ticker===b.dataset.buy);addPosition(r.ticker,r.name,r.close)});
+  /* 규칙 태그 → 그 규칙 탭 (2026-09-15 요청) */
+  document.querySelectorAll('#cards [data-goto]').forEach(b=>b.onclick=e=>{
+    e.stopPropagation();          /* 카드의 '상세 열기' 가 같이 터지지 않게 */
+    gotoTab(b.dataset.goto)});
   renderStatus()}
 function statsHtml(f){const t=f.stats;
   const cards=`<div class="stats">
