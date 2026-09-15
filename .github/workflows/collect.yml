@@ -287,6 +287,20 @@ jobs:
           else
             echo "월요일이 아니고 CSV 도 있다 — 건너뛴다 ($(wc -l < data/us/buyback_recent.csv)줄)"
           fi
+      - name: collect US earnings (주 1회 · 월요일)
+        if: github.event_name != 'push' && steps.td.outputs.trading == 'true'
+        continue-on-error: true
+        env: { TZ: Asia/Seoul }
+        run: |
+          # yfinance 는 종목당 호출이라 6천 종목에 1~3시간이다. 매일은 못 돌린다.
+          # 신호가 며칠 늦는 대가를 실측했더니(us_pead_delay.py) **D+7 까지는 성적이
+          # 사실상 같았다** — 그래서 주 1회로 충분하고, 규칙이 peadage<=7 로 그 지연을 흡수한다.
+          pip install yfinance
+          if [ "$(date +%u)" = "1" ] || [ ! -s data/us/earn_recent.csv ]; then
+            python collect_us_earn.py --force
+          else
+            echo "월요일이 아니고 CSV 도 있다 — 건너뛴다 ($(wc -l < data/us/earn_recent.csv)줄)"
+          fi
       - name: collect US (미장 전체 조회용)
         if: github.event_name != 'push'
         continue-on-error: true
@@ -325,7 +339,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           git config user.name "kospi-bot"; git config user.email "bot@users.noreply.github.com"
-          git add data/us/buyback_recent.csv data/20*.csv data/short_recent.csv data/dilution_recent.csv data/buyback_recent.csv data/insider_recent.csv data/credit_recent.csv data/sector.csv data/industry.csv data/valuation.csv data/vkospi.csv data/feargreed.csv
+          git add data/us/buyback_recent.csv data/us/earn_recent.csv data/20*.csv data/short_recent.csv data/dilution_recent.csv data/buyback_recent.csv data/insider_recent.csv data/credit_recent.csv data/sector.csv data/industry.csv data/valuation.csv data/vkospi.csv data/feargreed.csv
           if git diff --cached --quiet; then echo "바뀐 데이터 없음"; exit 0; fi
           git commit -m "data: $(TZ=Asia/Seoul date +%Y-%m-%d)"
           # ⚠ 2026-09-14: 전에는 `git pull --rebase ... && git push` 였다. pull 이 실패하면

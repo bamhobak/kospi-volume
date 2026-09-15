@@ -63,6 +63,7 @@ const RULES: Record<string, { stop: number | null; trail?: number | null; target
   N3: { stop: null, target: null, hold: 40 },   // [저PBR 낙폭] — 미장
   N4: { stop: null, target: null, hold: 60 },   // [자사주 낙폭] — 미장
   N5: { stop: null, target: null, hold: 60 },   // [잔잔한 급등주] — 미장
+  N6: { stop: null, target: null, hold: 60 },   // [실적 서프라이즈] — 미장 (2026-09-15)
   P0: { stop: null, target: 0.20, hold: 10 },   // 폐기된 옛 P1 — 이력 보존용
 };
 const LEGACY: Record<string, string> = { "1": "P0", "2": "P2", "3": "P3", "4": "P1" };

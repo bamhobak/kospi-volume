@@ -123,10 +123,11 @@ def fetch(syms, start):
     return out
 
 
-def metrics(x, bbdates=None):
+def metrics(x, bbdates=None, edates=None):
     """한국 표와 같은 이름의 지표를 만든다. 값이 모자라면 None.
 
-    bbdates: 그 종목의 자사주 집행 보고일(YYYYMMDD) 목록. [자사주 낙폭] 이 쓴다."""
+    bbdates: 그 종목의 자사주 집행 보고일(YYYYMMDD) 목록. [자사주 낙폭] 이 쓴다.
+    edates : 그 종목의 실적 발표일(YYYYMMDD) 목록. [실적 서프라이즈] 가 쓴다."""
     c = x["Close"].astype(float).values
     v = x["Volume"].astype(float).values
     n = len(c)
@@ -238,6 +239,26 @@ def metrics(x, bbdates=None):
         qnew = bool(_ev[-1])
         _w = np.where(_ev)[0]
         if len(_w): qage = int(len(_ev) - 1 - _w[-1])
+    # ── [실적 서프라이즈] 재료 (2026-09-15) ────────────────────────────────
+    #   발표일 **다음 거래일**이 신호일이다(장전·장후 발표가 섞여 있어 늦게 사는 쪽으로 통일).
+    #   그날의 전일 대비 등락률이 '갭' 이고, 그 뒤 며칠 지났는지가 peadage 다.
+    #   ⚠ 서프라이즈 **백분위**는 그날 발표한 종목 전체를 봐야 알 수 있어 여기서 못 낸다 —
+    #     아래 후처리(peadq)가 채운다. 여기서는 날짜·갭·경과일만 만든다.
+    #   ⚠ 수집이 주 1회라 신호가 며칠 늦는다. 실측(us_pead_delay.py)에서 **D+7 까지는
+    #     성적이 사실상 그대로**였고 D+8 부터 꺾였다 — 그래서 사이트 규칙이 peadage<=7 을 본다.
+    peade = peadd = peadgap = peadage = None
+    if edates is not None and len(edates) and n >= 3:
+        _idx = [str(z)[:10].replace('-', '') for z in x.index]
+        _ed = sorted(set(str(z) for z in edates))
+        for _e in reversed(_ed):
+            _k = next((j for j, d0 in enumerate(_idx) if d0 > _e), None)   # 발표 **다음** 거래일
+            if _k is None or _k < 1:
+                continue
+            peade = _e                                  # 발표일 (백분위를 매기는 기준)
+            peadd = _idx[_k]
+            peadgap = round((c[_k] / c[_k - 1] - 1) * 100, 2) if c[_k - 1] else None
+            peadage = int(len(_idx) - 1 - _k)
+            break
     ch = round(c[-1] - c[-2], 2) if n >= 2 else None
     return dict(
         c=round(float(c[-1]), 2), ch=ch,
@@ -259,6 +280,7 @@ def metrics(x, bbdates=None):
         vol20=round(vol20, 2) if vol20 is not None else None,
         absr=round(absr, 3) if absr is not None else None,
         qnew=qnew, qage=qage,
+        peade=peade, peadd=peadd, peadgap=peadgap, peadage=peadage,
         above20=round(above, 1) if above is not None else None,
         v=[int(z) if z == z else 0 for z in v[-NDAY:]],
     )
@@ -306,6 +328,22 @@ def main():
     else:
         log("  data/us/buyback_recent.csv 없음 — [자사주 낙폭] 은 쉰다")
 
+    # ── 실적 발표일·서프라이즈 — collect_us_earn.py 가 만든 CSV. [실적 서프라이즈] 가 쓴다 ──
+    EDT, ESUR = {}, {}
+    _ep = BASE / "data" / "us" / "earn_recent.csv"
+    if _ep.exists():
+        try:
+            _E = pd.read_csv(_ep, dtype={"edate": str})
+            _E = _E.dropna(subset=["surprise"])
+            EDT = _E.groupby("ticker").edate.apply(lambda z: sorted(set(z))).to_dict()
+            ESUR = {(a_, b_): float(c_) for a_, b_, c_ in
+                    zip(_E.ticker, _E.edate, _E.surprise)}
+            log(f"  실적 발표 {len(EDT):,}종목 · {len(_E):,}건 (data/us/earn_recent.csv)")
+        except Exception as e:
+            log(f"  실적 CSV 읽기 실패 — [실적 서프라이즈] 는 쉰다: {e!r}"[:120])
+    else:
+        log("  data/us/earn_recent.csv 없음 — [실적 서프라이즈] 는 쉰다")
+
     rows, dates, t0, fail = [], [], time.time(), 0
     lastd = []          # 종목마다 마지막 거래일 — 표의 '기준일' 을 최빈값으로 정한다
     for i in range(0, len(syms), a.chunk):
@@ -316,7 +354,7 @@ def main():
             fail += len(part); log(f"  {i//a.chunk+1}묶음 실패: {e}"); continue
         for s, x in got.items():
             try:
-                m = metrics(x, BBD.get(s))
+                m = metrics(x, BBD.get(s), EDT.get(s))
             except Exception:
                 continue
             if not dates or len(x.index) > len(dates):
@@ -400,6 +438,28 @@ def main():
     log(f'  업종 60일수익 {nu:,}종목 · PBR {npbr:,} · 부채비율 {ndbt:,} (전체 {len(rows):,})')
 
     # ── 자사주 — 마지막 집행 보고 이후 며칠 지났나 (사이트 규칙 [자사주 낙폭] 이 쓴다) ──
+    # ── [실적 서프라이즈] 백분위 — **그날 발표한 종목 전체** 안에서의 순위 ──────────
+    #   서프라이즈 %는 EPS 가 0 근처면 ±769,900% 같은 값이 나온다. 원값을 그대로 쓰면
+    #   그 몇 건이 전부를 결정하므로 **백분위로 바꿔** 쓴다(us_pead.py 와 같은 방식).
+    #   발표가 5건 미만인 날은 백분위가 의미 없어 비워 둔다.
+    _nq = 0
+    if ESUR:
+        _t = pd.DataFrame([(k[0], k[1], v) for k, v in ESUR.items()],
+                          columns=["ticker", "edate", "sur"])
+        _sz = _t.groupby("edate").sur.transform("size")
+        _t["q"] = _t.groupby("edate").sur.rank(pct=True)
+        _t = _t[_sz >= 5]
+        _ESQ = {(a_, b_): round(float(c_), 3)
+                for a_, b_, c_ in zip(_t.ticker, _t.edate, _t.q)}
+        for m in rows:
+            _e = m.get("peade")
+            m["peadq"] = _ESQ.get((m["t"], _e)) if _e else None
+            _nq += m["peadq"] is not None
+        log(f"  실적 서프라이즈 백분위 {_nq:,}종목")
+    else:
+        for m in rows:
+            m["peadq"] = None
+
     #   collect_us_buyback.py 가 SEC XBRL 에서 뽑아 둔 data/us/buyback_recent.csv 를 읽는다.
     #   규칙은 '최근 60거래일 안에 자사주 집행을 보고했나' 를 보는데, 화면은 거래일 이력을
     #   갖고 있지 않으므로 **달력일 88일**(60거래일의 근사)로 잰다. 실측은 거래일 기준이었고

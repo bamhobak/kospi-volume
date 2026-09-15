@@ -213,6 +213,16 @@ FILTERS = [
      lambda r: r.get("mk") == "US" and not r.get("pref")
      and r.get("usliq") is True and (r.get("c") or 0) >= 3
      and r.get("qage") is not None and r["qage"] <= 3),
+    # 실적 발표 후 표류(PEAD). peadq 는 **그날 발표분 안에서의 서프라이즈 백분위**이고
+    # peadgap 은 **발표 다음 거래일**의 전일 대비 등락률이다(collect_us_daily.py 가 만든다).
+    # peadage<=7 은 실적 자료를 주 1회만 받아 신호가 며칠 늦는 것을 흡수한다 —
+    # 실측에서 D+7 까지는 성적이 사실상 같았다(us_pead_delay.py).
+    ("N6", "실적 서프라이즈 (미장·60일 보유)",
+     lambda r: r.get("mk") == "US" and not r.get("pref")
+     and r.get("usliq") is True and (r.get("c") or 0) >= 3
+     and r.get("peadq") is not None and r["peadq"] >= 0.7
+     and r.get("peadgap") is not None and r["peadgap"] >= 3
+     and r.get("peadage") is not None and r["peadage"] <= 7),
 ]
 
 LEGACY_ID = {1: "P0", 2: "P2", 3: "P3", 4: "P1"}          # 예전 숫자 id 호환

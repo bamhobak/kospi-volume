@@ -82,7 +82,10 @@ SAFE = {"mk","pref","ticker","name","close","change","th","vols","avg","total","
         # n1ok 는 table.json 에 없는 **계산 필드**다. 미장 규칙은 '그날 미장 전체 대비
         # 백분위' 라서 표를 다 읽은 뒤 화면(markUS)·알림에서 각각 매긴다. 수집 실패가 아니다.
         # bbd 는 '마지막 자사주 집행 보고 이후 며칠' 로 미장 표에만 있다(collect_us_daily.py).
-        "nh5","usliq","remo","bbd","bbnew","pinr","hl20","absr","qnew","qage",   # nh5·qnew 는 미장 수집기의 이벤트 플래그(대부분의 날 전부 False 가 정상), usliq 는 화면·알림이 매기는 유동성 플래그
+        "nh5","usliq","remo","bbd","bbnew","pinr","hl20","absr","qnew","qage",
+        # peadq·peadgap·peadage 도 미장 표에만 있다 — [실적 서프라이즈] 가 쓴다
+        # (collect_us_daily.py 가 data/us/earn_recent.csv 를 읽어 만든다).
+        "peadq","peadgap","peadage","peade","peadd",   # nh5·qnew 는 미장 수집기의 이벤트 플래그(대부분의 날 전부 False 가 정상), usliq 는 화면·알림이 매기는 유동성 플래그
         # su1 도 매핑 필드다 — 미장은 su1, 한국 표는 vs1 을 prep 에서 합쳐 쓴다.
         "su1"}
 # 이벤트성 필드는 '오늘 그 일이 있었나' 라서 값이 전부 비어도 정상일 수 있다
