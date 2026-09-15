@@ -41,24 +41,15 @@ def sec(t):
 
 # ── S&P500 60일선으로 국면을 만든다 (사이트와 같은 정의) ──────────────────
 log("국면 만드는 중 — S&P500 60일선")
-SPX = None
-for f in ["data/us/spx.pkl", "data/us/index.pkl", "data/us_index.pkl"]:
-    p = BASE / f
-    if p.exists():
-        SPX = pd.read_pickle(p)
-        log("  %s 에서 읽음" % f)
-        break
-if SPX is None:
-    # 패널에서 시총 가중 지수를 만들어 대신 쓴다
-    A = pd.read_pickle(BASE / "data/us_scan.pkl")
-    g = A.groupby("date").apply(lambda z: np.average(z.ret1d.fillna(0), weights=z.marcap.fillna(0))
-                                if z.marcap.notna().any() else 0.0)
-    SPX = pd.DataFrame({"date": g.index, "close": (1 + g.values / 100).cumprod()})
-    log("  지수 파일이 없어 시총가중 지수를 만들어 씀")
-SPX = SPX.sort_values("date").reset_index(drop=True)
-SPX["ma60"] = SPX.close.rolling(60).mean()
-SPX["up"] = SPX.close > SPX.ma60
-UP = dict(zip(SPX.date, SPX.up))
+# us_verify.py 와 **똑같은 방식**으로 받는다 — 판정 기준이 어긋나면 안 된다.
+import FinanceDataReader as fdr
+IX = fdr.DataReader("US500", "2004-06-01")
+IX = IX[IX.Close > 0].copy()
+IX["date"] = IX.index.strftime("%Y%m%d")
+IX["ma60"] = IX.Close.rolling(60).mean()
+# ⚠ 반드시 파이썬 bool 로 바꾼다. numpy 의 True 는 `x is True` 가 **False** 라
+#   뒤의 국면 집계가 통째로 0 이 된다.
+UP = {d: bool(v) for d, v in zip(IX.date, (IX.Close > IX.ma60).values)}
 
 # ── N6 신호 (사이트 정의 그대로) ─────────────────────────────────────────
 E = pd.concat([pd.read_pickle(f) for f in sorted(glob.glob(str(BASE / "data/us/analyst/*.pkl")))],
