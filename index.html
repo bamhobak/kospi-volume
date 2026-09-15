@@ -129,7 +129,7 @@ header{flex:none}
 .rail .it.pos.on{border-color:var(--up)}.rail .it.pos.on .n{color:var(--up)}
 .rail .it.done.on{border-color:var(--org)}.rail .it.done.on .n{color:var(--org)}
 .rail .it .rid{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:11px;width:20px;color:var(--acc)}
-/* 발현 장세는 왼쪽 세로 막대 색으로 — 상승장 붉은색, 하락장 파란색.
+/* 발현 장세는 왼쪽 세로 막대 색으로 — 상승장 붉은색, 하락장 파란색, 양쪽 노란색.
    글자는 회색 그대로 두어 목록이 균질하게 읽힌다.
    시장 구분(코스피/코스닥)은 규칙 코드 색이 계속 담당한다(.it.kq .rid). */
 /* 규칙 행은 끌어서 순서를 바꿀 수 있다 */
@@ -138,9 +138,10 @@ header{flex:none}
 .rail .it.rgrab{opacity:.5}
 .rail .it.rg-up .bar{background:var(--up)}
 .rail .it.rg-down .bar{background:var(--dn)}
-/* 국면 조건이 없는 규칙(양쪽에서 도는 규칙)은 위 절반 빨강·아래 절반 파랑으로 표시한다.
+/* 국면 조건이 없는 규칙(양쪽에서 도는 규칙)은 **노란색**이다 — 상승 빨강·하락 파랑과
+   섞이지 않는 제3의 색이라야 "국면을 안 탄다"가 한눈에 읽힌다. 회색이던 것을 바꿨다(2026-09-16).
    이 규칙이 없으면 앞의 시장색(.us 주황)이 남아 상승장 규칙처럼 보인다(2026-09-10). */
-.rail .it.rg-both .bar{background:var(--mut)}
+.rail .it.rg-both .bar{background:var(--ind)}
 .rail .it.kq .rid{color:var(--ind)}.rail .it.bo .rid{color:var(--bth)}.rail .it.us .rid{color:var(--usc)}
 .rail .sec{padding:11px;background:var(--panel2);border:1px solid var(--line)}
 .rail .sec .row{display:flex;justify-content:space-between;font-size:11px;margin-top:5px}
