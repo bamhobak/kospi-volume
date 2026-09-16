@@ -106,7 +106,26 @@ def main():
         log("받은 게 없다 — 기존 파일을 지키고 끝낸다")
         return
     A = pd.DataFrame(rows, columns=["ticker", "edate", "surprise"])
-    A = A.drop_duplicates(["ticker", "edate"], keep="last").sort_values(["edate", "ticker"])
+    # ── 기존 파일과 **합친다** — 덮어쓰지 않는다 ────────────────────────────
+    # ⚠ yfinance 는 종목당 호출이라 6천 번을 부르는 사이 레이트리밋(YFRateLimitError)이
+    #   걸리기 쉽다. 이 스크립트는 실패한 종목을 조용히 건너뛰므로, 절반만 받은 판이
+    #   멀쩡한 파일을 통째로 덮어쓸 수 있다. 그러면 [실적 서프라이즈] 가 조용히 죽는다.
+    #   발표 기록은 **한 번 확정되면 안 바뀌는** 자료라 합치는 게 언제나 옳다.
+    #   같은 (종목, 발표일) 이 겹치면 새로 받은 값을 쓴다.
+    _old = None
+    if OUT.exists():
+        try:
+            _old = pd.read_csv(OUT, dtype={"edate": str})
+            A = pd.concat([_old, A], ignore_index=True)
+        except Exception as e:
+            log("기존 파일을 못 읽었다 — 새로 받은 것만 쓴다: %r" % (e,))
+    A["edate"] = A.edate.astype(str)
+    A = A.drop_duplicates(["ticker", "edate"], keep="last")
+    A = A[A.edate >= cut].sort_values(["edate", "ticker"])
+    if _old is not None:
+        _new = len(A) - len(_old[_old.edate.astype(str) >= cut].drop_duplicates(["ticker", "edate"]))
+        log("  기존 %s건 + 새로 받은 %s건 → 합쳐서 %s건 (순증 %+d)"
+            % (f"{len(_old):,}", f"{len(rows):,}", f"{len(A):,}", _new))
     US.mkdir(parents=True, exist_ok=True)
     A.to_csv(OUT, index=False, encoding="utf-8")
     log("저장 %s (%s건 · %s종목 · %s~%s)"

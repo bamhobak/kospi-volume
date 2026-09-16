@@ -287,7 +287,7 @@ jobs:
           else
             echo "월요일이 아니고 CSV 도 있다 — 건너뛴다 ($(wc -l < data/us/buyback_recent.csv)줄)"
           fi
-      - name: collect US earnings (주 1회 · 월요일)
+      - name: collect US earnings (주 2회 · 월·목)
         if: github.event_name != 'push' && steps.td.outputs.trading == 'true'
         continue-on-error: true
         env: { TZ: Asia/Seoul }
@@ -296,10 +296,17 @@ jobs:
           # 신호가 며칠 늦는 대가를 실측했더니(us_pead_delay.py) **D+7 까지는 성적이
           # 사실상 같았다** — 그래서 주 1회로 충분하고, 규칙이 peadage<=7 로 그 지연을 흡수한다.
           pip install yfinance
-          if [ "$(date +%u)" = "1" ] || [ ! -s data/us/earn_recent.csv ]; then
+          # ⚠ 이 단계는 continue-on-error 라 **조용히 실패할 수 있다**. 월요일 하루만 노리면
+          #   한 번 걸렀을 때 다음 기회가 일주일 뒤고, 그 사이 [실적 서프라이즈] 는 완전히
+          #   죽는다(규칙이 흡수하는 지연은 7거래일뿐이다). 그래서 **월·목 두 번** 돈다 —
+          #   월요일이 실패해도 사흘 뒤에 스스로 메운다. 수집기는 기존 CSV 와 **합치므로**
+          #   (덮어쓰지 않는다) 두 번 돌아도 잃는 것이 없다.
+          #   2026-09-16 사고: CSV 가 화요일에 처음 만들어져 월요일 조건에 한 번도 안 걸렸고,
+          #   9/9 이후 발표분이 통째로 비어 규칙이 5일간 공백이 될 뻔했다.
+          if [ "$(date +%u)" = "1" ] || [ "$(date +%u)" = "4" ] || [ ! -s data/us/earn_recent.csv ]; then
             python collect_us_earn.py --force
           else
-            echo "월요일이 아니고 CSV 도 있다 — 건너뛴다 ($(wc -l < data/us/earn_recent.csv)줄)"
+            echo "월·목이 아니고 CSV 도 있다 — 건너뛴다 ($(wc -l < data/us/earn_recent.csv)줄)"
           fi
       - name: collect US (미장 전체 조회용)
         if: github.event_name != 'push'
