@@ -286,6 +286,58 @@ def metrics(x, bbdates=None, edates=None):
     )
 
 
+# 야후가 그날 일봉을 **다 올렸는지** 먼저 본다. 6천 종목을 6분 받고 나서야 아는 건 늦다.
+SCOUT = ["AAPL", "MSFT", "NVDA", "AMZN", "JPM", "XOM", "JNJ", "WMT", "PG", "KO"]
+
+
+def last_session():
+    """S&P500 시세로 **마지막으로 끝난** 미장 거래일을 돌려준다(미완결 봉은 뺀다).
+
+    종목 표의 기준일이 맞는지 견줄 잣대다. 종목 자료와 다른 경로(지수)라서
+    '야후가 아직 안 올렸다' 와 '그날은 휴장이었다' 를 갈라 낼 수 있다.
+    """
+    import yfinance as _yf
+    sp = _yf.download("^GSPC", period="1mo", auto_adjust=False, progress=False)
+    c = (sp["Close"] if "Close" in sp else sp.iloc[:, 0]).squeeze().dropna()
+    if not len(c):
+        return None
+    _os = open_session()
+    if _os and c.index[-1].strftime("%Y%m%d") == _os:   # 아직 안 끝난 봉은 버린다
+        c = c.iloc[:-1]
+    return c.index[-1].strftime("%Y%m%d") if len(c) else None
+
+
+def wait_for_data(start, tries=3, gap=300):
+    """대표 종목이 마지막 거래일 자료를 가질 때까지 기다린다. 돌려주는 값은 그 거래일.
+
+    ⚠ 2026-09-16 사고: 21:46(ET)에 수집했는데 야후가 그날 일봉을 5%(303/5,683)만
+      올려 놓은 상태였다. 기준일이 최빈값이라 표가 통째로 **하루 묵은 채** 나갔고,
+      그날 난 진입 이벤트가 빠져 미장 규칙이 어제 신호를 보여 줬다.
+      장 마감 뒤 다섯 시간이 지나도 이런 일이 있으므로 시각에 기대면 안 된다.
+      **대표 종목에게 직접 물어보고**, 아니면 기다린다. 하루 묵은 표보다 15분이 싸다.
+    """
+    want = last_session()
+    if not want:
+        log("  마지막 거래일을 못 알아냈다 — 기다리지 않고 그냥 받는다")
+        return None
+    for k in range(tries):
+        try:
+            got = fetch(SCOUT, start)
+        except Exception as e:
+            log(f"  선발대 실패({k+1}/{tries}): {e!r}"[:110]); got = {}
+        have = [str(x.index[-1]) for x in got.values() if len(x.index)]
+        n_ok = sum(1 for d in have if d >= want)
+        log(f"  선발대 {n_ok}/{len(have)}종목이 {want} 자료를 가졌다")
+        if have and n_ok >= len(have) * 0.8:
+            return want
+        if k < tries - 1:
+            log(f"  야후가 아직 {want} 를 다 안 올렸다 — {gap//60}분 기다린다"
+                f" ({k+1}/{tries-1})")
+            time.sleep(gap)
+    log(f"::warning::{want} 자료가 끝내 안 올라왔다 — 묵은 표가 될 수 있다")
+    return want
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--chunk", type=int, default=100)
@@ -344,6 +396,8 @@ def main():
     else:
         log("  data/us/earn_recent.csv 없음 — [실적 서프라이즈] 는 쉰다")
 
+    WANT = wait_for_data(start)
+
     rows, dates, t0, fail = [], [], time.time(), 0
     lastd = []          # 종목마다 마지막 거래일 — 표의 '기준일' 을 최빈값으로 정한다
     for i in range(0, len(syms), a.chunk):
@@ -378,6 +432,9 @@ def main():
     asof = Counter(lastd).most_common(1)[0][0] if lastd else None
     _stale = Counter(lastd).most_common(3)
     log(f"  기준일 {asof} (종목별 마지막 거래일 분포 {_stale})")
+    if WANT and asof and str(asof) < str(WANT):
+        log(f"::warning::기준일이 {asof} 라 마지막 거래일 {WANT} 보다 뒤처졌다 — "
+            f"그날 난 진입 이벤트가 빠진다(선발대는 통과했는데 본진이 묵었다)")
     # ⚠ Actions 에서는 파이프라인이 site/ 를 지운 뒤에 이 스크립트가 돌아서 **로컬 파일이 없다**.
     #   그래서 비교 대상은 로컬이 아니라 **지금 서비스 중인 배포본**이어야 한다.
     #   표는 3.7MB 라 매번 받을 수 없지만 uscal.json 은 10KB 이고 같은 수집이 asof 를 적는다.
