@@ -143,6 +143,14 @@ header{flex:none}
    이 규칙이 없으면 앞의 시장색(.us 주황)이 남아 상승장 규칙처럼 보인다(2026-09-10). */
 .rail .it.rg-both .bar{background:var(--ind)}
 .rail .it.kq .rid{color:var(--ind)}.rail .it.bo .rid{color:var(--bth)}.rail .it.us .rid{color:var(--usc)}
+/* 매수 대기가 있는 규칙(.has) — 안 눌린 상태에서도 **건수 숫자**를 규칙 코드 글자와 같은
+   색으로, **연하게 죽이지 않고 그대로** 칠한다(2026-09-16 요청 — 0 인 규칙의 회색과
+   대비가 확실해야 눈에 걸린다). 규칙 이름과 왼쪽 막대는 건드리지 않는다 —
+   막대는 발현 장세를 뜻하고, 이름까지 칠하면 목록이 알록달록해져 오히려 안 읽힌다. */
+.rail .it.has .n{color:var(--acc);font-weight:700}
+.rail .it.has.kq .n{color:var(--ind)}
+.rail .it.has.bo .n{color:var(--bth)}
+.rail .it.has.us .n{color:var(--usc)}
 .rail .sec{padding:11px;background:var(--panel2);border:1px solid var(--line)}
 .rail .sec .row{display:flex;justify-content:space-between;font-size:11px;margin-top:5px}
 .main{flex-grow:1;min-width:0;display:flex;flex-direction:column;min-height:0}
@@ -865,16 +873,20 @@ function freqNote(){
    (2026-09-10: 쎄노텍 A1 태그가 초록이 아니라 보라로 나오던 문제). */
 const mkCls=mkt=>({KOSDAQ:'kq',BOTH:'bo',US:'us'}[mkt]||'');
 function renderTabs(){
-  const nrow=(f,cls,label,n,extra='',attr='')=>`<div class="it ${cls} ${cur===f?'on':''}" data-f="${f}"${attr}>${extra}<span>${label}</span><span class="n">${n}</span></div>`;
+  const nrow=(f,cls,label,n,extra='',attr='')=>`<div class="it ${cls} ${cur===f?'on':''}" data-f="${f}"${attr}>${extra}<span class="lb">${label}</span><span class="n">${n}</span></div>`;
   const wait=view.rows.filter(r=>FILTERS.some(f=>f.fn(r)&&!heldBy(r.ticker,f.id))).length;
   /* 규칙 이름에 발현 장세를 색조로 — 상승장은 붉은기, 하락장은 푸른기 */
   const cls=f=>mkCls(f.mkt)?mkCls(f.mkt)+' ':'';
   /* 접기는 모바일 전용 — PC(좌측 레일)에서는 예전처럼 전부 펼쳐 보여준다 */
   const MOB=isMobile(), railOpen=MOB?RAILOPEN:true;
-  const rules=orderedAll().map(f=>nrow(f.id,cls(f)+'rg-'+(f.regime||'down'),f.name.split(' · ')[1],
-      view.rows.filter(r=>f.fn(r)&&!heldBy(r.ticker,f.id)).length,   /* 목록과 같은 기준 */
-      `<span class="bar"></span><span class="rid">${codeOf(f.id)}</span>`,
-      ` draggable="true" data-rule="${f.mkt}"`)).join('');
+  /* 매수 대기가 있는 규칙은 **안 눌러도** 눈에 띄어야 한다(2026-09-16 요청). 예전에는
+     이름이 전부 같은 회색이라 건수 하나만 다르고 나머지가 똑같아 보였다. 규칙 코드 글자와
+     같은 색 계열로 이름을 칠하되 **연하게** 둔다 — 켜진 규칙(.on)은 예전 그대로다. */
+  const rules=orderedAll().map(f=>{
+      const n=view.rows.filter(r=>f.fn(r)&&!heldBy(r.ticker,f.id)).length;   /* 목록과 같은 기준 */
+      return nrow(f.id,cls(f)+'rg-'+(f.regime||'down')+(n?' has':''),f.name.split(' · ')[1],n,
+        `<span class="bar"></span><span class="rid">${codeOf(f.id)}</span>`,
+        ` draggable="true" data-rule="${f.mkt}"`)}).join('');
   $('#rail').innerHTML=
     (MOB?`<div class="railtog" id="railtog"><span>${RAILOPEN?'▾':'▸'} 규칙·조회 목록</span>`
       + `<span class="n">${RAILOPEN?orderedAll().length+'개 규칙':'현재: '+curName()}</span></div>`:'')
