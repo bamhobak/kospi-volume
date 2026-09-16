@@ -147,7 +147,7 @@ header{flex:none}
 .rail .sec .row{display:flex;justify-content:space-between;font-size:11px;margin-top:5px}
 .main{flex-grow:1;min-width:0;display:flex;flex-direction:column;min-height:0}
 .fdesc{padding:12px 18px 0;color:var(--mut);font-size:12px}
-.whymore{cursor:pointer;color:var(--acc);font-size:11px;border:1px solid var(--line);border-radius:4px;padding:2px 8px}
+.whymore{cursor:pointer;color:var(--acc);font-size:11px;border:1px solid var(--line);border-radius:4px;padding:1px 7px;margin-left:8px;white-space:nowrap;display:inline-block;vertical-align:baseline}
 .wrap{display:grid;grid-template-columns:1fr;gap:14px;padding:12px 18px 14px;flex-grow:1;min-height:0}
 .cards{overflow:auto;display:flex;flex-direction:column;gap:12px;min-height:0}
 .sig{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--acc);
@@ -759,8 +759,11 @@ function bindCopy(){
 const isSelecting=()=>{try{const s=window.getSelection();
   return !!(s&&!s.isCollapsed&&String(s).trim().length)}catch(e){return false}};
 /* 설명문 안의 규칙 참조(P4·D1…)도 현재 표시 번호로 바꿔 준다 */
-const condOf=f=>String(f.cond||f.desc||'').replace(/(^|[^A-Za-z0-9])([PDA][0-9])(?![0-9A-Za-z])/g,(m,pre,c)=>pre+codeOf(c));
-const descOf=f=>String(f.desc||'').replace(/(^|[^A-Za-z0-9])([PDA][0-9])(?![0-9A-Za-z])/g,(m,pre,c)=>pre+codeOf(c));
+/* 규칙 설명은 **굵게** 문법으로 적혀 있는데 그대로 글자로 나오고 있었다(2026-09-16).
+   desc 안에는 이미 <em> 같은 태그가 있으므로 별표만 <b> 로 바꾼다. */
+const boldMd=t=>String(t).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>');
+const condOf=f=>boldMd(String(f.cond||f.desc||'')).replace(/(^|[^A-Za-z0-9])([PDA][0-9])(?![0-9A-Za-z])/g,(m,pre,c)=>pre+codeOf(c));
+const descOf=f=>boldMd(String(f.desc||'')).replace(/(^|[^A-Za-z0-9])([PDA][0-9])(?![0-9A-Za-z])/g,(m,pre,c)=>pre+codeOf(c));
 const fOf=id=>FILTERS.find(x=>x.id===normId(id))||RETIRED[normId(id)]||null;
 /* 규칙별 신호 연속 일수 — notify_new.py 가 매일 하루씩 누적해 __filters__ 에 넣는다.
    그날의 지표를 다시 만들 수 없어 소급 계산이 안 되므로 서버 누적값을 그대로 쓴다. */
@@ -1119,8 +1122,7 @@ function statsHtml(f){const t=f.stats;
      근거·실측·사연은 지우지 않고 「자세히」 안으로 넣었다. 그 숫자들이 규칙을 왜 그렇게
      잡았는지의 유일한 기록이라 없애면 나중에 같은 실험을 또 하게 된다. */
   return cards+`
-  <div style="margin-top:6px">${condOf(f)}</div>
-  <div style="margin-top:6px"><span class="whymore" id="whybtn">${showWhy?'접기 ▴':'자세히 ▾'}</span></div>`
+  <div style="margin-top:6px">${condOf(f)}<span class="whymore" id="whybtn">${showWhy?'접기 ▴':'자세히 ▾'}</span></div>`
   +(showWhy?`
   <div style="margin-top:6px;color:var(--mut)">${descOf(f)}</div>
   <div style="margin-top:4px;color:var(--mut)">연도별 순수익 — ${t.years}</div>`:'')}
