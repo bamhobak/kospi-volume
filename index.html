@@ -144,13 +144,15 @@ header{flex:none}
 .rail .it.rg-both .bar{background:var(--ind)}
 .rail .it.kq .rid{color:var(--ind)}.rail .it.bo .rid{color:var(--bth)}.rail .it.us .rid{color:var(--usc)}
 /* 매수 대기가 있는 규칙(.has) — 안 눌린 상태에서도 **건수 숫자**를 규칙 코드 글자와 같은
-   색으로, **연하게 죽이지 않고 그대로** 칠한다(2026-09-16 요청 — 0 인 규칙의 회색과
-   대비가 확실해야 눈에 걸린다). 규칙 이름과 왼쪽 막대는 건드리지 않는다 —
-   막대는 발현 장세를 뜻하고, 이름까지 칠하면 목록이 알록달록해져 오히려 안 읽힌다. */
-.rail .it.has .n{color:var(--acc);font-weight:700}
+   색으로 칠하되, **안 눌린 동안은 연하게** 둔다 — 눌린 규칙(.on)이 제일 진해야
+   지금 어느 탭인지가 먼저 읽힌다(2026-09-16). 회색 0 과는 색이 달라 그래도 눈에 걸린다.
+   규칙 이름과 왼쪽 막대는 건드리지 않는다 — 막대는 발현 장세를 뜻하고,
+   이름까지 칠하면 목록이 알록달록해져 오히려 안 읽힌다. */
+.rail .it.has .n{color:var(--acc);opacity:.62;font-weight:700}
 .rail .it.has.kq .n{color:var(--ind)}
 .rail .it.has.bo .n{color:var(--bth)}
 .rail .it.has.us .n{color:var(--usc)}
+.rail .it.has.on .n{opacity:1}
 .rail .sec{padding:11px;background:var(--panel2);border:1px solid var(--line)}
 .rail .sec .row{display:flex;justify-content:space-between;font-size:11px;margin-top:5px}
 .main{flex-grow:1;min-width:0;display:flex;flex-direction:column;min-height:0}
