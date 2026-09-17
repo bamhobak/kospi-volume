@@ -91,6 +91,26 @@ else:
     elif not asof:
         BAD.append("미장 표에 기준일이 없다")
 
+# ── 시장별 최신성 ─────────────────────────────────────────────────────
+# ⚠ 표의 **날짜**만 보면 못 잡는 사고가 있다(2026-09-18). 코스닥 DB 는 리포에 없고
+#   Actions 캐시에만 사는데, 낡은 로컬 DB 로 표를 다시 만들어 배포하면 날짜는 최신인데
+#   **코스닥 값만 열흘 전 것**이 된다. 실제로 종가가 09-07 에 멈춘 채 배포됐고,
+#   보유 종목(쎄노텍) 평가손익과 코스닥 규칙 판정이 조용히 틀렸다.
+#   그래서 **마지막 날에 값이 들어찼는지를 시장별로** 본다.
+if T is not None and (T.get("rows") or []):
+    rows = T["rows"]
+    L = len(T.get("dates") or [])
+    for mk in ("KOSPI", "KOSDAQ"):
+        z = [r for r in rows if r.get("mk") == mk]
+        if len(z) < 50:
+            continue
+        got = sum(1 for r in z
+                  if (r.get("v") or [None] * L)[-1] is not None) / len(z) * 100
+        say("  %-6s %s종목 · 마지막 날 거래량 %.0f%%" % (mk, f"{len(z):,}", got))
+        if got < 50:
+            BAD.append("%s 의 마지막 날 값이 비었다(거래량 %.0f%%) — 그 시장 규칙이 낡은"
+                       " 값으로 판정된다" % (mk, got))
+
 if not BAD:
     say("  ✅ 표가 최신이다")
     sys.exit(0)

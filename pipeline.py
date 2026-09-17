@@ -33,8 +33,12 @@ def dump_csv():
     for m in months:
         rows = con.execute(f"SELECT {','.join(COLS)} FROM daily WHERE substr(date,1,6)=? ORDER BY date, ticker", (m,)).fetchall()
         out = DATA / f"{m[:4]}-{m[4:]}.csv"
+        # ⚠ csv.writer 의 기본 줄끝은 CRLF 다. 그러면 git 이 저장한 LF 와 매번 전부 달라져
+        #   **파일 하나가 통째로 diff** 로 잡힌다. 그 잡음 때문에 CSV 를 커밋에서 빼게 되고,
+        #   그러면 Actions 가 restore_db() 로 복원할 때 그날 데이터가 없어 사이트가
+        #   되돌아간다(2026-09-18 실제로 그랬다). 줄끝을 LF 로 못 박는다.
         with open(out, "w", encoding="utf-8", newline="") as fh:
-            w = csv.writer(fh); w.writerow(COLS); w.writerows(rows)
+            w = csv.writer(fh, lineterminator=chr(10)); w.writerow(COLS); w.writerows(rows)
     con.close()
 
 def kospi_state():

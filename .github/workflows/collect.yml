@@ -380,9 +380,12 @@ jobs:
       # Cloudflare Pages 가 유일한 배포처다(2026-09-11 전환 완료).
       # ⚠ 실패를 삼키지 않는다 — 여기서 조용히 넘어가면 사이트만 어제 것으로 남는다.
       #   GitHub Pages 라는 보험이 없어졌으므로 빨간불로 보이는 게 맞다.
-      - name: Cloudflare Pages 배포
-        run: |
-          npx --yes wrangler@4 pages deploy site             --project-name kospi-volume --branch main --commit-dirty=true
+      # ⚠ wrangler 를 직접 부르지 않는다. 푸시 빌드는 그때 리포에 있는 CSV 로 표를 만드는데,
+      #   그게 배포본보다 낡으면 **사이트를 되돌린다**(2026-09-18 실제로 그랬다 — 손으로 올린
+      #   09/17 표를 푸시 빌드가 09/16 으로 덮었다). deploy.py 는 올리기 전에 배포본과 거래일을
+      #   견줘 뒤로 가는 것을 막는다. 손배포와 같은 길을 쓰는 게 맞다([[manual-deploy-guard]]).
+      - name: Cloudflare Pages 배포 (기준일 가드 포함)
+        run: python deploy.py
       # 수집이 실제로 됐는지 **여기서 확인한다**. 지금까지는 빠져도 초록불이었다 —
       # 수집 단계 대부분이 continue-on-error 라, 표가 하루 묵었는지는 사람이 화면을 봐야
       # 알 수 있었다. 세 번의 사고(2026-09-11·09-16·09-17) 모두 사용자가 먼저 발견했다.
