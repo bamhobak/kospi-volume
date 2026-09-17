@@ -37,7 +37,17 @@ permissions:
 # 스스로 지운다**. 대신 수집이 도는 동안 민 코드는 그게 끝나야 배포된다. 그 기다림이
 # 하루치 데이터보다 싸다.
 concurrency:
-  group: site
+  # ⚠ 2026-09-17 데이터 유실: 전부 'site' 한 그룹이었는데, GitHub 은 같은 그룹에서
+  #   **대기 중인 실행을 하나만 남기고 앞선 대기분을 지운다**. 그날 코드 푸시가 열세 번
+  #   몰리면서, 줄 서 있던 20:20 KST 수집(repository_dispatch)이 **취소**됐고 국내·미장
+  #   데이터가 하루 통째로 빠졌다. 아래 주석은 "푸시가 몰려도 낭비되지 않는다" 고 적혀
+  #   있었는데, 낭비되는 게 푸시가 아니라 **수집** 이었다.
+  #
+  #   그래서 수집 실행은 **실행마다 다른 그룹**을 준다 — 누구와도 줄을 서지 않으므로
+  #   지워질 일이 없다. 푸시 빌드끼리만 한 그룹으로 묶어 서로 양보하게 둔다.
+  #   대가: 수집과 푸시 배포가 겹칠 수 있다. 그건 표 기준일 가드(collect_us_daily·deploy.py)가
+  #   막으므로 하루치 데이터를 잃는 것보다 싸다.
+  group: ${{ github.event_name == 'push' && 'site-push' || format('collect-{0}', github.run_id) }}
   cancel-in-progress: false
 # 사이트 주소 — Cloudflare 로 옮기면 리포 설정의 Variables 에 SITE_URL 을 넣어 덮어쓴다.
 # (코드를 고치지 않고 값만 바꿔 전환하려고 한 곳에 모아 뒀다 · 2026-09-11)
@@ -373,6 +383,24 @@ jobs:
       - name: Cloudflare Pages 배포
         run: |
           npx --yes wrangler@4 pages deploy site             --project-name kospi-volume --branch main --commit-dirty=true
+      # 수집이 실제로 됐는지 **여기서 확인한다**. 지금까지는 빠져도 초록불이었다 —
+      # 수집 단계 대부분이 continue-on-error 라, 표가 하루 묵었는지는 사람이 화면을 봐야
+      # 알 수 있었다. 세 번의 사고(2026-09-11·09-16·09-17) 모두 사용자가 먼저 발견했다.
+      # 지수 달력(우리 수집과 다른 경로)과 견줘 묵었으면 **빨간불**로 만든다.
+      - name: 수집 확인 (표 기준일이 지수 달력과 맞나)
+        id: fresh
+        if: github.event_name != 'push'
+        env: { TZ: Asia/Seoul }
+        run: python check_fresh.py
+      # 화면의 '묵음' 경보는 모바일에서 감췄다(2026-09-18 요청). 그 경보를 여기로 옮긴다 —
+      # 폰으로 보는 시간이 대부분이라 알림이 아니면 사실상 아무도 안 본다.
+      - name: 수집 누락 알림
+        if: always() && steps.fresh.outcome == 'failure'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage"             -d chat_id="$TELEGRAM_CHAT_ID"             -d text="⚠ 표가 묵었습니다 — 오늘 수집이 빠졌거나 덜 들어왔습니다. 규칙이 조용히 덜 잡힐 수 있으니 Actions 로그를 확인하세요." > /dev/null
   # 알림은 **배포가 끝난 뒤에** 보낸다. 예전에는 build 잡 안에서 커밋·배포보다 먼저 보냈고,
   # 그래서 알림 링크를 바로 누르면 사이트는 아직 어제 데이터였다(2026-09-10 사용자 신고:
   # 20:10 알림 · 20:11 배포 완료). 알림이 부가 기능이라 수집 커밋을 막으면 안 된다는

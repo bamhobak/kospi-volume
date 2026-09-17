@@ -336,7 +336,10 @@ button.prim{background:var(--acc);border:1px solid var(--acc);color:#0a0b0e;font
   .mkt .pos,.mkt .neg{font-size:9px !important;margin-left:1px}
   /* 지수 이름표(NASDAQ·S&P)는 더 작게 — 숫자가 먼저 보여야 한다 */
   .mkt .ixn{font-size:9px !important;margin-right:2px !important}
-  .mktstate{font-size:10px;padding:3px 8px;white-space:nowrap;max-width:100%;overflow-x:auto}
+  /* 모바일에서는 국면 칩(코스피/S&P 이평선)과 미장 기준일 칩을 감춘다(2026-09-18 요청).
+     ⚠ 오른쪽 칩은 평소엔 안 뜨고 **미장 표가 묵었을 때만** 뜨는 경보다 — 화면에서
+     사라지므로, 그 사고는 수집 쪽 선발대 점검(collect_us_daily)과 배포 가드로만 잡힌다. */
+  .mktstate{display:none}
   /* 모바일에서는 검색창을 감춘다(2026-09-18 요청) — 한 줄을 통째로 먹는 데다
      모바일 키보드에서는 입력이 먹히지 않았다. PC(좌측 레일)에서는 그대로 쓴다. */
   #q{display:none}
