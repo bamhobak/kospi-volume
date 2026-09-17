@@ -337,7 +337,9 @@ button.prim{background:var(--acc);border:1px solid var(--acc);color:#0a0b0e;font
   /* 지수 이름표(NASDAQ·S&P)는 더 작게 — 숫자가 먼저 보여야 한다 */
   .mkt .ixn{font-size:9px !important;margin-right:2px !important}
   .mktstate{font-size:10px;padding:3px 8px;white-space:nowrap;max-width:100%;overflow-x:auto}
-  #q{flex:1 1 100%;min-width:0}
+  /* 모바일에서는 검색창을 감춘다(2026-09-18 요청) — 한 줄을 통째로 먹는 데다
+     모바일 키보드에서는 입력이 먹히지 않았다. PC(좌측 레일)에서는 그대로 쓴다. */
+  #q{display:none}
   body:not(.detail) .side.open{position:fixed;inset:0;z-index:20;border-radius:0;background:var(--panel);display:flex}
   body:not(.detail) .side.open #close{display:inline-block}
   .kpi{grid-template-columns:repeat(2,1fr)}.chart{height:190px}
@@ -1525,7 +1527,11 @@ async function renderPositions(){
       +`<span><span class="k">매수금액</span>${m.inv?amt(m.inv)+(m.noFX?' (국내만)':''):'—'}</span>`
       +`<span><span class="k">동일</span><span class="${sg(m.avg)}">${m.avg==null?'—':(m.avg>0?'+':'')+m.avg.toFixed(1)+'%'}</span></span>`
       +`<span><span class="k">수익률</span><span class="${sg(m.ret)}">${m.inv?(m.ret>0?'+':'')+m.ret.toFixed(1)+'%':'—'}</span></span>`
-      +`<span><span class="k">평가손익</span><span class="${sg(m.pnl)}">${m.inv?amt(m.pnl,1):'—'}</span></span></div>`;
+      +`<span><span class="k">평가손익</span><span class="${sg(m.pnl)}">${m.inv?amt(m.pnl,1):'—'}</span></span>`
+      /* 현재가를 아직 못 받은 건이 있으면 **말해 준다** — 일부만 반영된 합계를 전부인 척
+         보여주면 안 된다. 미장 표가 도착하면 사라진다. */
+      +(m.miss?`<span class="k" style="color:var(--up)">${USROWS?m.miss+'건 시세없음':'미장 '+m.miss+'건 받는 중…'}</span>`:'')
+      +`</div>`;
     const box=$('#pchips');
     if(box){
       box.style.display=all.length?'':'none';
@@ -1980,15 +1986,21 @@ function sumMoney(list,asIs){
   /* 동일가중 — 건별 수익률의 단순 평균. **얼마를 넣었는지와 무관한 규칙 자체의 성적**이라
      백테스트 숫자(전부 같은 비중을 전제)와 나란히 볼 수 있다. 완료 탭의 '동일' 과 같은 뜻이다.
      비율이므로 환율도 수량도 필요 없다 — 그 둘이 없어 금액가중에서 빠지는 기록도 여기엔 센다. */
-  const rets=[];
+  const rets=[];let miss=0;
   list.forEach(p=>{const us=isUSCode(p.code);
     const now=nowOf(p);
     if(now&&p.price)rets.push((sellNow(now,p.code)/costBuy(p)-1)*100);
     if(us&&!FX){noFX=true;return}
     const fx=(us&&!asIs)?FX:1;
-    if(p.qty&&p.price)inv+=costBuy(p)*p.qty*fx;
-    if(p.qty&&now)pnl+=(sellNow(now,p.code)-costBuy(p))*p.qty*fx});
-  return {inv,pnl,ret:inv?pnl/inv*100:0,noFX,
+    /* ⚠ 현재가를 모르면 **매수금액에서도 뺀다**(2026-09-18). 예전에는 매수금액엔 넣고
+       평가손익엔 0 으로 넣어서, 미장 표(4.2MB)가 배경으로 오는 동안 첫 화면 수익률이
+       0 쪽으로 희석돼 보였다 — 보유 16건 중 15건이 미장이면 +1.2% 가 -0.0% 로 보인다.
+       분자와 분모의 대상을 같게 맞추고, 빠진 건수는 miss 로 알린다. */
+    if(!(p.qty&&p.price))return;
+    if(!now){miss++;return}
+    inv+=costBuy(p)*p.qty*fx;
+    pnl+=(sellNow(now,p.code)-costBuy(p))*p.qty*fx});
+  return {inv,pnl,ret:inv?pnl/inv*100:0,noFX,miss,
           avg:rets.length?rets.reduce((x,y)=>x+y,0)/rets.length:null, navg:rets.length};
 }
 /* 자료 시각 갱신. 보유·완료 요약은 각자 탭 안으로 옮겼고, 시각은 레일 바닥으로 갔다
