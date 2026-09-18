@@ -90,10 +90,66 @@ def open_session():
     return n.strftime("%Y%m%d") if n.strftime("%H:%M") < "16:05" else None
 
 
-def fetch(syms, start):
-    import yfinance as yf
+def _shape(x):
+    """두 공급처의 표를 같은 꼴로 — 종가 결측 제거 · 인덱스 YYYYMMDD · 미완결 봉 제거."""
     global _OPEN
     if _OPEN is _UNSET: _OPEN = open_session()
+    try:
+        x = x.dropna(subset=["Close"])
+    except Exception:
+        return None
+    if len(x) < 25:            # 상장 직후라 지표를 못 만드는 종목은 뺀다
+        return None
+    try:
+        x.index = x.index.strftime("%Y%m%d")
+    except Exception:
+        return None
+    if _OPEN and len(x.index) and x.index[-1] == _OPEN:
+        x = x.iloc[:-1]        # 아직 안 끝난 오늘 봉은 버린다
+        if len(x) < 25:
+            return None
+    return x
+
+
+def fetch_stooq(syms, start):
+    """**주 공급처.** FinanceDataReader(Stooq) 로 받는다.
+
+    ⚠ 2026-09-18 에 야후에서 갈아탔다. 같은 날 전 종목(6,084개)으로 나란히 재 보니:
+        그날 자료 보유  야후 94.0% vs **Stooq 98.1%** (야후가 놓친 308종목을 Stooq 는 받았다)
+        차단           6,084종목을 다 때려도 없음 · 7.2분
+        값             시가·고가·저가·종가·거래량이 야후 **원종가와 완전히 일치**
+        기준           분할 반영·배당 미조정 — 야후 auto_adjust=False 와 같다
+                       (KO·XOM·JNJ 2024-01-02 로 확인: Stooq=야후 원종가, 야후 수정가와는 8~9% 차이)
+      야후는 마감 뒤에도 일봉을 늦게 올린다 — 2026-09-16 에는 5시간 46분 뒤에도
+      5%(303/5,683)만 올라와 표가 통째로 하루 묵었다.
+    """
+    import FinanceDataReader as fdr
+    from concurrent.futures import ThreadPoolExecutor
+    st = start[:10]
+
+    def one(sym):
+        try:
+            x = fdr.DataReader(sym, st)
+            if x is None or not len(x):
+                return sym, None
+            return sym, x[["Open", "High", "Low", "Close", "Volume"]]
+        except Exception:
+            return sym, None
+
+    out = {}
+    with ThreadPoolExecutor(12) as ex:
+        for sym, x in ex.map(one, syms):
+            if x is None:
+                continue
+            y = _shape(x)
+            if y is not None:
+                out[sym] = y
+    return out
+
+
+def fetch_yahoo(syms, start):
+    """**보조 공급처.** Stooq 가 못 준 종목만 여기서 받는다."""
+    import yfinance as yf
     d = yf.download(syms, start=start, auto_adjust=False, progress=False,
                     threads=True, group_by="ticker", timeout=60)
     if d is None or not len(d):
@@ -106,20 +162,37 @@ def fetch(syms, start):
             continue
         try:
             x = d[s] if multi else d
-            x = x.dropna(subset=["Close"])
         except Exception:
             continue
-        if len(x) < 25:        # 상장 직후라 지표를 못 만드는 종목은 뺀다
-            continue
+        y = _shape(x)
+        if y is not None:
+            out[s] = y
+    return out
+
+
+_SRC = {"stooq": 0, "yahoo": 0}
+
+
+def fetch(syms, start):
+    """Stooq 를 먼저 받고, 빠진 종목만 야후로 메운다.
+
+    한쪽이 놓친 것을 다른 쪽이 채우므로 어느 한쪽보다 항상 낫다.
+    USE_YF=1 이면 예전처럼 야후만 쓴다(Stooq 가 막혔을 때의 탈출구).
+    """
+    if os.environ.get("USE_YF") == "1":
+        out = fetch_yahoo(syms, start)
+        _SRC["yahoo"] += len(out)
+        return out
+    out = fetch_stooq(syms, start)
+    _SRC["stooq"] += len(out)
+    miss = [s for s in syms if s not in out]
+    if miss:
         try:
-            x.index = x.index.strftime("%Y%m%d")
-        except Exception:
-            continue
-        if _OPEN and len(x.index) and x.index[-1] == _OPEN:
-            x = x.iloc[:-1]        # 아직 안 끝난 오늘 봉은 버린다
-            if len(x) < 25:
-                continue
-        out[s] = x
+            got = fetch_yahoo(miss, start)
+            _SRC["yahoo"] += len(got)
+            out.update(got)
+        except Exception as e:
+            log(f"  야후 보충 실패({len(miss)}종목): {e!r}"[:110])
     return out
 
 
@@ -421,6 +494,8 @@ def main():
         if (i // a.chunk) % 10 == 0:
             log(f"  {i+len(part):,}/{len(syms):,} · 담은 종목 {len(rows):,} · {time.time()-t0:.0f}초")
     log(f"완료 {len(rows):,}종목 (실패 {fail:,}) · {time.time()-t0:.0f}초")
+    # 어느 공급처가 얼마나 줬는지 남긴다 — 한쪽이 조용히 죽으면 여기서 먼저 보인다
+    log(f"  공급처: Stooq {_SRC['stooq']:,} · 야후 보충 {_SRC['yahoo']:,}")
     if not rows:
         log("한 종목도 못 받았다 — 파일을 덮어쓰지 않는다"); return 1
 
