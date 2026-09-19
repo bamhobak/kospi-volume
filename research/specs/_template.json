@@ -1,0 +1,17 @@
+{
+  "id": "H0000",
+  "market": "KR",
+  "derive": {
+    "dn": "close < lag(close, 1)",
+    "dn_n": "streak(dn)",
+    "r5x": "(close / lag(close, 5) - 1) * 100"
+  },
+  "cond": "(dn_n >= 5) & (r5x <= -5) & (r5x >= -15)",
+  "holds": [5, 10, 20],
+  "main_hold": 20,
+  "variants": [
+    {"label": "4일 연속", "cond": "(dn_n >= 4) & (r5x <= -5) & (r5x >= -15)"},
+    {"label": "낙폭 -3~-15", "cond": "(dn_n >= 5) & (r5x <= -3) & (r5x >= -15)"}
+  ],
+  "differs_from": "비슷한 기각 기록이 0단계에서 걸리면 무엇이 다른지 한 줄로 — 없으면 이 키를 지운다"
+}

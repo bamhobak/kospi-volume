@@ -22,6 +22,12 @@ on:
         default: false
   push:
     branches: [main]
+    # 연구 기록(가설 등록부·명세·보고서·시험 횟수)만 바뀐 커밋은 사이트와 무관하다 — 빌드·배포를 안 탄다.
+    # 무인 야간 탐색이 매일 커밋해도 배포가 쌓이거나 수집과 줄을 서지 않게 한다(2026-09-19).
+    # 다른 파일이 하나라도 섞이면 평소처럼 빌드된다.
+    paths-ignore:
+      - "research/**"
+      - "data/trials.json"
 permissions:
   contents: write
 # 배포는 한 번에 하나만 — 그래서 그룹은 하나다. 그리고 **아무도 취소하지 않는다**.

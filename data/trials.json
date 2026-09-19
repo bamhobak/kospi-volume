@@ -1,5 +1,5 @@
 {
- "total": 17704,
+ "total": 18038,
  "by_topic": {
   "상승장 탐색": 12000,
   "유튜브·커뮤니티 기법": 311,
@@ -61,6 +61,13 @@
   "davidtech_gpt6_bot": 25,
   "ict_haebaeknam": 72,
   "booming_bulls": 96,
-  "us_bull_short": 1352
+  "us_bull_short": 1352,
+  "yt_pullback_momentum": 66,
+  "yt_heikin_ribbon": 28,
+  "runup5_연속상승": 57,
+  "down5_연속하락": 68,
+  "down5_probe": 8,
+  "yt_swing_structure": 40,
+  "yt_gijunbong": 67
  }
 }

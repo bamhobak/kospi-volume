@@ -130,3 +130,6 @@ data/us/f13_hold.pkl
 data/us/buyback.pkl
 data/us/cusip_map.pkl
 data/us/fred.pkl
+
+# 연구 실행기 캐시·dry 보고서 (research/run_spec.py)
+research/cache/
