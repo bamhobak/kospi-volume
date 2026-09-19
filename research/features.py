@@ -110,6 +110,35 @@ def load_foreign_ratio():
     return out
 
 
+def listing_dates():
+    """종목별 상장일 — 현재 상장(KIND 상장법인목록, data/listing_dates_current.csv) + 폐지(data/delisting.csv).
+
+    스팩은 뺀다(합병용 껍데기). 같은 코드가 둘 다 있으면 현재 쪽을 쓴다.
+    """
+    cur = pd.read_csv(D / "listing_dates_current.csv", dtype=str)
+    cur = cur[~cur["회사명"].str.contains("스팩", na=False)]
+    a = pd.DataFrame({"ticker": cur["종목코드"].str.zfill(6), "ld": cur["상장일"].str.replace("-", "")})
+    dl = pd.read_csv(D / "delisting.csv", dtype=str, encoding="utf-8-sig")
+    dl = dl[~dl.Name.str.contains("스팩", na=False) & dl.ListingDate.notna()]
+    b = pd.DataFrame({"ticker": dl.Symbol.str.zfill(6), "ld": dl.ListingDate.str.replace("-", "")})
+    L = pd.concat([a, b]).dropna().drop_duplicates("ticker", keep="first")
+    return dict(zip(L.ticker, L.ld))
+
+
+def _ipo_age(A, cal):
+    """상장 후 거래일 수(상장일 = 1). **신규 상장만** — 패널에 처음 나온 날이 상장일과 10일 넘게 다르면
+    (이전상장·분할 재상장·패널 시작 전 상장) 비운다. 2018 코스닥 DB 시작 같은 가짜 '신규' 도 여기서 걸러진다.
+    """
+    ld = listing_dates()
+    ci = {d: i for i, d in enumerate(cal)}
+    first = A.groupby("ticker").date.transform("min")
+    L = A.ticker.map(ld)
+    ok = L.notna() & (pd.to_datetime(first, format="%Y%m%d") - pd.to_datetime(L, format="%Y%m%d", errors="coerce")).dt.days.abs().le(10)
+    fi = first.map(ci)
+    age = A.date.map(ci) - fi + 1
+    return age.where(ok)
+
+
 # ── 재료 목록: 이름 → (설명, 로더, 시차, 시작) ───────────────────────────────────────
 GROUPS = {
     "flow11": (load_flow11, 0, "2018"),
@@ -137,8 +166,10 @@ DESC.update({
     "ins_s60": ("insider", "내부자 매도 신고 60일 건수"),
     "ins_net60": ("insider", "내부자 매수−매도 신고 60일"),
     "fr_chg20": ("foreign_ratio", "외인 지분율 20일 변화(%p)"),
+    "ipo_age": ("listing", "상장 후 거래일 수(신규 상장만, 이전상장·스팩 제외)"),
 })
-LAG = {"flow11": 0, "short_balance": 2, "short_volume": 0, "fundamental": 0, "insider": 1, "foreign_ratio": 0}
+LAG = {"flow11": 0, "short_balance": 2, "short_volume": 0, "fundamental": 0, "insider": 1, "foreign_ratio": 0,
+       "listing": 0}
 
 
 def _insider_counts(A, cal):
@@ -176,6 +207,11 @@ def attach(A, names=None, cal=None):
     groups = sorted({DESC[n][0] for n in want})
     n0 = len(A); added = []
     for gname in groups:
+        if gname == "listing":
+            # ⚠ A 가 걸러져 있으면 '처음 나온 날' 이 틀린다 — 반드시 전체 패널(run_spec)에서 붙일 것
+            A["ipo_age"] = _ipo_age(A, sorted(cal if cal is not None else A.date.unique())).values
+            added.append("ipo_age")
+            continue
         if gname == "insider":
             vals = _insider_counts(A, sorted(cal if cal is not None else A.date.unique()))
             for k, v in vals.items():

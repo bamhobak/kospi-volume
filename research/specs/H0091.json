@@ -1,0 +1,32 @@
+{
+ "id": "H0091",
+ "market": "KR",
+ "features": [
+  "ipo_age"
+ ],
+ "cond": "(ipo_age >= 60) & (ipo_age <= 250) & (fromhi <= -50) & (ret5 > 0)",
+ "holds": [
+  20,
+  40,
+  60
+ ],
+ "main_hold": 40,
+ "variants": [
+  {
+   "label": "낙폭 -40%",
+   "cond": "(ipo_age >= 60) & (ipo_age <= 250) & (fromhi <= -40) & (ret5 > 0)"
+  },
+  {
+   "label": "낙폭 -60%",
+   "cond": "(ipo_age >= 60) & (ipo_age <= 250) & (fromhi <= -60) & (ret5 > 0)"
+  },
+  {
+   "label": "상장 120일 이내",
+   "cond": "(ipo_age >= 60) & (ipo_age <= 120) & (fromhi <= -50) & (ret5 > 0)"
+  },
+  {
+   "label": "반등 조건 없음",
+   "cond": "(ipo_age >= 60) & (ipo_age <= 250) & (fromhi <= -50)"
+  }
+ ]
+}
