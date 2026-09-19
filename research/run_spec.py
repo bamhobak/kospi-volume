@@ -24,7 +24,7 @@
   1 지연 검정     조건을 하루 늦춰도 성적이 유지되나 — **경고만**(반전 신호는 원래 하루에 식는다)
   2 학습 판정     학습(2016~22) 중앙 > 0 · 절삭 > 0 · 학습 CI > 0 · 연도 양수 60%↑
   3 이웃 칸       미리 적은 변형 중 절반 이상이 2단계를 통과
-  4 검증·다중검정 검증(2023~) 중앙 > 0 · 최근 두 해 중앙 ≥ 0 · 진짜일 확률 ≥ 0.95 ·
+  4 검증·다중검정 검증(2023~) 중앙 > 0 · 최근 두 해 중앙 ≥ 0 · 진짜일 확률 ≥ 0.90(DSR_MIN) ·
                   보유 40일↑ 칸은 같은 날 아무거나 산 중앙보다 높아야 함([[consec-5day]] 드리프트 착시)
   5 겹침          기존 규칙과 ±5일 겹침 50%↑ 이면 새 정보 아님
   통과 → 상태 '후보'. 채택·비중·자리는 **사람**이 정한다. 이 실행기는 사이트·portfolio.py·배포를 안 건드린다.
@@ -49,6 +49,10 @@ from verdict import deflated_sharpe, log_trials, boot_ci
 CACHE = ROOT / "cache"; RUNS = ROOT / "runs"; REPORTS = ROOT / "reports"
 TR0, TR1, VA0 = "20160101", "20221231", "20230101"
 FUTURE = re.compile(r"\b(n\d+|buy)\b")
+# 다중검정 문턱 — 0.95 에서 0.90 으로 풀었다(2026-09-19, 사용자 결정). 0.95 로는 현행 [깊은 이격] 조건도
+# 0.933 으로 떨어졌다. 폭락 때만 몰려 사는 규칙은 월수익 꼬리가 두꺼워 깎이는 구조라, 우리 집안이 돈을 버는
+# 형태(낙폭반전)가 새로 못 들어온다. 푼 만큼은 5단계 겹침과 그림자 기간(미래 날짜)이 받친다.
+DSR_MIN = 0.90
 OUT = []
 _KEEP = []   # portfolio.py 가 만든 stdout 래퍼 — 버려지면 GC 가 버퍼를 닫아 이후 print 가 죽는다
 
@@ -348,7 +352,7 @@ def main(argv):
             why = []
             if not (len(va) >= 20 and va.r.median() > 0): why.append("검증 중앙 ≤ 0")
             if any(v < 0 for v in recent.values()): why.append("최근 해 음수")
-            if not (dsr >= 0.95): why.append("다중검정 미달")
+            if not (dsr >= DSR_MIN): why.append("다중검정 미달(%.3f < %.2f)" % (dsr, DSR_MIN))
             for h in holds:
                 if h >= 40:
                     z = RES[h][RES[h].date >= TR0]
