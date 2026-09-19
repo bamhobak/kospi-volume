@@ -1,5 +1,5 @@
 {
- "total": 18038,
+ "total": 19590,
  "by_topic": {
   "상승장 탐색": 12000,
   "유튜브·커뮤니티 기법": 311,
@@ -68,6 +68,8 @@
   "down5_연속하락": 68,
   "down5_probe": 8,
   "yt_swing_structure": 40,
-  "yt_gijunbong": 67
+  "yt_gijunbong": 67,
+  "axis_scan_kr_20260919": 1300,
+  "axis_control_20260919": 252
  }
 }

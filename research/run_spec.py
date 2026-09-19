@@ -14,7 +14,8 @@
     "holds": [5, 10, 20],                # 패널에 있는 n5 n10 n20 n40 n60 중에서
     "main_hold": 20,                     # 이웃·지연 검정에 쓸 보유기간
     "variants": [{"label": "낙폭 -3~-15", "cond": "..."}, ...],   # 이웃 칸 — 미리 적은 것만(2~8개)
-    "differs_from": "H0068 과 다른 점: ..."   # 0단계에서 비슷한 기각 기록이 걸릴 때 필수
+    "differs_from": "H0068 과 다른 점: ...",  # 0단계에서 비슷한 기각 기록이 걸릴 때 필수
+    "features": ["sv_rto5", "q_pens20"]        # 보유 재료 붙이기 — 목록은 research/features.py DESC
   }
   derive 에서 쓸 수 있는 함수(전부 종목별): lag(x,k≥1) · rmean/rmax/rmin/rsum(x,n) · streak(불리언) · np
   ⚠ 미래 열(n5·n10·n20·n40·n60·buy)은 derive·cond 어디에도 못 쓴다 — 0단계에서 바로 탈락.
@@ -286,6 +287,10 @@ def main(argv):
     if stage_fail is None:
         log("%s 패널 읽는 중" % spec["market"])
         A, uni, since = load_market(spec["market"])
+        if spec.get("features"):                     # 보유 재료 붙이기(research/features.py) — 국내만
+            import features as FT
+            FT.attach(A, spec["features"], cal=sorted(A.date.unique()))
+            P(""); P("- 붙인 재료: %s" % ", ".join("%s(%s)" % (n, FT.DESC[n][1]) for n in spec["features"]))
         CD = evaluate(A, spec)
         J = Judge(A, uni, since)
         holds = [h for h in spec.get("holds", [20]) if "n%d" % h in A.columns]
