@@ -37,7 +37,15 @@ create table if not exists {S['table']}(date text, ticker text, {', '.join(x+' r
 create index if not exists ix_{S['table']} on {S['table']}(ticker,date);
 create table if not exists done(mode text, date text, mk text, n integer, primary key(mode,date,mk));""")
 c.commit()
-done = {(r[0], r[1]) for r in c.execute("select date,mk from done where mode=?", (MODE,))}
+# ⚠ 빈 날(0건)을 영구 완료로 못 박으면 **영영 안 받는다**(2026-09-21 수정).
+#    공매도 잔고는 공시까지 T+2~3 이 걸려, 수집이 돌 때 아직 안 나와 있는 날이 흔하다.
+#    그 순간 0건으로 기록되면 며칠 뒤 KRX 가 내놓아도 다시 묻지 않는다 —
+#    실제로 2026-09-01~09-04 네 거래일이 그렇게 빈 채로 굳어 있었다.
+#    그래서 **최근 구간의 0건 기록은 없는 셈 치고 다시 묻는다.** 진짜 휴장일은
+#    이 창을 지나면 확정 처리돼 더는 재시도하지 않는다(낭비는 최대 며칠 × 2콜).
+RECHECK = (pd.Timestamp.today() - pd.Timedelta(days=25)).strftime("%Y%m%d")
+done = {(r[0], r[1]) for r in c.execute("select date,mk,n from done where mode=?", (MODE,))
+        if not (not r[2] and r[0] >= RECHECK)}
 
 days = [d.strftime("%Y%m%d") for d in pd.bdate_range(pd.Timestamp(FROM), pd.Timestamp(time.strftime("%Y-%m-%d")))]
 todo = [(d, mk) for d in days for mk in ("KOSPI", "KOSDAQ") if (d, mk) not in done]

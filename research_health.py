@@ -79,6 +79,8 @@ STORES = [
     ("대차잔고",     "toss.db",              "lending",       "date",     3),
     ("공시",         "dart/disclosures.db",  "disclosure",    "rcept_dt", 2),
     ("내부자",       "dart/insider.db",      "tx",            "rcept_dt", 4),
+    # 월초 스냅샷이라 한 달치(~21거래일)는 정상이다. 그 달을 건너뛰면 25 를 넘어 걸린다.
+    ("지수편입",     "index_members.db",     "members",       "date",     25),
 ]
 
 # 매일 돌아야 하는 작업의 흔적(로그 파일 mtime). 시간 단위.
