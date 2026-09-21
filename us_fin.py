@@ -121,6 +121,16 @@ F = F.sort_values(["ticker", "filed", "end"]).drop_duplicates(["ticker", "end"],
 F.to_pickle(OUT / "fin.pkl")
 log(f"저장 data/us/fin.pkl · {len(F):,}행 · 종목 {F.ticker.nunique():,}개 · "
     f"공시일 {F.filed.min()}~{F.filed.max()}")
+
+# ── 수집기용 요약본 — **리포지토리에 올라가는 유일한 재무 파일** ───────────────────────
+# fin.pkl(18MB)은 리포에 없다. 그래서 GitHub Actions 에서 돌던 collect_us_daily.py 는
+# PBR·부채비율을 **늘 비운 채** 표를 만들었고, [저PBR 낙폭]은 하락장이 와도 절대 걸릴 수
+# 없었다(2026-09-21 발견 — 사용자의 "미장 조건이 하나도 없다" 에서 파고들어 찾음).
+# 종목별 마지막 보고치만 남기면 작아서 커밋할 수 있다.
+_L = F.sort_values("filed").drop_duplicates("ticker", keep="last")
+_L = _L[["ticker", "filed", "equity", "liab", "shares"]].dropna(subset=["equity"])
+_L.to_csv(OUT / "fin_recent.csv", index=False, encoding="utf-8", lineterminator="\n")
+log(f"저장 data/us/fin_recent.csv · {len(_L):,}종목 (수집기·워크플로가 읽는다)")
 print()
 print("  항목별 유효율")
 for c in ("equity", "assets", "liab", "ni", "shares", "eps"):

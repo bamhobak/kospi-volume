@@ -546,11 +546,19 @@ def main():
         ind = IND.get(m['t'])
         if ind and m.get('ret60') is not None: by_ind[ind].append(m['ret60'])
     umed = {k: float(np.median(v)) for k, v in by_ind.items() if len(v) >= 5}   # 회원 5종목 이상
+    # ⚠ fin.pkl(18MB)은 **내 PC 에만** 있다 — 리포에 없으니 워크플로에서는 늘 비었고,
+    #   그래서 PBR·부채비율이 전부 null 이라 [저PBR 낙폭]은 하락장에도 걸릴 수 없었다
+    #   (2026-09-21 발견). 커밋되는 요약본(fin_recent.csv, us_fin.py 가 만든다)을 먼저 본다.
     FIN = {}
     _fp2 = BASE / 'data' / 'us' / 'fin.pkl'
+    _fc2 = BASE / 'data' / 'us' / 'fin_recent.csv'
     if _fp2.exists():
         _F2 = pd.read_pickle(_fp2).sort_values('filed').drop_duplicates('ticker', keep='last')
         FIN = _F2.set_index('ticker')[['equity', 'liab', 'shares']].to_dict('index')
+    elif _fc2.exists():
+        _F2 = pd.read_csv(_fc2, dtype={'ticker': str})
+        FIN = _F2.set_index('ticker')[['equity', 'liab', 'shares']].to_dict('index')
+        log(f'  재무 요약본 fin_recent.csv {len(FIN):,}종목 (fin.pkl 없음)')
     nu = npbr = ndbt = 0
     for m in rows:
         ind = IND.get(m['t'])
