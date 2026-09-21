@@ -164,36 +164,9 @@ jobs:
         env: { TZ: Asia/Seoul }
         run: python collect_valuation.py --workers 8
 
-      # DART 재무(financials.db, 181MB)는 리포지토리에 못 넣어 캐시로 이어붙인다.
-      # 분기 보고서는 자주 안 바뀌므로 월요일에만 최근 2년치를 갱신한다(약 2~3분).
-      - name: restore financials cache
-        id: fincache
-        uses: actions/cache/restore@v4
-        with:
-          path: data/dart/financials.db
-          key: dart-fin-v1-${{ github.run_id }}
-          restore-keys: dart-fin-v1-
-      - name: collect DART financials (월 1회 갱신)
-        if: github.event_name != 'push' && (steps.td.outputs.trading == 'true' || github.event_name == 'workflow_dispatch')
-        continue-on-error: true
-        env:
-          TZ: Asia/Seoul
-          DART_API_KEY: ${{ secrets.DART_API_KEY }}
-        run: |
-          DOW=$(date +%u)
-          if [ ! -f data/dart/financials.db ]; then
-            echo "재무 DB 없음 → 전체 수집(약 4분)"; python collect_dart_fin.py --workers 4
-          elif [ "$DOW" = "1" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "월요일 → 최근 2년 갱신"; python collect_dart_fin.py --workers 4 --refresh --refresh-years 2
-          else
-            echo "오늘은 재무 갱신 안 함 (요일=$DOW)"
-          fi
-      - name: save financials cache
-        if: hashFiles('data/dart/financials.db') != ''
-        uses: actions/cache/save@v4
-        with:
-          path: data/dart/financials.db
-          key: dart-fin-v1-${{ github.run_id }}
+      # DART 재무 갱신은 2026-09-21 부터 **별도 잡(financials)** 에서 돈다 — 파일 맨 아래 참조.
+      # 여기(사이트 빌드 앞)에 있을 때는 월요일마다 DART 가 느린 날 49분을 붙잡아
+      # 표·배포·알림이 전부 그만큼 늦었다.
 
       - name: collect extra (공매도·희석공시 최근분)
         if: github.event_name != 'push' && steps.td.outputs.trading == 'true'
@@ -449,3 +422,72 @@ jobs:
               -d text="⚠ 신규 편입 알림 스크립트가 죽었습니다. 오늘 알림이 나가지 않았습니다 — Actions 로그를 확인하세요." > /dev/null
             echo "notify_new.py 실패 — 텔레그램으로 사실만 알렸다"
           }
+
+  # ── DART 재무 갱신 — 사이트 빌드와 알림을 붙잡지 않게 따로 돈다 (2026-09-21) ─────────
+  # 예전엔 빌드 잡 한가운데(사이트 빌드 앞)에 있었다. 월요일마다 최근 2년치를 다시 받는데,
+  # DART 가 빠를 땐 3.4분이지만 느린 시간대엔 **같은 288건이 49분** 걸렸다(2026-09-21 22시대,
+  # 요청당 ~40초). 그만큼 표·배포가 늦었고, 알림 잡은 빌드 잡 전체를 기다리므로(needs: build)
+  # 알림도 같이 늦었다. 이 잡은 빌드가 끝난 뒤 알림과 **나란히** 돈다.
+  #
+  # 사이트가 실제로 쓰는 것은 financials.db 가 아니라 거기서 뽑은 **data/debt_ratio.csv**
+  # ([저PBR 낙폭] 부채비율 조건). 예전엔 이 파일을 **커밋하지 않아서** 월요일 빌드만 새 값을 쓰고
+  # 화~금 빌드는 리포에 남은 2026-08-29 스냅샷을 썼다 — 요일마다 판정 재료가 달랐다.
+  # 이제 여기서 커밋한다. 월요일 빌드는 지난주 스냅샷을 쓰게 되지만 재무는 분기 단위라 무방하다.
+  financials:
+    needs: [build]
+    if: github.event_name != 'push'
+        && (needs.build.outputs.trading == 'true' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      # 빌드 잡이 방금 올린 데이터 커밋 위에 얹어야 하므로 트리거 시점 SHA 가 아니라 main 을 받는다.
+      - uses: actions/checkout@v4
+        with: { ref: main }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt
+      # financials.db(181MB)는 리포지토리에 못 넣어 캐시로 이어붙인다.
+      - name: restore financials cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data/dart/financials.db
+          key: dart-fin-v1-${{ github.run_id }}
+          restore-keys: dart-fin-v1-
+      - name: collect DART financials (월요일 · 최근 2년)
+        continue-on-error: true
+        timeout-minutes: 90
+        env:
+          TZ: Asia/Seoul
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+        run: |
+          DOW=$(date +%u)
+          if [ ! -f data/dart/financials.db ]; then
+            echo "재무 DB 없음 → 전체 수집(약 4분)"; python collect_dart_fin.py --workers 4
+          elif [ "$DOW" = "1" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # --refresh 는 최근 6일 안에 이미 갱신한 건 다시 받지 않는다 — 월요일에 실행이 여러 번
+            # 돌아도 한 번만 받고, 중간에 끊겨도 다음 실행이 이어 받는다.
+            echo "월요일 → 최근 2년 갱신"; python collect_dart_fin.py --workers 4 --refresh --refresh-years 2
+          else
+            echo "오늘은 재무 갱신 안 함 (요일=$DOW)"
+          fi
+      - name: save financials cache
+        if: always() && hashFiles('data/dart/financials.db') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: data/dart/financials.db
+          key: dart-fin-v1-${{ github.run_id }}
+      - name: commit debt_ratio.csv
+        run: |
+          git config user.name "kospi-bot"; git config user.email "bot@users.noreply.github.com"
+          git add data/debt_ratio.csv
+          if git diff --cached --quiet; then echo "부채비율 스냅샷 변화 없음"; exit 0; fi
+          git commit -m "data: 부채비율 스냅샷 $(TZ=Asia/Seoul date +%Y-%m-%d)"
+          # 빌드 잡의 데이터 커밋과 같은 방식 — 먼저 그냥 밀고, 밀리면 깊이를 늘려 다시 얹는다.
+          for i in 1 2 3 4 5; do
+            if git push; then echo "커밋 성공 (${i}회차)"; exit 0; fi
+            git fetch --deepen=50 origin main 2>/dev/null || git fetch --unshallow origin 2>/dev/null || git fetch origin main || true
+            if git pull --rebase -X theirs origin main && git push; then echo "커밋 성공 (${i}회차 · 재얹기)"; exit 0; fi
+            git rebase --abort 2>/dev/null || true
+            sleep $((i * 15))
+          done
+          echo "::error::부채비율 스냅샷 커밋 5회 실패"; exit 1

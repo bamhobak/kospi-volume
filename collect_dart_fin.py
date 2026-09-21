@@ -54,7 +54,12 @@ REPRT = ("11011", "11012", "11013", "11014")   # 사업/반기/1분기/3분기
 JOBS = [(y, rp, bi) for y in range(Y0, Y1 + 1) for rp in REPRT for bi in range(len(BATCH))]
 if "--refresh" in sys.argv:      # 최근 연도는 새 분기 보고서가 계속 나오므로 다시 받는다
     ry = int(arg("--refresh-years", "2"))
-    con.execute("DELETE FROM done WHERE CAST(substr(k,1,4) AS INTEGER) >= ?", (Y1 - ry + 1,)); con.commit()
+    # 6일 안에 이미 다시 받은 건 지우지 않는다(2026-09-21). 예전엔 호출할 때마다 최근 2년 완료
+    # 기록을 통째로 지워서, 월요일에 실행이 네 번 돌면 네 번 다 288건을 처음부터 받았고
+    # (DART 가 느린 시간엔 한 번에 49분) 중간에 끊기면 다음 실행도 처음부터였다.
+    stale = (dt.datetime.now() - dt.timedelta(days=6)).isoformat(timespec="seconds")
+    con.execute("DELETE FROM done WHERE CAST(substr(k,1,4) AS INTEGER) >= ? AND (at IS NULL OR at < ?)",
+                (Y1 - ry + 1, stale)); con.commit()
 done = {r[0] for r in con.execute("SELECT k FROM done")}
 JOBS = [j for j in JOBS if f"{j[0]}:{j[1]}:{j[2]}" not in done]
 print(f"남은 작업 {len(JOBS):,}건 (완료 {len(done):,})", flush=True)

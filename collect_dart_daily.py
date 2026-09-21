@@ -24,7 +24,7 @@
 재개: 날짜 단위 `done_day`. 기존 종목 단위 `done` 과 섞이지 않는다.
 
 사용:
-    python collect_dart_daily.py                 # DB 최신 접수일 다음날 ~ 오늘
+    python collect_dart_daily.py                 # DB 최신 접수일 전날 ~ 오늘 (그 구간은 다시 받는다)
     python collect_dart_daily.py --days 7        # 최근 7일을 done 무시하고 다시 (정정분 반영)
     python collect_dart_daily.py --from 20260829 --to 20260921
 """
@@ -124,11 +124,16 @@ def main():
         force = True
     else:
         force = False
-        if not frm:                     # 기본: DB 가 가진 최신 접수일 다음날부터
+        if not frm:
+            # 기본: DB 의 최신 접수일 **전날부터** 다시 받는다(그 이틀은 done 을 무시한다).
+            # 예전엔 '최신 접수일 다음날부터' 였는데, 그러면 저녁에 한 번 받은 날은 그 뒤에
+            # 들어온 공시를 영영 못 받는다 — 2026-09-21 19:37 에 받고 22:00 실행은
+            # "받을 새 날짜가 없다" 로 끝났다. 내부자 신고는 장 마감 뒤에 몰린다.
             last = con.execute("SELECT max(rcept_dt) FROM disclosure").fetchone()[0]
             if not last:
                 raise SystemExit("빈 DB 다 — --from 으로 시작일을 정해 줄 것")
-            frm = (dt.datetime.strptime(last, "%Y%m%d").date() + dt.timedelta(days=1)).strftime("%Y%m%d")
+            frm = (dt.datetime.strptime(last, "%Y%m%d").date() - dt.timedelta(days=1)).strftime("%Y%m%d")
+            force = True                # 이 구간은 며칠 안 되므로 전부 다시 받아도 싸다
 
     if frm > to:
         log.info("받을 새 날짜가 없다 (최신 %s)", to)
