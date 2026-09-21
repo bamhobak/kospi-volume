@@ -109,6 +109,8 @@ def telegram(text):
         r = requests.post("https://api.telegram.org/bot%s/sendMessage" % token,
                           json={"chat_id": chat, "text": text, "parse_mode": "HTML",
                                 "disable_web_page_preview": True}, timeout=20)
+        # 보냈는지 말했는지를 남긴다 — 조용히 실패하면 이 점검기 자체가 침묵한다.
+        say("  텔레그램 %s" % ("전송" if r.ok else "실패 %s %s" % (r.status_code, r.text[:120])))
         return r.ok
     except Exception as e:
         say("  텔레그램 실패: %s" % str(e)[:80])
