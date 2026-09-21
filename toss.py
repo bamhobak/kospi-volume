@@ -57,5 +57,7 @@ def get(path, **q):
             msg = ex.read().decode()[:200] if hasattr(ex, "read") else str(ex)
             # 400·404 는 그 종목에 데이터가 없다는 뜻이라 다시 물어도 같다. 즉시 포기해야
             # 전체 수집이 느려지지 않는다(2,767종목 중 상당수가 여기 해당한다).
-            if code in (400, 404) or i == 3: return {"_err": msg}
+            # 401·403(인증·차단)도 다시 물어도 같다. 예전엔 403 을 4번씩 재시도해서
+            # 러너에서 전 종목 403 이 나던 날 수집 단계 하나가 몇 시간을 붙잡았다(2026-09-21).
+            if code in (400, 401, 403, 404) or i == 3: return {"_err": msg, "_code": code}
             time.sleep(2.0*(i+1) if code == 429 else 0.4*(i+1))

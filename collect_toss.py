@@ -94,13 +94,18 @@ todo = [(t,p) for t in TK for p in SPEC if f"{t}:{p}:{tag}" not in done]
 log.info(f"토스 수집: 종목 {len(TK):,} × API {len(SPEC)} → 할 일 {len(todo):,} "
          f"({'최근 '+str(DAYS)+'일' if DAYS else SINCE+' 까지 전체'}) · 워커 {W} · gap {GAP}s")
 
+BLOCKED = []          # 401/403 을 받은 작업 수(스레드에서 append — 리스트 append 는 GIL 로 안전)
+
 def pull(tk, path):
     tb, cols = SPEC[path]
     rows, until, pages = [], None, 0
     while True:
         time.sleep(GAP)
         d = toss.get(f"/api/v1/stocks/{tk}/{path}", count=(min(DAYS,100) if DAYS else 100), until=until)
-        if not isinstance(d, dict) or "_err" in d: break
+        if not isinstance(d, dict) or "_err" in d:
+            if isinstance(d, dict) and d.get("_code") in (401, 403):
+                BLOCKED.append(1)
+            break
         R = d.get("records") or []
         if not R: break
         for x in R:
@@ -114,6 +119,9 @@ def pull(tk, path):
     return tb, cols, rows
 
 n = tot = 0; t0 = time.time()
+# 차단 감지: 처음 PROBE 개 작업이 **전부** 401/403 이면 서버가 우리를 막은 것이다.
+# 나머지 1만여 작업을 다 두드려 봐야 같은 답이고 몇 시간만 잡아먹는다 — 멈추고 실패로 알린다.
+PROBE = 60
 CH = 25           # future 를 한꺼번에 13,835개 만들면 메모리가 터진다 — 청크로 나눠 제출한다
 for s in range(0, len(todo), CH):
     chunk = todo[s:s+CH]
@@ -132,6 +140,9 @@ for s in range(0, len(todo), CH):
                         (f"{tk}:{path}:{tag}", len(rows), time.strftime("%Y-%m-%d %H:%M")))
             n += 1
     con.commit()
+    if n >= PROBE and len(BLOCKED) >= n and tot == 0:
+        log.error(f"토스가 막았다 — 처음 {n}개 작업이 전부 401/403. 여기서 멈춘다.")
+        con.close(); sys.exit(2)
     el = time.time()-t0
     log.info(f"  {n:,}/{len(todo):,} · {tot:,}행 · {el/60:.0f}분 · 남은 {(el/max(n,1)*(len(todo)-n))/60:.0f}분")
 log.info(f"완료: {tot:,}행")

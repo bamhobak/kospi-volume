@@ -16,7 +16,7 @@
 
 알림: TELEGRAM_BOT_TOKEN·TELEGRAM_CHAT_ID 가 환경(또는 .env)에 있으면 보낸다.
 없으면 `data/research_status.json` 에만 적고 종료코드로 알린다.
-⚠ 로컬 .env 에는 아직 텔레그램 값이 없다(CI 의 Secrets 에만 있다). 넣어 두면 폰으로 온다.
+2026-09-21 에 로컬 .env 에도 넣었다(그전엔 CI Secrets 에만 있어 로컬 사고를 알릴 길이 없었다).
 
 사용: python research_health.py [--always]   (--always 면 멀쩡해도 보낸다)
 종료코드: 0 정상 · 1 밀린 자료 있음
