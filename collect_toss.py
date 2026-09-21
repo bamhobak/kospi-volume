@@ -16,7 +16,9 @@
 import io, os, sys, time, json, sqlite3, logging, warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 warnings.filterwarnings("ignore")
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+# 작업 스케줄러가 pythonw.exe 로 띄우면 sys.stdout 이 None 이라 .buffer 에서 죽는다.
+if sys.stdout is not None:
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 from pathlib import Path
 BASE = Path(__file__).parent
 sys.path.insert(0, str(BASE))

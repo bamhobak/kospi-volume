@@ -36,10 +36,12 @@ def have_latest():
 def main():
     now = dt.datetime.now()
     try:
-        import FinanceDataReader as fdr
-        k = fdr.DataReader("KS11", (now - dt.timedelta(days=20)).strftime("%Y-%m-%d"))
-        k = k[k["Close"] > 0]
-        latest = k.index[-1].strftime("%Y%m%d")
+        # 잣대를 한 소스에만 기대면, 그 소스가 밀릴 때 '이미 최신' 으로 오판해 그날을 건너뛴다.
+        # 2026-09-21 에 FDR 은 09-17 까지만 줬고 네이버에는 09-18 이 있었다 → 둘 중 앞선 쪽을 쓴다.
+        from index_cal import last_index_day
+        latest = last_index_day()
+        if not latest:
+            raise RuntimeError("지수 달력 없음")
     except Exception as e:
         print("true", end="")
         print(f"지수 조회 실패({str(e)[:60]}) → 수집 진행", file=sys.stderr)

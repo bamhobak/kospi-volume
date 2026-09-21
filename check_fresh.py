@@ -26,6 +26,14 @@ import json
 import sys
 from pathlib import Path
 
+# 로컬 콘솔이 cp949 면 ✅·⚠ 를 찍다 UnicodeEncodeError 로 죽는다 —
+# 하필 '표가 최신이다' 를 찍는 성공 경로에서 터져 멀쩡한 날에 exit 1 이 났다(2026-09-21 확인).
+if sys.stdout is not None:
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 BASE = Path(__file__).parent
 SITE = BASE / "site" / "data"
 WARN_ONLY = "--warn" in sys.argv
@@ -48,12 +56,15 @@ def load(name):
 
 
 def last_index_day():
-    """코스피 지수의 마지막 거래일 — 우리 수집과 다른 경로라 잣대가 된다."""
+    """코스피 지수의 마지막 거래일 — 우리 수집과 다른 경로라 잣대가 된다.
+
+    잣대가 한 소스뿐이면, 그 소스가 밀릴 때 잣대도 같이 물러나 **표가 묵어도 통과한다**.
+    2026-09-21 에 FDR 이 09-17 까지만 주는 동안 네이버에는 09-18 이 있었다.
+    그래서 index_cal 이 두 경로 중 더 앞선 날짜를 준다.
+    """
     try:
-        import FinanceDataReader as fdr
-        ix = fdr.DataReader("KS11", "2026-01-01")
-        ix = ix[ix.Close > 0]
-        return ix.index[-1].strftime("%Y%m%d") if len(ix) else None
+        from index_cal import last_index_day as _cal
+        return _cal(say=say)
     except Exception as e:
         say("  ⚠ 지수를 못 받아 국내 검사는 건너뛴다: %r" % (e,))
         return None

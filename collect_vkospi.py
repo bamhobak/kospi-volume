@@ -60,7 +60,23 @@ b = fit(M)
 print("계수: " + " · ".join(f"{k} {v:+.3f}" for k, v in zip(["상수"] + X, b)))
 
 D["est"] = np.clip(prd(D, b), 5, None)
-F = D[["date", "est"]].merge(A, on="date", how="left")
+# ⚠ 예전엔 how="left" 였다(2026-09-21 수정). 달력 D 는 FDR 의 KS11 에서 나오는데, FDR 이
+#   하루 밀리면 그날이 D 에 없어 **실측 VKOSPI 를 받아 놓고도 통째로 버렸다.**
+#   2026-09-18 이 그랬다 — 로그엔 "실측 ~20260918" 이 찍혔는데 CSV 는 09-17 에서 끝났고
+#   공포탐욕지수도 같이 하루 빠졌다.
+#   그렇다고 그냥 outer 로 두면 달력의 거름망이 사라져 **휴장일이 샌다** — Investing 은
+#   주말·공휴일에도 직전 값을 그대로 얹은 행을 준다(전 구간 주말 7일 ·
+#   2024-05-01 근로자의날 · 2025-10-06 추석 등).
+#   그래서 달력을 **네이버 지수 거래일로 보강**해 A 를 먼저 거른다. 네이버는 휴장일을
+#   애초에 주지 않으므로 FDR 지연분만 정확히 메워진다.
+CAL = set(D.date)
+try:
+    from index_cal import naver_days
+    CAL |= set(naver_days(back=40))
+except Exception as ex:
+    print(f"  (거래일 달력 보강 실패 — FDR 달력만 쓴다: {str(ex)[:60]})")
+A = A[A.date.isin(CAL)]
+F = D[["date", "est"]].merge(A, on="date", how="outer")
 F["close"] = F.close.fillna(F.est).round(2)
 F["src"] = np.where(F.date.isin(set(A.date)), "실측", "추정")
 F = F[["date", "close", "src"]].sort_values("date")
