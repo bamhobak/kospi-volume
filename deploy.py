@@ -20,10 +20,17 @@ BASE = pathlib.Path(__file__).resolve().parent
 SITE_URL = os.environ.get("SITE_URL", "https://kospi-volume.pages.dev")
 GUARDED = ["table.json", "table_us.json", "uscal.json"]   # 거래일이 뒤로 가면 안 되는 것들
 
-for line in (BASE / ".env").read_text(encoding="utf-8").splitlines():
-    if "=" in line and not line.lstrip().startswith("#"):
-        k, v = line.split("=", 1)
-        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+# .env 는 **내 PC 에만** 있다(리포에 없다). 워크플로에서는 토큰이 환경변수로 들어오므로 없으면 그냥 넘어간다.
+# ⚠ 2026-09-17 여기서 워크플로가 매번 죽었다 — wrangler 대신 deploy.py 를 부르게 바꾸면서 이 줄을
+#   그대로 뒀더니 FileNotFoundError 로 배포 단계가 실패했고, **사흘 동안 수집은 되는데 사이트만
+#   09/17 에 멈춰** 있었다(금요일 데이터 누락으로 사용자가 발견). 손배포 경로와 공용 스크립트를
+#   쓸 때는 '내 PC 에만 있는 것' 을 반드시 선택사항으로 둔다.
+_ENV = BASE / ".env"
+if _ENV.exists():
+    for line in _ENV.read_text(encoding="utf-8").splitlines():
+        if "=" in line and not line.lstrip().startswith("#"):
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
 HDR = {"User-Agent": "Mozilla/5.0 (compatible; kospi-volume-bot)"}
 if os.environ.get("CF_ACCESS_CLIENT_ID"):

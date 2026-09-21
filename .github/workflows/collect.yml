@@ -403,6 +403,16 @@ jobs:
         run: python check_fresh.py
       # 화면의 '묵음' 경보는 모바일에서 감췄다(2026-09-18 요청). 그 경보를 여기로 옮긴다 —
       # 폰으로 보는 시간이 대부분이라 알림이 아니면 사실상 아무도 안 본다.
+      # ⚠ 단계가 **죽으면** 그 뒤 단계를 안 타므로 위의 '수집 확인' 도 안 돌고 알림도 안 갔다
+      #   (2026-09-17~20: 배포 단계가 .env 때문에 매번 실패 → 사흘 침묵). 그래서 **잡 실패 자체**도
+      #   알린다. 실패는 대개 배포·수집 단계이고, 둘 다 사이트가 묵는다는 뜻이라 알림 가치가 같다.
+      - name: 잡 실패 알림
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" -d chat_id="$TELEGRAM_CHAT_ID" -d text="❌ 수집·배포 워크플로가 실패했습니다(${{ github.run_id }}). 사이트가 묵을 수 있으니 Actions 로그를 확인하세요." > /dev/null
       - name: 수집 누락 알림
         if: always() && steps.fresh.outcome == 'failure'
         env:
