@@ -97,8 +97,19 @@ else:
     last = cal[-1] if cal else None
     say("  미장  표 %s · 달력 %s" % (asof, last))
     if last and asof and asof < last:
-        BAD.append("미장 표가 묵었다 — 기준일 %s 인데 달력은 %s 까지 있다"
-                   " (그날 난 진입 이벤트가 빠져 미장 규칙이 덜 잡힌다)" % (asof, last))
+        msg = ("미장 표가 묵었다 — 기준일 %s 인데 달력은 %s 까지 있다"
+               " (그날 난 진입 이벤트가 빠져 미장 규칙이 덜 잡힌다)" % (asof, last))
+        # 미장 공급처 Stooq 는 전날 장 자료를 **한국 시각 오전 늦게** 올린다 — 2026-09-22 09:19 엔
+        # 5,660종목 중 304개(5%)뿐이었고 13:41 엔 다 있었다. 그래서 아침 실행(08:30·09:19)은
+        # 평일마다 이 검사에 걸려 빨간불·텔레그램이 났다. 미장 매수는 밤 22:30 장 시작에 하고
+        # 20:20 저녁 수집이 그 전에 채우므로 **14시 전의 미장 묵음은 경고만** 한다.
+        # 저녁 실행에서도 묵어 있으면 그건 진짜 사고라 그대로 실패시킨다.
+        import datetime as _dt
+        kst_hour = _dt.datetime.now(_dt.timezone(_dt.timedelta(hours=9))).hour
+        if kst_hour < 14:
+            say("::warning::%s — 오전이라 Stooq 가 아직 안 올렸을 수 있다(저녁 수집이 채운다)" % msg)
+        else:
+            BAD.append(msg)
     elif not asof:
         BAD.append("미장 표에 기준일이 없다")
 
