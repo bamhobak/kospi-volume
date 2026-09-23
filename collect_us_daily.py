@@ -170,7 +170,104 @@ def fetch_yahoo(syms, start):
     return out
 
 
-_SRC = {"stooq": 0, "yahoo": 0}
+_SRC = {"stooq": 0, "yahoo": 0, "massive": 0}
+
+# ── 최근 거래일은 Massive(옛 Polygon) 전 종목 일봉으로 덮는다 (2026-09-23) ─────────────
+# ⚠ 위 '주 공급처 Stooq' 는 사실 야후다 — FinanceDataReader 0.9.202 에는 Stooq 경로가 없다.
+#   그래서 '주·보조' 가 둘 다 야후였고, 야후가 늦는 날엔 둘 다 늦었다. 2026-09-23 에는 미국 장 마감
+#   16.5시간 뒤에도 09-22 행의 **종가가 비어** 있어(거래량만 있음) _shape 가 그 행을 버렸고 표가 묵었다.
+# Massive 무료 플랜의 grouped daily 는 **한 번 호출로 그날 미장 전 종목**(12,601)을 준다. 분당 5콜 · 2년.
+#   09-08 을 우리 표와 대조: 종목 99.9% 일치 · 종가 1% 이내 95.9%(0.1% 이내 84%, 어긋남은 대부분 1달러 미만 소형주).
+# 이력(1년)은 지금처럼 야후에서 받고 **최근 MV_DAYS 거래일만** Massive 값으로 덮는다 — 늦는 건 최근 며칠뿐이고,
+#   야후가 마지막 날 거래량을 덜 채우던 문제([[us-source-stooq]])도 같이 풀린다. 둘 다 분할 반영 기준이라 맞물린다.
+MV_DAYS = 5
+_MV = None          # {YYYYMMDD: {티커: (시가, 고가, 저가, 종가, 거래량)}}
+
+
+def _mv_key():
+    k = os.environ.get("MASSIVE_API_KEY", "")
+    if not k:
+        env = BASE / ".env"
+        if env.exists():
+            for line in env.read_text(encoding="utf-8").splitlines():
+                if line.startswith("MASSIVE_API_KEY="):
+                    k = line.split("=", 1)[1].strip()
+    return k
+
+
+def recent_sessions(n):
+    """마지막으로 끝난 거래일부터 거꾸로 n개(거래소 휴장일 규칙)."""
+    from datetime import datetime as _dt, timedelta as _td
+    last = last_session()
+    if not last:
+        return []
+    d, out = _dt.strptime(last, "%Y%m%d").date(), []
+    while len(out) < n:
+        if d.weekday() < 5 and d not in nyse_closed_days(d.year):
+            out.append(d.strftime("%Y%m%d"))
+        d -= _td(1)
+    return out
+
+
+def massive_recent():
+    """최근 MV_DAYS 거래일의 전 종목 일봉. 키가 없거나 실패하면 빈 dict — 그러면 예전처럼 야후만 쓴다."""
+    global _MV
+    if _MV is not None:
+        return _MV
+    _MV = {}
+    key = _mv_key()
+    if not key:
+        log("  MASSIVE_API_KEY 없음 — 최근 거래일도 야후 값 그대로 쓴다")
+        return _MV
+    import requests
+    for i, d in enumerate(recent_sessions(MV_DAYS)):
+        if i:
+            time.sleep(12.5)                      # 무료 한도 분당 5콜
+        for att in range(3):
+            try:
+                r = requests.get(f"https://api.massive.com/v2/aggs/grouped/locale/us/market/stocks/"
+                                 f"{d[:4]}-{d[4:6]}-{d[6:]}", params={"adjusted": "true", "apiKey": key}, timeout=60)
+                if r.status_code == 429:
+                    time.sleep(60); continue
+                j = r.json()
+                break
+            except Exception as e:
+                j = {"status": f"실패 {e!r}"[:60]}
+                time.sleep(5)
+        R = {x["T"]: (x.get("o"), x.get("h"), x.get("l"), x.get("c"), x.get("v"))
+             for x in (j.get("results") or []) if x.get("c")}
+        log(f"  Massive {d}: {j.get('status')} · {len(R):,}종목")
+        if len(R) > 5000:                          # 반쪽 응답은 안 쓴다
+            _MV[d] = R
+    return _MV
+
+
+def patch_recent(got):
+    """야후 표의 최근 거래일을 Massive 값으로 덮는다(없으면 붙인다). 기준이 어긋난 종목은 건드리지 않는다."""
+    MV = massive_recent()
+    if not MV:
+        return got
+    for s, x in list(got.items()):
+        add = {d: R[s] for d, R in MV.items() if s in R}
+        if not add:
+            continue
+        # 기준 점검 — 겹치는 날 종가가 25% 넘게 다르면(분할 반영 시점 차이 등) 이 종목은 야후 그대로 둔다
+        ok = True
+        for d, v in add.items():
+            if d in x.index:
+                yc = float(x.at[d, "Close"])
+                if yc > 0 and abs(v[3] / yc - 1) > 0.25:
+                    ok = False; break
+        if not ok:
+            continue
+        new = pd.DataFrame([v for v in add.values()], index=list(add.keys()),
+                           columns=["Open", "High", "Low", "Close", "Volume"])
+        y = pd.concat([x[~x.index.isin(new.index)], new]).sort_index()
+        if _OPEN and len(y.index) and y.index[-1] == _OPEN:
+            y = y.iloc[:-1]
+        got[s] = y
+        _SRC["massive"] += 1
+    return got
 
 
 def fetch(syms, start):
@@ -193,7 +290,7 @@ def fetch(syms, start):
             out.update(got)
         except Exception as e:
             log(f"  야후 보충 실패({len(miss)}종목): {e!r}"[:110])
-    return out
+    return patch_recent(out)
 
 
 def metrics(x, bbdates=None, edates=None):
@@ -363,21 +460,61 @@ def metrics(x, bbdates=None, edates=None):
 SCOUT = ["AAPL", "MSFT", "NVDA", "AMZN", "JPM", "XOM", "JNJ", "WMT", "PG", "KO"]
 
 
-def last_session():
-    """S&P500 시세로 **마지막으로 끝난** 미장 거래일을 돌려준다(미완결 봉은 뺀다).
+def nyse_closed_days(y):
+    """뉴욕거래소 정기 휴장일(그해). 토요일 휴일은 금요일, 일요일은 월요일로 옮겨 쉰다
+    (단 1월 1일이 토요일이면 전년 12/31 은 쉬지 않는다)."""
+    from datetime import date, timedelta as td
 
-    종목 표의 기준일이 맞는지 견줄 잣대다. 종목 자료와 다른 경로(지수)라서
-    '야후가 아직 안 올렸다' 와 '그날은 휴장이었다' 를 갈라 낼 수 있다.
+    def nth(month, wd, n):          # n번째 요일 (n=-1 이면 마지막)
+        if n > 0:
+            d = date(y, month, 1)
+            d += td((wd - d.weekday()) % 7)
+            return d + td(weeks=n - 1)
+        d = date(y, month + 1, 1) - td(1) if month < 12 else date(y, 12, 31)
+        return d - td((d.weekday() - wd) % 7)
+
+    def obs(d):
+        return d - td(1) if d.weekday() == 5 else (d + td(1) if d.weekday() == 6 else d)
+
+    a = y % 19; b, c = divmod(y, 100); d_, e = divmod(b, 4); f = (b + 8) // 25
+    g = (b - f + 1) // 3; h = (19 * a + b - d_ - g + 15) % 30; i, k = divmod(c, 4)
+    l = (32 + 2 * e + 2 * i - h - k) % 7; m = (a + 11 * h + 22 * l) // 451
+    easter = date(y, (h + l - 7 * m + 114) // 31, (h + l - 7 * m + 114) % 31 + 1)
+    days = {nth(1, 0, 3), nth(2, 0, 3), easter - td(2), nth(5, 0, -1), obs(date(y, 7, 4)),
+            nth(9, 0, 1), nth(11, 3, 4), obs(date(y, 12, 25))}
+    nyd = date(y, 1, 1)
+    if nyd.weekday() != 5:
+        days.add(obs(nyd))
+    if y >= 2022:
+        days.add(obs(date(y, 6, 19)))
+    return days
+
+
+def last_session():
+    """**마지막으로 끝난** 미장 거래일 — 선발대가 '그날 자료가 올라왔나' 를 물을 잣대다.
+
+    ⚠ 2026-09-23 사고: 예전엔 야후 S&P500 일봉으로 정했는데, 야후가 **장 마감 16시간 뒤에도**
+      09-22 봉을 안 주고(기간을 바꿔도 전부 09-21) 요청마다 답이 달랐다. 잣대가 하루 밀리니
+      선발대는 '09-21 이 있다' 며 바로 통과했고, 그 시각 Stooq 는 09-22 를 0.7% 만 올려 둔 상태라
+      표가 통째로 하루 묵은 채 나갔다(check_fresh 빨간불). 국내 index_cal 과 같은 병이다.
+    → 데이터 소스에 기대지 않고 **거래소 휴장일 규칙으로 계산**한다. 오늘 장은 16:05(ET) 뒤에만 끝난 걸로 본다.
+      규칙에 없는 임시 휴장(국장 등)이 있으면 선발대가 그날을 기다리다 경고만 남긴다 — 드물고 해가 적다.
     """
-    import yfinance as _yf
-    sp = _yf.download("^GSPC", period="1mo", auto_adjust=False, progress=False)
-    c = (sp["Close"] if "Close" in sp else sp.iloc[:, 0]).squeeze().dropna()
-    if not len(c):
-        return None
-    _os = open_session()
-    if _os and c.index[-1].strftime("%Y%m%d") == _os:   # 아직 안 끝난 봉은 버린다
-        c = c.iloc[:-1]
-    return c.index[-1].strftime("%Y%m%d") if len(c) else None
+    from datetime import datetime as _dt, timedelta as _td
+    try:
+        from zoneinfo import ZoneInfo
+        n = _dt.now(ZoneInfo("America/New_York"))
+    except Exception:
+        from datetime import timezone
+        n = _dt.now(timezone.utc) - _td(hours=5)
+    d = n.date()
+    if n.strftime("%H:%M") < "16:05":
+        d -= _td(1)
+    for _ in range(15):
+        if d.weekday() < 5 and d not in nyse_closed_days(d.year):
+            return d.strftime("%Y%m%d")
+        d -= _td(1)
+    return None
 
 
 def wait_for_data(start, tries=3, gap=300):
@@ -393,7 +530,17 @@ def wait_for_data(start, tries=3, gap=300):
     if not want:
         log("  마지막 거래일을 못 알아냈다 — 기다리지 않고 그냥 받는다")
         return None
+    # Stooq 가 전날 미장을 올리는 시각은 들쭉날쭉하다 — 09-22 엔 한국 10~13시, 09-23 엔 20:40~21:00.
+    # 저녁 본 수집(한국 18~23시)에서 아직이면 **30분까지** 기다린다: 이 수집을 놓치면 21:30 예약
+    # (유실이 잦다) 말고는 그날 밤 미장 개장(22:30) 전에 채울 길이 없다. 아침 수집은 어차피
+    # 오전 늦게야 올라오니 오래 기다려도 헛수고라 예전처럼 짧게 본다.
+    _kst = (datetime.utcnow().hour + 9) % 24
+    if 18 <= _kst <= 23:
+        tries, gap = max(tries, 7), 300
+    global _MV
     for k in range(tries):
+        if _MV is not None and want not in _MV:     # Massive 에도 아직 없었으면 이번 시도 때 다시 묻는다
+            _MV = None
         try:
             got = fetch(SCOUT, start)
         except Exception as e:
@@ -404,7 +551,7 @@ def wait_for_data(start, tries=3, gap=300):
         if have and n_ok >= len(have) * 0.8:
             return want
         if k < tries - 1:
-            log(f"  야후가 아직 {want} 를 다 안 올렸다 — {gap//60}분 기다린다"
+            log(f"  공급처가 아직 {want} 를 다 안 올렸다 — {gap//60}분 기다린다"
                 f" ({k+1}/{tries-1})")
             time.sleep(gap)
     log(f"::warning::{want} 자료가 끝내 안 올라왔다 — 묵은 표가 될 수 있다")
@@ -495,7 +642,7 @@ def main():
             log(f"  {i+len(part):,}/{len(syms):,} · 담은 종목 {len(rows):,} · {time.time()-t0:.0f}초")
     log(f"완료 {len(rows):,}종목 (실패 {fail:,}) · {time.time()-t0:.0f}초")
     # 어느 공급처가 얼마나 줬는지 남긴다 — 한쪽이 조용히 죽으면 여기서 먼저 보인다
-    log(f"  공급처: Stooq {_SRC['stooq']:,} · 야후 보충 {_SRC['yahoo']:,}")
+    log(f"  공급처: 야후(FDR 경로) {_SRC['stooq']:,} · 야후 보충 {_SRC['yahoo']:,} · 최근 {MV_DAYS}거래일 Massive 로 덮음 {_SRC['massive']:,}")
     if not rows:
         log("한 종목도 못 받았다 — 파일을 덮어쓰지 않는다"); return 1
 
