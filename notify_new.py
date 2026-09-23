@@ -187,7 +187,7 @@ FILTERS = [
      and r.get("sr60") is not None and r["sr60"] <= -10
      and (r.get("dbt") is None or r["dbt"] <= 200)
      and (r.get("amt20") or 0) >= 2 and (r.get("c") or 0) >= 3),
-    ("N3", "저PBR 낙폭 (40일 보유)",
+    ("N3", "저PBR 낙폭 (60일 보유)",
      lambda r: r.get("mk") == "US" and not r.get("pref")
      and us_reg.get("up60") is False
      and r.get("pbrd") is not None and 0 < r["pbrd"] <= 0.8

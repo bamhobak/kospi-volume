@@ -32,7 +32,8 @@ import numpy as np, pandas as pd
 
 BASE = Path(__file__).parent
 US = BASE / "data" / "us"
-START = "20140601"          # 2016~ 규칙에 250일·a240(283일) 이력이 필요하다
+START = sys.argv[sys.argv.index("--from") + 1] if "--from" in sys.argv else "20140601"   # 2016~ 규칙에 250일·a240(283일) 이력이 필요하다
+OUTP = sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else "us_full.pkl"
 HS = [5, 10, 20, 40, 60]
 t0 = time.time()
 
@@ -145,11 +146,15 @@ F["filedn"] = F.filed.astype(int)
 d2 = df[["ticker", "date"]].copy()
 d2["daten"] = d2.date.astype(int)
 d2["_i"] = np.arange(len(d2))
-M = pd.merge_asof(d2.sort_values("daten"), F.sort_values("filedn")[["ticker", "filedn", "equity", "liab", "shares"]],
+M = pd.merge_asof(d2.sort_values("daten"), F.sort_values("filedn")[["ticker", "filedn", "equity", "liab", "shares", "ni"]],
                   left_on="daten", right_on="filedn", by="ticker", direction="backward").sort_values("_i")
 bps = M.equity.values / M.shares.values
 df["PBR"] = df.close / bps
 df["부채비율"] = M.liab.values / M.equity.values * 100
+# 조정안 실험용(2026-09-24): 시가총액(원주가 × 주식수, 백만$)과 최근 공시 순이익 부호
+df["marcap"] = df.close * M.shares.values / 1e6
+df["ni_pos"] = np.where(np.isfinite(M.ni.values), (M.ni.values > 0).astype(float), np.nan)
+df.loc[~np.isfinite(df.marcap) | (df.marcap <= 0), "marcap"] = np.nan
 for col in ("PBR", "부채비율"):
     df.loc[~np.isfinite(df[col]), col] = np.nan
 df.loc[df.PBR <= 0, "PBR"] = np.nan
@@ -158,11 +163,11 @@ log("  재무 병합 · PBR 채움률 " + " · ".join(f"{k} {v:.0f}%" for k, v i
 
 # ── 저장 ─────────────────────────────────────────────────────────────
 KEEP = ["ticker", "date", "grp", "high", "low", "close", "volume", "px", "buy", "cost", "amt20", "a240",
-        "su1", "ret20", "ret60", "PBR", "부채비율", "sic2"] + [f"n{h}" for h in HS]
+        "su1", "ret20", "ret60", "PBR", "부채비율", "marcap", "ni_pos", "sic2"] + [f"n{h}" for h in HS]
 out = df[KEEP].rename(columns={"close": "rawclose"})
 for col in out.columns:
     if out[col].dtype == np.float64:
         out[col] = out[col].astype("float32")
-out.to_pickle(BASE / "data" / "us_full.pkl")
-log(f"저장 data/us_full.pkl · {len(out):,}행 · 생존 {out[out.grp == '생존'].ticker.nunique():,} · "
+out.to_pickle(BASE / "data" / OUTP)
+log(f"저장 data/{OUTP} · {len(out):,}행 · 생존 {out[out.grp == '생존'].ticker.nunique():,} · "
     f"폐지 {out[out.grp == '폐지'].ticker.nunique():,}종목 · {(time.time() - t0) / 60:.1f}분")

@@ -13,16 +13,21 @@
 """
 import sys, time, warnings
 warnings.filterwarnings("ignore")
-sys.stdout.reconfigure(encoding="utf-8")
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:          # 다른 스크립트가 출력을 가로채 불러 쓸 때(us_n3_acct.py)
+    pass
 from pathlib import Path
 import numpy as np, pandas as pd
 import FinanceDataReader as fdr
 
 BASE = Path(__file__).parent
 US = BASE / "data" / "us"
-SINCE = "20160101"
+SINCE = sys.argv[sys.argv.index("--since") + 1] if "--since" in sys.argv else "20160101"
+UNTIL = sys.argv[sys.argv.index("--until") + 1] if "--until" in sys.argv else "20991231"
+PANEL = sys.argv[sys.argv.index("--panel") + 1] if "--panel" in sys.argv else "us_full.pkl"
 NAME = {"N1": "상승장 신고가", "N2": "낙폭과대", "N3": "저PBR 낙폭", "N4": "자사주 낙폭", "N5": "잔잔한 급등주"}
-HOLD = {"N1": 40, "N2": 20, "N3": 40, "N4": 60, "N5": 60}
+HOLD = {"N1": 40, "N2": 20, "N3": 60, "N4": 60, "N5": 60}   # N3 2026-09-24 40→60일
 t0 = time.time()
 
 
@@ -31,7 +36,7 @@ def log(m):
 
 
 log("us_full.pkl 읽는 중")
-A = pd.read_pickle(BASE / "data" / "us_full.pkl")
+A = pd.read_pickle(BASE / "data" / PANEL)
 A = A.sort_values(["ticker", "date"]).reset_index(drop=True)
 
 # 업종 60일 수익률 — 가격 필터 **전** 전체 행으로 (us_panel.py 와 같은 순서), 집단별로
@@ -133,7 +138,7 @@ def dedup(cond, h):
         last[t] = i + h
         keep.append(ix)
     Z = Z.loc[keep]
-    return Z[Z.date >= SINCE]
+    return Z[(Z.date >= SINCE) & (Z.date <= UNTIL)]
 
 
 def st(r):
@@ -155,7 +160,8 @@ for vname, mask, ucol in (("생존만", K.grp == "생존", "u_surv"), ("폐지 �
     log(f"  {vname} 끝")
 
 f = lambda v: f"{v:+.2f}%" if v == v else "—"
-print("\n## 생존 종목만 vs 폐지 포함 — 건별 (2016~, 신호 나면 다 산다)\n")
+_per = f"{SINCE[:4]}~{UNTIL[:4]}" if UNTIL < "2099" else f"{SINCE[:4]}~"
+print(f"\n## 생존 종목만 vs 폐지 포함 — 건별 ({_per}, 신호 나면 다 산다)\n")
 print("| 규칙 | 보유 | 생존만 건수 | 평균 | 승률 | 상위5% 뺀 | → 폐지 포함 건수 | 평균 | 승률 | 상위5% 뺀 | 평균 차이 |")
 print("|---|---|---|---|---|---|---|---|---|---|---|")
 for rid in NAME:
@@ -174,7 +180,7 @@ for rid in NAME:
           f"{f(dz.mean())} | {f(sz.mean())} | {f(dz.min())} |")
 
 print("\n## 연도별 평균 — 생존만 → 폐지 포함\n")
-ys = [str(y) for y in range(2016, 2027)]
+ys = [str(y) for y in range(int(SINCE[:4]), min(int(UNTIL[:4]), 2026) + 1)]
 print("| 규칙 | " + " | ".join(ys) + " |")
 print("|---|" + "---|" * len(ys))
 for rid in NAME:

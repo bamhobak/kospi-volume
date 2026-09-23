@@ -60,7 +60,7 @@ const RULES: Record<string, { stop: number | null; trail?: number | null; target
   D2: { stop: null, target: null, hold: 40 },
   N1: { stop: null, target: null, hold: 40 },   // [상승장 신고가] — 미장 전용
   N2: { stop: null, target: null, hold: 20 },   // [낙폭과대] — 미장
-  N3: { stop: null, target: null, hold: 40 },   // [저PBR 낙폭] — 미장
+  N3: { stop: null, target: null, hold: 60 },   // [저PBR 낙폭] — 미장
   N4: { stop: null, target: null, hold: 60 },   // [자사주 낙폭] — 미장
   N5: { stop: null, target: null, hold: 60 },   // [잔잔한 급등주] — 미장
   N6: { stop: null, target: null, hold: 60 },   // [실적 서프라이즈] — 미장 (2026-09-15)
