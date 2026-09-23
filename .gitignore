@@ -133,3 +133,14 @@ data/us/fred.pkl
 
 # 연구 실행기 캐시·dry 보고서 (research/run_spec.py)
 research/cache/
+# 2026-09-23 생존편향 실측용 원료 — 크거나(폐지 시세 5.7GB · SEC 목록 1.5GB) 다시 만들 수 있다
+data/us/tiingo_dead.db
+data/us/submissions.zip
+data/us/sec_cik.pkl
+data/us/tiingo_cik.pkl
+data/us/tiingo_fund_meta.pkl
+data/us/tiingo_fund_meta.csv
+data/us/fin_dead.pkl
+data/us/buyback_dead.pkl
+data/us/*.log
+data/toss_corrupt_*.db
