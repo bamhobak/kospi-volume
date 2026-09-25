@@ -18,7 +18,7 @@ import io, json, os, sys, time, argparse, warnings
 warnings.filterwarnings("ignore")
 sys.stdout.reconfigure(encoding="utf-8")
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 import numpy as np, pandas as pd
 
 BASE = Path(__file__).parent
@@ -220,7 +220,14 @@ def massive_recent():
         log("  MASSIVE_API_KEY 없음 — 최근 거래일도 야후 값 그대로 쓴다")
         return _MV
     import requests
-    for i, d in enumerate(recent_sessions(MV_DAYS)):
+    days = recent_sessions(MV_DAYS)
+    try:
+        holes = [d for d in yahoo_hole_days() if d not in days]
+    except Exception as e:
+        holes = []; log(f"  야후 구멍 찾기 실패 — 최근 {MV_DAYS}일만 덮는다: {e!r}"[:120])
+    if holes:
+        log(f"  야후에 구멍 난 거래일 {len(holes)}일도 Massive 로 채운다: {', '.join(holes)}")
+    for i, d in enumerate(days + holes):
         if i:
             time.sleep(12.5)                      # 무료 한도 분당 5콜
         for att in range(3):
@@ -240,6 +247,37 @@ def massive_recent():
         if len(R) > 5000:                          # 반쪽 응답은 안 쓴다
             _MV[d] = R
     return _MV
+
+
+def yahoo_hole_days(span=260):
+    """야후가 **영영 안 채운** 거래일 — 최근 MV_DAYS 창 밖으로 밀려나도 Massive 로 계속 덮기 위해서다.
+
+    ⚠ 2026-09-25 발견: 09-22 는 사흘이 지나도 야후 S&P 일봉에 **날짜째 없고**, XOM·KO·PARR 등은 종가가 비어 있다
+      (AAPL·MSFT 는 멀쩡). 최근 5일 덮기로는 09-29 부터 그날이 다시 구멍이 되어, 20일 수익률 같은 지표가
+      하루 빠진 채로 계산된다. 거래소 휴장일 규칙상 거래일인데 S&P 에 없거나, 대표 10종목 중 3개 이상이
+      종가를 안 가진 날을 구멍으로 본다. 표 이력이 1년이라 최근 span 거래일만 본다(Massive 무료는 2년까지).
+    """
+    import yfinance as yf
+    last = last_session()
+    if not last:
+        return []
+    d, cal = datetime.strptime(last, "%Y%m%d").date(), []
+    while len(cal) < span:
+        if d.weekday() < 5 and d not in nyse_closed_days(d.year) and d.strftime("%Y%m%d") not in SPECIAL_CLOSED:
+            cal.append(d.strftime("%Y%m%d"))
+        d -= timedelta(days=1)
+    start = f"{cal[-1][:4]}-{cal[-1][4:6]}-{cal[-1][6:]}"
+    x = yf.download(["^GSPC"] + SCOUT, start=start, auto_adjust=False, progress=False, group_by="ticker")
+    idx = {i.strftime("%Y%m%d") for i in x.index}
+    sp = x["^GSPC"]["Close"]
+    sp_ok = {i.strftime("%Y%m%d") for i, v in sp.items() if v == v}
+    nan_n = {}
+    for s in SCOUT:
+        for i, v in x[s]["Close"].items():
+            if v != v:
+                k = i.strftime("%Y%m%d"); nan_n[k] = nan_n.get(k, 0) + 1
+    out = [k for k in cal if (k not in sp_ok) or (k in idx and nan_n.get(k, 0) >= 3) or (k not in idx)]
+    return sorted(k for k in out if k < last)       # 오늘 막 끝난 날은 '구멍' 이 아니라 '아직' 이다
 
 
 def patch_recent(got):
@@ -458,6 +496,8 @@ def metrics(x, bbdates=None, edates=None):
 
 # 야후가 그날 일봉을 **다 올렸는지** 먼저 본다. 6천 종목을 6분 받고 나서야 아는 건 늦다.
 SCOUT = ["AAPL", "MSFT", "NVDA", "AMZN", "JPM", "XOM", "JNJ", "WMT", "PG", "KO"]
+# 휴장일 규칙에 없는 임시 휴장(대통령 국장 등) — 달력에서 뺀다. 새로 생기면 여기에 적는다.
+SPECIAL_CLOSED = {"20250109"}   # 카터 전 대통령 국장
 
 
 def nyse_closed_days(y):
@@ -797,7 +837,23 @@ def main():
         #   없어서 늘 0일로 나왔다(2026-09-11 사용자 신고: PARR 보유일 0일). 종목 6천 개짜리
         #   파일을 만드는 대신 달력 하나만 실어 보내면 된다. 미국 휴장일은 한국과 다르므로
         #   한국 달력으로 대신할 수 없다.
-        us_days = [d.strftime('%Y%m%d') for d in c.index][-400:]
+        #   ⚠ 2026-09-25 발견: 야후 S&P 일봉에 **09-22 줄이 아예 없다**(빈 값도 아니고 날짜째 없음, 사흘 뒤에도).
+        #   달력을 S&P 날짜로만 만들었더니 09-22 가 통째로 빠져 보유일·매도일이 하루씩 어긋났다.
+        #   → 거래소 휴장일 규칙(last_session 과 같은 계산)으로 만든 날을 합친다. 규칙에 없는 임시 휴장은
+        #     S&P 에도 없을 테니 SPECIAL_CLOSED 에 적어 뺀다.
+        sp_days = {d.strftime('%Y%m%d') for d in c.index}
+        _ls = last_session()
+        _d, _end = c.index[0].date(), datetime.strptime(_ls, '%Y%m%d').date() if _ls else c.index[-1].date()
+        rule_days = set()
+        while _d <= _end:
+            if _d.weekday() < 5 and _d not in nyse_closed_days(_d.year):
+                rule_days.add(_d.strftime('%Y%m%d'))
+            _d += timedelta(days=1)
+        rule_days -= SPECIAL_CLOSED
+        _hole = sorted(rule_days - sp_days)
+        if _hole:
+            log(f"  S&P 일봉에 없는 거래일 {len(_hole)}일을 달력에 채운다: {', '.join(_hole[-5:])}")
+        us_days = sorted(sp_days | rule_days)[-400:]
         # 달러/원 환율 — **정렬 계산에만** 쓴다(화면에는 달러를 그대로 보여준다).
         #   보유 종목 표에는 원화와 달러가 섞여 있어 '매수금액' 같은 열을 숫자 그대로 견주면
         #   300만원과 $83 을 같은 축에 놓는 셈이 된다. 원화로 환산해 견주되 표기는 바꾸지 않는다.
