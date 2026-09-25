@@ -1,5 +1,5 @@
 {
- "total": 20761,
+ "total": 20791,
  "by_topic": {
   "상승장 탐색": 12000,
   "유튜브·커뮤니티 기법": 311,
@@ -226,6 +226,8 @@
   "avoid_scan_kr_20260925": 33,
   "avoid_scan_us_20260925": 33,
   "mat_ctrl_kr_20260925": 16,
-  "mat_ctrl_us_20260925": 10
+  "mat_ctrl_us_20260925": 10,
+  "mat_overlay_kr_20260925": 6,
+  "mat_overlay_us_20260926": 24
  }
 }

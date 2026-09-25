@@ -183,6 +183,9 @@ def main():
         Z = (S if msk is None else S[~msk])[cols0].reset_index(drop=True)
         R[lbl] = run(Z, NS)
         log("  %.2f배" % R[lbl]["nav"])
+    import pickle as _pk                      # 표를 찍다 죽어도 계산은 남게(2026-09-25 서식 오류로 두 시간을 날렸다)
+    _pk.dump({k: {a: b for a, b in v.items()} for k, v in R.items()},
+             open(ROOT / "cache" / ("mat_overlay_%s.pkl" % mk.lower()), "wb"))
     B = R[CFG[0][0]]
     P(""); P("## 계좌 — %d시드 짝비교" % NS); P("")
     hdr = "| 구성 | 신호 | 노출 | 자산 | 낙폭 | 시드 중앙 | 자산 이긴 시드 | 낙폭 이긴 시드 | %s학습 16~22 | 검증 23~ |" % ("홀드아웃 05~15 | " if mk == "KR" else "")
@@ -194,7 +197,7 @@ def main():
         P("| %s | %s | %.0f%% | %.2f배 | %.1f%% | %.2f배 | %s | %s | %s%.2f배 | %.2f배 |" % (
             lbl, f"{r['n']:,}", r["expo"], r["nav"], r["mdd"], np.median(r["navs"]), w, wm,
             ("%.2f배 | " % r["hold"]) if mk == "KR" else "", r["mid"], r["late"]))
-    P(""); P("※ 이웃 칸(20·30·40)이 같이 이기고(시드 60%↑) 검증 23~ 도 나아져야 후보. 한 칸만 이기면 운. 총 %.0f분" % ((time.time() - t0) / 60))
+    P(""); P("※ 이웃 칸(20·30·40)이 같이 이기고(시드 60%%↑) 검증 23~ 도 나아져야 후보. 한 칸만 이기면 운. 총 %.0f분" % ((time.time() - t0) / 60))
     log_trials("mat_overlay_%s_%s" % (mk.lower(), time.strftime("%Y%m%d")), len(CFG) - 1)
     rp = ROOT / "reports" / ("mat_overlay_%s_%s.md" % (mk.lower(), time.strftime("%Y%m%d")))
     rp.write_text("\n".join(OUT) + "\n", encoding="utf-8")
