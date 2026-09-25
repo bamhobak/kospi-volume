@@ -1,0 +1,30 @@
+{
+ "id": "H0223",
+ "market": "KR",
+ "derive": {
+  "pc": "lag(close, 1)",
+  "upd": "close > pc"
+ },
+ "cond": "rsum(upd, 10) <= 2",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 10,
+ "variants": [
+  {
+   "label": "12일 중 3일 이하",
+   "cond": "rsum(upd, 12) <= 3"
+  },
+  {
+   "label": "12일 중 2일 이하",
+   "cond": "rsum(upd, 12) <= 2"
+  },
+  {
+   "label": "10일 중 1일 이하",
+   "cond": "rsum(upd, 10) <= 1"
+  }
+ ],
+ "differs_from": "연속 하락일(기각)과 상관 높음 — '비율'이라 사이에 반등이 끼어도 잡힌다"
+}

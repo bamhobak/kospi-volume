@@ -1,0 +1,30 @@
+{
+ "id": "H0137",
+ "market": "US",
+ "derive": {
+  "sv": "np.sign(close - lag(close, 1)) * volume",
+  "co": "ema(sv, 120) / (rmean(volume, 250) + 1)"
+ },
+ "cond": "xrank(co) >= 0.9",
+ "holds": [
+  20,
+  40,
+  60
+ ],
+ "main_hold": 40,
+ "variants": [
+  {
+   "label": "상위 5%",
+   "cond": "xrank(co) >= 0.95"
+  },
+  {
+   "label": "60일 가중",
+   "cond": "xrank(ema(sv, 60) / (rmean(volume, 250) + 1)) >= 0.9"
+  },
+  {
+   "label": "상위 20%",
+   "cond": "xrank(co) >= 0.8"
+  }
+ ],
+ "differs_from": "가격 모멘텀(기각)이 아니라 부호 거래량 누적"
+}

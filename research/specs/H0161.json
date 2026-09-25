@@ -1,0 +1,35 @@
+{
+ "id": "H0161",
+ "market": "KR",
+ "derive": {
+  "ma10": "rmean(close, 10)",
+  "ma5": "rmean(close, 5)",
+  "ma20": "rmean(close, 20)",
+  "ma60": "rmean(close, 60)",
+  "x510": "(ma5 > ma10) & (lag(ma5, 1) <= lag(ma10, 1))",
+  "x520": "(ma5 > ma20) & (lag(ma5, 1) <= lag(ma20, 1))",
+  "x1020": "(ma10 > ma20) & (lag(ma10, 1) <= lag(ma20, 1))"
+ },
+ "cond": "x1020 & (rsum(x510, 10) >= 1) & (rsum(x520, 10) >= 1)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 10,
+ "variants": [
+  {
+   "label": "은계곡(60일선 아래)",
+   "cond": "x1020 & (rsum(x510, 10) >= 1) & (rsum(x520, 10) >= 1) & (ma20 < ma60)"
+  },
+  {
+   "label": "금계곡(60일선 위)",
+   "cond": "x1020 & (rsum(x510, 10) >= 1) & (rsum(x520, 10) >= 1) & (ma20 > ma60)"
+  },
+  {
+   "label": "+ 20일선 상승",
+   "cond": "x1020 & (rsum(x510, 10) >= 1) & (rsum(x520, 10) >= 1) & (ma20 > lag(ma20, 3))"
+  }
+ ],
+ "differs_from": "50/60/200 교차(기각)와 달리 단기 이평 세 쌍의 교차 순서"
+}

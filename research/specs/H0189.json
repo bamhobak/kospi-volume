@@ -1,0 +1,29 @@
+{
+ "id": "H0189",
+ "market": "KR",
+ "derive": {
+  "doji": "np.abs(close - open) <= 0.2 * (high - low)"
+ },
+ "cond": "lag(doji, 1) & (gap0 >= 1)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "갭 2%",
+   "cond": "lag(doji, 1) & (gap0 >= 2)"
+  },
+  {
+   "label": "갭 3%",
+   "cond": "lag(doji, 1) & (gap0 >= 3)"
+  },
+  {
+   "label": "+ 갭 유지(종가>시가)",
+   "cond": "lag(doji, 1) & (gap0 >= 1) & (close > open)"
+  }
+ ],
+ "differs_from": "갭 하락 매수(기각)와 반대 방향 · 도지 전제"
+}

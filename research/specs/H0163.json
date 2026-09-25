@@ -1,0 +1,37 @@
+{
+ "id": "H0163",
+ "market": "KR",
+ "derive": {
+  "pc": "lag(close, 1)",
+  "bt": "np.maximum(close, open)",
+  "bb": "np.minimum(close, open)",
+  "body": "np.abs(close - open)",
+  "us": "(high - bt) >= 2 * body",
+  "ls": "(bb - low) >= 2 * body",
+  "sm": "body / pc < 0.02",
+  "ma20": "rmean(close, 20)",
+  "ma60": "rmean(close, 60)"
+ },
+ "cond": "lag(us & sm & ((bb - low) < (high - bt)), 1) & ls & sm & ((high - bt) < (bb - low)) & (ma20 > ma60) & (close > ma20)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "꼬리 1.5배",
+   "cond": "lag(((high - bt) >= 1.5 * body) & sm, 1) & ((bb - low) >= 1.5 * body) & sm & (ma20 > ma60) & (close > ma20)"
+  },
+  {
+   "label": "꼬리 3배",
+   "cond": "lag(((high - bt) >= 3 * body) & sm, 1) & ((bb - low) >= 3 * body) & sm & (ma20 > ma60) & (close > ma20)"
+  },
+  {
+   "label": "추세 조건 없음",
+   "cond": "lag(us & sm & ((bb - low) < (high - bt)), 1) & ls & sm & ((high - bt) < (bb - low))"
+  }
+ ],
+ "differs_from": "캔들 한 봉(기각)이 아니라 윗꼬리→아래꼬리 두 봉 순서"
+}

@@ -1,0 +1,31 @@
+{
+ "id": "H0170",
+ "market": "US",
+ "derive": {
+  "pc": "lag(close, 1)",
+  "r1": "(close / pc - 1) * 100",
+  "pos": "(close - low) / (high - low + 1e-9)",
+  "big": "(r1 >= 10) & (su1 >= 1.5)"
+ },
+ "cond": "lag(big, 1) & (lag(rsum(big, 20), 2) == 0) & (lag(high, 1) > lag(low, 1)) & (r1 >= -5) & (r1 <= 3) & (pos < 0.8) & (volume < lag(volume, 1))",
+ "holds": [
+  5,
+  10
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "거래량비 0.5배 미만",
+   "cond": "lag(big, 1) & (lag(rsum(big, 20), 2) == 0) & (r1 >= -5) & (r1 <= 3) & (pos < 0.8) & (volume < 0.5 * lag(volume, 1))"
+  },
+  {
+   "label": "종가 위치 조건 없음",
+   "cond": "lag(big, 1) & (lag(rsum(big, 20), 2) == 0) & (r1 >= -5) & (r1 <= 3) & (volume < lag(volume, 1))"
+  },
+  {
+   "label": "거래량 조건 없음",
+   "cond": "lag(big, 1) & (lag(rsum(big, 20), 2) == 0) & (r1 >= -5) & (r1 <= 3) & (pos < 0.8)"
+  }
+ ],
+ "differs_from": "首阴(첫 음봉·기각)과 인접하나 '거래량 축소'와 '종가 위치 80% 미만' 조건 — 보고서 표본 밖 검증 있음"
+}

@@ -1,0 +1,46 @@
+{
+ "id": "H0188",
+ "market": "US",
+ "derive": {
+  "pc": "lag(close, 1)",
+  "tr": "np.maximum(high - low, np.maximum(np.abs(high - pc), np.abs(low - pc)))",
+  "atr14": "rma(tr, 14)",
+  "upm": "high - lag(high, 1)",
+  "dnm": "lag(low, 1) - low",
+  "pdm": "upm * ((upm > dnm) & (upm > 0))",
+  "mdm": "dnm * ((dnm > upm) & (dnm > 0))",
+  "pdi": "100 * rma(pdm, 14) / (atr14 + 1e-9)",
+  "mdi": "100 * rma(mdm, 14) / (atr14 + 1e-9)",
+  "adx": "rma(100 * np.abs(pdi - mdi) / (pdi + mdi + 1e-9), 14)",
+  "m3": "rmean(close, 3)",
+  "m8": "rmean(close, 8)",
+  "m20": "rmean(close, 20)",
+  "bt": "np.maximum(close, open)",
+  "bb": "np.minimum(close, open)",
+  "nd": "(m3 >= bb) & (m3 <= bt) & (m8 >= bb) & (m8 <= bt) & (m20 >= bb) & (m20 <= bt)",
+  "al": "(m3 > m8) & (m8 > m20)",
+  "bup": "rmean(close, 20) + 2 * rstd(close, 20)"
+ },
+ "cond": "(rsum(nd, 3) >= 1) & al & ~lag(al, 1)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 10,
+ "variants": [
+  {
+   "label": "+ ADX 상승 & >20",
+   "cond": "(rsum(nd, 3) >= 1) & al & ~lag(al, 1) & (adx > 20) & (adx > lag(adx, 1))"
+  },
+  {
+   "label": "+ 볼린저 상단 돌파",
+   "cond": "(rsum(nd, 3) >= 1) & al & ~lag(al, 1) & (close > bup)"
+  },
+  {
+   "label": "바늘 5봉 안",
+   "cond": "(rsum(nd, 5) >= 1) & al & ~lag(al, 1)"
+  }
+ ],
+ "differs_from": "단순 이평 교차(기각)와 달리 세 선이 한 봉 몸통에 수렴한 뒤의 정렬"
+}

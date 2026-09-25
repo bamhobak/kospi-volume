@@ -1,0 +1,39 @@
+{
+ "id": "H0102",
+ "market": "KR",
+ "derive": {
+  "pc": "lag(close, 1)",
+  "tr": "np.maximum(high - low, np.maximum(np.abs(high - pc), np.abs(low - pc)))",
+  "atr14": "rma(tr, 14)",
+  "upm": "high - lag(high, 1)",
+  "dnm": "lag(low, 1) - low",
+  "pdm": "upm * ((upm > dnm) & (upm > 0))",
+  "mdm": "dnm * ((dnm > upm) & (dnm > 0))",
+  "pdi": "100 * rma(pdm, 14) / (atr14 + 1e-9)",
+  "mdi": "100 * rma(mdm, 14) / (atr14 + 1e-9)",
+  "adx": "rma(100 * np.abs(pdi - mdi) / (pdi + mdi + 1e-9), 14)",
+  "ma50": "rmean(close, 50)"
+ },
+ "cond": "(adx >= 30) & (pdi > mdi) & (low < lag(low, 1)) & (lag(low, 1) < lag(low, 2)) & (lag(low, 2) < lag(low, 3))",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "ADX>25",
+   "cond": "(adx >= 25) & (pdi > mdi) & (low < lag(low, 1)) & (lag(low, 1) < lag(low, 2)) & (lag(low, 2) < lag(low, 3))"
+  },
+  {
+   "label": "+ 고가도 3연속 하락",
+   "cond": "(adx >= 30) & (pdi > mdi) & (low < lag(low, 1)) & (lag(low, 1) < lag(low, 2)) & (lag(low, 2) < lag(low, 3)) & (high < lag(high, 1)) & (lag(high, 1) < lag(high, 2))"
+  },
+  {
+   "label": "+ 50일선 위",
+   "cond": "(adx >= 30) & (pdi > mdi) & (low < lag(low, 1)) & (lag(low, 1) < lag(low, 2)) & (lag(low, 2) < lag(low, 3)) & (close > ma50)"
+  }
+ ],
+ "differs_from": "연속 하락일(종가 기준·기각)과 달리 ADX 추세 게이트 + 저가 기준"
+}

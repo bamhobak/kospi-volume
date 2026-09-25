@@ -1,0 +1,30 @@
+{
+ "id": "H0172",
+ "market": "KR",
+ "derive": {},
+ "cond": "q_frgn5 <= -20",
+ "holds": [
+  20,
+  40,
+  60
+ ],
+ "main_hold": 20,
+ "variants": [
+  {
+   "label": "-10% 이하",
+   "cond": "q_frgn5 <= -10"
+  },
+  {
+   "label": "-30% 이하",
+   "cond": "q_frgn5 <= -30"
+  },
+  {
+   "label": "사흘 늦춰 진입",
+   "cond": "lag(q_frgn5 <= -20, 3)"
+  }
+ ],
+ "differs_from": "외인 순매수 추종([외인 매집])과 반대 방향 — 외국인 대량 매도를 산다",
+ "features": [
+  "q_frgn5"
+ ]
+}

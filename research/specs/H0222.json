@@ -1,0 +1,31 @@
+{
+ "id": "H0222",
+ "market": "US",
+ "derive": {
+  "mb": "rmean(close, 20)",
+  "sb": "rstd(close, 20)",
+  "inb": "(close >= mb + sb) & (close <= mb + 3 * sb)"
+ },
+ "cond": "(lag(sb / mb, 3) <= 0.02) & (lag(sb / mb, 2) <= 0.045) & (rsum(inb, 3) >= 3)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "수축 3%·6%",
+   "cond": "(lag(sb / mb, 3) <= 0.03) & (lag(sb / mb, 2) <= 0.06) & (rsum(inb, 3) >= 3)"
+  },
+  {
+   "label": "수축 조건 없이 3일 밴드타기",
+   "cond": "rsum(inb, 3) >= 3"
+  },
+  {
+   "label": "2일 밴드타기",
+   "cond": "(lag(sb / mb, 2) <= 0.02) & (lag(sb / mb, 1) <= 0.045) & (rsum(inb, 2) >= 2)"
+  }
+ ],
+ "differs_from": "볼린저 첫 이탈(bbx)과 달리 수축 뒤 3일 연속 밴드 안쪽 상단"
+}

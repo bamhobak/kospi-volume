@@ -1,0 +1,33 @@
+{
+ "id": "H0226",
+ "market": "US",
+ "derive": {
+  "pc": "lag(close, 1)",
+  "vu": "volume * (close > pc)",
+  "vd": "volume * (close < pc)",
+  "vf": "volume * (close == pc)",
+  "vr1": "100 * (rsum(vu, 25) + 0.5 * rsum(vf, 25)) / (rsum(vd, 25) + 0.5 * rsum(vf, 25) + 1)",
+  "vr2": "100 * (rsum(vu, 25) + 0.5 * rsum(vf, 25)) / (rsum(volume, 25) + 1)"
+ },
+ "cond": "vr1 <= 70",
+ "holds": [
+  10,
+  20
+ ],
+ "main_hold": 10,
+ "variants": [
+  {
+   "label": "VR2 ≤ 30",
+   "cond": "vr2 <= 30"
+  },
+  {
+   "label": "VR1 ≤ 50",
+   "cond": "vr1 <= 50"
+  },
+  {
+   "label": "VR1 70 하향 돌파일",
+   "cond": "(vr1 <= 70) & (lag(vr1, 1) > 70)"
+  }
+ ],
+ "differs_from": "일본 고유 지표 — 가격이 아니라 상승·하락일 거래량 비"
+}

@@ -1,0 +1,31 @@
+{
+ "id": "H0144",
+ "market": "KR",
+ "derive": {
+  "on": "open / lag(close, 1) - 1",
+  "idr": "close / open - 1",
+  "nr": "rsum(((on > 0) & (idr < -on)) * 1.0, 21)",
+  "pr": "rsum(((on < 0) & (idr > -on)) * 1.0, 21)"
+ },
+ "cond": "xrank(nr) >= 0.9",
+ "holds": [
+  20,
+  40
+ ],
+ "main_hold": 20,
+ "variants": [
+  {
+   "label": "상위 20%",
+   "cond": "xrank(nr) >= 0.8"
+  },
+  {
+   "label": "NR - PR 상위 10%",
+   "cond": "xrank(nr - pr) >= 0.9"
+  },
+  {
+   "label": "하위 10%(반대 부호)",
+   "cond": "xrank(nr) <= 0.1"
+  }
+ ],
+ "differs_from": "오버나잇 단순 수익(기각)이 아니라 밤·낮 충돌 빈도"
+}

@@ -1,0 +1,34 @@
+{
+ "id": "H0115",
+ "market": "US",
+ "derive": {
+  "fi": "(close - lag(close, 1)) * volume",
+  "fi2": "ema(fi, 2)",
+  "e65": "ema(close, 65)",
+  "e13": "ema(close, 13)",
+  "mh": "(ema(close, 12) - ema(close, 26)) - ema(ema(close, 12) - ema(close, 26), 9)",
+  "red": "(e13 < lag(e13, 1)) & (mh < lag(mh, 1))"
+ },
+ "cond": "(fi2 < 0) & (e65 > lag(e65, 1)) & ~red",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "FI2 60일 최저",
+   "cond": "(fi2 <= rmin(fi2, 60)) & (e65 > lag(e65, 1))"
+  },
+  {
+   "label": "빨강→첫 비빨강",
+   "cond": "lag(red, 1) & ~red & (e65 > lag(e65, 1))"
+  },
+  {
+   "label": "임펄스 조건 빼기",
+   "cond": "(fi2 < 0) & (e65 > lag(e65, 1))"
+  }
+ ],
+ "differs_from": "이평 눌림(기각)과 달리 거래량×가격변화(Force) 음수 구간 + 임펄스"
+}

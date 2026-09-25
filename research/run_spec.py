@@ -17,7 +17,8 @@
     "differs_from": "H0068 과 다른 점: ...",  # 0단계에서 비슷한 기각 기록이 걸릴 때 필수
     "features": ["sv_rto5", "q_pens20"]        # 보유 재료 붙이기 — 목록은 research/features.py DESC
   }
-  derive 에서 쓸 수 있는 함수(전부 종목별): lag(x,k≥1) · rmean/rmax/rmin/rsum(x,n) · streak(불리언) · np
+  derive 에서 쓸 수 있는 함수(전부 종목별): lag(x,k≥1) · rmean/rmax/rmin/rsum/rstd(x,n) · ema/rma(x,n) · streak(불리언) · np
+                                   · xrank(x) — 그날 종목 간 백분위(유일한 단면 함수)
   ⚠ 미래 열(n5·n10·n20·n40·n60·buy)은 derive·cond 어디에도 못 쓴다 — 0단계에서 바로 탈락.
 
 단계 (앞 단계에서 떨어지면 거기서 멈춘다 — 나쁜 아이디어를 싸게 떨어뜨리는 게 목적)
@@ -49,7 +50,9 @@ from verdict import deflated_sharpe, log_trials, boot_ci
 
 CACHE = ROOT / "cache"; RUNS = ROOT / "runs"; REPORTS = ROOT / "reports"
 TR0, TR1, VA0 = "20160101", "20221231", "20230101"
-FUTURE = re.compile(r"\b(n\d+|buy)\b")
+# ⚠ gap 도 미래 열이다 — 두 패널 모두 (다음날 시가 ÷ 오늘 종가 - 1) 로 정의돼 있다(build_panel·us_panel).
+#   2026-09-25 외국 기법 옮기다 발견(그 전 명세는 gap 을 안 썼다). 오늘 갭은 gap0 을 쓴다(load_market 에서 만든다).
+FUTURE = re.compile(r"\b(n\d+|buy|gap)\b")
 # 다중검정 문턱 — 0.95 에서 0.90 으로 풀었다(2026-09-19, 사용자 결정). 0.95 로는 현행 [깊은 이격] 조건도
 # 0.933 으로 떨어졌다. 폭락 때만 몰려 사는 규칙은 월수익 꼬리가 두꺼워 깎이는 구조라, 우리 집안이 돈을 버는
 # 형태(낙폭반전)가 새로 못 들어온다. 푼 만큼은 5단계 겹침과 그림자 기간(미래 날짜)이 받친다.
@@ -79,6 +82,15 @@ def load_market(mk):
         A = A[((~A.pref.fillna(False)) & (A.rawclose >= 3)).fillna(False)]
         since = TR0
     A = A.sort_values(["ticker", "date"]).reset_index(drop=True)
+    # 오늘의 시가·고가·저가·갭 — 미래 없이 (2026-09-25, 외국 셋업이 다 쓴다)
+    g = A.groupby("ticker", sort=False)
+    pc = g.close.shift(1)
+    if "open" not in A.columns:                       # 미장 패널: 시가는 '어제의 다음날 시가' 로, 고저는 폭·종가위치로 되살린다
+        A["open"] = pc * (1 + g.gap.shift(1) / 100)
+        R = A.rng * A.close / 100
+        A["low"] = A.close - (A.clv + 1) / 2 * R     # 미장 clv 는 -1~1
+        A["high"] = A["low"] + R
+    A["gap0"] = (A.open / pc - 1) * 100
     uni = (A.groupby("date").amt20.rank(pct=True) >= 0.60).fillna(False)
     return A, uni, since
 
@@ -132,18 +144,31 @@ def helpers(A):
     def lag(x, k=1):
         if k < 1:
             raise ValueError("lag 는 1 이상만 — 음수·0 은 미래를 본다")
+        if x.dtype == bool:                          # 불리언은 밀어도 불리언 — 빈칸은 거짓(2026-09-25)
+            return x.groupby(tk, sort=False).shift(k).fillna(False).astype(bool)
         return x.groupby(tk, sort=False).shift(k)
 
     def _roll(x, n, f):
+        if x.dtype == bool:
+            x = x.astype(float)
         return getattr(x.groupby(tk, sort=False).rolling(n, min_periods=n), f)().reset_index(level=0, drop=True)
 
     def streak(b):
         b = b.fillna(False).astype(bool)
         return b.astype(int).groupby([tk, (~b).groupby(tk).cumsum()]).cumsum()
 
+    def _ewm(x, **kw):
+        return x.groupby(tk, sort=False).transform(lambda s: s.ewm(adjust=False, **kw).mean())
+
+    # 2026-09-25 추가 — 외국 기법(엘더·에일러스·볼린저·단면 순위)을 옮기려고. 전부 과거만 본다.
+    #   ema(x,n): 지수이동평균(span=n) · rma(x,n): 와일더 평활(alpha=1/n, RSI·ATR 용) · rstd(x,n): 이동 표준편차
+    #   xrank(x): 그날 전 종목 중 백분위(0~1) — 패널 전체(가격 필터 뒤) 기준이다
     return {"lag": lag, "streak": streak, "np": np,
             "rmean": lambda x, n: _roll(x, n, "mean"), "rmax": lambda x, n: _roll(x, n, "max"),
-            "rmin": lambda x, n: _roll(x, n, "min"), "rsum": lambda x, n: _roll(x, n, "sum")}
+            "rmin": lambda x, n: _roll(x, n, "min"), "rsum": lambda x, n: _roll(x, n, "sum"),
+            "rstd": lambda x, n: _roll(x, n, "std"),
+            "ema": lambda x, n: _ewm(x, span=n), "rma": lambda x, n: _ewm(x, alpha=1.0 / n),
+            "xrank": lambda x: x.groupby(A.date, sort=False).rank(pct=True)}
 
 
 def evaluate(A, spec):

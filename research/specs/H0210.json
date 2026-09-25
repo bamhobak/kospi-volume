@@ -1,0 +1,31 @@
+{
+ "id": "H0210",
+ "market": "US",
+ "derive": {
+  "wu": "np.maximum(close - lag(close, 5), 0)",
+  "wd": "np.maximum(lag(close, 5) - close, 0)",
+  "rsiw": "100 * rma(wu, 70) / (rma(wu, 70) + rma(wd, 70) + 1e-12)"
+ },
+ "cond": "(rsiw < 30) & (lag(rsiw, 1) >= 30)",
+ "holds": [
+  20,
+  40,
+  60
+ ],
+ "main_hold": 40,
+ "variants": [
+  {
+   "label": "<30 상태",
+   "cond": "rsiw < 30"
+  },
+  {
+   "label": "<35 진입",
+   "cond": "(rsiw < 35) & (lag(rsiw, 1) >= 35)"
+  },
+  {
+   "label": "<25 진입",
+   "cond": "(rsiw < 25) & (lag(rsiw, 1) >= 25)"
+  }
+ ],
+ "differs_from": "일봉 RSI 과매도(기각)와 시간축이 다르다(근사: 5일 변화의 70일 평활)"
+}

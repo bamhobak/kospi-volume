@@ -1,0 +1,34 @@
+{
+ "id": "H0171",
+ "market": "KR",
+ "derive": {},
+ "cond": "(q_tru20 > 0) & (q_frgn20 < 0)",
+ "holds": [
+  20,
+  40,
+  60
+ ],
+ "main_hold": 20,
+ "variants": [
+  {
+   "label": "5일판",
+   "cond": "(q_tru5 > 0) & (q_frgn5 < 0)"
+  },
+  {
+   "label": "투신 강하게(≥5%)",
+   "cond": "(q_tru20 >= 5) & (q_frgn20 < 0)"
+  },
+  {
+   "label": "기관 합계판",
+   "cond": "(q_org20 > 0) & (q_frgn20 < 0)"
+  }
+ ],
+ "differs_from": "외인·기관 동조 순매수(기각)와 반대 — 두 주체가 엇갈리는 조합",
+ "features": [
+  "q_tru20",
+  "q_frgn20",
+  "q_tru5",
+  "q_frgn5",
+  "q_org20"
+ ]
+}

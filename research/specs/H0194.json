@@ -1,0 +1,30 @@
+{
+ "id": "H0194",
+ "market": "US",
+ "derive": {
+  "rs": "xrank(ret120)",
+  "dd35": "(close / rmax(high, 35) - 1) * 100"
+ },
+ "cond": "(rs >= 0.89) & (dd35 <= -14) & (dd35 >= -28) & (close > open)",
+ "holds": [
+  10,
+  20,
+  40
+ ],
+ "main_hold": 20,
+ "variants": [
+  {
+   "label": "1년 강도",
+   "cond": "(xrank(ret250) >= 0.89) & (dd35 <= -14) & (dd35 >= -28) & (close > open)"
+  },
+  {
+   "label": "조정 -10~-20%",
+   "cond": "(rs >= 0.89) & (dd35 <= -10) & (dd35 >= -20) & (close > open)"
+  },
+  {
+   "label": "강도 상위 20%",
+   "cond": "(rs >= 0.8) & (dd35 <= -14) & (dd35 >= -28) & (close > open)"
+  }
+ ],
+ "differs_from": "Minervini·RS 추격(기각, RS≥70 역방향)과 달리 강한 종목의 '조정 중' 매수"
+}

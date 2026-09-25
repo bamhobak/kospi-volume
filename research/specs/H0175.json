@@ -1,0 +1,31 @@
+{
+ "id": "H0175",
+ "market": "KR",
+ "derive": {
+  "e9": "ema(close, 9)",
+  "e8": "ema(close, 8)",
+  "e80": "ema(close, 80)"
+ },
+ "cond": "(e9 > lag(e9, 1)) & (close < lag(low, 1))",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "9.4 EMA9 하루 꺾였다 바로 복귀",
+   "cond": "(lag(e9, 1) < lag(e9, 2)) & (lag(e9, 2) > lag(e9, 3)) & (e9 > lag(e9, 1)) & (low >= lag(low, 1))"
+  },
+  {
+   "label": "+ 에덴",
+   "cond": "(e9 > lag(e9, 1)) & (close < lag(low, 1)) & (e8 > lag(e8, 1)) & (e80 > lag(e80, 1))"
+  },
+  {
+   "label": "+ 200일선 위",
+   "cond": "(e9 > lag(e9, 1)) & (close < lag(low, 1)) & (close > rmean(close, 200))"
+  }
+ ],
+ "differs_from": "50/60/200 이평 눌림(기각)과 달리 EMA9 기울기 유지 + 1봉 조정"
+}

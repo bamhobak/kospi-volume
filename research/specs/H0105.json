@@ -1,0 +1,31 @@
+{
+ "id": "H0105",
+ "market": "US",
+ "derive": {
+  "ma10": "rmean(close, 10)",
+  "ma50": "rmean(close, 50)",
+  "dvol": "volume * (close < lag(close, 1))"
+ },
+ "cond": "(close > lag(close, 1)) & (volume > lag(rmax(dvol, 10), 1)) & (close > ma50) & (close > ma10) & (close <= 1.05 * ma10)",
+ "holds": [
+  10,
+  20,
+  40
+ ],
+ "main_hold": 20,
+ "variants": [
+  {
+   "label": "20일 하락일 최대",
+   "cond": "(close > lag(close, 1)) & (volume > lag(rmax(dvol, 20), 1)) & (close > ma50) & (close > ma10) & (close <= 1.05 * ma10)"
+  },
+  {
+   "label": "+ 52주 고가 -15% 이내",
+   "cond": "(close > lag(close, 1)) & (volume > lag(rmax(dvol, 10), 1)) & (close > ma50) & (close > ma10) & (close <= 1.05 * ma10) & (fromhi >= -15)"
+  },
+  {
+   "label": "과열 조건 빼기",
+   "cond": "(close > lag(close, 1)) & (volume > lag(rmax(dvol, 10), 1)) & (close > ma50) & (close > ma10)"
+  }
+ ],
+ "differs_from": "Stockbee 4% 버스트·거래량 급증 돌파(기각)와 달리 가격폭 조건 없고 거래량 비교 대상이 '하락일 최대'"
+}

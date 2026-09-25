@@ -1,0 +1,30 @@
+{
+ "id": "H0138",
+ "market": "KR",
+ "derive": {
+  "amt": "close * volume",
+  "to21": "rmean(amt, 21) / (marcap + 1)"
+ },
+ "cond": "(xrank(to21) >= 0.9) & (xrank(ret20) >= 0.9)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 20,
+ "variants": [
+  {
+   "label": "회전율 상위 20%",
+   "cond": "(xrank(to21) >= 0.8) & (xrank(ret20) >= 0.9)"
+  },
+  {
+   "label": "수익 상위 20%",
+   "cond": "(xrank(to21) >= 0.9) & (xrank(ret20) >= 0.8)"
+  },
+  {
+   "label": "반대칸: 저회전 & 하위 10% 수익(반전)",
+   "cond": "(xrank(to21) <= 0.3) & (xrank(ret20) <= 0.1)"
+  }
+ ],
+ "differs_from": "단순 1개월 반전·모멘텀(기각)과 달리 회전율 칸에 따라 방향이 다름"
+}

@@ -1,0 +1,30 @@
+{
+ "id": "H0108",
+ "market": "KR",
+ "derive": {
+  "pos": "(close - low) / (high - low + 1e-9)",
+  "ma50": "rmean(close, 50)"
+ },
+ "cond": "(close > lag(close, 1)) & (pos <= 0.25) & (close > ma50)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "네이키드: 종가<전일저가 & 50일선 위",
+   "cond": "(close < lag(low, 1)) & (close > ma50) & ~((high > lag(high, 1)) & (low < lag(low, 1)))"
+  },
+  {
+   "label": "히든 엄격(종가<시가)",
+   "cond": "(close > lag(close, 1)) & (pos <= 0.25) & (close < open) & (close > ma50)"
+  },
+  {
+   "label": "네이키드 3봉",
+   "cond": "(close < lag(rmin(low, 3), 1)) & (close > ma50)"
+  }
+ ],
+ "differs_from": "원전은 다음날 스매시봉 고가 돌파 매수 — 여기선 다음날 시가"
+}

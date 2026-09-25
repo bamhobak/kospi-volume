@@ -1,0 +1,40 @@
+{
+ "id": "H0116",
+ "market": "KR",
+ "derive": {
+  "l0": "rma(close, 2)",
+  "l1": "rma((lag(l0, 1) - 0.5 * l0) / 0.5, 2)",
+  "l2": "rma((lag(l1, 1) - 0.5 * l1) / 0.5, 2)",
+  "l3": "rma((lag(l2, 1) - 0.5 * l2) / 0.5, 2)",
+  "cu": "np.maximum(l0 - l1, 0) + np.maximum(l1 - l2, 0) + np.maximum(l2 - l3, 0)",
+  "cd": "np.maximum(l1 - l0, 0) + np.maximum(l2 - l1, 0) + np.maximum(l3 - l2, 0)",
+  "lr": "cu / (cu + cd + 1e-12)",
+  "k0": "rma(close, 3.3333)",
+  "k1": "rma((lag(k0, 1) - 0.7 * k0) / 0.3, 3.3333)",
+  "k2": "rma((lag(k1, 1) - 0.7 * k1) / 0.3, 3.3333)",
+  "k3": "rma((lag(k2, 1) - 0.7 * k2) / 0.3, 3.3333)",
+  "kr": "(np.maximum(k0 - k1, 0) + np.maximum(k1 - k2, 0) + np.maximum(k2 - k3, 0)) / (np.abs(k0 - k1) + np.abs(k1 - k2) + np.abs(k2 - k3) + 1e-12)"
+ },
+ "cond": "(lr > 0.2) & (lag(lr, 1) <= 0.2)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "γ=0.7 · 0.15 상향",
+   "cond": "(kr > 0.15) & (lag(kr, 1) <= 0.15)"
+  },
+  {
+   "label": "0 에서 처음 벗어남",
+   "cond": "(lr > 0.02) & (lag(lr, 1) <= 0.02)"
+  },
+  {
+   "label": "+ 200일선 위",
+   "cond": "(lr > 0.2) & (lag(lr, 1) <= 0.2) & (close > rmean(close, 200))"
+  }
+ ],
+ "differs_from": "RSI2(기각)와 필터 구조가 달라 신호일이 다르다"
+}

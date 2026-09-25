@@ -1,0 +1,32 @@
+{
+ "id": "H0107",
+ "market": "US",
+ "derive": {
+  "pc": "lag(close, 1)",
+  "tr": "np.maximum(high - low, np.maximum(np.abs(high - pc), np.abs(low - pc)))",
+  "atr40": "rma(tr, 40)",
+  "vavg": "lag(rmean(volume, 50), 1)"
+ },
+ "cond": "((open - pc) >= 0.75 * lag(atr40, 1)) & (volume >= 1.5 * vavg)",
+ "holds": [
+  10,
+  20,
+  40
+ ],
+ "main_hold": 20,
+ "variants": [
+  {
+   "label": "갭 4%↑ & 거래량 1.75배",
+   "cond": "(gap0 >= 4) & (volume >= 1.75 * vavg)"
+  },
+  {
+   "label": "+ 종가 상단 절반",
+   "cond": "((open - pc) >= 0.75 * lag(atr40, 1)) & (volume >= 1.5 * vavg) & ((close - low) / (high - low + 1e-9) >= 0.5)"
+  },
+  {
+   "label": "+ 60일 고가 부근",
+   "cond": "((open - pc) >= 0.75 * lag(atr40, 1)) & (volume >= 1.5 * vavg) & (close >= 0.95 * rmax(high, 60))"
+  }
+ ],
+ "differs_from": "갭 하락 매수(기각)의 정반대 방향 · 거래량 동반 갭 상승"
+}

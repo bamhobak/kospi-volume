@@ -1,0 +1,30 @@
+{
+ "id": "H0217",
+ "market": "KR",
+ "derive": {
+  "bear": "(close / open - 1) <= -0.01",
+  "gd": "gap0 <= -1"
+ },
+ "cond": "(rsum(bear, 4) >= 4) & (rsum(gd, 3) >= 3)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "진짜 창(고가<전일 저가)",
+   "cond": "(rsum(close < open, 4) >= 4) & (rsum(high < lag(low, 1), 3) >= 3)"
+  },
+  {
+   "label": "갭 -2%",
+   "cond": "(rsum(bear, 4) >= 4) & (rsum(gap0 <= -2, 3) >= 3)"
+  },
+  {
+   "label": "음봉 조건 C<O",
+   "cond": "(rsum(close < open, 4) >= 4) & (rsum(gd, 3) >= 3)"
+  }
+ ],
+ "differs_from": "연속 하락일(기각·종가 기준)과 달리 '갭' 하락 3연속 투매"
+}

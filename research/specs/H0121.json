@@ -1,0 +1,31 @@
+{
+ "id": "H0121",
+ "market": "US",
+ "derive": {
+  "pos": "(close - low) / (high - low + 1e-9)",
+  "rr": "rmean(high - low, 25)",
+  "band": "rmax(high, 10) - 2.5 * rr"
+ },
+ "cond": "(close < band) & (pos < 0.3)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "배수 2.0",
+   "cond": "(close < rmax(high, 10) - 2.0 * rr) & (pos < 0.3)"
+  },
+  {
+   "label": "배수 3.0",
+   "cond": "(close < rmax(high, 10) - 3.0 * rr) & (pos < 0.3)"
+  },
+  {
+   "label": "IBS<0.2",
+   "cond": "(close < band) & (pos < 0.2)"
+  }
+ ],
+ "differs_from": "단순 IBS·25일선 이격(기각)과 달리 기준이 10일 고점, 폭은 변동성 정규화"
+}

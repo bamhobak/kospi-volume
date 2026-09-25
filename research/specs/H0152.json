@@ -1,0 +1,30 @@
+{
+ "id": "H0152",
+ "market": "US",
+ "derive": {
+  "br": "np.abs(close - open) / (high - low + 1e-9)",
+  "p3": "(lag(br, 2) > 0.5) & (lag(close, 2) > lag(open, 2)) & (lag(close, 1) < lag(open, 1)) & (lag(close, 1) < lag(close, 2)) & (br > 0.5) & (close > open) & (close > lag(close, 2)) & (close > lag(open, 1))"
+ },
+ "cond": "p3 & (lag(volume, 1) < lag(volume, 2)) & (volume > lag(volume, 1))",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 10,
+ "variants": [
+  {
+   "label": "거래량 조건 없음",
+   "cond": "p3"
+  },
+  {
+   "label": "+ 30일선 위",
+   "cond": "p3 & (lag(volume, 1) < lag(volume, 2)) & (volume > lag(volume, 1)) & (close > rmean(close, 30))"
+  },
+  {
+   "label": "+ 첫 양봉이 20일 신고가",
+   "cond": "p3 & (lag(high, 2) >= lag(rmax(high, 20), 2))"
+  }
+ ],
+ "differs_from": "캔들 한 봉(기각)이 아니라 세 봉 구조 + 거래량 순서"
+}

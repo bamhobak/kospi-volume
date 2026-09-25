@@ -1,0 +1,35 @@
+{
+ "id": "H0166",
+ "market": "US",
+ "derive": {
+  "pc": "lag(close, 1)",
+  "r1": "(close / pc - 1) * 100",
+  "m13": "rmean(close, 13)",
+  "m34": "rmean(close, 34)",
+  "m55": "rmean(close, 55)",
+  "cv": "np.maximum(np.maximum(m13, m34), m55) / np.minimum(np.minimum(m13, m34), m55) - 1",
+  "sy": "(r1 > 0) & (r1 < 3) & (close > open)"
+ },
+ "cond": "(rsum(sy, 5) >= 5) & (close >= m55) & (lag(cv, 5) < 0.03)",
+ "holds": [
+  10,
+  20,
+  40
+ ],
+ "main_hold": 20,
+ "variants": [
+  {
+   "label": "수렴 5%",
+   "cond": "(rsum(sy, 5) >= 5) & (close >= m55) & (lag(cv, 5) < 0.05)"
+  },
+  {
+   "label": "4연속",
+   "cond": "(rsum(sy, 4) >= 4) & (close >= m55) & (lag(cv, 4) < 0.03)"
+  },
+  {
+   "label": "+ 거래량 점증",
+   "cond": "(rsum(sy, 5) >= 5) & (close >= m55) & (lag(cv, 5) < 0.03) & (rmean(volume, 5) > lag(rmean(volume, 5), 5))"
+  }
+ ],
+ "differs_from": "[조용한 신고가]류 잔잔함 축과 비슷하나 바닥권 이평 수렴 + 연속 소양봉"
+}

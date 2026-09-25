@@ -1,0 +1,30 @@
+{
+ "id": "H0211",
+ "market": "KR",
+ "derive": {
+  "pos": "(close - low) / (high - low + 1e-9)",
+  "body": "np.abs(close - open)"
+ },
+ "cond": "(close < lag(close, 1)) & (body < 0.5 * rmean(body, 20)) & (volume < lag(volume, 1)) & (volume < lag(volume, 2)) & (close > lag(close, 20))",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 10,
+ "variants": [
+  {
+   "label": "Test cung(아래꼬리·저거래량·고점 -15% 이내)",
+   "cond": "(pos >= 0.7) & ((np.minimum(close, open) - low) >= 2 * body) & (volume < 0.8 * rmean(volume, 20)) & (close >= 0.85 * rmax(high, 60))"
+  },
+  {
+   "label": "몸통 조건 완화(0.7배)",
+   "cond": "(close < lag(close, 1)) & (body < 0.7 * rmean(body, 20)) & (volume < lag(volume, 1)) & (volume < lag(volume, 2)) & (close > lag(close, 20))"
+  },
+  {
+   "label": "+ 50일선 위",
+   "cond": "(close < lag(close, 1)) & (body < 0.5 * rmean(body, 20)) & (volume < lag(volume, 1)) & (volume < lag(volume, 2)) & (close > rmean(close, 50))"
+  }
+ ],
+ "differs_from": "거래량 침체 매수([조용한 신고가]의 r16)와 비슷한 축 — 하락봉 한정"
+}

@@ -1,0 +1,30 @@
+{
+ "id": "H0228",
+ "market": "US",
+ "derive": {
+  "pc": "lag(close, 1)",
+  "ra": "100 * rsum(high - open, 26) / (rsum(open - low, 26) + 1e-9)",
+  "rb": "100 * rsum(np.maximum(high - pc, 0), 26) / (rsum(np.maximum(pc - low, 0), 26) + 1e-9)"
+ },
+ "cond": "(lag(rmax(np.maximum(ra, rb), 20), 1) > 120) & (ra < 70) & (rb < 70)",
+ "holds": [
+  10,
+  20
+ ],
+ "main_hold": 20,
+ "variants": [
+  {
+   "label": "B 가 A 상향교차(둘 다 ≤70)",
+   "cond": "(rb > ra) & (lag(rb, 1) <= lag(ra, 1)) & (ra <= 70) & (rb <= 70)"
+  },
+  {
+   "label": "둘 다 ≤60",
+   "cond": "(lag(rmax(np.maximum(ra, rb), 20), 1) > 120) & (ra < 60) & (rb < 60)"
+  },
+  {
+   "label": "과거 120 조건 없이",
+   "cond": "(ra < 70) & (rb < 70)"
+  }
+ ],
+ "differs_from": "일본 고유 지표 — 저자 수치 없음"
+}

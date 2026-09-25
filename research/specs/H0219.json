@@ -1,0 +1,31 @@
+{
+ "id": "H0219",
+ "market": "KR",
+ "derive": {
+  "ma25": "rmean(close, 25)",
+  "ma200": "rmean(close, 200)",
+  "big": "(close / lag(close, 1) - 1) * 100 >= 29"
+ },
+ "cond": "big & (lag(close, 1) < lag(ma25, 1)) & (lag(close, 1) > lag(ma200, 1))",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "+ 200일선 ±10% 이내",
+   "cond": "big & (lag(close, 1) < lag(ma25, 1)) & (lag(close, 1) > lag(ma200, 1)) & (np.abs(close / ma200 - 1) <= 0.10)"
+  },
+  {
+   "label": "문턱 +15%",
+   "cond": "((close / lag(close, 1) - 1) * 100 >= 15) & (lag(close, 1) < lag(ma25, 1)) & (lag(close, 1) > lag(ma200, 1))"
+  },
+  {
+   "label": "문턱 +20%(국내)·+15%(미장)",
+   "cond": "((close / lag(close, 1) - 1) * 100 >= 17) & (lag(close, 1) < lag(ma25, 1)) & (lag(close, 1) > lag(ma200, 1))"
+  }
+ ],
+ "differs_from": "상한가 다음날 추격(일본에서도 -1.42%)과 달리 추세 속 눌림 위치 필터 — 수익 기준점이 다음날 시가라 원전보다 불리"
+}

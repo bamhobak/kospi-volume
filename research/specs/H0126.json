@@ -1,0 +1,32 @@
+{
+ "id": "H0126",
+ "market": "KR",
+ "derive": {
+  "pc": "lag(close, 1)",
+  "tr": "np.maximum(high - low, np.maximum(np.abs(high - pc), np.abs(low - pc)))",
+  "atr10": "rma(tr, 10)",
+  "hi20": "rmax(high, 20)"
+ },
+ "cond": "(ret20 >= 10) & (rmax(high, 5) >= hi20) & (low < lag(low, 1)) & (low < lag(low, 2)) & (tr > 1.5 * lag(atr10, 1)) & (tr < 3 * lag(atr10, 1))",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "추세 +15%",
+   "cond": "(ret20 >= 15) & (rmax(high, 5) >= hi20) & (low < lag(low, 1)) & (low < lag(low, 2)) & (tr > 1.5 * lag(atr10, 1)) & (tr < 3 * lag(atr10, 1))"
+  },
+  {
+   "label": "WRB 1.2배",
+   "cond": "(ret20 >= 10) & (rmax(high, 5) >= hi20) & (low < lag(low, 1)) & (low < lag(low, 2)) & (tr > 1.2 * lag(atr10, 1)) & (tr < 3 * lag(atr10, 1))"
+  },
+  {
+   "label": "극단 폭락 제외 없음",
+   "cond": "(ret20 >= 10) & (rmax(high, 5) >= hi20) & (low < lag(low, 1)) & (low < lag(low, 2)) & (tr > 1.5 * lag(atr10, 1))"
+  }
+ ],
+ "differs_from": "이평 눌림(기각)이 아니라 가격 구조(2봉 저가 이탈 + 장대봉)"
+}

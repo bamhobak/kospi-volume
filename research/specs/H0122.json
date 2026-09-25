@@ -1,0 +1,27 @@
+{
+ "id": "H0122",
+ "market": "KR",
+ "derive": {},
+ "cond": "(lag(low, 3) > lag(low, 2)) & (lag(low, 2) > lag(low, 1)) & (high > lag(high, 3))",
+ "holds": [
+  10,
+  20,
+  40
+ ],
+ "main_hold": 20,
+ "variants": [
+  {
+   "label": "+ 오늘 저가도 낮음(바깥 반전형)",
+   "cond": "(lag(low, 3) > lag(low, 2)) & (lag(low, 2) > lag(low, 1)) & (high > lag(high, 3)) & (low < lag(low, 1))"
+  },
+  {
+   "label": "종가가 1번 봉 고가 위",
+   "cond": "(lag(low, 3) > lag(low, 2)) & (lag(low, 2) > lag(low, 1)) & (close > lag(high, 3))"
+  },
+  {
+   "label": "+ 50일선 위",
+   "cond": "(lag(low, 3) > lag(low, 2)) & (lag(low, 2) > lag(low, 1)) & (high > lag(high, 3)) & (close > rmean(close, 50))"
+  }
+ ],
+ "differs_from": "Harris 가격패턴 — 캔들 한 봉이 아니라 4봉 구조"
+}

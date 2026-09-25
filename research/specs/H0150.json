@@ -1,0 +1,31 @@
+{
+ "id": "H0150",
+ "market": "US",
+ "derive": {
+  "pc": "lag(close, 1)",
+  "r1": "(close / pc - 1) * 100",
+  "big": "(r1 >= 10) & (su1 >= 1.5)"
+ },
+ "cond": "big & (rsum(big, 30) == 2) & (rsum(big, 6) == 1)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "사이 조용함(5일 |등락|<9%)",
+   "cond": "big & (rsum(big, 30) == 2) & (rsum(big, 6) == 1) & (lag(rmax(np.abs(r1), 5), 1) < 9)"
+  },
+  {
+   "label": "사이 저가가 첫 봉 저가 안 깸 근사",
+   "cond": "big & (rsum(big, 30) == 2) & (rsum(big, 6) == 1) & (lag(rmin(low, 20), 1) >= lag(rmin(low, 30), 1))"
+  },
+  {
+   "label": "간격 3일↑",
+   "cond": "big & (rsum(big, 30) == 2) & (rsum(big, 4) == 1)"
+  }
+ ],
+ "differs_from": "신고가·급등 추격(기각)과 달리 30일 안 '두 번째' 장대양봉"
+}

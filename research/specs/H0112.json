@@ -1,0 +1,31 @@
+{
+ "id": "H0112",
+ "market": "KR",
+ "derive": {
+  "c4": "close < lag(close, 4)",
+  "cnt": "streak(c4)",
+  "perf": "np.minimum(low, lag(low, 1)) <= np.minimum(lag(low, 2), lag(low, 3))"
+ },
+ "cond": "(cnt == 9) & perf",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 10,
+ "variants": [
+  {
+   "label": "퍼펙트 조건 없음",
+   "cond": "cnt == 9"
+  },
+  {
+   "label": "13 연속(연장)",
+   "cond": "cnt == 13"
+  },
+  {
+   "label": "9 + 200일선 위",
+   "cond": "(cnt == 9) & perf & (close > rmean(close, 200))"
+  }
+ ],
+ "differs_from": "연속 하락일(전일 대비·기각)과 달리 4일 전 대비 비교 + 저가 퍼펙트 조건"
+}

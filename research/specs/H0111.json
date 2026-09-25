@@ -1,0 +1,31 @@
+{
+ "id": "H0111",
+ "market": "US",
+ "derive": {
+  "pc": "lag(close, 1)",
+  "rg1": "lag(high - low, 1)",
+  "ma20": "rmean(close, 20)"
+ },
+ "cond": "(high >= open + 0.6 * rg1) & (close > ma20)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "k=0.5",
+   "cond": "(high >= open + 0.5 * rg1) & (close > ma20)"
+  },
+  {
+   "label": "k=1.0",
+   "cond": "(high >= open + 1.0 * rg1) & (close > ma20)"
+  },
+  {
+   "label": "종가도 돌파선 위",
+   "cond": "(close >= open + 0.6 * rg1) & (close > ma20)"
+  }
+ ],
+ "differs_from": "원전의 장중 체결 수익은 못 잰다 — 돌파 뒤 며칠의 지속만 본다"
+}

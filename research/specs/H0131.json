@@ -1,0 +1,33 @@
+{
+ "id": "H0131",
+ "market": "US",
+ "derive": {
+  "amt": "close * volume",
+  "il": "np.abs(close / lag(close, 1) - 1) / (amt + 1)",
+  "i21": "rmean(il, 21)",
+  "i250": "lag(rmean(il, 250), 21)",
+  "shock": "-(i21 - i250) / (i250 + 1e-15)"
+ },
+ "cond": "xrank(shock) >= 0.9",
+ "holds": [
+  20,
+  40,
+  60
+ ],
+ "main_hold": 40,
+ "variants": [
+  {
+   "label": "상위 5%",
+   "cond": "xrank(shock) >= 0.95"
+  },
+  {
+   "label": "상위 20%",
+   "cond": "xrank(shock) >= 0.8"
+  },
+  {
+   "label": "+ 21일 수익 양수 아님",
+   "cond": "(xrank(shock) >= 0.9) & (ret20 <= 0)"
+  }
+ ],
+ "differs_from": "거래량 절대 급증이 아니라 가격충격 비용(|수익|/거래대금)의 개선"
+}

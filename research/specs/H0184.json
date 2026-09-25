@@ -1,0 +1,31 @@
+{
+ "id": "H0184",
+ "market": "US",
+ "derive": {
+  "e21": "ema(close, 21)",
+  "s20": "rmean(close, 20)",
+  "e9": "ema(close, 9)"
+ },
+ "cond": "(lag(rmin(low - e21, 5), 1) > 0) & (low < e21) & (close > e21)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "SMA20·10봉",
+   "cond": "(lag(rmin(low - s20, 10), 1) > 0) & (low < s20) & (close > s20)"
+  },
+  {
+   "label": "EMA9·3봉",
+   "cond": "(lag(rmin(low - e9, 3), 1) > 0) & (low < e9) & (close > e9)"
+  },
+  {
+   "label": "종가 조건 없음",
+   "cond": "(lag(rmin(low - e21, 5), 1) > 0) & (low < e21)"
+  }
+ ],
+ "differs_from": "단순 이평 눌림(기각)과 달리 'N봉 만에 처음' 건드린 봉만"
+}

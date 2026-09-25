@@ -1,0 +1,32 @@
+{
+ "id": "H0214",
+ "market": "US",
+ "derive": {
+  "pc": "lag(close, 1)",
+  "r1": "(close / pc - 1) * 100",
+  "ma30": "rmean(close, 30)",
+  "b0": "(r1 >= 5) & (volume >= 1.5 * lag(rmean(volume, 5), 1)) & (ma30 > lag(ma30, 3))"
+ },
+ "cond": "lag(b0, 5) & (rmin(low, 5) >= lag(low, 5)) & (rmax(np.abs(r1), 5) <= 3)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 10,
+ "variants": [
+  {
+   "label": "엄격 +9.5%",
+   "cond": "lag(b0 & (r1 >= 9.5), 5) & (rmin(low, 5) >= lag(low, 5)) & (rmax(np.abs(r1), 5) <= 3)"
+  },
+  {
+   "label": "쉬는 기간 4봉",
+   "cond": "lag(b0, 4) & (rmin(low, 4) >= lag(low, 4)) & (rmax(np.abs(r1), 4) <= 3)"
+  },
+  {
+   "label": "+ 종가가 큰 양봉 고가 돌파",
+   "cond": "lag(b0, 5) & (rmin(low, 5) >= lag(low, 5)) & (close > lag(high, 5))"
+  }
+ ],
+ "differs_from": "기준봉 눌림(기각 H00xx)과 같은 계열 — 5봉 동안 저가 유지·등락 3% 이내로 좁힘"
+}

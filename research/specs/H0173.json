@@ -1,0 +1,32 @@
+{
+ "id": "H0173",
+ "market": "KR",
+ "derive": {
+  "e9": "ema(close, 9)",
+  "e8": "ema(close, 8)",
+  "e80": "ema(close, 80)",
+  "ma200": "rmean(close, 200)"
+ },
+ "cond": "(e9 > lag(e9, 1)) & (lag(e9, 1) <= lag(e9, 2))",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 10,
+ "variants": [
+  {
+   "label": "+ 200일선 위",
+   "cond": "(e9 > lag(e9, 1)) & (lag(e9, 1) <= lag(e9, 2)) & (close > ma200)"
+  },
+  {
+   "label": "+ 에덴 필터(EMA8·80 상승)",
+   "cond": "(e9 > lag(e9, 1)) & (lag(e9, 1) <= lag(e9, 2)) & (e8 > lag(e8, 1)) & (e80 > lag(e80, 1))"
+  },
+  {
+   "label": "+ 3일 이상 하락 뒤",
+   "cond": "(e9 > lag(e9, 1)) & (rsum(lag(e9, 1) < lag(e9, 2), 3) >= 3)"
+  }
+ ],
+ "differs_from": "원전은 신호봉 고가 돌파 체결·EMA9 하락 전환 청산 — 여기선 다음날 시가·고정 보유"
+}

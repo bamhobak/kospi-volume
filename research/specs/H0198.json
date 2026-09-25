@@ -1,0 +1,30 @@
+{
+ "id": "H0198",
+ "market": "US",
+ "derive": {
+  "h5": "rmax(high, 5)",
+  "l5": "rmin(low, 5)"
+ },
+ "cond": "(h5 > lag(h5, 5)) & (l5 < lag(l5, 5)) & (close > lag(close, 5))",
+ "holds": [
+  10,
+  20,
+  40
+ ],
+ "main_hold": 20,
+ "variants": [
+  {
+   "label": "+ 종가가 앞 5봉 고가 위",
+   "cond": "(h5 > lag(h5, 5)) & (l5 < lag(l5, 5)) & (close > lag(h5, 5))"
+  },
+  {
+   "label": "주간판 금요일만 근사(5일마다) 대신 3봉",
+   "cond": "(rmax(high, 3) > lag(rmax(high, 3), 3)) & (rmin(low, 3) < lag(rmin(low, 3), 3)) & (close > lag(close, 3))"
+  },
+  {
+   "label": "+ 20일 하락 뒤",
+   "cond": "(h5 > lag(h5, 5)) & (l5 < lag(l5, 5)) & (close > lag(close, 5)) & (ret20 < 0)"
+  }
+ ],
+ "differs_from": "바깥봉 한 개(기각 계열)가 아니라 5봉 묶음 외바"
+}

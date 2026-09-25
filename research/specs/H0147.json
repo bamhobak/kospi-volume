@@ -1,0 +1,34 @@
+{
+ "id": "H0147",
+ "market": "KR",
+ "derive": {
+  "ma10": "rmean(close, 10)",
+  "ma5": "rmean(close, 5)",
+  "ma20": "rmean(close, 20)",
+  "bt": "np.maximum(close, open)",
+  "bb": "np.minimum(close, open)",
+  "xz1": "(low > lag(high, 1)) & (close / open >= 0.98) & (close / open <= 1.045) & (high / bt > 1.03) & (bb / low < 1.02) & (volume >= 1.1 * lag(volume, 1)) & (volume <= 4 * lag(volume, 1)) & (close > ma5) & (close > ma10) & (close > ma20) & (close >= rmax(close, 7))"
+ },
+ "cond": "lag(xz1, 1) & (open / lag(close, 1) > 0.98) & (low > lag(high, 2)) & (close > lag(bt, 1) * 1.01)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 20,
+ "variants": [
+  {
+   "label": "준비일만(확인 없이)",
+   "cond": "xz1"
+  },
+  {
+   "label": "갭 조건 없는 해석(a)",
+   "cond": "((high - bt) >= 2 * np.abs(close - open)) & (volume >= 1.5 * rmean(volume, 5)) & (close <= 1.3 * rmin(low, 60)) & (close > ma20)"
+  },
+  {
+   "label": "확인일 갭 조건 완화",
+   "cond": "lag(xz1, 1) & (low > lag(low, 1)) & (close > lag(bt, 1) * 1.01)"
+  }
+ ],
+ "differs_from": "윗꼬리 매물 테스트 + 이튿날 확인 — 돌파 추격(기각)과 달리 갭 유지가 핵심"
+}

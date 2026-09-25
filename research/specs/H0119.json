@@ -1,0 +1,32 @@
+{
+ "id": "H0119",
+ "market": "US",
+ "derive": {
+  "mid": "(high + low) / 2",
+  "sn": "(mid - rmin(mid, 10)) / (rmax(mid, 10) - rmin(mid, 10) + 1e-9)",
+  "v": "np.clip(rma(2 * (sn - 0.5), 3.0303), -0.999, 0.999)",
+  "fz": "rma(np.log((1 + v) / (1 - v)), 2)"
+ },
+ "cond": "(lag(fz, 1) < -1.5) & (fz > lag(fz, 1)) & (lag(fz, 1) <= lag(fz, 2))",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "문턱 -2.0",
+   "cond": "(lag(fz, 1) < -2.0) & (fz > lag(fz, 1)) & (lag(fz, 1) <= lag(fz, 2))"
+  },
+  {
+   "label": "문턱 -1.0",
+   "cond": "(lag(fz, 1) < -1.0) & (fz > lag(fz, 1)) & (lag(fz, 1) <= lag(fz, 2))"
+  },
+  {
+   "label": "+ 200일선 위",
+   "cond": "(lag(fz, 1) < -1.5) & (fz > lag(fz, 1)) & (lag(fz, 1) <= lag(fz, 2)) & (close > rmean(close, 200))"
+  }
+ ],
+ "differs_from": "스토캐스틱·%R(기각)과 달리 피셔 변환 극단 + 방향 전환"
+}

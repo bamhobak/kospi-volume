@@ -1,0 +1,28 @@
+{
+ "id": "H0232",
+ "market": "US",
+ "derive": {
+  "ma25": "rmean(close, 25)"
+ },
+ "cond": "(close < ma25) & (lag(close, 1) > lag(open, 1)) & ((lag(close, 1) - lag(open, 1)) / lag(open, 1) < 0.015) & (gap0 > 1) & (close < lag(open, 1)) & ((open - close) / open >= 0.03)",
+ "holds": [
+  5,
+  10
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "몸통 2%",
+   "cond": "(close < ma25) & (lag(close, 1) > lag(open, 1)) & (gap0 > 1) & (close < lag(open, 1)) & ((open - close) / open >= 0.02)"
+  },
+  {
+   "label": "갭 조건 없음",
+   "cond": "(close < ma25) & (lag(close, 1) > lag(open, 1)) & (open > lag(close, 1)) & (close < lag(open, 1)) & ((open - close) / open >= 0.03)"
+  },
+  {
+   "label": "추세 조건 없음",
+   "cond": "(lag(close, 1) > lag(open, 1)) & (gap0 > 1) & (close < lag(open, 1)) & ((open - close) / open >= 0.03)"
+  }
+ ],
+ "differs_from": "장악형 캔들 — 기존 캔들 기각과 방향·위치가 다름"
+}

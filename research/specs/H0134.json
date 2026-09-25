@@ -1,0 +1,29 @@
+{
+ "id": "H0134",
+ "market": "KR",
+ "derive": {
+  "mad": "rmean(close, 21) / rmean(close, 200)"
+ },
+ "cond": "xrank(mad) >= 0.9",
+ "holds": [
+  20,
+  40,
+  60
+ ],
+ "main_hold": 20,
+ "variants": [
+  {
+   "label": "상위 5%",
+   "cond": "xrank(mad) >= 0.95"
+  },
+  {
+   "label": "상위 20%",
+   "cond": "xrank(mad) >= 0.8"
+  },
+  {
+   "label": "상위 10% & 20일 급등 아님",
+   "cond": "(xrank(mad) >= 0.9) & (xrank(ret20) <= 0.8)"
+  }
+ ],
+ "differs_from": "이평 돌파·정배열(기각)과 달리 단면 순위(상위 10%)로 쓴다"
+}

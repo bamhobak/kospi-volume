@@ -1,0 +1,31 @@
+{
+ "id": "H0146",
+ "market": "KR",
+ "derive": {},
+ "cond": "(su1 >= 5) & (q_org5 >= 10)",
+ "holds": [
+  20,
+  40,
+  60
+ ],
+ "main_hold": 40,
+ "variants": [
+  {
+   "label": "외국인 5일 ≥10%",
+   "cond": "(su1 >= 5) & (q_frgn5 >= 10)"
+  },
+  {
+   "label": "거래량 3배",
+   "cond": "(su1 >= 3) & (q_org5 >= 10)"
+  },
+  {
+   "label": "기관+외인 모두 양수",
+   "cond": "(su1 >= 5) & (q_org5 >= 5) & (q_frgn5 >= 5)"
+  }
+ ],
+ "differs_from": "[외인 매집](외인 60일 누적)과 달리 거래량 5배 이벤트일의 기관 순매수 강도",
+ "features": [
+  "q_org5",
+  "q_frgn5"
+ ]
+}

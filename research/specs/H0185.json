@@ -1,0 +1,30 @@
+{
+ "id": "H0185",
+ "market": "KR",
+ "derive": {
+  "ml3": "rmean(low, 3)",
+  "s30": "rmean(close, 30)",
+  "s21": "rmean(close, 21)"
+ },
+ "cond": "(close < ml3) & (s30 > lag(s30, 1))",
+ "holds": [
+  5,
+  10
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "SMA21 상승",
+   "cond": "(close < ml3) & (s21 > lag(s21, 1))"
+  },
+  {
+   "label": "2일 최저가 이탈",
+   "cond": "(low < lag(rmin(low, 2), 1)) & (s30 > lag(s30, 1))"
+  },
+  {
+   "label": "종가 < 저가 SMA3 × 0.99",
+   "cond": "(close < 0.99 * ml3) & (s30 > lag(s30, 1))"
+  }
+ ],
+ "differs_from": "IBS(기각)와 달리 기준이 고가·저가 3일 평균 채널"
+}

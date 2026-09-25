@@ -1,0 +1,32 @@
+{
+ "id": "H0158",
+ "market": "US",
+ "derive": {
+  "ma10": "rmean(close, 10)",
+  "ma5": "rmean(close, 5)",
+  "ma20": "rmean(close, 20)",
+  "ma60": "rmean(close, 60)"
+ },
+ "cond": "(open < np.minimum(np.minimum(ma5, ma10), ma20)) & (close > np.maximum(np.maximum(ma5, ma10), ma20)) & (close / open > 1.03)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 10,
+ "variants": [
+  {
+   "label": "+ 20>60 정배열·+5%",
+   "cond": "(open < np.minimum(np.minimum(ma5, ma10), ma20)) & (close > np.maximum(np.maximum(ma5, ma10), ma20)) & (close / open > 1.05) & (ma20 > ma60)"
+  },
+  {
+   "label": "네 선(60일 포함)",
+   "cond": "(open < np.minimum(np.minimum(ma5, ma10), np.minimum(ma20, ma60))) & (close > np.maximum(np.maximum(ma5, ma10), np.maximum(ma20, ma60))) & (close / open > 1.03)"
+  },
+  {
+   "label": "양봉 폭 조건 없음",
+   "cond": "(open < np.minimum(np.minimum(ma5, ma10), ma20)) & (close > np.maximum(np.maximum(ma5, ma10), ma20))"
+  }
+ ],
+ "differs_from": "이평 하나 돌파·골든크로스(기각)와 달리 한 봉이 세 선을 동시 관통"
+}

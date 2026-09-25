@@ -1,0 +1,33 @@
+{
+ "id": "H0195",
+ "market": "KR",
+ "derive": {
+  "tk9": "(rmax(high, 9) + rmin(low, 9)) / 2",
+  "kj26": "(rmax(high, 26) + rmin(low, 26)) / 2",
+  "sa": "(tk9 + kj26) / 2",
+  "sbb": "(rmax(high, 52) + rmin(low, 52)) / 2",
+  "ok5": "(close > kj26) & (tk9 > kj26) & (close > lag(close, 26)) & (close > lag(rmax(high, 5), 22)) & (close > np.maximum(lag(sa, 26), lag(sbb, 26))) & (sa > sbb)"
+ },
+ "cond": "ok5 & ~lag(ok5, 1)",
+ "holds": [
+  10,
+  20,
+  40
+ ],
+ "main_hold": 20,
+ "variants": [
+  {
+   "label": "후행스팬 장애물 3봉",
+   "cond": "(close > kj26) & (tk9 > kj26) & (close > lag(close, 26)) & (close > lag(rmax(high, 3), 24)) & (close > np.maximum(lag(sa, 26), lag(sbb, 26))) & (sa > sbb) & ~lag(ok5, 1)"
+  },
+  {
+   "label": "미래 구름 조건 빼기",
+   "cond": "(close > kj26) & (tk9 > kj26) & (close > lag(close, 26)) & (close > np.maximum(lag(sa, 26), lag(sbb, 26))) & ~lag(ok5, 1)"
+  },
+  {
+   "label": "충족 상태면 매일",
+   "cond": "ok5"
+  }
+ ],
+ "differs_from": "이평 교차(기각)와 달리 일목 다섯 조건의 동시 충족"
+}

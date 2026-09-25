@@ -1,0 +1,31 @@
+{
+ "id": "H0097",
+ "market": "US",
+ "derive": {
+  "pos": "(close - low) / (high - low + 1e-9)",
+  "ma10": "rmean(close, 10)",
+  "ma50": "rmean(close, 50)"
+ },
+ "cond": "(lag(pos, 1) <= 0.25) & (pos >= 0.75) & (close > ma10) & (close > ma50)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "하단/상단 33%",
+   "cond": "(lag(pos, 1) <= 0.33) & (pos >= 0.67) & (close > ma10) & (close > ma50)"
+  },
+  {
+   "label": "50일선만",
+   "cond": "(lag(pos, 1) <= 0.25) & (pos >= 0.75) & (close > ma50)"
+  },
+  {
+   "label": "+ 오늘 상승",
+   "cond": "(lag(pos, 1) <= 0.25) & (pos >= 0.75) & (close > ma10) & (close > ma50) & (close > lag(close, 1))"
+  }
+ ],
+ "differs_from": "원전은 다음날 고가 돌파 스톱 매수 — 여기선 다음날 시가로 근사"
+}

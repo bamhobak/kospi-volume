@@ -1,0 +1,33 @@
+{
+ "id": "H0205",
+ "market": "KR",
+ "derive": {
+  "pc": "lag(close, 1)",
+  "r1": "(close / pc - 1) * 100",
+  "pos": "(close - low) / (high - low + 1e-9)",
+  "ma10": "rmean(close, 10)",
+  "amt": "close * volume",
+  "ma20": "rmean(close, 20)"
+ },
+ "cond": "(pos >= 0.8) & (amt >= 2 * lag(rmean(amt, 20), 1)) & (close > ma10) & (close > ma20) & (high >= 1.1 * pc) & (r1 > 2)",
+ "holds": [
+  5,
+  10
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "종가 위치 0.9·+5%",
+   "cond": "(pos >= 0.9) & (amt >= 2 * lag(rmean(amt, 20), 1)) & (close > ma10) & (close > ma20) & (high >= 1.1 * pc) & (r1 > 5)"
+  },
+  {
+   "label": "TikTok판 +5%·거래량 2배",
+   "cond": "(r1 >= 5) & (close > rmean(close, 5)) & (close >= open) & (volume >= 2 * lag(rmean(volume, 20), 1)) & (volume >= lag(volume, 1))"
+  },
+  {
+   "label": "+ 60일선 위",
+   "cond": "(pos >= 0.8) & (amt >= 2 * lag(rmean(amt, 20), 1)) & (close > ma10) & (close > ma20) & (high >= 1.1 * pc) & (r1 > 2) & (close > rmean(close, 60))"
+  }
+ ],
+ "differs_from": "거래량 급증 돌파 추격(기각)과 겹친다 — 하룻밤 보유가 본질이라 여기선 지속 여부만"
+}

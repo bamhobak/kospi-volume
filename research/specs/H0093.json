@@ -1,0 +1,32 @@
+{
+ "id": "H0093",
+ "market": "US",
+ "derive": {
+  "x": "close / ((high + low) / 2) - 1",
+  "dv": "rmean(x, 2)",
+  "dvb": "(dv - rmin(dv, 252)) / (rmax(dv, 252) - rmin(dv, 252) + 1e-9)",
+  "ma200": "rmean(close, 200)"
+ },
+ "cond": "dvb < 0.10",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "DVB<0.20",
+   "cond": "dvb < 0.20"
+  },
+  {
+   "label": "DVB<0.10 & 200일선 위",
+   "cond": "(dvb < 0.10) & (close > ma200)"
+  },
+  {
+   "label": "DVB<0.05",
+   "cond": "dvb < 0.05"
+  }
+ ],
+ "differs_from": "RSI2·IBS(H00xx 기각)와 달리 종가를 고저 중간값과 비교하고 252일 백분위(최소-최대 근사)로 정규화"
+}

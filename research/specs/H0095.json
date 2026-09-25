@@ -1,0 +1,32 @@
+{
+ "id": "H0095",
+ "market": "US",
+ "derive": {
+  "lt": "(close - rmin(low, 252)) / (rmax(high, 252) - rmin(low, 252) + 1e-9)",
+  "st": "1 - (close - rmin(low, 10)) / (rmax(high, 10) - rmin(low, 10) + 1e-9)",
+  "mr": "(lt + st) / 2",
+  "m": "rma(mr, 1.6667)"
+ },
+ "cond": "(m > 0.5) & (lag(m, 1) <= 0.5)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 10,
+ "variants": [
+  {
+   "label": "M>0.5 & 전일보다 낮음(추세 안 눌림)",
+   "cond": "(m > 0.5) & (m < lag(m, 1)) & (lt > 0.8)"
+  },
+  {
+   "label": "M 0.6 상향돌파",
+   "cond": "(m > 0.6) & (lag(m, 1) <= 0.6)"
+  },
+  {
+   "label": "M 0.55 상향",
+   "cond": "(m > 0.55) & (lag(m, 1) <= 0.55)"
+  }
+ ],
+ "differs_from": "단순 스토캐스틱·이평 눌림과 달리 장기 위치와 단기 역위치를 합성"
+}

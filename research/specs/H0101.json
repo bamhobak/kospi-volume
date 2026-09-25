@@ -1,0 +1,30 @@
+{
+ "id": "H0101",
+ "market": "US",
+ "derive": {
+  "pos": "(close - low) / (high - low + 1e-9)",
+  "opos": "(open - low) / (high - low + 1e-9)"
+ },
+ "cond": "(pos >= 0.75) & (opos >= 0.75) & (low <= rmin(low, 10))",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "상단 33%",
+   "cond": "(pos >= 0.67) & (opos >= 0.67) & (low <= rmin(low, 10))"
+  },
+  {
+   "label": "20일 신저가",
+   "cond": "(pos >= 0.75) & (opos >= 0.75) & (low <= rmin(low, 20))"
+  },
+  {
+   "label": "+ 폭이 평소보다 큼",
+   "cond": "(pos >= 0.75) & (opos >= 0.75) & (low <= rmin(low, 10)) & ((high - low) > 1.2 * rmean(high - low, 20))"
+  }
+ ],
+ "differs_from": "전일 고저 이탈 후 재진입·스윕(기각)과 달리 한 봉의 시가·종가 위치 + 10일 신저가"
+}

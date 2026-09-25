@@ -1,0 +1,30 @@
+{
+ "id": "H0140",
+ "market": "KR",
+ "derive": {
+  "amt": "close * volume",
+  "to21": "rmean(amt, 21) / (marcap + 1)"
+ },
+ "cond": "(xrank(to21) <= 0.3) & (xrank(ret20) <= 0.1)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 20,
+ "variants": [
+  {
+   "label": "저회전 20%",
+   "cond": "(xrank(to21) <= 0.2) & (xrank(ret20) <= 0.1)"
+  },
+  {
+   "label": "수익 하위 5%",
+   "cond": "(xrank(to21) <= 0.3) & (xrank(ret20) <= 0.05)"
+  },
+  {
+   "label": "저회전 40%",
+   "cond": "(xrank(to21) <= 0.4) & (xrank(ret20) <= 0.1)"
+  }
+ ],
+ "differs_from": "단순 1개월 반전(기각)과 달리 저회전 칸만"
+}

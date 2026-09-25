@@ -1,0 +1,30 @@
+{
+ "id": "H0229",
+ "market": "KR",
+ "derive": {
+  "ma25": "rmean(close, 25)",
+  "lsr": "(np.minimum(open, close) - low) / np.maximum(np.abs(close - open), 0.001 * close)"
+ },
+ "cond": "(lsr >= 2) & ((close < ma25) | (ret5 < -5))",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "비율 ≥ 5",
+   "cond": "(lsr >= 5) & ((close < ma25) | (ret5 < -5))"
+  },
+  {
+   "label": "양봉만",
+   "cond": "(lsr >= 2) & (close > open) & ((close < ma25) | (ret5 < -5))"
+  },
+  {
+   "label": "5일 -5% 한정",
+   "cond": "(lsr >= 2) & (ret5 < -5)"
+  }
+ ],
+ "differs_from": "IBS 역추세(기각)와 반대 방향(종가 위치 높음) — 긴 아래꼬리"
+}

@@ -1,0 +1,32 @@
+{
+ "id": "H0180",
+ "market": "US",
+ "derive": {
+  "ins": "(high < lag(high, 1)) & (low > lag(low, 1))",
+  "e8": "ema(close, 8)",
+  "e80": "ema(close, 80)",
+  "eden": "(e8 > lag(e8, 1)) & (e80 > lag(e80, 1))"
+ },
+ "cond": "(lag(low, 1) < lag(low, 2)) & (lag(low, 1) < low) & eden",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "셋째 봉 인사이드",
+   "cond": "(lag(low, 1) < lag(low, 2)) & (lag(low, 1) < low) & eden & ins"
+  },
+  {
+   "label": "에덴 없이",
+   "cond": "(lag(low, 1) < lag(low, 2)) & (lag(low, 1) < low)"
+  },
+  {
+   "label": "+ 셋째 봉 양봉",
+   "cond": "(lag(low, 1) < lag(low, 2)) & (lag(low, 1) < low) & eden & (close > open)"
+  }
+ ],
+ "differs_from": "원전은 셋째 봉 고가 돌파 체결 — 여기선 다음날 시가"
+}

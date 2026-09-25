@@ -1,0 +1,30 @@
+{
+ "id": "H0153",
+ "market": "KR",
+ "derive": {
+  "pc": "lag(close, 1)",
+  "r1": "(close / pc - 1) * 100"
+ },
+ "cond": "(r1 <= -5) & (volume < lag(volume, 1) / 1.9)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "-7% & 10일 최대 거래량 60% 미만 & 10일 안 +15%(B)",
+   "cond": "(r1 <= -7) & (volume < 0.6 * rmax(volume, 10)) & (lag(rmax(r1, 10), 1) >= 15)"
+  },
+  {
+   "label": "+ 60일선 위(역배열 제외)",
+   "cond": "(r1 <= -5) & (volume < lag(volume, 1) / 1.9) & (close > rmean(close, 60))"
+  },
+  {
+   "label": "-4% & 거래량 0.6배",
+   "cond": "(r1 <= -4) & (volume < 0.6 * lag(volume, 1))"
+  }
+ ],
+ "differs_from": "하루 폭락 반등(기각)과 달리 '거래량이 줄어든' 급락만"
+}

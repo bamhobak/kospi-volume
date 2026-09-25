@@ -1,0 +1,29 @@
+{
+ "id": "H0142",
+ "market": "KR",
+ "derive": {
+  "rel": "ret60 - u"
+ },
+ "cond": "(xrank(rel) <= 0.1) & (xrank(u) >= 0.3)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 20,
+ "variants": [
+  {
+   "label": "하위 5%",
+   "cond": "(xrank(rel) <= 0.05) & (xrank(u) >= 0.3)"
+  },
+  {
+   "label": "업종 조건 없음",
+   "cond": "xrank(rel) <= 0.1"
+  },
+  {
+   "label": "업종 상위 절반",
+   "cond": "(xrank(rel) <= 0.1) & (xrank(u) >= 0.5)"
+  }
+ ],
+ "differs_from": "시장 대비 단순 반전(기각)과 달리 업종 대비 잔차 + 업종은 멀쩡한 경우"
+}

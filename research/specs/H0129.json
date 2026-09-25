@@ -1,0 +1,29 @@
+{
+ "id": "H0129",
+ "market": "US",
+ "derive": {
+  "vr": "rmean(volume, 5) / (lag(rmean(volume, 250), 5) + 1)"
+ },
+ "cond": "xrank(vr) >= 0.9",
+ "holds": [
+  20,
+  40,
+  60
+ ],
+ "main_hold": 20,
+ "variants": [
+  {
+   "label": "상위 5%",
+   "cond": "xrank(vr) >= 0.95"
+  },
+  {
+   "label": "상위 20%",
+   "cond": "xrank(vr) >= 0.8"
+  },
+  {
+   "label": "하위 10%(저거래량 프리미엄)",
+   "cond": "xrank(vr) <= 0.1"
+  }
+ ],
+ "differs_from": "거래량 급증 돌파 추격(기각)과 달리 가격 조건 없는 거래량 단면 순위"
+}

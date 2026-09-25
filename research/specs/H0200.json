@@ -1,0 +1,27 @@
+{
+ "id": "H0200",
+ "market": "US",
+ "derive": {},
+ "cond": "(low >= open * 0.999) & (close > open)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "+ 200일선 위",
+   "cond": "(low >= open * 0.999) & (close > open) & (close > rmean(close, 200))"
+  },
+  {
+   "label": "+ 52주 고가 -10% 이내",
+   "cond": "(low >= open * 0.999) & (close > open) & (fromhi >= -10)"
+  },
+  {
+   "label": "양봉 조건 없음",
+   "cond": "low >= open * 0.999"
+  }
+ ],
+ "differs_from": "원전의 하룻밤 수익은 못 잰다 — 이후 며칠 지속만"
+}

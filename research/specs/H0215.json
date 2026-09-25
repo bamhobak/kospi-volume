@@ -1,0 +1,29 @@
+{
+ "id": "H0215",
+ "market": "KR",
+ "derive": {
+  "pc": "lag(close, 1)"
+ },
+ "cond": "(close < pc) & (su1 >= 3) & (su1 < 5)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "2.5~4배",
+   "cond": "(close < pc) & (su1 >= 2.5) & (su1 < 4)"
+  },
+  {
+   "label": "3~6배",
+   "cond": "(close < pc) & (su1 >= 3) & (su1 < 6)"
+  },
+  {
+   "label": "10배 이상(대조)",
+   "cond": "(close < pc) & (su1 >= 10)"
+  }
+ ],
+ "differs_from": "거래량 급증 돌파(상승일·기각)와 반대로 '하락일' 거래량 3~5배만"
+}

@@ -1,0 +1,34 @@
+{
+ "id": "H0207",
+ "market": "KR",
+ "derive": {
+  "ap": "ema((open + high + low + close) / 4, 2)",
+  "fa": "ema(ap, 12)",
+  "sl": "ema(ap, 26)",
+  "grn": "(fa > sl) & (ap > fa)",
+  "yel": "(fa > sl) & (ap < fa)",
+  "blu": "(fa < sl) & (ap > fa)"
+ },
+ "cond": "grn & ~lag(grn, 1)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 10,
+ "variants": [
+  {
+   "label": "노랑→초록(추세 재개)",
+   "cond": "grn & lag(yel, 1)"
+  },
+  {
+   "label": "파랑 첫날(선행)",
+   "cond": "blu & ~lag(blu, 1)"
+  },
+  {
+   "label": "초록 첫날 + 200일선 위",
+   "cond": "grn & ~lag(grn, 1) & (close > rmean(close, 200))"
+  }
+ ],
+ "differs_from": "50/60/200 교차(기각)와 같은 계통 — 12·26 EMA + 가격 위치로 구간을 나눔"
+}

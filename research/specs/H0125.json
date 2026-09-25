@@ -1,0 +1,27 @@
+{
+ "id": "H0125",
+ "market": "US",
+ "derive": {},
+ "cond": "(lag(low, 2) > lag(high, 3)) & (lag(high, 1) > lag(high, 2)) & (lag(low, 1) > lag(low, 2)) & (high > lag(high, 1)) & (low < lag(high, 1))",
+ "holds": [
+  10,
+  20,
+  40
+ ],
+ "main_hold": 20,
+ "variants": [
+  {
+   "label": "+ 종가가 전일 고가 위",
+   "cond": "(lag(low, 2) > lag(high, 3)) & (lag(high, 1) > lag(high, 2)) & (lag(low, 1) > lag(low, 2)) & (high > lag(high, 1)) & (low < lag(high, 1)) & (close > lag(high, 1))"
+  },
+  {
+   "label": "둘째 봉 조건 완화",
+   "cond": "(lag(low, 2) > lag(high, 3)) & (lag(high, 1) > lag(high, 2)) & (high > lag(high, 1)) & (low < lag(high, 1))"
+  },
+  {
+   "label": "+ 거래량 평균 위",
+   "cond": "(lag(low, 2) > lag(high, 3)) & (lag(high, 1) > lag(high, 2)) & (lag(low, 1) > lag(low, 2)) & (high > lag(high, 1)) & (low < lag(high, 1)) & (volume > rmean(volume, 20))"
+  }
+ ],
+ "differs_from": "Harris 3봉 지속 패턴 — 박스·신고가 돌파(기각)와 다른 구조"
+}

@@ -1,0 +1,32 @@
+{
+ "id": "H0178",
+ "market": "US",
+ "derive": {
+  "dup": "np.maximum(close - lag(close, 1), 0)",
+  "ddn": "np.maximum(lag(close, 1) - close, 0)",
+  "rsi2": "100 * rma(dup, 2) / (rma(dup, 2) + rma(ddn, 2) + 1e-12)",
+  "e99": "ema(close, 99)"
+ },
+ "cond": "(rsi2 < 5) & (close > e99)",
+ "holds": [
+  20,
+  40,
+  60
+ ],
+ "main_hold": 40,
+ "variants": [
+  {
+   "label": "RSI2<10",
+   "cond": "(rsi2 < 10) & (close > e99)"
+  },
+  {
+   "label": "RSI2≤25(브라질 주류)",
+   "cond": "(rsi2 <= 25) & (close > e99)"
+  },
+  {
+   "label": "RSI2<5 & 200일선",
+   "cond": "(rsi2 < 5) & (close > rmean(close, 200))"
+  }
+ ],
+ "differs_from": "Connors RSI2(기각)는 짧게 청산 — 이건 20~60일 길게 가져가는 판"
+}

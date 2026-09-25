@@ -1,0 +1,30 @@
+{
+ "id": "H0181",
+ "market": "KR",
+ "derive": {
+  "e8": "ema(close, 8)",
+  "e80": "ema(close, 80)"
+ },
+ "cond": "(low < lag(low, 1)) & (low < lag(low, 2)) & (close > lag(close, 1))",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 5,
+ "variants": [
+  {
+   "label": "+ 양봉",
+   "cond": "(low < lag(low, 1)) & (low < lag(low, 2)) & (close > lag(close, 1)) & (close > open)"
+  },
+  {
+   "label": "+ 에덴",
+   "cond": "(low < lag(low, 1)) & (low < lag(low, 2)) & (close > lag(close, 1)) & (e8 > lag(e8, 1)) & (e80 > lag(e80, 1))"
+  },
+  {
+   "label": "5봉 신저가",
+   "cond": "(low < lag(rmin(low, 5), 1)) & (close > lag(close, 1))"
+  }
+ ],
+ "differs_from": "전일 고저 이탈 후 재진입(기각)과 달리 신저가 + 종가 전일 초과를 한 봉 안에서"
+}
