@@ -1,0 +1,31 @@
+{
+ "id": "H0244",
+ "market": "KR",
+ "derive": {},
+ "cond": "(us20l5 >= 10) & ~islead & (ret20 <= secmed20) & (ret20 >= -10)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 10,
+ "variants": [
+  {
+   "label": "미장 +15%",
+   "cond": "(us20l5 >= 15) & ~islead & (ret20 <= secmed20) & (ret20 >= -10)"
+  },
+  {
+   "label": "5일 안 늦춤",
+   "cond": "(us20 >= 10) & ~islead & (ret20 <= secmed20) & (ret20 >= -10)"
+  },
+  {
+   "label": "덜 오른 조건 없음",
+   "cond": "(us20l5 >= 10) & ~islead & (ret20 >= -10)"
+  },
+  {
+   "label": "본인 20일 0 이하",
+   "cond": "(us20l5 >= 10) & ~islead & (ret20 <= 0) & (ret20 >= -10)"
+  }
+ ],
+ "differs_from": "국내 업종 안 후발주(H0238, 기각)와 달리 신호원이 미장 동종 업종"
+}

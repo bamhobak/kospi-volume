@@ -1,0 +1,31 @@
+{
+ "id": "H0239",
+ "market": "US",
+ "derive": {},
+ "cond": "dn60 & (xrank(vol20) <= 0.2) & (xrank(amt20) >= 0.9) & (ret20 >= -5)",
+ "holds": [
+  20,
+  40,
+  60
+ ],
+ "main_hold": 40,
+ "variants": [
+  {
+   "label": "변동성 하위 10%",
+   "cond": "dn60 & (xrank(vol20) <= 0.1) & (xrank(amt20) >= 0.9) & (ret20 >= -5)"
+  },
+  {
+   "label": "거래대금 상위 20%",
+   "cond": "dn60 & (xrank(vol20) <= 0.2) & (xrank(amt20) >= 0.8) & (ret20 >= -5)"
+  },
+  {
+   "label": "20일 조건 없음",
+   "cond": "dn60 & (xrank(vol20) <= 0.2) & (xrank(amt20) >= 0.9)"
+  },
+  {
+   "label": "+ 120일선 위",
+   "cond": "dn60 & (xrank(vol20) <= 0.2) & (xrank(amt20) >= 0.9) & (ret20 >= -5) & (dma120 > 0)"
+  }
+ ],
+ "differs_from": "매크로 노출 조절(기각)이 아니라 하락 국면에 종목 성격(저변동·대형)으로 고르는 매수 규칙"
+}

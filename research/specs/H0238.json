@@ -1,0 +1,31 @@
+{
+ "id": "H0238",
+ "market": "KR",
+ "derive": {},
+ "cond": "(secrank >= 0.7) & (lead3 >= 10) & ~islead & (ret20 <= secmed20) & (ret20 >= -10)",
+ "holds": [
+  10,
+  20,
+  40
+ ],
+ "main_hold": 20,
+ "variants": [
+  {
+   "label": "대장주 +15%",
+   "cond": "(secrank >= 0.7) & (lead3 >= 15) & ~islead & (ret20 <= secmed20) & (ret20 >= -10)"
+  },
+  {
+   "label": "업종 상위 20%",
+   "cond": "(secrank >= 0.8) & (lead3 >= 10) & ~islead & (ret20 <= secmed20) & (ret20 >= -10)"
+  },
+  {
+   "label": "대장주보다 10%p 이상 덜 오름",
+   "cond": "(secrank >= 0.7) & (lead3 >= 10) & ~islead & (ret20 <= lead3 - 10) & (ret20 >= -10)"
+  },
+  {
+   "label": "본인 20일 +3% 이하",
+   "cond": "(secrank >= 0.7) & (lead3 >= 10) & ~islead & (ret20 <= 3) & (ret20 >= -10)"
+  }
+ ],
+ "differs_from": "[업종붕괴 이탈](하락 업종 매수)의 상승 쪽 짝 · 급등 추격(기각)이 아니라 본인은 업종 중앙 이하로 덜 오른 종목"
+}
