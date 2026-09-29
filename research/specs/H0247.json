@@ -1,0 +1,39 @@
+{
+ "id": "H0247",
+ "market": "KR",
+ "derive": {},
+ "cond": "(att <= 0.5) & (zfrac <= 0.2) & (q_frgn20 > 0) & (fromhi >= -10)",
+ "holds": [
+  20,
+  40,
+  60
+ ],
+ "main_hold": 40,
+ "variants": [
+  {
+   "label": "관심 더 식음 0.3",
+   "cond": "(att <= 0.3) & (zfrac <= 0.2) & (q_frgn20 > 0) & (fromhi >= -10)"
+  },
+  {
+   "label": "관심 0.7",
+   "cond": "(att <= 0.7) & (zfrac <= 0.2) & (q_frgn20 > 0) & (fromhi >= -10)"
+  },
+  {
+   "label": "외인 대신 기관",
+   "cond": "(att <= 0.5) & (zfrac <= 0.2) & (q_org20 > 0) & (fromhi >= -10)"
+  },
+  {
+   "label": "고점 -15%",
+   "cond": "(att <= 0.5) & (zfrac <= 0.2) & (q_frgn20 > 0) & (fromhi >= -15)"
+  },
+  {
+   "label": "수급 조건 없음",
+   "cond": "(att <= 0.5) & (zfrac <= 0.2) & (fromhi >= -10)"
+  }
+ ],
+ "differs_from": "[외인 매집] P7·[조정매집] P2 와 달리 개인 관심(검색량) 식음이 핵심 조건",
+ "features": [
+  "q_frgn20",
+  "q_org20"
+ ]
+}

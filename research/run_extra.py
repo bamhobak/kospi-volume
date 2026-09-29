@@ -45,6 +45,14 @@ def add_cols(A, mk):
         dec = A.date[A.date.str[4:6] == "12"]
         lastdec = set(dec.groupby(dec.str[:4]).max().values)
         A["yend"] = A.date.isin(lastdec)
+        # 네이버 검색 관심도(trend_feat.py) — att·att7·zfrac (2016-11~)
+        ap = ROOT / "cache" / "naver_att.pkl"
+        if ap.exists():
+            N = pd.read_pickle(ap)
+            A.drop(columns=[c for c in ("att", "att7", "zfrac") if c in A.columns], inplace=True)
+            m = A[["ticker", "date"]].merge(N, on=["ticker", "date"], how="left")
+            for c in ("att", "att7", "zfrac"):
+                A[c] = m[c].values
         # 미장 업종 20일(짝 업종) — 미장 d 값은 다음 국내 거래일에 쓴다 (us_sector20.py 가 만든다)
         cp = ROOT / "cache" / "us_sec20.pkl"
         if cp.exists():
