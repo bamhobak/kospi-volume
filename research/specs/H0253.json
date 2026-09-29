@@ -1,0 +1,23 @@
+{
+ "id": "H0253",
+ "market": "KR",
+ "derive": {},
+ "cond": "(xrank(marcap) >= 0.8) & (xrank(ret5) <= 0.3) & (xrank(dma60) <= 0.3)",
+ "holds": [
+  20,
+  40,
+  60
+ ],
+ "main_hold": 40,
+ "variants": [
+  {
+   "label": "5일 하위 20%",
+   "cond": "(xrank(marcap) >= 0.8) & (xrank(ret5) <= 0.2) & (xrank(dma60) <= 0.3)"
+  },
+  {
+   "label": "시총 상위 10%",
+   "cond": "(xrank(marcap) >= 0.9) & (xrank(ret5) <= 0.3) & (xrank(dma60) <= 0.3)"
+  }
+ ],
+ "differs_from": "무작위 난사에서 나온 조합 — 기존 규칙은 낙폭·수급 중심, 이건 순위(백분위) 조합"
+}

@@ -1,0 +1,23 @@
+{
+ "id": "H0251",
+ "market": "KR",
+ "derive": {},
+ "cond": "(PBR > 0) & (xrank(PBR) <= 0.1) & (xrank(sr20) >= 0.8)",
+ "holds": [
+  20,
+  40,
+  60
+ ],
+ "main_hold": 40,
+ "variants": [
+  {
+   "label": "공매도 상위 10%",
+   "cond": "(PBR > 0) & (xrank(PBR) <= 0.1) & (xrank(sr20) >= 0.9)"
+  },
+  {
+   "label": "PBR 20%",
+   "cond": "(PBR > 0) & (xrank(PBR) <= 0.2) & (xrank(sr20) >= 0.8)"
+  }
+ ],
+ "differs_from": "무작위 난사에서 나온 조합 — 기존 규칙은 낙폭·수급 중심, 이건 순위(백분위) 조합"
+}
