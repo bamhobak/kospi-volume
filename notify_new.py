@@ -223,6 +223,12 @@ FILTERS = [
      and r.get("peadq") is not None and r["peadq"] >= 0.7
      and r.get("peadgap") is not None and r["peadgap"] >= 3
      and r.get("peadage") is not None and r["peadage"] <= 7),
+    # 분사(스핀오프)주 — spd = 분사 상장 후 거래일 수(collect_us_daily.py · 분사 목록은 collect_spinoff.py).
+    # 기관의 기계적 매도가 끝난 한 달 뒤 사서 250일 — 25~29일째(시세 25행 미만은 표에 안 올라온다).
+    # 유동성 조건 없음(백테스트도 없었다) · 트레일링·손절 없음(실측에서 손해) · 2026-09-29 채택.
+    ("N8", "분사주 (미장·250일 보유)",
+     lambda r: r.get("mk") == "US" and not r.get("pref") and (r.get("c") or 0) >= 3
+     and r.get("spd") is not None and 25 <= r["spd"] <= 29),
 ]
 
 LEGACY_ID = {1: "P0", 2: "P2", 3: "P3", 4: "P1"}          # 예전 숫자 id 호환

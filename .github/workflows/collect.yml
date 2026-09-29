@@ -282,6 +282,8 @@ jobs:
           MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
         run: |
           pip install yfinance
+          # 분사 목록(SEC 10-12B) — [분사주] N8 이 쓴다. 실패해도 커밋된 어제 목록으로 간다
+          python collect_spinoff.py || echo "::warning::분사 목록 갱신 실패 — 어제 목록 사용"
           python collect_us_daily.py
       # pipeline 이 site/ 를 지우는데 위 단계는 **푸시 빌드에서 건너뛴다**(6천 종목이라 느리다).
       # 그래서 코드를 한 번 푸시할 때마다 배포본에서 미장 표가 통째로 사라졌고, 다음 수집까지
@@ -314,7 +316,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           git config user.name "kospi-bot"; git config user.email "bot@users.noreply.github.com"
-          git add data/us/buyback_recent.csv data/us/earn_recent.csv data/20*.csv data/short_recent.csv data/dilution_recent.csv data/buyback_recent.csv data/insider_recent.csv data/credit_recent.csv data/sector.csv data/industry.csv data/valuation.csv data/vkospi.csv data/feargreed.csv
+          git add data/us/buyback_recent.csv data/us/earn_recent.csv data/us/spinoffs.csv data/20*.csv data/short_recent.csv data/dilution_recent.csv data/buyback_recent.csv data/insider_recent.csv data/credit_recent.csv data/sector.csv data/industry.csv data/valuation.csv data/vkospi.csv data/feargreed.csv
           if git diff --cached --quiet; then echo "바뀐 데이터 없음"; exit 0; fi
           git commit -m "data: $(TZ=Asia/Seoul date +%Y-%m-%d)"
           # ⚠ 2026-09-14: 전에는 `git pull --rebase ... && git push` 였다. pull 이 실패하면

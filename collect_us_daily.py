@@ -656,6 +656,23 @@ def main():
     else:
         log("  data/us/earn_recent.csv 없음 — [실적 서프라이즈] 는 쉰다")
 
+    # ── 분사주 목록 — collect_spinoff.py 가 만든 CSV. [분사주](N8) 가 쓴다 (2026-09-29) ──
+    #   spd = 분사 상장 후 **거래일 수**(오늘 포함) — 받아 온 시세의 행 수로 센다. 수집 창(430일) 안에서
+    #   새로 상장했고, 첫 10-12B 제출 후 365일 안에 상장한 종목만(백테스트 research/spinoff.py 와 같은 조건).
+    #   ⚠ 시세가 25행 미만이면 _shape 가 표에서 빼므로 규칙은 25~29일째에 산다(백테스트 21일째 · 11~61일째 모두 양수).
+    SPIN = {}
+    _sp = BASE / "data" / "us" / "spinoffs.csv"
+    if _sp.exists():
+        try:
+            _S = pd.read_csv(_sp, dtype=str).dropna(subset=["ticker"])
+            SPIN = dict(zip(_S.ticker.str.upper(), _S.first10))
+            log(f"  분사 목록 {len(SPIN):,}티커 (data/us/spinoffs.csv)")
+        except Exception as e:
+            log(f"  분사 CSV 읽기 실패 — [분사주] 는 쉰다: {e!r}"[:120])
+    else:
+        log("  data/us/spinoffs.csv 없음 — [분사주] 는 쉰다")
+    _start_ix = pd.Timestamp(start).strftime("%Y%m%d")
+
     WANT = wait_for_data(start)
 
     rows, dates, t0, fail = [], [], time.time(), 0
@@ -674,6 +691,16 @@ def main():
             if not dates or len(x.index) > len(dates):
                 dates = list(x.index[-NDAY:])
             if len(x.index): lastd.append(str(x.index[-1]))
+            spd = None
+            if s in SPIN and len(x.index):
+                _f = str(x.index[0]).replace("-", "")[:8]
+                try:
+                    _gap = (pd.Timestamp(_f) - pd.Timestamp(str(SPIN[s]))).days
+                except Exception:
+                    _gap = -1
+                if _f > (pd.Timestamp(_start_ix) + pd.Timedelta(days=10)).strftime("%Y%m%d") and 0 <= _gap <= 365:
+                    spd = int(len(x.index))
+            m["spd"] = spd
             m.update(t=s, n=str(NM.get(s, s)), mk="US", ex=str(MK.get(s, "")),
                      pref=False, th=[],
                      cap=(round(SHR[s] * m["c"] / 1e6, 1) if SHR.get(s) and m.get("c") else None))

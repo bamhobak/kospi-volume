@@ -87,7 +87,9 @@ SAFE = {"mk","pref","ticker","name","close","change","th","vols","avg","total","
         # (collect_us_daily.py 가 data/us/earn_recent.csv 를 읽어 만든다).
         "peadq","peadgap","peadage","peade","peadd",   # nh5·qnew 는 미장 수집기의 이벤트 플래그(대부분의 날 전부 False 가 정상), usliq 는 화면·알림이 매기는 유동성 플래그
         # su1 도 매핑 필드다 — 미장은 su1, 한국 표는 vs1 을 prep 에서 합쳐 쓴다.
-        "su1"}
+        "su1",
+        # spd 는 미장 표에만 있다 — [분사주] 가 쓴다(분사 상장 후 거래일 수). 아래에서 미장 표로 따로 본다.
+        "spd"}
 # 이벤트성 필드는 '오늘 그 일이 있었나' 라서 값이 전부 비어도 정상일 수 있다
 # (bb 는 마지막 거래일 당일 자사주 공시만 켠다 — 공시 없는 날이 대부분이다).
 # 그래서 이 필드들은 table.json 이 아니라 원본 파일이 비었는지로 판단한다.
@@ -105,6 +107,17 @@ for f in sorted(used - SAFE - set(EVENT)):
     if all(v in (None, 0, False, "") for v in vals): dead.append(f)
 (ok if not dead else ng)("규칙이 쓰는 필드가 살아 있다" if not dead
                         else f"값이 전부 빈 필드 {dead} — 수집 실패")
+# [분사주] spd — 분사 목록이 있는데 미장 표에 spd 가 하나도 없으면 연결이 끊긴 것이다(2026-09-29)
+try:
+    _us = json.loads((BASE / "site" / "data" / "table_us.json").read_text(encoding="utf-8"))
+    _nsp = sum(1 for r in _us.get("rows", []) if r.get("spd") is not None)
+    _spf = BASE / "data" / "us" / "spinoffs.csv"
+    _nlist = max(sum(1 for _ in _spf.open(encoding="utf-8")) - 1, 0) if _spf.exists() else 0
+    if _nlist and not _nsp: ng(f"분사 목록 {_nlist}줄인데 미장 표에 spd 가 0종목 — [분사주] 가 조용히 죽는다")
+    elif _nsp: ok(f"[분사주] 추적 중인 분사주 {_nsp}종목(spd)")
+    else: warn("분사 목록이 없다(data/us/spinoffs.csv) — [분사주] 는 쉰다")
+except Exception as e:
+    warn(f"spd 확인 실패: {e}")
 
 print("\n## 2) 사이트와 알림이 같은 종목을 뽑는가 (실행 비교)")
 try:
