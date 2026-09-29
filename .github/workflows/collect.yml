@@ -95,10 +95,19 @@ jobs:
         run: |
           OK=$(python is_trading_day.py)
           # 수동 실행은 inputs.force, 외부 스케줄러는 client_payload.force 로 강제할 수 있다
-          if [ "${{ inputs.force }}" = "true" ] || [ "${{ github.event.client_payload.force }}" = "true" ]; then
-            OK=true; echo "force 입력 — 휴장일이어도 수집"
+          # ⚠ 2026-09-29: 14:30 아침 보충(cron-job.org · force:true)이 국내 장중에 국내 단계를 다 돌려
+          #   밸류에이션이 2시간 42분 걸렸다(평소 5분). 장 마감(16시) 전엔 국내 새 거래일이 없으니
+          #   **스케줄러의 force 는 16시 전엔 무시**한다 — 못 받은 날이 있으면 위 판정이 이미 true 다.
+          #   수동 실행(inputs.force)은 그대로 따른다.
+          H=$(date +%H)
+          if [ "${{ inputs.force }}" = "true" ]; then
+            OK=true; echo "force 입력(수동) — 휴장일이어도 수집"
+          elif [ "${{ github.event.client_payload.force }}" = "true" ]; then
+            if [ "$H" -ge 16 ]; then OK=true; echo "force 입력 — 휴장일이어도 수집"
+            else echo "스케줄러 force 무시 — ${H}시는 국내 장 마감 전(국내는 판정대로: $OK)"; fi
           fi
           echo "trading=$OK" >> $GITHUB_OUTPUT
+          echo "start_hour=$H" >> $GITHUB_OUTPUT
           echo "수집 여부: $OK"
       # 푸시(코드 변경)는 수집을 건너뛰고 빌드·배포만 한다.
       # 데이터 수집은 스케줄(평일 18:30)과 수동 실행에서만 — 하루 한 번이면 충분하다.
@@ -227,6 +236,24 @@ jobs:
             fi
           done
           [ "$bad" -eq 0 ] || echo "::warning::빈 파일 ${bad}건을 되돌렸다 — 수집 로그를 확인할 것"
+      # ⚠ 2026-09-29: 수집 실행은 **시작할 때의 코드**로 빌드·배포한다. 14:30 실행이 밸류에이션에
+      #   묶여 3시간 반 도는 사이 코드 푸시 두 번(1.0.63·1.0.64 · [분사주] 규칙 포함)이 배포됐는데,
+      #   끝에 옛 코드로 1.0.65 를 올려 **새 규칙을 사이트에서 지웠다**. 빌드 직전에 원격의 새 코드를
+      #   받는다 — data/·site/ 는 방금 수집한 게 더 새로우니 건드리지 않는다.
+      - name: 빌드 전에 코드만 최신으로 (긴 수집 중 들어온 푸시 반영)
+        if: github.event_name != 'push'
+        run: |
+          git fetch -q --depth=1 origin main || { echo "::warning::원격을 못 받았다 — 시작 코드로 빌드"; exit 0; }
+          NEW=$(git rev-parse FETCH_HEAD); OLD=$(git rev-parse HEAD)
+          if [ "$NEW" = "$OLD" ]; then echo "코드 그대로 ($OLD)"; exit 0; fi
+          FILES=$(git diff --name-only "$OLD" "$NEW" -- . ':(exclude)data/**' ':(exclude)site/**' ':(exclude)research/**' || true)
+          if [ -z "$FILES" ]; then echo "새 커밋은 데이터뿐 — 코드 그대로"; exit 0; fi
+          echo "새 코드 반영 ($OLD → $NEW):"; echo "$FILES"
+          for f in $FILES; do
+            if git cat-file -e "$NEW:$f" 2>/dev/null; then git checkout "$NEW" -- "$f"; else rm -f "$f"; fi
+          done
+          # 스테이징은 풀어 둔다 — 아래 데이터 커밋이 코드를 같이 담으면 안 된다(재얹기는 --autostash 로 넘는다).
+          git reset -q
       - name: build site (CSV + JSON)
         env: { TZ: Asia/Seoul }
         run: python pipeline.py --no-collect
@@ -328,7 +355,7 @@ jobs:
             if git push; then echo "데이터 커밋 성공 (${i}회차 · 경합 없음)"; exit 0; fi
             echo "원격이 앞섰다 — 깊이를 늘려 다시 얹는다 (${i}회차)"
             git fetch --deepen=50 origin main 2>/dev/null               || git fetch --unshallow origin 2>/dev/null || git fetch origin main || true
-            if git pull --rebase -X theirs origin main && git push; then
+            if git pull --rebase --autostash -X theirs origin main && git push; then
               echo "데이터 커밋 성공 (${i}회차 · 재얹기)"; exit 0
             fi
             git rebase --abort 2>/dev/null || true
@@ -353,7 +380,9 @@ jobs:
       - name: 수집 확인 (표 기준일이 지수 달력과 맞나)
         id: fresh
         if: github.event_name != 'push'
-        env: { TZ: Asia/Seoul }
+        env:
+          TZ: Asia/Seoul
+          RUN_START_HOUR: ${{ steps.td.outputs.start_hour }}
         run: python check_fresh.py
       # 화면의 '묵음' 경보는 모바일에서 감췄다(2026-09-18 요청). 그 경보를 여기로 옮긴다 —
       # 폰으로 보는 시간이 대부분이라 알림이 아니면 사실상 아무도 안 본다.

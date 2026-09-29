@@ -17,12 +17,14 @@
 "그날은 장이 없었다" 를 가를 수 있다. 우리 파일끼리 견주면 둘 다 틀렸을 때 못 잡는다.
 
 ⚠ 장 마감 전에 도는 실행(아침 보충 등)은 오늘치가 없는 게 정상이다. 그때는 지수에도
-   오늘이 없으므로 이 검사는 저절로 통과한다 — 시각으로 예외를 두지 않는다.
+   오늘이 없으므로 이 검사는 저절로 통과한다. 단 16시 전에 시작해 16시를 넘겨 끝난 실행은
+   RUN_START_HOUR 로 알아보고, 어제까지 있으면 경고만 한다(2026-09-29 헛경보).
 
     python check_fresh.py          # 문제가 있으면 exit 1
     python check_fresh.py --warn   # 알리기만 하고 통과(초기 관찰용)
 """
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -81,7 +83,23 @@ else:
     ours = dates[-1] if dates else None
     want = last_index_day()
     say("  국내  표 %s · 지수 %s" % (ours, want))
-    if want and ours and ours < want:
+    # ⚠ 2026-09-29: 장 마감(16시) **전에 시작한** 실행이 16시를 넘겨 끝나면, 끝날 때 지수 달력엔
+    #   오늘이 생겨 있어 '묵었다' 로 빨간불·텔레그램이 났다(14:30 아침 보충이 17:57 에 끝남).
+    #   그 실행은 처음부터 오늘 국내가 대상이 아니다 — 오늘 몫은 저녁 수집이 채운다. 경고만 한다.
+    import datetime as _dt
+    _now = _dt.datetime.now(_dt.timezone(_dt.timedelta(hours=9)))
+    _sh = os.environ.get("RUN_START_HOUR", "")
+    early = _sh.isdigit() and int(_sh) < 16 and want == _now.strftime("%Y%m%d")
+    if early:                                  # 면제는 '어제까지는 있다' 일 때만 — 며칠 묵은 건 그대로 잡는다
+        try:
+            from index_cal import naver_days
+            prev = max(d for d in naver_days() if d < want)
+            early = bool(ours) and ours >= prev
+        except Exception:
+            early = False
+    if want and ours and ours < want and early:
+        say("::warning::국내 표 %s · 지수 %s — 이 실행은 %s시(장 마감 전) 시작이라 오늘 국내는 저녁 수집 몫이다" % (ours, want, _sh))
+    elif want and ours and ours < want:
         BAD.append("국내 표가 묵었다 — 표 %s 인데 지수는 %s 까지 있다" % (ours, want))
     elif not ours:
         BAD.append("국내 표에 거래일이 없다")
