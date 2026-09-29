@@ -144,3 +144,6 @@ data/us/fin_dead.pkl
 data/us/buyback_dead.pkl
 data/us/*.log
 data/toss_corrupt_*.db
+
+data/naver_trend.db
+data/naver_trend_quota.json
