@@ -222,7 +222,10 @@ FILTERS = [
      and r.get("usliq") is True and (r.get("c") or 0) >= 3
      and r.get("peadq") is not None and r["peadq"] >= 0.7
      and r.get("peadgap") is not None and r["peadgap"] >= 3
-     and r.get("peadage") is not None and r["peadage"] <= 7),
+     and r.get("peadage") is not None and r["peadage"] <= 7
+     # 2026-09-30 좁힘(H0260): 신호일 기준 3달 전 대비 -20%↑ 빠졌다 하락분의 1/4↑ 회복한 상태만
+     and r.get("peaddn") is not None and r["peaddn"] >= 20
+     and r.get("peadrc") is not None and 0.25 <= r["peadrc"] < 1),
     # 분사(스핀오프)주 — spd = 분사 상장 후 거래일 수(collect_us_daily.py · 분사 목록은 collect_spinoff.py).
     # 기관의 기계적 매도가 끝난 한 달 뒤 사서 250일 — 25~29일째(시세 25행 미만은 표에 안 올라온다).
     # 유동성 조건 없음(백테스트도 없었다) · 트레일링·손절 없음(실측에서 손해) · 2026-09-29 채택.

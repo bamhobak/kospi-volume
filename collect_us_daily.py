@@ -455,6 +455,12 @@ def metrics(x, bbdates=None, edates=None):
     #   ⚠ 수집이 주 1회라 신호가 며칠 늦는다. 실측(us_pead_delay.py)에서 **D+7 까지는
     #     성적이 사실상 그대로**였고 D+8 부터 꺾였다 — 그래서 사이트 규칙이 peadage<=7 을 본다.
     peade = peadd = peadgap = peadage = None
+    # [실적 서프라이즈] 좁히기 재료(2026-09-30 · H0260 · research/rule_retrace.py) — **신호일(peadd) 기준**
+    #   peaddn = 신호일의 60거래일 전 종가 대비, 그 뒤 신호일까지 최저 종가의 하락폭(%)
+    #   peadrc = 신호일 종가가 그 하락분의 몇 할을 회복했나(0 = 바닥, 1 = 60일 전 가격)
+    #   규칙은 peaddn>=20 & 0.25<=peadrc<1 — 크게 얻어맞았다 회복 중인 종목의 서프라이즈만 산다.
+    #   오늘이 아니라 신호일 값인 이유: 신호가 7거래일까지 유효해서, 오늘 값으로 재면 실측과 달라진다.
+    peaddn = peadrc = None
     if edates is not None and len(edates) and n >= 3:
         _idx = [str(z)[:10].replace('-', '') for z in x.index]
         _ed = sorted(set(str(z) for z in edates))
@@ -466,6 +472,10 @@ def metrics(x, bbdates=None, edates=None):
             peadd = _idx[_k]
             peadgap = round((c[_k] / c[_k - 1] - 1) * 100, 2) if c[_k - 1] else None
             peadage = int(len(_idx) - 1 - _k)
+            if _k >= 60 and c[_k - 60]:
+                _b = float(c[_k - 60]); _lo = float(np.nanmin(c[_k - 60:_k + 1]))
+                peaddn = round((1 - _lo / _b) * 100, 1)
+                peadrc = round((float(c[_k]) - _lo) / (_b - _lo), 3) if _b > _lo else None
             break
     ch = round(c[-1] - c[-2], 2) if n >= 2 else None
     return dict(
@@ -489,6 +499,7 @@ def metrics(x, bbdates=None, edates=None):
         absr=round(absr, 3) if absr is not None else None,
         qnew=qnew, qage=qage,
         peade=peade, peadd=peadd, peadgap=peadgap, peadage=peadage,
+        peaddn=peaddn, peadrc=peadrc,
         above20=round(above, 1) if above is not None else None,
         v=[int(z) if z == z else 0 for z in v[-NDAY:]],
     )
