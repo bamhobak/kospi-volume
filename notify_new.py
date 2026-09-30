@@ -61,6 +61,10 @@ if _up.exists():
         cut = cand[min(len(cand) - 1, int(len(cand) * 0.4))]['amt20']
         for r in cand:
             if r['amt20'] >= cut: r['usliq'] = True
+    # 거래 주식 수 백분위(거래대금 상위 40% 안, 오늘 거래량) — [상승장 신고가] 좁힘(2026-09-30 · H0261). 화면 markUS 와 같은 정의.
+    _liq = sorted([r for r in usrows if r['usliq'] and (r.get('v') or [None])[-1] is not None], key=lambda r: r['v'][-1])
+    for r in usrows: r['usvq'] = None
+    for _i, r in enumerate(_liq): r['usvq'] = (_i + 1) / len(_liq)
     rows = rows + usrows
     print('미장 %d종목 · 유동성 상위40%% %d · 조용한 신고가 진입 %d · S&P 60일선 위 %s'
           % (len(usrows), sum(1 for r in usrows if r['usliq']), sum(1 for r in usrows if r.get('nh5') and (r.get('remo') or 999) <= 100), us_reg.get('up60')))
@@ -178,6 +182,7 @@ FILTERS = [
      # 가격이 죽은 종목 제외 — 인수 합의로 인수가에 못 박힌 것·SPAC·우선주
      and not (r.get("pinr") is not None and r["pinr"] < 0.5
               and r.get("hl20") is not None and r["hl20"] < 8)
+     and r.get("usvq") is not None and r["usvq"] >= 0.8       # 2026-09-30 좁힘: 거래 주식 수 상위 20%
      and bool(us_reg.get("up60"))),
     ("N2", "낙폭과대 (20일 보유)",
      lambda r: r.get("mk") == "US" and not r.get("pref")
