@@ -1081,7 +1081,10 @@ function renderCards(rows){
     /* 국장·미장을 따로 밝힌다(2026-09-29 요청). 미장은 **장이 시작한 날**(미국 날짜)로 적는다 —
        미국 9/28(월) 장은 한국 9/28 밤 10시~9/29 새벽 5시지만 사용자 기준은 '9/28 장'이다. */
     const ud=raw.usAsof||'';
-    const parts=[dd?`국장 ${mdShort(dd)}`:'',ud?`미장 ${mdShort(ud)}`:''].filter(Boolean);
+    /* 미장 표(4MB)는 첫 화면 뒤에 배경으로 온다 — 받는 동안 날짜를 빼 버리면 '미장은 안 모으나' 로 보인다
+       (2026-09-30 사용자 신고). 받는 중·실패를 그대로 적는다. 도착하면 render 가 다시 불려 날짜로 바뀐다. */
+    const us=ud?`미장 ${mdShort(ud)}`:(raw.usFail?'미장 자료 못 받음':'미장 불러오는 중…');
+    const parts=[dd?`국장 ${mdShort(dd)}`:'',us].filter(Boolean);
     const on=parts.length?`현재[${parts.join(' · ')}] 조건`:'현재 조건';
     box.innerHTML=`<div class="empty" style="margin-top:60px">${cur==='all'?on+'을 만족한 종목이 없습니다.':on+'으로 이 규칙에 걸린 종목이 없습니다.'}<div style="font-size:12px;margin-top:8px;color:var(--faint)">신호가 없는 날이 더 많습니다.</div></div>`;return}
   box.innerHTML=rows.map(r=>{
@@ -2121,6 +2124,7 @@ async function loadUS(quiet){
        uscal.json 은 같은 수집이 만드는 작은 파일이고 Date.now() 로 늘 새로 받으므로
        그 updated 를 키로 쓰면 미장이 갱신될 때만 정확히 새로 받는다(2026-09-11). */
     const uv=(raw.uscal&&raw.uscal.updated)||raw.updated||'';
+    raw.usFail=false;
     const d=await (await fetch('data/table_us.json?v='+uv)).json();
     const z=new Array((raw.dates||[]).length).fill(0);
     USROWS=(d.rows||[]).map(r=>Object.assign({fr:null,i:z,o:z,f:z,streak:0,per:null,pbr:null,pcr:null,dy:null},r));
@@ -2129,7 +2133,7 @@ async function loadUS(quiet){
        (2026-09-10 발견 — 알림은 2건인데 화면은 0 이었다). */
     raw.us=d.us||null;
     raw.usUpdated=d.updated||''; raw.usAsof=d.asof||((d.dates||[]).slice(-1)[0])||''; raw.rows=raw.rows.concat(USROWS); prep();
-  }catch(e){USROWS=null;
+  }catch(e){USROWS=null;raw.usFail=true;
     /* 배경으로 받는 중이면 조용히 넘어간다 — 미장 자료가 없다고 매번 경고창이 뜨면 안 된다.
        탭을 눌러 직접 요청했을 때만 알린다. */
     if(!quiet)alert('미장 자료를 받지 못했습니다: '+e.message)}
