@@ -56,6 +56,7 @@ const RULES: Record<string, { stop: number | null; trail?: number | null; target
   P5: { stop: null, target: null, hold: 10 },
   P6: { stop: null, target: null, hold: 5 },
   P7: { stop: null, target: null, hold: 60 },
+  P8: { stop: null, target: null, hold: 10 },   // [자사주 신탁 급락] — 공통 (2026-10-02)
   D1: { stop: null, target: null, hold: 20 },
   D2: { stop: null, target: null, hold: 40 },
   N1: { stop: null, target: null, hold: 40 },   // [상승장 신고가] — 미장 전용
@@ -65,17 +66,18 @@ const RULES: Record<string, { stop: number | null; trail?: number | null; target
   N5: { stop: null, target: null, hold: 60 },   // [잔잔한 급등주] — 미장
   N6: { stop: null, target: null, hold: 60 },   // [실적 서프라이즈] — 미장 (2026-09-15)
   N8: { stop: null, target: null, hold: 250 },  // [분사주] — 미장 (2026-09-29)
+  N9: { stop: null, target: null, hold: 40 },   // [S&P 편출] — 미장 (2026-10-02)
   P0: { stop: null, target: 0.20, hold: 10 },   // 폐기된 옛 P1 — 이력 보존용
 };
 const LEGACY: Record<string, string> = { "1": "P0", "2": "P2", "3": "P3", "4": "P1" };
 // 알림에는 내부 id 대신 이름을 쓴다 — 화면의 번호는 사용자가 순서를 바꾸면 달라지기 때문
 const RNAME: Record<string, string> = {
   P1: "조용한 신고가", P2: "조정매집", P3: "폭락반등", P4: "업종붕괴 이탈",
-  P5: "자사주 낙폭", P6: "깊은 이격", P7: "외인 매집",
+  P5: "자사주 낙폭", P6: "깊은 이격", P7: "외인 매집", P8: "자사주 신탁 급락",
   D1: "낙폭과대", D2: "저PBR 낙폭", P0: "옛 상승초입(폐기)",
   N1: "상승장 신고가",
   N2: "낙폭과대", N3: "저PBR 낙폭", N4: "자사주 낙폭", N5: "잔잔한 급등주",
-  N6: "실적 서프라이즈", N8: "분사주",
+  N6: "실적 서프라이즈", N8: "분사주", N9: "S&P 편출",
 };
 
 const num = (s: unknown): number | null => {

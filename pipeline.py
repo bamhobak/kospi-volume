@@ -357,6 +357,18 @@ def buyback_flags(last_date):
             if r["rcept_dt"] == last_date: out.add(r["ticker"])
     return out
 
+def trust_flags(last_date, prev_date):
+    """자사주취득 **신탁계약 체결** 공시가 '오늘 신호' 인 종목 (data/disc_watch.csv · collect_disc_watch.py · 2026-10-02 P8).
+       실측(research/tighten2.py)의 신호일 = 공시일 당일 또는 그 뒤 첫 거래일 → 직전 거래일 다음 날~오늘 공시를 켠다
+       (주말·휴일 공시는 다음 거래일 신호). 진입은 다음날 시가."""
+    f = DATA / "disc_watch.csv"
+    if not f.exists(): return set()
+    out = set()
+    with open(f, encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            if r.get("kind") == "신탁" and prev_date < r["rcept_dt"] <= last_date: out.add(r["ticker"])
+    return out
+
 def credit_chg20():
     """신용잔고 20일 증감률 (data/credit_recent.csv) — [폭락반등] 이 쓴다.
        폭락 후 신용잔고가 줄었다는 건 반대매매·손절이 이미 나와 매물이 소화됐다는 뜻이다.
@@ -462,6 +474,7 @@ def build_site():
     SF = short_flags(dates)
     DILU = dilution_flags(dates[-1])
     BB = buyback_flags(dates[-1])
+    BBT = trust_flags(dates[-1], dates[-2] if len(dates) >= 2 else dates[-1])   # P8 자사주 신탁 급락
     CRC = credit_chg20()
     print(f"신용잔고 20일 증감: {len(CRC):,}종목")
     INS = insider_counts(dates)
@@ -520,6 +533,7 @@ def build_site():
         closes = [x[1] for x in s["rows"] if x[1]]
         ret3 = round((closes[-1] / closes[-4] - 1) * 100, 2) if len(closes) >= 4 and closes[-4] else None   # 최근 3거래일 주가 변화율
         ret10 = round((closes[-1] / closes[-11] - 1) * 100, 2) if len(closes) >= 11 and closes[-11] else None  # 최근 10거래일
+        ret5 = round((closes[-1] / closes[-6] - 1) * 100, 2) if len(closes) >= 6 and closes[-6] else None     # 최근 5거래일(P8)
         # ── 3번 필터(폭락 반등)용 ──────────────────────────────
         ret20 = round((closes[-1] / closes[-21] - 1) * 100, 2) if len(closes) >= 21 and closes[-21] else None  # 최근 20거래일
         ret60 = round((closes[-1] / closes[-61] - 1) * 100, 2) if len(closes) >= 61 and closes[-61] else None  # 업종 60일 수익률 집계용
@@ -583,7 +597,7 @@ def build_site():
                 ma = sum(closes[i - 19:i + 1]) / 20
                 if closes[i] > ma: hit += 1
             above20 = round(hit / n * 100, 1)
-        table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2], "streak": streak, "ret3": ret3, "ret10": ret10,
+        table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2], "streak": streak, "ret3": ret3, "ret5": ret5, "ret10": ret10,
                       "ret20": ret20, "ret60": ret60, "fromhi": fromhi, "fromlo": fromlo, "fw5": fw5, "vol20": vol20, "ret2y": ret2y, "ret250": ret250, "above20": above20, "fw20": fw20, "ow60": ow60, "dev25": dev25, "dma20": dma20, "mdd60": mdd60, "r1m": r1m, "r3m": r3m, "r6m": r6m, "r1y": r1y, "vs1": vs1, "fw60": fw60, "amt20": amt20, "ow20": ow20, "disc": disc,
                       "aw": aw, "a1": a1, "a6": a6 if n6 >= W_BASE // 2 else None,
                       "amt": round(amt1 / 1e8, 2) if amt1 else None, "cap": s.get("cap"), "pref": s["ticker"][-1] != "0", "mk": s.get("mkt", "KOSPI"),
@@ -593,6 +607,7 @@ def build_site():
                       "srDown": (SF.get(s["ticker"]) or {}).get("srDown"),
                       "dilu": s["ticker"] in DILU,
                       "bb": s["ticker"] in BB,
+                      "bbt": s["ticker"] in BBT,
                       "ins60": INS.get(s["ticker"], 0),
                       "crc": CRC.get(s["ticker"]),
                       "dbt": DBT.get(s["ticker"]),

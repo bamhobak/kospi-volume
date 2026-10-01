@@ -683,6 +683,18 @@ def main():
     else:
         log("  data/us/spinoffs.csv 없음 — [분사주] 는 쉰다")
     _start_ix = pd.Timestamp(start).strftime("%Y%m%d")
+    # ── S&P 500 편출 목록 — collect_sp500.py 가 만든 CSV. [S&P 편출](N9) 가 쓴다 (2026-10-02) ──
+    #   spdel    = 편출일(효력일) 다음 거래일부터 오늘까지 거래일 수 — 규칙은 21~23일째에 산다(백테스트 +21일 진입)
+    #   spdelret = 편출일 종가 대비 오늘 종가 등락(%) — 규칙은 0% 이하(편출 뒤 아직 안 오른 종목)만
+    SPDEL = {}
+    _sd = BASE / "data" / "us" / "sp500" / "removed.csv"
+    if _sd.exists():
+        try:
+            _R = pd.read_csv(_sd, dtype=str).dropna(subset=["ticker", "date"])
+            SPDEL = {t.upper(): d for t, d in zip(_R.ticker, _R.date)}
+            log(f"  S&P 편출 목록 {len(SPDEL):,}티커 (data/us/sp500/removed.csv)")
+        except Exception as e:
+            log(f"  S&P 편출 CSV 읽기 실패 — [S&P 편출] 은 쉰다: {e!r}"[:120])
 
     WANT = wait_for_data(start)
 
@@ -712,6 +724,17 @@ def main():
                 if _f > (pd.Timestamp(_start_ix) + pd.Timedelta(days=10)).strftime("%Y%m%d") and 0 <= _gap <= 365:
                     spd = int(len(x.index))
             m["spd"] = spd
+            spdel = spdelret = None
+            if s in SPDEL and len(x.index):
+                _ix = [str(z)[:10].replace("-", "") for z in x.index]
+                _e = SPDEL[s]
+                _before = [k for k, d0 in enumerate(_ix) if d0 <= _e]
+                if _before and _ix[-1] > _e:
+                    _k = _before[-1]
+                    spdel = int(sum(1 for d0 in _ix if d0 > _e))
+                    _c = x["Close"].astype(float).values
+                    spdelret = round((_c[-1] / _c[_k] - 1) * 100, 2) if _c[_k] else None
+            m["spdel"], m["spdelret"] = spdel, spdelret
             m.update(t=s, n=str(NM.get(s, s)), mk="US", ex=str(MK.get(s, "")),
                      pref=False, th=[],
                      cap=(round(SHR[s] * m["c"] / 1e6, 1) if SHR.get(s) and m.get("c") else None))

@@ -324,6 +324,12 @@ jobs:
           fi
       # 최근 5거래일은 Massive(옛 Polygon) 전 종목 일봉으로 덮는다 — 야후가 전날 종가를 늦게 채우는 날이
       # 있어서다(2026-09-23: 장 마감 16.5시간 뒤에도 09-22 종가 없음 → 미장 표 묵음). 무료 플랜 · 분당 5콜 · 호출 5번.
+      # S&P 500 편출 감시(2026-10-02) — SPY 일일 보유종목 차이 → data/us/sp500/removed.csv. [S&P 편출](N9) 재료.
+      # 미장 수집 **앞에** 돈다(collect_us_daily 가 이 목록으로 spdel 을 센다). 실패해도 미장 수집은 그대로 간다.
+      - name: S&P 500 편출 감시 (SPY 보유종목)
+        if: github.event_name != 'push'
+        continue-on-error: true
+        run: python collect_sp500.py
       - name: collect US (미장 전체 조회용)
         if: github.event_name != 'push'
         continue-on-error: true
@@ -366,7 +372,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           git config user.name "kospi-bot"; git config user.email "bot@users.noreply.github.com"
-          git add data/disc_watch.csv data/shadow/ data/attn_watch.csv data/naver_watch_quota.json data/us/buyback_recent.csv data/us/earn_recent.csv data/us/spinoffs.csv data/20*.csv data/short_recent.csv data/dilution_recent.csv data/buyback_recent.csv data/insider_recent.csv data/credit_recent.csv data/sector.csv data/industry.csv data/valuation.csv data/vkospi.csv data/feargreed.csv
+          git add data/disc_watch.csv data/us/sp500/removed.csv data/us/sp500/spy_last.csv data/shadow/ data/attn_watch.csv data/naver_watch_quota.json data/us/buyback_recent.csv data/us/earn_recent.csv data/us/spinoffs.csv data/20*.csv data/short_recent.csv data/dilution_recent.csv data/buyback_recent.csv data/insider_recent.csv data/credit_recent.csv data/sector.csv data/industry.csv data/valuation.csv data/vkospi.csv data/feargreed.csv
           if git diff --cached --quiet; then echo "바뀐 데이터 없음"; exit 0; fi
           git commit -m "data: $(TZ=Asia/Seoul date +%Y-%m-%d)"
           # ⚠ 2026-09-14: 전에는 `git pull --rebase ... && git push` 였다. pull 이 실패하면

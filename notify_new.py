@@ -175,6 +175,11 @@ FILTERS = [
      lambda r: not r["pref"] and r.get("bb") is True
      and r.get("r3m") is not None and r["r3m"] <= -20
      and kospi.get("up60") is False),
+    # 자사주 신탁 급락 — bbt = 오늘 신호인 자사주취득 신탁계약 체결 공시(pipeline · data/disc_watch.csv) · 2026-10-02 채택(H0271)
+    ("P8", "자사주 신탁 급락 (공통·10일 보유)",
+     lambda r: not r["pref"] and r.get("bbt") is True
+     and r.get("ret20") is not None and r["ret20"] <= -10
+     and r.get("ret5") is not None and r["ret5"] <= -10),
     ("N1", "상승장 신고가 (미장·40일 보유)",
      lambda r: r.get("mk") == "US" and not r.get("pref")
      and r.get("usliq") is True and r.get("nh5") is True
@@ -237,6 +242,11 @@ FILTERS = [
     ("N8", "분사주 (미장·250일 보유)",
      lambda r: r.get("mk") == "US" and not r.get("pref") and (r.get("c") or 0) >= 3
      and r.get("spd") is not None and 25 <= r["spd"] <= 29),
+    # S&P 500 편출 — spdel = 편출 뒤 거래일 수 · spdelret = 편출일 종가 대비 등락(collect_us_daily · collect_sp500) · 2026-10-02 채택(H0263)
+    ("N9", "S&P 편출 (미장·40일 보유)",
+     lambda r: r.get("mk") == "US" and not r.get("pref") and (r.get("c") or 0) >= 3
+     and r.get("spdel") is not None and 21 <= r["spdel"] <= 23
+     and r.get("spdelret") is not None and r["spdelret"] <= 0),
 ]
 
 LEGACY_ID = {1: "P0", 2: "P2", 3: "P3", 4: "P1"}          # 예전 숫자 id 호환
