@@ -220,6 +220,8 @@ th:first-child,td:first-child{position:sticky;left:0;z-index:1;background:var(--
 td{padding:8px 9px;border-bottom:1px solid #272b3480;text-align:right;font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums;font-size:12.5px}
 td.l,td.name{font-family:'Noto Sans KR',Pretendard,sans-serif;font-size:13px}
 tr:hover td{background:#ffffff08}tr.sel td{background:#1c1730}
+/* 고정된 첫 칸(종목명)은 반투명 배경이면 옆으로 밀린 칸의 글자가 비친다 — 누른 줄(hover)에서도 불투명하게(2026-10-02 사용자 신고) */
+tr:hover td:first-child{background:linear-gradient(#ffffff08,#ffffff08),var(--panel)}
 td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400}
 /* 종목명 뒤의 ADR·Units·Class A 는 회사 이름이 아니라 증권 종류다 — 흐리게 괄호로 뺀다 */
 .sfx{color:var(--dim);font-size:.85em;font-weight:400}
