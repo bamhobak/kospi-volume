@@ -23,6 +23,7 @@ D = D.merge(K.rename(columns={"date": "sd"}), on=["ticker", "sd"], how="left")
 D = D[D.amt20 >= 3]
 out = ROOT / "cache" / "supply_kr.pkl"
 rows = pd.read_pickle(out).to_dict("records") if out.exists() else []
+rows = [r for r in rows if r.get("pct") == r.get("pct")]          # 빈값(옛 인코딩 실패분)은 다시 받는다
 done = {r["rcept_no"] for r in rows}
 todo = D[~D.rcept_no.isin(done)]
 print("대상 %d건 · 받은 것 %d · 남은 것 %d" % (len(D), len(done), len(todo)), flush=True)
@@ -40,7 +41,14 @@ for n, (rn, t, d) in enumerate(zip(todo.rcept_no, todo.ticker, todo.date)):
         rows.append(dict(rcept_no=rn, ticker=t, date=d, pct=np.nan, amt=np.nan, sales=np.nan)); continue
     try:
         z = zipfile.ZipFile(io.BytesIO(b))
-        txt = " ".join(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", z.read(x).decode("utf-8", "ignore"))) for x in z.namelist())
+        def dec(raw):                       # 2016~19 문서는 euc-kr(cp949) — utf-8 로 읽으면 글자가 깨져 숫자를 못 찾는다
+            for enc in ("utf-8", "cp949"):
+                try:
+                    return raw.decode(enc)
+                except UnicodeDecodeError:
+                    pass
+            return raw.decode("cp949", "ignore")
+        txt = " ".join(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", dec(z.read(x)))) for x in z.namelist())
     except Exception:
         txt = ""
     m = re.search(r"매출액\s*대비\s*\(%\)\s*([\d.,]+)", txt)

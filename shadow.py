@@ -74,8 +74,8 @@ def main():
         if x["rcept_dt"] < lookback:
             continue
         sd = sig_day(x["rcept_dt"])
-        if sd != last:                                             # 오늘 표 기준 신호일인 것만 기록(종가·등락이 오늘 값)
-            continue
+        if sd is None or sd < dates[max(0, len(dates) - 3)]:      # 최근 3거래일 신호까지(실행을 하루 놓쳐도 잡는다)
+            continue                                               # ⚠ 늦게 잡으면 종가·20일 등락은 오늘 값(근사) — note 에 적는다
         r = rows.get(x["ticker"])
         if not r:
             continue
@@ -91,7 +91,8 @@ def main():
         if not rule or (rule, x["ticker"], x["rcept_no"]) in have:
             continue
         new.append(dict(date=sd, rule=rule, ticker=x["ticker"], name=r.get("n", ""), close=r.get("c"),
-                        hold=RULES[rule][1], rcept_no=x["rcept_no"], note=(x["flr_nm"] if rule == "S2" else "")))
+                        hold=RULES[rule][1], rcept_no=x["rcept_no"],
+                        note=(x["flr_nm"] if rule == "S2" else "") + ("" if sd == last else " · 늦게 기록(%s 값)" % last)))
         have.add((rule, x["ticker"], x["rcept_no"]))
     if new:
         LOG.parent.mkdir(parents=True, exist_ok=True)
