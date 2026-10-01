@@ -389,6 +389,7 @@ button.prim{background:var(--acc);border:1px solid var(--acc);color:#0a0b0e;font
   .sig .warn{font-size:10px;line-height:1.35;gap:6px}
   .sig .warn svg{width:12px;height:12px}
 }
+.warnb{color:#ffb020;font-weight:800;margin-left:4px;cursor:help}
 </style></head><body>
 <header>
   <h1 id="home" title="첫 화면으로">밤호박 <span>종목 선별기</span></h1>
@@ -1672,7 +1673,7 @@ async function renderPositions(){
   $('#tbl tbody').innerHTML=rows.map(({p,now,hi,days,line,tgt,ret,st,sc,streak,rule,useLive,lvDate,rid0})=>{
     const nowCell=pmon(now,p.code);
     const C={
-      name:`<td class="l name">${dispName(p.name)} <span class="code cpy" data-cp="${p.code}">${p.code}</span></td>`,
+      name:`<td class="l name">${dispName(p.name)} <span class="code cpy" data-cp="${p.code}">${p.code}</span>${DONE?'':warnBadge(p.code)}</td>`,
       rule:`<td class="l">${(p.filters||[]).map(f=>{const ff=fOf(f);return `<span class="tag ${ff?mkCls(ff.mkt):''}">${fcode(f)}</span>`}).join('')||'<span class="code">-</span>'}</td>`,
       bdate:`<td class="l">${md(p.date)}</td>`,
       bprice:`<td>${pmon(p.price,p.code)}</td>`,
@@ -1762,6 +1763,11 @@ async function renderPositions(){
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=e=>{e.stopPropagation();if(!confirm('삭제할까요?'))return;savePositions(positions().filter(x=>x.id!=b.dataset.del));render()});
 }
 let raw={dates:[],rows:[]},view={dates:[],rows:[]},sortKey='last',desc=true,sel=null,charts=[];
+/* 보유 경고등(2026-10-02 · 사용자 제안 12번) — shadow.py 가 만드는 data/warn.json {asof, w:{코드:{d,why}}}.
+   실측으로 확실히 나빴던 사건(경영권 양수도 계약 공시 후 90일)이 보유 종목에 뜨면 이름 옆에 ⚠ 만 띄운다.
+   사고팔기는 사용자가 정한다. 파일이 없거나 못 받으면 조용히 아무것도 안 띄운다. */
+let WARN={};
+const warnBadge=code=>{const w=WARN[code];return w?` <span class="warnb" title="${w.why.replace(/"/g,'&quot;')} · 판단은 직접">⚠</span>`:''};
 /* 가로/세로 전환으로 모바일 여부가 바뀌면 표 컬럼을 다시 구성한다 */
 let _mob=null;
 if(typeof window!=='undefined')window.addEventListener('resize',()=>{const m=isMobile();if(_mob!==null&&m!==_mob)render();_mob=m});
@@ -1794,6 +1800,7 @@ async function load(){
   /* 미장 거래일 달력 + 정렬용 환율(4KB). 미장 표(3.6MB)는 배경으로 늦게 오므로
      보유일 계산이 첫 화면에서 어긋나지 않게 이 작은 파일을 먼저 받는다. */
   try{raw.uscal=await (await fetch('data/uscal.json?v='+Date.now())).json()}catch(e){raw.uscal=null}
+  try{WARN=((await (await fetch('data/warn.json?v='+Date.now())).json())||{}).w||{}}catch(e){WARN={}}
   prep();
   /* 첫 화면: 매수 대기가 비어 있으면 보유 종목 탭으로 연다 — 빈 목록보다 내 종목이 쓸모 있다.
      (매수 대기 = 아직 그 규칙으로 사지 않은 규칙에 걸린 종목)

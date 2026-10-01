@@ -186,6 +186,15 @@ jobs:
           KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
           DART_API_KEY: ${{ secrets.DART_API_KEY }}
         run: python collect_daily_extra.py
+      # 공시 감시(2026-10-02) — 경영권 양수도·밸류업·자사주 신탁·행동주의 5% 공시를 최근 7일 받아 data/disc_watch.csv 에 덧붙인다.
+      # 그림자 규칙(shadow.py)과 보유 경고등(warn.json)의 재료. 실패해도 나머지는 그대로 간다.
+      - name: 공시 감시 (그림자 규칙·보유 경고등 재료)
+        if: github.event_name != 'push'
+        continue-on-error: true
+        env:
+          TZ: Asia/Seoul
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+        run: python collect_disc_watch.py
 
       # 신용잔고: [폭락반등] 이 쓴다. 20일 낙폭 -15% 이하 종목만 받으므로 보통 1~2분.
       - name: collect credit balance (신용잔고 · 폭락 종목만)
@@ -257,6 +266,11 @@ jobs:
       - name: build site (CSV + JSON)
         env: { TZ: Asia/Seoul }
         run: python pipeline.py --no-collect
+      # 그림자 규칙 기록(data/shadow/log.csv) + 보유 경고등(site/data/warn.json) — pipeline 이 site/ 를 새로 만든 **뒤에**
+      - name: 그림자 규칙 기록 · 보유 경고등
+        continue-on-error: true
+        env: { TZ: Asia/Seoul }
+        run: python shadow.py
       - name: 빌드된 표의 최신 거래일
         id: lastdate
         run: |
@@ -343,7 +357,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           git config user.name "kospi-bot"; git config user.email "bot@users.noreply.github.com"
-          git add data/us/buyback_recent.csv data/us/earn_recent.csv data/us/spinoffs.csv data/20*.csv data/short_recent.csv data/dilution_recent.csv data/buyback_recent.csv data/insider_recent.csv data/credit_recent.csv data/sector.csv data/industry.csv data/valuation.csv data/vkospi.csv data/feargreed.csv
+          git add data/disc_watch.csv data/shadow/ data/us/buyback_recent.csv data/us/earn_recent.csv data/us/spinoffs.csv data/20*.csv data/short_recent.csv data/dilution_recent.csv data/buyback_recent.csv data/insider_recent.csv data/credit_recent.csv data/sector.csv data/industry.csv data/valuation.csv data/vkospi.csv data/feargreed.csv
           if git diff --cached --quiet; then echo "바뀐 데이터 없음"; exit 0; fi
           git commit -m "data: $(TZ=Asia/Seoul date +%Y-%m-%d)"
           # ⚠ 2026-09-14: 전에는 `git pull --rebase ... && git push` 였다. pull 이 실패하면
