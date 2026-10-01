@@ -267,6 +267,15 @@ jobs:
         env: { TZ: Asia/Seoul }
         run: python pipeline.py --no-collect
       # 그림자 규칙 기록(data/shadow/log.csv) + 보유 경고등(site/data/warn.json) — pipeline 이 site/ 를 새로 만든 **뒤에**
+      # 보유 국내 종목의 네이버 검색 관심 쏠림(2026-10-02 · 사용자 승인으로 네이버 키 등록). 월 3,000건 한도 · 실패해도 계속.
+      - name: 네이버 관심 쏠림 (보유 국내 종목)
+        if: github.event_name != 'push'
+        continue-on-error: true
+        env:
+          TZ: Asia/Seoul
+          NAVER_HUB_CLIENT_ID: ${{ secrets.NAVER_HUB_CLIENT_ID }}
+          NAVER_HUB_CLIENT_SECRET: ${{ secrets.NAVER_HUB_CLIENT_SECRET }}
+        run: python naver_watch.py
       - name: 그림자 규칙 기록 · 보유 경고등
         continue-on-error: true
         env: { TZ: Asia/Seoul }
@@ -357,7 +366,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           git config user.name "kospi-bot"; git config user.email "bot@users.noreply.github.com"
-          git add data/disc_watch.csv data/shadow/ data/us/buyback_recent.csv data/us/earn_recent.csv data/us/spinoffs.csv data/20*.csv data/short_recent.csv data/dilution_recent.csv data/buyback_recent.csv data/insider_recent.csv data/credit_recent.csv data/sector.csv data/industry.csv data/valuation.csv data/vkospi.csv data/feargreed.csv
+          git add data/disc_watch.csv data/shadow/ data/attn_watch.csv data/naver_watch_quota.json data/us/buyback_recent.csv data/us/earn_recent.csv data/us/spinoffs.csv data/20*.csv data/short_recent.csv data/dilution_recent.csv data/buyback_recent.csv data/insider_recent.csv data/credit_recent.csv data/sector.csv data/industry.csv data/valuation.csv data/vkospi.csv data/feargreed.csv
           if git diff --cached --quiet; then echo "바뀐 데이터 없음"; exit 0; fi
           git commit -m "data: $(TZ=Asia/Seoul date +%Y-%m-%d)"
           # ⚠ 2026-09-14: 전에는 `git pull --rebase ... && git push` 였다. pull 이 실패하면

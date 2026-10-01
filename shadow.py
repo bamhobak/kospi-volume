@@ -11,6 +11,7 @@ research/shadow_eval.py 로 기록된 신호의 실제 성적을 일괄 판정�
 
 보유 경고등 → site/data/warn.json {종목코드: {d, why}} — 화면이 보유 종목 이름 옆에 ⚠ 를 띄운다(판단은 사용자).
   · 경영권 양수도 계약 공시 후 90일 안(실측 60일 중앙 -13.9%·세 구간 모두 크게 음수, H0246)
+  · 네이버 검색 관심 쏠림 1.7배↑(naver_watch.py → data/attn_watch.csv · H0248)
 
     python shadow.py
 """
@@ -55,9 +56,21 @@ def main():
         if x["kind"] == "양수도" and x["rcept_dt"] >= cut:
             if x["ticker"] not in warn or warn[x["ticker"]]["d"] < x["rcept_dt"]:
                 warn[x["ticker"]] = {"d": x["rcept_dt"], "why": "경영권 양수도 계약 공시(%s) — 실측 60일 중앙 -13.9%%" % x["rcept_dt"]}
+    # 네이버 검색 관심 쏠림(naver_watch.py — 보유 국내 종목만, 최근 5일 안에 잰 값)
+    for x in read(BASE / "data" / "attn_watch.csv"):
+        try:
+            att, zf = float(x["att"]), float(x["zfrac"])
+        except (TypeError, ValueError):
+            continue
+        if x["date"] >= dates[max(0, len(dates) - 5)] and att >= 1.7 and zf <= 0.2:
+            why = "네이버 검색 관심 쏠림 — 최근 28일이 1년 평균의 %.1f배(%s) · 실측 시장 상위 10%%는 60일 시장 대비 -5%%p" % (att, x["date"])
+            if x["ticker"] in warn:
+                warn[x["ticker"]]["why"] += " / " + why
+            else:
+                warn[x["ticker"]] = {"d": x["date"], "why": why}
     (BASE / "site" / "data").mkdir(parents=True, exist_ok=True)
     (BASE / "site" / "data" / "warn.json").write_text(json.dumps({"asof": last, "w": warn}, ensure_ascii=False), encoding="utf-8")
-    print("경고등 %d종목 (경영권 양수도 90일 안)" % len(warn))
+    print("경고등 %d종목 (경영권 양수도 90일 안 · 네이버 관심 쏠림)" % len(warn))
     # ── 그림자 규칙 ──
     log = read(LOG)
     have = {(r["rule"], r["ticker"], r["rcept_no"]) for r in log}
