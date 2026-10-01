@@ -85,6 +85,9 @@ class Lab:
                 continue
             last[t] = i + h; keep.append(j)
         Y = Y.iloc[keep].copy()
+        if h not in self.bench:                               # 10·40일 등은 필요할 때 만든다
+            uni = A.amt20.groupby(A.date).rank(pct=True) >= 0.6
+            self.bench[h] = A[uni].dropna(subset=[c]).groupby("date")[c].median()
         Y["ex"] = Y.r - Y.date.map(self.bench[h])
         self.cells.append(dict(group=group, name=name, k=k, h=h, Y=Y))
 
