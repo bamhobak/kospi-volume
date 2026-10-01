@@ -390,6 +390,8 @@ button.prim{background:var(--acc);border:1px solid var(--acc);color:#0a0b0e;font
   .sig .warn svg{width:12px;height:12px}
 }
 .warnb{color:#ffb020;font-weight:800;margin-left:4px;cursor:help}
+.pri{color:#ffd23f;font-weight:700;font-size:12px;margin-left:6px;white-space:nowrap}
+.tag.pri{border:1px solid rgba(255,210,63,.45);background:rgba(255,210,63,.1)}
 </style></head><body>
 <header>
   <h1 id="home" title="첫 화면으로">밤호박 <span>종목 선별기</span></h1>
@@ -1060,7 +1062,9 @@ function renderTabs(){
   const rb=$('#rule');
   if(rb){const f=FILTERS.find(x=>x.id===cur)||null;
     /* 규칙 번호는 화면 순서에서 계산한다 — 왼쪽 레일과 같은 번호를 써야 헷갈리지 않는다 */
-    if(f){rb.style.display='';rb.innerHTML=`<b>${codeOf(f.id)} · ${f.name.split(' · ')[1]||f.name} 매매 규칙</b> <span>${f.ruleText}</span>`}else{rb.style.display='none'}}
+    if(f){const pr=priOf(f.id);
+      rb.style.display='';rb.innerHTML=`<b>${codeOf(f.id)} · ${f.name.split(' · ')[1]||f.name} 매매 규칙</b> <span>${f.ruleText}</span>`
+        +(pr?` <span class="pri" title="돈이 모자라 다 못 살 때의 순서 — 보유 기간 하루당 기대수익(건당 평균 ${f.stats.avg>0?'+':''}${f.stats.avg}% ÷ ${f.rule.hold}일)으로 ${pr.g==='US'?'미장':'국장'} 규칙 ${pr.n}개 중 매긴 순위">우선 ${pr.rank} · 하루 기대 ${pr.perDay>0?'+':''}${pr.perDay.toFixed(2)}%</span>`:'')}else{rb.style.display='none'}}
   const qb=$('#q');if(qb&&!qb.dataset.b){qb.dataset.b='1';
     qb.oninput=()=>{query=qb.value;rowLimit=100;render()}}
   const hb=$('#home');if(hb&&!hb.dataset.b){hb.dataset.b='1';hb.onclick=goHome}
@@ -1105,8 +1109,14 @@ function renderCards(rows){
     const parts=[dd?`국장 ${mdShort(dd)}`:'',us].filter(Boolean);
     const on=parts.length?`현재[${parts.join(' · ')}] 조건`:'현재 조건';
     box.innerHTML=`<div class="empty" style="margin-top:60px">${cur==='all'?on+'을 만족한 종목이 없습니다.':on+'으로 이 규칙에 걸린 종목이 없습니다.'}<div style="font-size:12px;margin-top:8px;color:var(--faint)">신호가 없는 날이 더 많습니다.</div></div>`;return}
+  /* 매수 대기: 국장 묶음 → 미장 묶음, 묶음 안에서는 규칙 우선순위 순(같으면 원래 순서) */
+  if(cur==='all'){
+    const k=r=>{const b=bestRule(r),p=b&&priOf(b.id);return (r.mk==='US'?1000:0)+(p?p.rank:99)};
+    rows=rows.map((r,i)=>[r,i]).sort((a,b)=>k(a[0])-k(b[0])||a[1]-b[1]).map(x=>x[0]);
+  }
   box.innerHTML=rows.map(r=>{
-    const f=FILTERS.find(x=>x.id===cur)||FILTERS.find(x=>x.fn(r));
+    const f=FILTERS.find(x=>x.id===cur)||bestRule(r);
+    const pr=cur==='all'&&f?priOf(f.id):null;
     if(!f)return '';
     /* kq: 규칙의 시장(색·테두리용). 시장 이름 표시는 규칙이 아니라 **종목** 것을 써야 한다 —
        A1 처럼 mkt:'BOTH' 인 공통 규칙은 kq 가 늘 false 라 코스닥 종목도 '코스피' 로 찍혔다
@@ -1120,7 +1130,7 @@ function renderCards(rows){
           <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
             <span class="nm" title="누르면 상세 화면이 열립니다 (카드의 다른 곳은 눌러도 반응하지 않습니다)">${dispName(r.name)}</span>
             <span class="code cpy" data-cp="${r.ticker}" style="color:var(--dim);font-size:12px">${r.ticker}</span>
-            <span class="tag ${mc} goto" data-goto="${f.id}" style="cursor:pointer" title="${codeOf(f.id)} · ${f.name.split(' · ')[1]||f.name} 규칙 탭으로 이동">${codeOf(f.id)}</span>${(()=>{const hp=heldPos(r.ticker);if(!hp)return '';
+            <span class="tag ${mc} goto" data-goto="${f.id}" style="cursor:pointer" title="${codeOf(f.id)} · ${f.name.split(' · ')[1]||f.name} 규칙 탭으로 이동">${codeOf(f.id)}</span>${pr?`<span class="tag pri" title="${pr.g==='US'?'미장':'국장'} 규칙 ${pr.n}개 중 우선 ${pr.rank} — 보유 기간 하루당 기대수익 ${pr.perDay>0?'+':''}${pr.perDay.toFixed(2)}%(건당 평균 ÷ 보유일). 돈이 모자라면 위에서부터">우선 ${pr.rank}</span>`:''}${(()=>{const hp=heldPos(r.ticker);if(!hp)return '';
               const dd=heldDays(hp),pl=hp.price?((r.close/hp.price-1)*100):null;
               const by=(hp.filters||[]).map(codeOf).join('·');
               return `<span class="tag hold" title="${hp.date} 에 ${fmt(hp.price)}원으로 매수 기록됨 — 지금 이 규칙에 다시 걸렸습니다">${by?by+'로 ':''}보유 중${dd!=null?' '+dd+'일':''}${pl!=null?' · '+(pl>0?'+':'')+pl.toFixed(1)+'%':''}</span>`})()}</div>
@@ -1782,6 +1792,25 @@ let raw={dates:[],rows:[]},view={dates:[],rows:[]},sortKey='last',desc=true,sel=
    실측으로 확실히 나빴던 사건(경영권 양수도 계약 공시 후 90일)이 보유 종목에 뜨면 이름 옆에 ⚠ 만 띄운다.
    사고팔기는 사용자가 정한다. 파일이 없거나 못 받으면 조용히 아무것도 안 띄운다. */
 let WARN={};
+/* 규칙 우선순위(2026-10-02 요청) — 돈이 모자라 다 못 살 때 무엇부터 살지.
+   잣대 = **보유 기간 하루당 기대수익** = 규칙 통계의 건당 평균 순수익(stats.avg) ÷ 보유일(rule.hold).
+   예: 10일 보유 +5% (하루 0.5%) 보다 5일 보유 +3% (하루 0.6%) 가 위. 국장(코스피·코스닥·공통)과 미장은 따로 매긴다. */
+let PRI=null;
+function priMap(){
+  if(PRI)return PRI; PRI={};
+  for(const g of ['KR','US']){
+    FILTERS.filter(f=>(f.mkt==='US'?'US':'KR')===g&&f.stats&&f.stats.avg!=null&&f.rule&&f.rule.hold)
+      .map(f=>({f,d:f.stats.avg/f.rule.hold})).sort((a,b)=>b.d-a.d)
+      .forEach((x,i,L)=>{PRI[x.f.id]={rank:i+1,n:L.length,perDay:x.d,g}});
+  }
+  return PRI}
+const priOf=id=>priMap()[id]||null;
+/* 매수 대기 카드에 쓸 규칙 — 걸린 규칙 중 아직 그 규칙으로 안 산 것, 그중 우선순위가 가장 높은 것 */
+function bestRule(r){
+  const L=FILTERS.filter(f=>f.fn(r));
+  const free=L.filter(f=>!heldBy(r.ticker,f.id));
+  const pool=free.length?free:L;
+  return pool.sort((a,b)=>((priOf(a.id)||{rank:99}).rank)-((priOf(b.id)||{rank:99}).rank))[0]||null}
 const warnBadge=code=>{const w=WARN[code];return w?` <span class="warnb" title="${w.why.replace(/"/g,'&quot;')} · 판단은 직접">⚠</span>`:''};
 /* 가로/세로 전환으로 모바일 여부가 바뀌면 표 컬럼을 다시 구성한다 */
 let _mob=null;
