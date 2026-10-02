@@ -500,6 +500,8 @@ def metrics(x, bbdates=None, edates=None):
         qnew=qnew, qage=qage,
         peade=peade, peadd=peadd, peadgap=peadgap, peadage=peadage,
         peaddn=peaddn, peadrc=peadrc,
+        # [상승장 신고가] 2차 좁힘(2026-10-02 · H0275): 최근 5일 평균 거래량 ÷ 60일 평균 — 0.8 이하(거래가 마른 상태)만 산다
+        v5v60=round(float(np.nanmean(v[-5:]) / np.nanmean(v[-60:])), 3) if n >= 60 and np.nanmean(v[-60:]) > 0 else None,
         above20=round(above, 1) if above is not None else None,
         v=[int(z) if z == z else 0 for z in v[-NDAY:]],
     )

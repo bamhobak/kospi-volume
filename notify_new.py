@@ -188,6 +188,7 @@ FILTERS = [
      and not (r.get("pinr") is not None and r["pinr"] < 0.5
               and r.get("hl20") is not None and r["hl20"] < 8)
      and r.get("usvq") is not None and r["usvq"] >= 0.8       # 2026-09-30 좁힘: 거래 주식 수 상위 20%
+     and r.get("v5v60") is not None and r["v5v60"] <= 0.8     # 2026-10-02 2차 좁힘: 5일 거래량 ≤ 60일 평균 0.8배
      and bool(us_reg.get("up60"))),
     ("N2", "낙폭과대 (20일 보유)",
      lambda r: r.get("mk") == "US" and not r.get("pref")
