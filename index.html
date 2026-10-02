@@ -102,6 +102,10 @@ header{flex:none}
 .shell{display:flex;flex:1;min-height:0}
 .rail{width:212px;flex:none;background:#0c0e12;border-right:1px solid var(--line);
       display:flex;flex-direction:column;padding:14px 10px;gap:15px;overflow-y:auto}
+.tmode{display:flex;width:100%;border:1px solid var(--line);background:var(--panel2)}
+.tmode button{flex:1;padding:9px 0;border:0;background:transparent;color:var(--mut);font-weight:700;font-size:13px;cursor:pointer;border-radius:0}
+.tmode button+button{border-left:1px solid var(--line)}
+.tmode button.on{background:var(--acc);color:#fff}
 .railtog{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;
   padding:8px 10px;font-size:12px;color:var(--mut);border:1px solid var(--line);
   background:var(--panel2);width:100%}
@@ -695,6 +699,21 @@ const FILTERS=[
         &&(r.amt20!=null?r.amt20:0)>=5&&r.close!=null&&r.close>=1000
         &&r.dilu!==true&&r.disc!==true},
 ];
+/* 중장기 / 단타 분리(2026-10-03 요청) — 규칙·매수 대기·보유·완료를 따로 관리한다.
+   단타 규칙은 아직 없다(1분봉을 모으는 중 · collect_m1.py). 규칙이 생기면 여기에 넣는다.
+   FILTERS 는 지금 모드의 규칙 목록 — 나머지 코드는 전부 이것만 본다. 보유 목록도 모드별(POS / POS_S).
+   ⚠ 'const FILTERS=' 글자는 점검 도구들(selftest·check_rule_fields·audit_rules·site_eval)이 찾는 표지라
+     이름을 바꾸지 않고 **내용을 갈아 끼운다**. */
+const SWING_FILTERS=FILTERS.slice();
+const SCALP_FILTERS=[];
+let TMODE=(()=>{try{return localStorage.getItem('tmode')==='scalp'?'scalp':'swing'}catch(e){return 'swing'}})();
+function useRules(L){FILTERS.length=0;L.forEach(f=>FILTERS.push(f))}
+if(TMODE==='scalp')useRules(SCALP_FILTERS);
+function setMode(m){
+  if(m===TMODE)return;
+  TMODE=m; useRules(m==='scalp'?SCALP_FILTERS:SWING_FILTERS); PRI=null;
+  try{localStorage.setItem('tmode',m)}catch(e){}
+  cur='all'; sel=null; render()}
 let cur='all';  // 'all' = 하나라도 통과(OR), 숫자 = 해당 필터만
 /* 사용자가 탭을 직접 골랐나. 첫 화면 자동 판정은 미장 표가 늦게 와서 두 번 하는데,
    그 사이 사람이 탭을 골랐다면 밑에서 바꿔치기하면 안 된다. 쓰는 곳(탭 클릭)보다
@@ -931,7 +950,9 @@ function renderTabs(){
       return nrow(f.id,cls(f)+'rg-'+(f.regime||'down')+(n?' has':''),f.name.split(' · ')[1],n,
         `<span class="bar"></span><span class="rid">${codeOf(f.id)}</span>`,
         ` draggable="true" data-rule="${f.mkt}"`)}).join('');
-  $('#rail').innerHTML=
+  const tmode=`<div class="tmode"><button type="button" data-m="swing" class="${TMODE==='swing'?'on':''}">중장기</button>`
+    + `<button type="button" data-m="scalp" class="${TMODE==='scalp'?'on':''}">단타</button></div>`;
+  $('#rail').innerHTML=tmode+
     (MOB?`<div class="railtog" id="railtog"><span>${RAILOPEN?'▾':'▸'} 규칙·조회 목록</span>`
       + `<span class="n">${RAILOPEN?orderedAll().length+'개 규칙':'현재: '+curName()}</span></div>`:'')
     + (railOpen?
@@ -939,7 +960,8 @@ function renderTabs(){
     + nrow('all','','매수 대기',wait)
     + nrow('pos','pos','보유 종목',positions().filter(p=>!p.sell).length)
     + nrow('done','done','완료',positions().filter(p=>p.sell).length) + `</div>`
-    + `<div class="grp"><div class="k khead">규칙${freqNote()}</div>${rules}</div>`
+    + (FILTERS.length?`<div class="grp"><div class="k khead">규칙${freqNote()}</div>${rules}</div>`
+       :`<div class="grp"><div class="k">규칙</div><div class="it" style="cursor:default;color:var(--dim)">단타 규칙 없음 · 1분봉 모으는 중</div></div>`)
     + `<div class="grp"><div class="k">조회</div>`
     + nrow('kp','','코스피 전체',view.rows.filter(r=>r.mk==='KOSPI').length,'<span class="bar"></span>')
     + nrow('kq','kq','코스닥 전체',view.rows.filter(r=>r.mk==='KOSDAQ').length,'<span class="bar"></span>')
@@ -1010,6 +1032,7 @@ function renderTabs(){
       });
     });
   })();
+  document.querySelectorAll('#rail .tmode button').forEach(b=>b.onclick=()=>setMode(b.dataset.m));
   {const rt=$('#railtog');if(rt)rt.onclick=()=>{RAILOPEN=!RAILOPEN;
     try{localStorage.setItem('railopen',RAILOPEN?'1':'0')}catch(e){}; renderTabs()};}
   {const vb=$('#verbox');
@@ -1115,6 +1138,7 @@ function renderCards(rows){
     const us=ud?`미장 ${mdShort(ud)}`:(raw.usFail?'미장 자료 못 받음':'미장 불러오는 중…');
     const parts=[dd?`국장 ${mdShort(dd)}`:'',us].filter(Boolean);
     const on=parts.length?`현재[${parts.join(' · ')}] 조건`:'현재 조건';
+    if(TMODE==='scalp'&&!FILTERS.length){box.innerHTML=`<div class="empty" style="margin-top:60px">단타 규칙이 아직 없습니다.<div style="font-size:12px;margin-top:8px;color:var(--faint)">1분봉을 모으는 중입니다 — 규칙을 찾으면 여기에 매수 대기가 뜹니다.</div></div>`;return}
     box.innerHTML=`<div class="empty" style="margin-top:60px">${cur==='all'?on+'을 만족한 종목이 없습니다.':on+'으로 이 규칙에 걸린 종목이 없습니다.'}<div style="font-size:12px;margin-top:8px;color:var(--faint)">신호가 없는 날이 더 많습니다.</div></div>`;return}
   /* 매수 대기: **규칙마다 카드 한 장**(2026-10-03 요청) — A 종목이 N1·N2 에 걸리면 N1 카드·N2 카드 둘.
      예전엔 우선순위 높은 규칙 하나로만 보여 주고 매수 기록에 걸린 규칙을 다 적어, 매도일이 코드 순서상
@@ -1207,6 +1231,7 @@ function statsHtml(f){const t=f.stats;
   <div style="margin-top:4px;color:var(--mut)">연도별 순수익 — ${t.years}</div>`:'')}
 // ===== 보유 종목(포지션) — localStorage =====
 let POS=(()=>{try{return JSON.parse(localStorage.getItem('positions')||'[]')}catch(e){return []}})();
+let POS_S=(()=>{try{return JSON.parse(localStorage.getItem('positions_s')||'[]')}catch(e){return []}})();   /* 단타 보유 */
 let COLCFG={};           /* 탭 그룹별 {order:[key...], hidden:[key...], w:{key:px}} — 조회 표 컬럼 배치 */
 /* 미장은 한국과 열 자체가 다르다(수급·PER·업종이 없다). 한 설정을 공유하면 한쪽에서 숨긴
    열이 다른 쪽에서도 사라져 헷갈린다. 그래서 저장 칸을 'kr' 과 'us' 로 나눈다. */
@@ -1288,7 +1313,7 @@ function colMenu(cols){
     <button class="ghost mini" id="colcancel">취소</button>
     <button class="mini prim" id="colapply">적용</button></div></div>`;
 }
-function positions(){return POS}
+function positions(){return TMODE==='scalp'?POS_S:POS}
 const DEFAULT_PIN='bh-e0997ecc2798';  // 기본 공유 키(자동 동기화). PIN 버튼으로 변경 가능
 function getPin(){try{return localStorage.getItem('pin')||DEFAULT_PIN}catch(e){return DEFAULT_PIN}}
 async function rpc(fn,body){const r=await fetch(`${SB.url}/rest/v1/rpc/${fn}`,{method:'POST',headers:{apikey:SB.key,Authorization:'Bearer '+SB.key,'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error(fn+' '+r.status);const t=await r.text();return t?JSON.parse(t):null}
@@ -1305,16 +1330,20 @@ async function pullRemote(){const pin=getPin();if(!pin||!window.SB)return;try{co
        기기가 남의 빈 목록에 덮이지 않게 하기 위해서다. */
     if(d&&Array.isArray(d.positions)){
       const rt=+d.updated||0, lt=posStamp();
-      if(rt>=lt||!POS.length){POS=d.positions;try{localStorage.setItem('positions',JSON.stringify(POS))}catch(e){};posStamp(rt)}
+      if(rt>=lt||!POS.length){POS=d.positions;try{localStorage.setItem('positions',JSON.stringify(POS))}catch(e){};posStamp(rt)
+        if(Array.isArray(d.positions_scalp)){POS_S=d.positions_scalp;try{localStorage.setItem('positions_s',JSON.stringify(POS_S))}catch(e){}}}
       else await pushRemote();
     }else if(POS.length){await pushRemote()}}catch(e){console.warn('sync pull',e)}}
 /* 보유 목록을 마지막으로 저장한 시각. 인자를 주면 기록하고, 없으면 읽는다. */
 function posStamp(v){try{if(v===undefined)return +(localStorage.getItem('posUpdated')||0);
   localStorage.setItem('posUpdated',String(v||0))}catch(e){}return v||0}
 async function pushRemote(){const pin=getPin();if(!pin||!window.SB)return;const now=Date.now();
-  try{await rpc('kospi_state_set',{p_pin:pin,p_data:{positions:POS,colcfg:COLCFG.kr||loadColCfg('kr'),colcfg_us:COLCFG.us||loadColCfg('us'),rorder:RORDER,updated:now}});posStamp(now)}
+  try{await rpc('kospi_state_set',{p_pin:pin,p_data:{positions:POS,positions_scalp:POS_S,colcfg:COLCFG.kr||loadColCfg('kr'),colcfg_us:COLCFG.us||loadColCfg('us'),rorder:RORDER,updated:now}});posStamp(now)}
   catch(e){alert('서버 저장 실패: '+e.message)}}
-function savePositions(a){POS=a;try{localStorage.setItem('positions',JSON.stringify(a))}catch(e){};pushRemote()}
+function savePositions(a){
+  if(TMODE==='scalp'){POS_S=a;try{localStorage.setItem('positions_s',JSON.stringify(a))}catch(e){}}
+  else{POS=a;try{localStorage.setItem('positions',JSON.stringify(a))}catch(e){}}
+  pushRemote()}
 async function setPin(){const cur_=getPin();const v=prompt('기기 간 공유용 PIN (4자 이상). 기본값이면 모든 기기가 자동 공유됩니다. 남과 분리하고 싶을 때만 바꾸세요.',cur_===DEFAULT_PIN?'':cur_);if(v==null)return;const pin=v.trim();if(pin.length<4){if(pin===''){try{localStorage.removeItem('pin')}catch(e){};await pullRemote();render();return}alert('4자 이상 입력하세요');return}
   try{localStorage.setItem('pin',pin)}catch(e){}
   const remote=await rpc('kospi_state_get',{p_pin:pin}).catch(()=>null);
