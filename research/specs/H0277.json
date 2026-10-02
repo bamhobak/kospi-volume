@@ -1,0 +1,31 @@
+{
+ "id": "H0277",
+ "market": "KR",
+ "derive": {},
+ "cond": "(fnet > 0) & (fx >= 3)",
+ "holds": [
+  5,
+  10,
+  20
+ ],
+ "main_hold": 10,
+ "variants": [
+  {
+   "label": "5배",
+   "cond": "(fnet > 0) & (fx >= 5)"
+  },
+  {
+   "label": "3배 + 거래대금 1%↑",
+   "cond": "(fnet > 0) & (fx >= 3) & (famt >= 1)"
+  },
+  {
+   "label": "5배 + 거래대금 1%↑",
+   "cond": "(fnet > 0) & (fx >= 5) & (famt >= 1)"
+  },
+  {
+   "label": "3배 + 거래대금 3%↑",
+   "cond": "(fnet > 0) & (fx >= 3) & (famt >= 3)"
+  }
+ ],
+ "differs_from": "[외인 매집] P7(20·60일 누적 순매수)과 달리 하루 급증 사건"
+}
