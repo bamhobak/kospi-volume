@@ -102,10 +102,12 @@ header{flex:none}
 .shell{display:flex;flex:1;min-height:0}
 .rail{width:212px;flex:none;background:#0c0e12;border-right:1px solid var(--line);
       display:flex;flex-direction:column;padding:14px 10px;gap:15px;overflow-y:auto}
-.tmode{display:flex;width:100%;border:1px solid var(--line);background:var(--panel2)}
-.tmode button{flex:1;padding:9px 0;border:0;background:transparent;color:var(--mut);font-weight:700;font-size:13px;cursor:pointer;border-radius:0}
+.tmode{display:inline-flex;flex:none;border:1px solid var(--line);background:var(--bg)}
+.tmode button{padding:3px 9px;border:0;background:transparent;color:var(--mut);font-weight:700;font-size:11px;line-height:1.4;cursor:pointer;border-radius:0}
 .tmode button+button{border-left:1px solid var(--line)}
 .tmode button.on{background:var(--acc);color:#fff}
+.railtog .tmode{margin-left:10px}
+.tmodepc{display:flex;justify-content:flex-end}
 .railtog{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;
   padding:8px 10px;font-size:12px;color:var(--mut);border:1px solid var(--line);
   background:var(--panel2);width:100%}
@@ -950,18 +952,19 @@ function renderTabs(){
       return nrow(f.id,cls(f)+'rg-'+(f.regime||'down')+(n?' has':''),f.name.split(' · ')[1],n,
         `<span class="bar"></span><span class="rid">${codeOf(f.id)}</span>`,
         ` draggable="true" data-rule="${f.mkt}"`)}).join('');
-  const tmode=`<div class="tmode"><button type="button" data-m="swing" class="${TMODE==='swing'?'on':''}">중장기</button>`
-    + `<button type="button" data-m="scalp" class="${TMODE==='scalp'?'on':''}">단타</button></div>`;
-  $('#rail').innerHTML=tmode+
+  /* 스윙 / 데이 전환 — 모바일은 '규칙·조회 목록' 줄 오른쪽에 작게, PC 는 레일 맨 위(2026-10-03 요청) */
+  const tmode=`<span class="tmode"><button type="button" data-m="swing" class="${TMODE==='swing'?'on':''}">스윙</button>`
+    + `<button type="button" data-m="scalp" class="${TMODE==='scalp'?'on':''}">데이</button></span>`;
+  $('#rail').innerHTML=
     (MOB?`<div class="railtog" id="railtog"><span>${RAILOPEN?'▾':'▸'} 규칙·조회 목록</span>`
-      + `<span class="n">${RAILOPEN?orderedAll().length+'개 규칙':'현재: '+curName()}</span></div>`:'')
+      + `<span class="n">${RAILOPEN?orderedAll().length+'개 규칙':'현재: '+curName()}</span>${tmode}</div>`:`<div class="tmodepc">${tmode}</div>`)
     + (railOpen?
     `<div class="grp">`
     + nrow('all','','매수 대기',wait)
     + nrow('pos','pos','보유 종목',positions().filter(p=>!p.sell).length)
     + nrow('done','done','완료',positions().filter(p=>p.sell).length) + `</div>`
     + (FILTERS.length?`<div class="grp"><div class="k khead">규칙${freqNote()}</div>${rules}</div>`
-       :`<div class="grp"><div class="k">규칙</div><div class="it" style="cursor:default;color:var(--dim)">단타 규칙 없음 · 1분봉 모으는 중</div></div>`)
+       :`<div class="grp"><div class="k">규칙</div><div class="it" style="cursor:default;color:var(--dim)">데이 규칙 없음 · 1분봉 모으는 중</div></div>`)
     + `<div class="grp"><div class="k">조회</div>`
     + nrow('kp','','코스피 전체',view.rows.filter(r=>r.mk==='KOSPI').length,'<span class="bar"></span>')
     + nrow('kq','kq','코스닥 전체',view.rows.filter(r=>r.mk==='KOSDAQ').length,'<span class="bar"></span>')
@@ -1032,7 +1035,7 @@ function renderTabs(){
       });
     });
   })();
-  document.querySelectorAll('#rail .tmode button').forEach(b=>b.onclick=()=>setMode(b.dataset.m));
+  document.querySelectorAll('#rail .tmode button').forEach(b=>b.onclick=e=>{e.stopPropagation();setMode(b.dataset.m)});   /* 줄 접기·펴기와 따로 */
   {const rt=$('#railtog');if(rt)rt.onclick=()=>{RAILOPEN=!RAILOPEN;
     try{localStorage.setItem('railopen',RAILOPEN?'1':'0')}catch(e){}; renderTabs()};}
   {const vb=$('#verbox');
@@ -1138,7 +1141,7 @@ function renderCards(rows){
     const us=ud?`미장 ${mdShort(ud)}`:(raw.usFail?'미장 자료 못 받음':'미장 불러오는 중…');
     const parts=[dd?`국장 ${mdShort(dd)}`:'',us].filter(Boolean);
     const on=parts.length?`현재[${parts.join(' · ')}] 조건`:'현재 조건';
-    if(TMODE==='scalp'&&!FILTERS.length){box.innerHTML=`<div class="empty" style="margin-top:60px">단타 규칙이 아직 없습니다.<div style="font-size:12px;margin-top:8px;color:var(--faint)">1분봉을 모으는 중입니다 — 규칙을 찾으면 여기에 매수 대기가 뜹니다.</div></div>`;return}
+    if(TMODE==='scalp'&&!FILTERS.length){box.innerHTML=`<div class="empty" style="margin-top:60px">데이 규칙이 아직 없습니다.<div style="font-size:12px;margin-top:8px;color:var(--faint)">1분봉을 모으는 중입니다 — 규칙을 찾으면 여기에 매수 대기가 뜹니다.</div></div>`;return}
     box.innerHTML=`<div class="empty" style="margin-top:60px">${cur==='all'?on+'을 만족한 종목이 없습니다.':on+'으로 이 규칙에 걸린 종목이 없습니다.'}<div style="font-size:12px;margin-top:8px;color:var(--faint)">신호가 없는 날이 더 많습니다.</div></div>`;return}
   /* 매수 대기: **규칙마다 카드 한 장**(2026-10-03 요청) — A 종목이 N1·N2 에 걸리면 N1 카드·N2 카드 둘.
      예전엔 우선순위 높은 규칙 하나로만 보여 주고 매수 기록에 걸린 규칙을 다 적어, 매도일이 코드 순서상
