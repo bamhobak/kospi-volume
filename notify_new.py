@@ -49,11 +49,12 @@ last_date = T["dates"][-1] if T["dates"] else ""
 # ── 미장 표 — [상승장 신고가]·[낙폭과대]·[저PBR 낙폭] 이 미장 행에 걸린다 ───────────
 #   유동성(그날 미장 전체 대비 거래대금 상위 40%)은 표를 다 읽고 한 번에 매긴다.
 #   신고가 진입 이벤트(nh5)는 수집기가 종목 이력으로 계산해 준다(사이트 index.html 과 동일).
-usrows, us_reg = [], {}
+usrows, us_reg, us_asof = [], {}, None
 _up = BASE / 'site' / 'data' / 'table_us.json'
 if _up.exists():
     TU = json.loads(_up.read_text(encoding='utf-8'))
     usrows = TU.get('rows') or []; us_reg = TU.get('us') or {}
+    us_asof = TU.get('asof') or ((TU.get('dates') or [None])[-1])   # 자동매매(autotrade.py)가 미장 신호 묵음 판정에 쓴다
     for r in usrows: r['usliq'] = False
     cand = [r for r in usrows if not r.get('pref') and (r.get('c') or 0) >= 3 and r.get('amt20') is not None]
     if cand:
@@ -318,6 +319,7 @@ else:
 if DRY: print("--dry — 기준 목록을 저장하지 않는다")
 else:
     rpc("kospi_state_set", {"p_pin": "__filters__", "p_data": {"filters": cur, "streaks": streaks,
-                                                              "date": last_date, "updated": now_kst.strftime("%Y-%m-%d %H:%M")}})
+                                                              "date": last_date, "usasof": us_asof,
+                                                              "updated": now_kst.strftime("%Y-%m-%d %H:%M")}})
 print("저장:", {k: len(v) for k, v in cur.items()}, "held", len(held),
       "연속2일+", sum(1 for v in streaks.values() if v >= 2))
