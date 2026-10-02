@@ -150,3 +150,6 @@ data/naver_trend_quota.json
 
 # 자동매매 로컬 기록(계획·실행 로그) — 계좌 정보가 섞이므로 올리지 않는다
 data/autotrade/
+
+# 1분봉(collect_m1.py) — 수 GB 라 로컬에만
+data/m1/
