@@ -2155,7 +2155,11 @@ function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none
   const t=(ix.kospi&&ix.kospi.at)?ix.kospi.at.slice(11,16):'';
   /* 등락률은 전 거래일 종가 대비. 실시간 값이 있으면 그 값으로 계산한다. */
   const pc=(v,p)=>(v&&p)?((v/p-1)*100):null;
-  const kc=pc(kv,k.prev), qc=pc(qv,k.kqPrev);
+  /* ⚠ 2026-10-02 사용자 신고: 실시간 값(오늘)을 표의 '전전일 종가'(k.prev)로 나눠 코스피 +4.25%·코스닥 +9.47% 로
+     토스(+0.46%·-0.11%)와 크게 달랐다 — 표는 하루 늦게 갱신되므로 k.prev 는 오늘 기준 '어제' 가 아니다.
+     실시간 자료(엣지 함수 prices · 토스 시세)에 이미 오늘 등락률(pct)이 있으니 그걸 쓴다. 실시간이 없을 때만 표로 계산. */
+  const lp=(o)=>(o&&o.now&&o.pct!=null)?Number(o.pct):null;
+  const kc=lp(ix.kospi)!=null?lp(ix.kospi):pc(kv,k.prev), qc=lp(ix.kosdaq)!=null?lp(ix.kosdaq):pc(qv,k.kqPrev);
   const up=(x)=>x==null?null:x>=0;              /* 등락을 모르면 색을 칠하지 않는다 */
   const cls=(x)=>up(x)===null?'':(up(x)?'up':'dn'), arr=(x)=>up(x)===null?'':(up(x)?'▲ ':'▼ ');
   el.className='mkt '+cls(kc);

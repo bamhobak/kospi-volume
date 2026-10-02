@@ -50,6 +50,22 @@ def naver_days(back=30):
     return _drop_unclosed_today(sorted(set(re.findall(r'"(\d{8})"', r.text))))
 
 
+def naver_closes(symbol="KOSPI", back=300):
+    """네이버 금융 지수 일별 **종가** — {YYYYMMDD: 종가}. symbol = KOSPI / KOSDAQ. 마감 전인 오늘은 뺀다.
+       2026-10-02: FDR(KS11·KQ11)이 09-17 에서 멈춰 사이트 지수 상태(60일선 국면·등락률)가 2주 묵었다 →
+       pipeline.kospi_state 가 이 값과 FDR 중 **더 최근 것**을 쓴다."""
+    import re, time, requests
+    end = time.strftime("%Y%m%d")
+    start = time.strftime("%Y%m%d", time.localtime(time.time() - back * 86400))
+    u = ("https://api.finance.naver.com/siseJson.naver?symbol=%s&requestType=1"
+         "&startTime=%s&endTime=%s&timeframe=day" % (symbol, start, end))
+    r = requests.get(u, timeout=20, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://finance.naver.com/"})
+    rows = re.findall(r'\["(\d{8})",\s*([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)', r.text)
+    out = {d: float(c) for d, o, h, l, c in rows if float(c) > 0}
+    keep = set(_drop_unclosed_today(sorted(out)))
+    return {d: v for d, v in out.items() if d in keep}
+
+
 def _naver():
     days = naver_days()
     return days[-1] if days else None

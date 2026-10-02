@@ -104,6 +104,18 @@ else:
     elif not ours:
         BAD.append("국내 표에 거래일이 없다")
 
+# ── 지수 상태(국면 게이트) ─────────────────────────────────────────────
+# ⚠ 2026-10-02: 표의 거래일은 최신인데 그 안의 코스피·코스닥 지수 상태(table.json 의 kospi)가 FDR 정지로
+#   09-17 에 멈춰 60일선 국면이 2주 틀렸다(상승장 규칙 꺼짐·하락장 규칙 켜짐). 날짜만 보는 위 검사로는 못 잡는다.
+if T is not None:
+    kd = (T.get("kospi") or {}).get("date")
+    if not kd:
+        BAD.append("지수 상태(kospi)가 비었다 — 국면 게이트가 멈춘다")
+    elif ours and kd < ours:
+        BAD.append("지수 상태가 묵었다 — 지수 %s 인데 표는 %s (국면 게이트가 틀린다)" % (kd, ours))
+    else:
+        say("  지수 상태 %s (%s)" % (kd, (T.get("kospi") or {}).get("src", "?")))
+
 # ── 미장 ──────────────────────────────────────────────────────────────
 U = load("table_us.json")
 C = load("uscal.json")

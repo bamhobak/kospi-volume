@@ -42,25 +42,49 @@ def dump_csv():
     con.close()
 
 def kospi_state():
-    """코스피 종가 vs 5일 이동평균 (시장 필터 배지용)"""
+    """코스피·코스닥 지수 상태(국면 게이트·머리글 배지용).
+       ⚠ 2026-10-02: FDR(KS11·KQ11)이 09-17 에서 멈췄는데 그대로 써서 60일선 국면이 2주 묵었다(사용자가 머리글 등락률
+       +4.25% vs 토스 +0.46% 로 발견). 네이버 지수 일별 종가와 FDR 을 둘 다 받아 **마지막 날짜가 더 최근인 쪽**을 쓴다."""
+    import pandas as pd
+    def series(sym_fdr, sym_nv, days):
+        cands = []
+        try:
+            from index_cal import naver_closes
+            nv = naver_closes(sym_nv, back=days)
+            if nv:
+                cands.append(("naver", pd.Series(nv).sort_index()))
+        except Exception as e:
+            print("네이버 %s 조회 실패:" % sym_nv, e)
+        try:
+            import FinanceDataReader as fdr
+            k = fdr.DataReader(sym_fdr, (collect.datetime.now() - collect.timedelta(days=days)).strftime("%Y-%m-%d"))
+            k = k[k["Close"] > 0]
+            cands.append(("fdr", pd.Series(k["Close"].values, index=k.index.strftime("%Y%m%d"))))
+        except Exception as e:
+            print("FDR %s 조회 실패:" % sym_fdr, e)
+        if not cands:
+            return None, None
+        src, s = max(cands, key=lambda x: (x[1].index[-1], len(x[1])))
+        print("  지수 %s: %s 사용 (마지막 %s · 후보 %s)" % (sym_nv, src, s.index[-1], ", ".join("%s %s" % (n, x.index[-1]) for n, x in cands)))
+        return s.astype(float), src
     try:
-        import FinanceDataReader as fdr
-        k = fdr.DataReader("KS11", (collect.datetime.now() - collect.timedelta(days=200)).strftime("%Y-%m-%d"))
-        k = k[k["Close"] > 0]
-        close = float(k["Close"].iloc[-1]); ma5 = float(k["Close"].tail(5).mean()); ma20 = float(k["Close"].tail(20).mean())
-        ma60 = float(k["Close"].tail(60).mean()) if len(k) >= 60 else None
-        prev = float(k["Close"].iloc[-2]) if len(k) >= 2 else None   # 전 거래일 종가(등락률 표시용)
-        out = {"date": k.index[-1].strftime("%Y%m%d"), "close": round(close, 2), "ma5": round(ma5, 2),
+        k, src = series("KS11", "KOSPI", 200)
+        if k is None:
+            raise RuntimeError("코스피 지수 없음")
+        close = float(k.iloc[-1]); ma5 = float(k.tail(5).mean()); ma20 = float(k.tail(20).mean())
+        ma60 = float(k.tail(60).mean()) if len(k) >= 60 else None
+        prev = float(k.iloc[-2]) if len(k) >= 2 else None   # 전 거래일 종가(등락률 표시용)
+        out = {"date": k.index[-1], "close": round(close, 2), "ma5": round(ma5, 2),
                "ma20": round(ma20, 2), "up": close > ma5, "up20": close > ma20,
                "ma60": round(ma60, 2) if ma60 else None, "up60": (close > ma60) if ma60 else None,
-               "prev": round(prev, 2) if prev else None}
+               "prev": round(prev, 2) if prev else None, "src": src}
         try:
-            q = fdr.DataReader("KQ11", (collect.datetime.now() - collect.timedelta(days=60)).strftime("%Y-%m-%d"))
-            q = q[q["Close"] > 0]
-            qc = float(q["Close"].iloc[-1]); q20 = float(q["Close"].tail(20).mean()); q5 = float(q["Close"].tail(5).mean())
-            qprev = float(q["Close"].iloc[-2]) if len(q) >= 2 else None
-            out.update(kq=round(qc, 2), kq20=round(q20, 2), kqUp20=qc > q20, kqUp5=qc > q5,
-                       kqPrev=round(qprev, 2) if qprev else None)
+            q, _ = series("KQ11", "KOSDAQ", 60)
+            if q is not None:
+                qc = float(q.iloc[-1]); q20 = float(q.tail(20).mean()); q5 = float(q.tail(5).mean())
+                qprev = float(q.iloc[-2]) if len(q) >= 2 else None
+                out.update(kq=round(qc, 2), kq20=round(q20, 2), kqUp20=qc > q20, kqUp5=qc > q5,
+                           kqPrev=round(qprev, 2) if qprev else None)
         except Exception as e:
             print("코스닥 지수 조회 실패:", e)
         return out
