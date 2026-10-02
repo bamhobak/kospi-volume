@@ -107,7 +107,9 @@ header{flex:none}
 .tmode button+button{border-left:1px solid var(--line)}
 .tmode button.on{background:var(--acc);color:#fff}
 .railtog .tmode{margin-left:10px}
-.tmodepc{display:flex;justify-content:flex-end}
+.tmodepc{display:flex}
+.tmodepc .tmode{flex:1;display:flex}
+.tmodepc .tmode button{flex:1;padding:7px 0;font-size:12px}   /* PC 레일은 줄 전체를 반반 채운다(2026-10-03 요청) */
 .railtog{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;
   padding:8px 10px;font-size:12px;color:var(--mut);border:1px solid var(--line);
   background:var(--panel2);width:100%}
