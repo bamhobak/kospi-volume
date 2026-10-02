@@ -534,6 +534,7 @@ def build_site():
         ret3 = round((closes[-1] / closes[-4] - 1) * 100, 2) if len(closes) >= 4 and closes[-4] else None   # 최근 3거래일 주가 변화율
         ret10 = round((closes[-1] / closes[-11] - 1) * 100, 2) if len(closes) >= 11 and closes[-11] else None  # 최근 10거래일
         ret5 = round((closes[-1] / closes[-6] - 1) * 100, 2) if len(closes) >= 6 and closes[-6] else None     # 최근 5거래일(P8)
+        dma5 = round((closes[-1] / (sum(closes[-5:]) / 5) - 1) * 100, 2) if len(closes) >= 5 and all(closes[-5:]) else None   # 5일선 이격(P1 좁힘 · 2026-10-02)
         # ── 3번 필터(폭락 반등)용 ──────────────────────────────
         ret20 = round((closes[-1] / closes[-21] - 1) * 100, 2) if len(closes) >= 21 and closes[-21] else None  # 최근 20거래일
         ret60 = round((closes[-1] / closes[-61] - 1) * 100, 2) if len(closes) >= 61 and closes[-61] else None  # 업종 60일 수익률 집계용
@@ -597,7 +598,7 @@ def build_site():
                 ma = sum(closes[i - 19:i + 1]) / 20
                 if closes[i] > ma: hit += 1
             above20 = round(hit / n * 100, 1)
-        table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2], "streak": streak, "ret3": ret3, "ret5": ret5, "ret10": ret10,
+        table.append({"t": s["ticker"], "n": s["name"], "c": last[1], "ch": last[2], "fr": last[7], "v": vols, "i": inv[0], "o": inv[1], "f": inv[2], "streak": streak, "ret3": ret3, "ret5": ret5, "dma5": dma5, "ret10": ret10,
                       "ret20": ret20, "ret60": ret60, "fromhi": fromhi, "fromlo": fromlo, "fw5": fw5, "vol20": vol20, "ret2y": ret2y, "ret250": ret250, "above20": above20, "fw20": fw20, "ow60": ow60, "dev25": dev25, "dma20": dma20, "mdd60": mdd60, "r1m": r1m, "r3m": r3m, "r6m": r6m, "r1y": r1y, "vs1": vs1, "fw60": fw60, "amt20": amt20, "ow20": ow20, "disc": disc,
                       "aw": aw, "a1": a1, "a6": a6 if n6 >= W_BASE // 2 else None,
                       "amt": round(amt1 / 1e8, 2) if amt1 else None, "cap": s.get("cap"), "pref": s["ticker"][-1] != "0", "mk": s.get("mkt", "KOSPI"),

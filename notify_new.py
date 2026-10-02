@@ -88,6 +88,7 @@ FILTERS = [
      and r.get("sr20") is not None and r["sr20"] <= 0.5
      and r.get("ret20") is not None and r["ret20"] <= 5
      and (r.get("amt20") or 0) >= 200
+     and r.get("dma5") is not None and r["dma5"] <= 1           # 2026-10-02 좁힘: 종가 5일선 +1% 이내
      and not ((r.get("above20") or 0) > 70 and (r.get("ret250") or 0) > 120)
      and r.get("dilu") is not True and r.get("disc") is not True),
     ("P2", "조정매집 (코스피·10일 보유·손절 없음)",

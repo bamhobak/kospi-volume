@@ -93,7 +93,7 @@ SAFE = {"mk","pref","ticker","name","close","change","th","vols","avg","total","
         # usvq 는 화면(markUS)·알림이 매기는 계산 필드 — 거래대금 상위 40% 안 오늘 거래 주식 수 백분위([상승장 신고가])
         "usvq",
         # 2026-10-02: bbt(오늘 자사주 신탁 공시 — 이벤트) · ret5(P8) · spdel·spdelret(미장 표에만 — [S&P 편출])
-        "bbt", "ret5", "spdel", "spdelret", "v5v60"}
+        "bbt", "ret5", "spdel", "spdelret", "v5v60", "dma5"}
 # 이벤트성 필드는 '오늘 그 일이 있었나' 라서 값이 전부 비어도 정상일 수 있다
 # (bb 는 마지막 거래일 당일 자사주 공시만 켠다 — 공시 없는 날이 대부분이다).
 # 그래서 이 필드들은 table.json 이 아니라 원본 파일이 비었는지로 판단한다.
