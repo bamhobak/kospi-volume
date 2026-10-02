@@ -418,9 +418,12 @@ def buy(mk):
             skip.append((rid, t, info[0], "현재가 없음")); continue
         if info[1] not in (None, "ACTIVE") or info[2]:
             skip.append((rid, t, info[0], "거래 정지·비활성")); continue
-        q = math.floor(PER[mk] / px[t]) if mk == "KR" else math.floor(PER[mk] / fx / px[t])
+        one = px[t] * (fx if mk == "US" else 1)                       # 1주 원화 값
+        q = math.floor(PER[mk] / one)
+        if q < 1 and one <= PER[mk] * 2:                             # 2026-10-03 사용자: 한 건 금액의 2배까지는 1주 산다
+            q = 1
         if q < 1:
-            skip.append((rid, t, info[0], "1주가 %s원 초과" % won(PER[mk]))); continue
+            skip.append((rid, t, info[0], "1주가 %s원 초과" % won(PER[mk] * 2))); continue
         cost = q * px[t] * (fx if mk == "US" else 1)
         if cost > room:
             skip.append((rid, t, info[0], "시드 %s 다 참" % won(SEED[mk]))); continue
