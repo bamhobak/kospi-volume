@@ -1,51 +1,57 @@
 # -*- coding: utf-8 -*-
-"""토스 자동매매 — 1단계 **알림만**(실제 주문 없음) · 2026-10-03 시작.
+"""토스 자동매매 — 규칙 신호대로 **실제로 사고 판다** (2026-10-03 사용자: "바로 자동", "완전 자동을 직접 허용").
 
-사용자 결정(2026-10-03): 규칙마다 300만원씩 · 총 한도 3억 · 하루 최대 국장 5건·미장 5건.
-단계: ① 알림만(이 파일) → ② 텔레그램 확인 후 주문 → ③ 자동 주문. AUTOTRADE_MODE(.env)로 바꾼다 — 지금은 notify 만 있다.
-
+사용자 결정(2026-10-03): 규칙마다 300만원씩 · 하루 최대 국장 5건·미장 5건 · 총 한도는 따로 두지 않는다
+  ("계좌에 3억이 있지는 않아 그건 신경쓰지 말고 조건대로") → 실제 한도는 **토스 매수가능 금액**. 모자라면 우선순위
+  낮은 것부터 못 사고 알린다.
 무엇을 사나: 사이트 '매수 대기'와 같은 목록 — notify_new.py 가 매 수집 뒤 Supabase '__filters__' 에 저장하는
-  규칙별 신호(그 규칙으로 아직 안 산 종목). 우선순위는 사이트와 같은 '하루당 기대수익'(index.html stats.avg ÷ hold).
-언제:
-  국장  python autotrade.py plan kr   — 장 열리는 날 08:35 (09:00 시가 단일가 = 백테스트 '다음날 시가')
-  미장  python autotrade.py plan us   — 21:50·22:50 둘 다 걸어 두면 **개장 60분 전 안**일 때만 돈다(서머타임 자동)
-  점검  python autotrade.py check     — 토큰·계좌·매수가능금액·장 운영 시간만 본다
-나중 주문 방식(문서 확인 2026-10-03):
-  국장 매수 MARKET+OPG(장전 사전접수 → 시가 단일가) · 국장 매도 15:20~15:30 MARKET(종가 단일가)
-  미장 매수 개장 직후 MARKET+orderAmount(달러) · 미장 매도 LIMIT+CLS(LOC, 낮은 지정가 → 종가)
+  규칙별 신호(그 규칙으로 아직 안 산 종목). 순서는 사이트 우선순위(하루당 기대수익 = stats.avg ÷ hold).
+무엇을 파나: **자동매매가 산 포지션(auto=true)만**. 손으로 기록한 것·토스 계좌의 다른 보유분(스페이스X 등)은 절대 안 건드린다.
+  보유일은 사이트·매도일 알림과 같은 셈법(매수일 = 1일째, 거래일로 센다) — 보유일 ≥ 규칙 hold 인 날 **종가**에 판다.
+
+예약작업(이 PC — 토스 허용 IP 가 이 PC 다):
+  plan kr  08:35  → 08:51 장전 시가 단일가에 시장가(OPG) · 09:01 체결 확인 · 사이트 보유 목록에 기록
+  plan us  21:50·22:50 → 개장 70분 전 안이면 개장+1분까지 기다렸다 시장가(정수 주) · 체결 확인 · 기록
+  sell kr  15:15  → 15:21 종가 단일가에 시장가 매도 · 15:32 체결 확인 · 사이트에 매도 기록
+  sell us  04:15·05:15 → 마감 50~12분 전이면 LOC(종가 지정가, 낮은 지정가 = 사실상 종가) · 마감 뒤 체결 확인 · 기록
+  check            → 토큰·계좌·매수가능·장 시간·신호만 본다(주문 없음)
+멈추기: .env 에 AUTOTRADE_MODE=off (live 일 때만 주문) · 또는 data/autotrade/STOP 파일을 만든다.
+시험: --dry → 주문·사이트 쓰기·텔레그램 대신 기록만(체결은 현재가로 가정) · --wait0 → 기다리지 않는다 · AUTOTRADE_PIN 으로 다른 PIN.
+
 ⚠ 토큰은 키당 1개만 산다 — collect_toss.py 와 같은 캐시(toss.token)를 쓴다. 따로 받으면 서로를 끊는다.
-⚠ 허용 IP 밖에서 부르면 403 — 그때는 지금 공인 IP 를 텔레그램으로 알린다.
-⚠ 예약작업(pythonw)은 sys.stdout 이 None — print 대신 log() 로 파일에 쓴다.
+⚠ 허용 IP 밖이면 403 — 지금 공인 IP 를 텔레그램으로 알린다.
+⚠ 예약작업(pythonw)은 sys.stdout 이 None — print 대신 log().
+⚠ 미장 소수점 주문은 정규장 마감 1시간 전까지만 팔 수 있어 종가 매도(LOC)가 안 된다 → **정수 주로만 산다**.
+⚠ 사이트는 보유 목록을 통째로 덮어쓴다(updated 가 늦은 쪽이 이김). 열린 탭이 옛 목록을 올리면 자동 기록이 지워질 수 있어
+   매 실행 처음에 원장(ledger.json)과 맞춰 **빠진 자동 포지션을 되살린다**.
 """
-import csv, datetime as dt, json, math, os, re, sys, time, urllib.parse, urllib.request
+import datetime as dt, json, math, os, re, sys, time, urllib.parse, urllib.request
 from pathlib import Path
 
 BASE = Path(__file__).parent
 sys.path.insert(0, str(BASE))
 OUT = BASE / "data" / "autotrade"; OUT.mkdir(parents=True, exist_ok=True)
-LOG = OUT / "run.log"
-if sys.stdout is not None:                     # 콘솔(cp949)에서 한글이 깨지지 않게 — pythonw 면 None 이라 건드리지 않는다
+LOG = OUT / "run.log"; LEDGER = OUT / "ledger.json"
+if sys.stdout is not None:
     try: sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception: pass
 
-BUDGET = 300_000_000          # 총 한도(원) — 보유 중 매수금액 합 + 오늘 살 것
-PER = 3_000_000               # 규칙 하나당
-MAXDAY = {"KR": 5, "US": 5}   # 하루 최대 건수
+PER = 3_000_000               # 규칙 하나당(원)
+MAXDAY = {"KR": 5, "US": 5}   # 하루 최대 매수 건수
 KST = dt.timezone(dt.timedelta(hours=9))
+DRY = "--dry" in sys.argv
+WAIT0 = "--wait0" in sys.argv
+FINAL = ("FILLED", "CANCELED", "REJECTED", "CANCEL_REJECTED", "REPLACE_REJECTED", "REPLACED")
 
 
 def log(*a):
-    s = time.strftime("%Y-%m-%d %H:%M:%S ") + " ".join(str(x) for x in a)
+    s = time.strftime("%Y-%m-%d %H:%M:%S ") + ("[DRY] " if DRY else "") + " ".join(str(x) for x in a)
     try:
-        with open(LOG, "a", encoding="utf-8") as f:
-            f.write(s + "\n")
-    except Exception:
-        pass
+        with open(LOG, "a", encoding="utf-8") as f: f.write(s + "\n")
+    except Exception: pass
     if sys.stdout is not None:
-        try:
-            print(s, flush=True)
-        except Exception:
-            pass
+        try: print(s, flush=True)
+        except Exception: pass
 
 
 def env():
@@ -64,6 +70,8 @@ MODE = E.get("AUTOTRADE_MODE", "notify")
 
 
 def telegram(text):
+    if DRY:
+        log("텔레그램(보내지 않음):\n" + text); return
     tok, chat = E.get("TELEGRAM_BOT_TOKEN"), E.get("TELEGRAM_CHAT_ID")
     if not (tok and chat):
         log("텔레그램 미설정:", text.replace("\n", " | ")); return
@@ -75,47 +83,77 @@ def telegram(text):
         log("텔레그램 실패:", repr(ex)[:200])
 
 
+def now():
+    return dt.datetime.now(KST)
+
+
+def sleep_until(t, why=""):
+    s = (t - now()).total_seconds()
+    if s > 0:
+        log("%s까지 기다림(%s) %.0f초" % (t.strftime("%H:%M:%S"), why, s))
+        if not WAIT0:
+            time.sleep(s)
+
+
+def won(v):
+    v = round(v / 1e4)
+    return (f"{v // 10000}억" + (f" {v % 10000:,}만" if v % 10000 else "")) if v >= 10000 else f"{v:,}만"
+
+
 # ── 토스 ───────────────────────────────────────────────────────────────
 import toss
 
 
 class TossErr(Exception):
-    pass
+    def __init__(self, msg, code=None, status=None):
+        super().__init__(msg); self.code = code; self.status = status
 
 
-def tget(path, acct=False, **q):
+_acct = {}
+
+
+def call(method, path, acct=False, body=None, **q):
     u = toss.B + path + ("?" + urllib.parse.urlencode(q) if q else "")
-    for att in range(2):
+    for att in range(3):
         h = {"Authorization": "Bearer " + toss.token(), "Accept": "application/json"}
-        if acct:
-            h["X-Tossinvest-Account"] = ACCT()
+        if acct: h["X-Tossinvest-Account"] = ACCT()
+        data = None
+        if body is not None:
+            data = json.dumps(body).encode(); h["Content-Type"] = "application/json"
         try:
-            d = json.loads(urllib.request.urlopen(urllib.request.Request(u, headers=h), timeout=20).read().decode())
+            r = urllib.request.urlopen(urllib.request.Request(u, data=data, headers=h, method=method), timeout=30)
+            d = json.loads(r.read().decode() or "{}")
             return d.get("result", d)
         except urllib.error.HTTPError as ex:
-            body = ex.read().decode(errors="replace")[:300]
-            if ex.code == 401 and att == 0:              # 다른 프로세스가 새 토큰을 받아 이전 것이 죽은 경우
+            raw = ex.read().decode(errors="replace")[:500]
+            try: code = json.loads(raw).get("error", {}).get("code")
+            except Exception: code = None
+            if ex.code == 401 and att == 0:              # 다른 프로세스가 새 토큰을 받아 이 토큰이 죽은 경우
                 toss._TOK.update(v=None, exp=0)
                 try: (BASE / "data" / ".toss_token.json").unlink()
                 except Exception: pass
                 continue
+            if ex.code == 429 and att < 2:
+                time.sleep(1.5); continue
             if ex.code == 403:
                 ip = "?"
                 try: ip = urllib.request.urlopen("https://ifconfig.me/ip", timeout=10).read().decode().strip()
                 except Exception: pass
-                raise TossErr("403 차단 — 허용 IP 밖일 수 있다(지금 공인 IP %s). 토스 웹 설정 > Open API > 허용 IP 관리에 추가할 것" % ip)
-            raise TossErr("HTTP %d %s %s" % (ex.code, path, body))
-    raise TossErr("토큰 재발급 뒤에도 401")
+                raise TossErr("403 차단 — 허용 IP 밖일 수 있다(지금 공인 IP %s). 토스 웹 설정 > Open API > 허용 IP 관리에 추가" % ip, code, 403)
+            raise TossErr("HTTP %d %s %s" % (ex.code, path, raw), code, ex.code)
+    raise TossErr("재시도 뒤에도 실패 %s" % path)
 
 
-_acct = {}
+def tget(path, acct=False, **q):
+    return call("GET", path, acct, None, **q)
+
+
 def ACCT():
     if "v" not in _acct:
         h = {"Authorization": "Bearer " + toss.token(), "Accept": "application/json"}
         d = json.loads(urllib.request.urlopen(urllib.request.Request(toss.B + "/api/v1/accounts", headers=h), timeout=20).read().decode())
         L = [a for a in d.get("result", []) if a.get("accountType") == "BROKERAGE"] or d.get("result", [])
-        if not L:
-            raise TossErr("계좌가 없다")
+        if not L: raise TossErr("계좌가 없다")
         _acct["v"] = str(L[0]["accountSeq"])
     return _acct["v"]
 
@@ -147,19 +185,99 @@ def buying_power(cur):
     return float(tget("/api/v1/buying-power", acct=True, currency=cur)["cashBuyingPower"])
 
 
+def sellable(sym):
+    return float(tget("/api/v1/sellable-quantity", acct=True, symbol=sym)["sellableQuantity"])
+
+
+_dry_px = {}
+
+
+def place(body):
+    """주문 → orderId. DRY 면 가짜 id."""
+    if DRY:
+        log("주문(보내지 않음):", json.dumps(body, ensure_ascii=False))
+        return "DRY-" + body["clientOrderId"]
+    r = call("POST", "/api/v1/orders", acct=True, body=body)
+    return r["orderId"]
+
+
+def detail(oid, sym=None, qty=None):
+    if DRY:
+        p = _dry_px.get(sym) or prices([sym])[sym]
+        return {"status": "FILLED", "execution": {"filledQuantity": str(qty), "averageFilledPrice": str(p), "commission": "0"}}
+    return tget("/api/v1/orders/%s" % oid, acct=True)
+
+
 def ts(s):
     return dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
 
 
-# ── 사이트 쪽(규칙 신호·보유·우선순위) ─────────────────────────────────
-def supa():
+def session(mk):
+    """지금과 관련된 정규장 하나 → dict(date, start, end, ...) 또는 None(오늘 장 없음).
+    미장은 한국 시각으로 하루를 넘기므로 '직전 영업일'·'오늘' 중 아직 안 끝난 쪽을 고른다."""
+    cal = tget("/api/v1/market-calendar/" + mk)
+    n = now()
+    if mk == "KR":
+        it = (cal.get("today") or {}).get("integrated")
+        if not it: return None
+        rm = it["regularMarket"]; pm = it.get("preMarket") or {}
+        return dict(date=cal["today"]["date"].replace("-", ""), start=ts(rm["startTime"]), end=ts(rm["endTime"]),
+                    close_auction=ts(rm["singlePriceAuctionStartTime"]) if rm.get("singlePriceAuctionStartTime") else ts(rm["endTime"]) - dt.timedelta(minutes=10),
+                    open_auction=ts(pm["singlePriceAuctionStartTime"]) if pm.get("singlePriceAuctionStartTime") else ts(rm["startTime"]) - dt.timedelta(minutes=10),
+                    prev=cal["previousBusinessDay"]["date"].replace("-", ""))
+    for key in ("previousBusinessDay", "today", "nextBusinessDay"):
+        x = cal.get(key) or {}
+        rm = x.get("regularMarket")
+        if rm and n < ts(rm["endTime"]):
+            prev = cal["previousBusinessDay"]["date"].replace("-", "") if key == "today" else None
+            return dict(date=x["date"].replace("-", ""), start=ts(rm["startTime"]), end=ts(rm["endTime"]), prev=prev)
+    return None
+
+
+# ── 사이트(Supabase) ────────────────────────────────────────────────────
+_sb = {}
+
+
+def _sbinit():
+    if not _sb:
+        js = (BASE / "assets" / "sb.js").read_text(encoding="utf-8")
+        _sb["url"] = re.search(r"url:'([^']+)'", js).group(1); key = re.search(r"key:'([^']+)'", js).group(1)
+        _sb["H"] = {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+        _sb["pin"] = E.get("AUTOTRADE_PIN") or re.search(r"DEFAULT_PIN='([^']+)'", (BASE / "index.html").read_text(encoding="utf-8")).group(1)
+
+
+def rpc(fn, b):
     import requests
-    js = (BASE / "assets" / "sb.js").read_text(encoding="utf-8")
-    url = re.search(r"url:'([^']+)'", js).group(1); key = re.search(r"key:'([^']+)'", js).group(1)
-    H = {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-    pin = re.search(r"DEFAULT_PIN='([^']+)'", (BASE / "index.html").read_text(encoding="utf-8")).group(1)
-    rpc = lambda fn, b: requests.post(f"{url}/rest/v1/rpc/{fn}", headers=H, json=b, timeout=20).json() or {}
-    return rpc("kospi_state_get", {"p_pin": "__filters__"}), rpc("kospi_state_get", {"p_pin": pin})
+    _sbinit()
+    r = requests.post(f"{_sb['url']}/rest/v1/rpc/{fn}", headers=_sb["H"], json=b, timeout=30); r.raise_for_status()
+    return r.json() if r.text else None
+
+
+def filters_state():
+    return rpc("kospi_state_get", {"p_pin": "__filters__"}) or {}
+
+
+def site_state():
+    _sbinit()
+    return rpc("kospi_state_get", {"p_pin": _sb["pin"]}) or {}
+
+
+def site_update(mutate, why):
+    """보유 목록을 읽고 고쳐서 다시 쓴다(다른 칸은 그대로). 사이트와 같은 방식으로 updated = ms."""
+    _sbinit()
+    for att in range(3):
+        d = site_state()
+        pos = d.get("positions") if isinstance(d.get("positions"), list) else []
+        if not mutate(pos):
+            return False
+        d["positions"] = pos; d["updated"] = int(time.time() * 1000)
+        if DRY:
+            log("사이트 쓰기(보내지 않음):", why, "· 보유", len([p for p in pos if not p.get("sell")])); return True
+        rpc("kospi_state_set", {"p_pin": _sb["pin"], "p_data": d})
+        if site_state().get("updated") == d["updated"]:
+            log("사이트 기록:", why); return True
+        time.sleep(1)
+    raise RuntimeError("사이트 기록 실패: " + why)
 
 
 def rules():
@@ -175,152 +293,327 @@ def rules():
 
 
 def mk_of(t):
-    return "KR" if re.fullmatch(r"[0-9A-Z]{6}", t) and any(c.isdigit() for c in t[:2]) else "US"
+    return "KR" if re.fullmatch(r"[0-9A-Z]{6}", t or "") and any(c.isdigit() for c in t[:2]) else "US"
 
 
-# ── 계획 ───────────────────────────────────────────────────────────────
-def plan(mk):
-    now = dt.datetime.now(KST)
-    cal = tget("/api/v1/market-calendar/" + mk)
+# ── 원장 ───────────────────────────────────────────────────────────────
+def led():
+    try: return json.loads(LEDGER.read_text(encoding="utf-8"))
+    except Exception: return {"orders": []}
+
+
+def led_save(L):
+    if DRY: return
+    tmp = LEDGER.with_suffix(".tmp"); tmp.write_text(json.dumps(L, ensure_ascii=False, indent=1), encoding="utf-8"); tmp.replace(LEDGER)
+
+
+def heal():
+    """원장에 체결로 남은 자동 포지션이 사이트에서 빠졌거나 매도 기록이 없으면 되살린다."""
+    L = led()
+    buys = {o["pos"]["id"]: o for o in L["orders"] if o.get("side") == "BUY" and o.get("pos")}
+    sells = {o["posId"]: o for o in L["orders"] if o.get("side") == "SELL" and o.get("sold")}
+    if not buys: return
+
+    def fix(pos):
+        ch = False; ids = {p.get("id") for p in pos}
+        for pid, o in buys.items():
+            if pid not in ids:
+                pos.append(dict(o["pos"])); ch = True; log("되살림:", o["pos"]["code"], o["pos"]["filters"])
+        for p in pos:
+            s = sells.get(p.get("id"))
+            if s and not p.get("sell"):
+                p.update(s["sold"]); ch = True; log("매도 기록 되살림:", p["code"])
+        return ch
+    site_update(fix, "원장 맞춤")
+
+
+def guard():
+    if (OUT / "STOP").exists():
+        log("STOP 파일 — 멈춤"); telegram("⛔ 자동매매 멈춤 상태(data/autotrade/STOP) — 주문 안 함"); return False
+    return True
+
+
+def wait_fills(orders):
+    for o in orders:
+        dtl = None
+        for k in range(20):
+            try: dtl = detail(o["oid"], o["t"], o["qty"])
+            except TossErr as ex: log("주문 조회 실패", ex); time.sleep(3); continue
+            if dtl.get("status") in FINAL: break
+            time.sleep(6)
+        ex_ = (dtl or {}).get("execution") or {}
+        o["status"] = (dtl or {}).get("status")
+        o["fq"] = float(ex_.get("filledQuantity") or 0); o["ap"] = float(ex_.get("averageFilledPrice") or 0); o["fee"] = ex_.get("commission")
+
+
+# ── 매수 ───────────────────────────────────────────────────────────────
+def candidates(mk, F, ST, R, rank, today_keys):
+    pos = [p for p in (ST.get("positions") or []) if p and p.get("code") and not p.get("sell")]
+    held_by = {}
+    for p in pos: held_by.setdefault(p["code"], set()).update(str(f) for f in (p.get("filters") or []))
+    streak = F.get("streaks") or {}
+    C = []
+    for rid, L in (F.get("filters") or {}).items():
+        for t in L:
+            if mk_of(t) != mk or rid not in R or rid in held_by.get(t, set()) or f"{rid}:{t}" in today_keys:
+                continue
+            C.append((rank.get(rid, 99), streak.get(f"{rid}:{t}", 1), rid, t))
+    return sorted(C)
+
+
+def buy(mk):
+    if not guard(): return
+    S = session(mk)
+    if not S:
+        log(mk, "오늘 장 없음 — 건너뜀"); return
+    n = now()
     if mk == "KR":
-        today = (cal.get("today") or {}).get("integrated")
-        if not today:
-            log("국장 휴장 — 건너뜀"); return
-        open_at = ts(today["regularMarket"]["startTime"])
-        want = cal["previousBusinessDay"]["date"].replace("-", "")
+        if n >= S["start"]:
+            log("국장 이미 개장 — 시가 매수 시각 지남, 건너뜀"); return
+        at = max(n, S["open_auction"] + dt.timedelta(seconds=60))        # 장전 시가 단일가 접수 중(08:51)
     else:
-        rm = (cal.get("today") or {}).get("regularMarket")
-        if not rm:
-            log("미장 휴장 — 건너뜀"); return
-        open_at = ts(rm["startTime"])
-        want = cal["previousBusinessDay"]["date"].replace("-", "")
-        if not (open_at - dt.timedelta(minutes=60) <= now < open_at):
-            log("미장 개장 %s 60분 전 구간 아님 — 건너뜀" % open_at.strftime("%H:%M")); return
-    F, ST = supa()
+        if S["start"] - dt.timedelta(minutes=70) <= n < S["start"]:
+            at = S["start"] + dt.timedelta(seconds=60)
+        elif S["start"] <= n < S["start"] + dt.timedelta(minutes=20):
+            at = n
+        else:
+            log("미장 개장 %s 근처 아님 — 건너뜀" % S["start"].strftime("%m/%d %H:%M")); return
+    heal()
+    F = filters_state()
     have = F.get("date") if mk == "KR" else F.get("usasof")
     stale = None
     if not have:
-        stale = "신호 기준일을 모른다(__filters__ 에 %s 없음)" % ("date" if mk == "KR" else "usasof")
-    elif have < want:
-        stale = "신호가 묵었다 — 신호 %s · 직전 거래일 %s (수집 실패?)" % (have, want)
+        stale = "신호 기준일을 모른다"
+    elif S.get("prev") and have < S["prev"]:
+        stale = "신호가 묵었다 — 신호 %s · 직전 거래일 %s" % (have, S["prev"])
+    if stale:
+        log(mk, "매수 안 함:", stale)
+        telegram("⚠ <b>자동매매 %s 매수 안 함</b>\n%s (수집 실패?) — 묵은 신호로는 사지 않는다" % ("국장" if mk == "KR" else "미장", stale)); return
     R = rules()
     rank = {rid: i + 1 for i, rid in enumerate(sorted([r for r in R if (r[0] == "N") == (mk == "US")], key=lambda r: -R[r][2]))}
-    pos = [p for p in (ST.get("positions") or []) if p and p.get("code") and not p.get("sell")]
-    held_by = {}
-    for p in pos:
-        held_by.setdefault(p["code"], set()).update(str(f) for f in (p.get("filters") or []))
-    try:
-        fx = usdkrw()
-    except TossErr:
-        fx = 1400.0
-    tied = sum(float(p.get("price") or 0) * float(p.get("qty") or 0) * (fx if mk_of(p["code"]) == "US" else 1) for p in pos)
-    streak = F.get("streaks") or {}
-    cand = []
-    for rid, ts_ in (F.get("filters") or {}).items():
-        for t in ts_:
-            if mk_of(t) != mk or rid not in R or rid in held_by.get(t, set()):
-                continue
-            cand.append((rank.get(rid, 99), streak.get(f"{rid}:{t}", 1), rid, t))
-    cand.sort()
-    syms = sorted({c[3] for c in cand})
-    px = prices(syms) if syms else {}
-    nm = names(syms) if syms else {}
-    left = BUDGET - tied
-    buy, skip = [], []
-    for rk, stk, rid, t in cand:
-        why = None
+    Lg = led()
+    today_keys = {f"{o['rid']}:{o['t']}" for o in Lg["orders"] if o.get("side") == "BUY" and o.get("date") == S["date"]}
+    C = candidates(mk, F, site_state(), R, rank, today_keys)
+    if not C:
+        log(mk, "살 것 없음 · 신호일", have); return
+    syms = sorted({c[3] for c in C})
+    nm = names(syms)
+    fx = usdkrw() if mk == "US" else None
+    sleep_until(at, "국장 장전 시가 단일가" if mk == "KR" else "미장 개장+1분")
+    px = prices(syms)
+    if DRY: _dry_px.update(px)
+    placed, skip, stop_reason = [], [], None
+    for rk, stk, rid, t in C:
         info = nm.get(t, (t, None, None))
+        if stop_reason:
+            skip.append((rid, t, info[0], stop_reason)); continue
+        if len(placed) >= MAXDAY[mk]:
+            skip.append((rid, t, info[0], "하루 %d건 초과" % MAXDAY[mk])); continue
         if t not in px:
-            why = "현재가 없음"
-        elif info[1] not in (None, "ACTIVE") or info[2]:
-            why = "거래 정지·비활성"
-        elif len(buy) >= MAXDAY[mk]:
-            why = "하루 %d건 초과" % MAXDAY[mk]
-        elif left < PER:
-            why = "총 한도 3억 도달"
-        if mk == "KR" and not why:
-            q = math.floor(PER / px[t])
-            if q < 1:
-                why = "1주 가격이 300만원 초과"
-        if why:
-            skip.append((rid, t, info[0], why)); continue
+            skip.append((rid, t, info[0], "현재가 없음")); continue
+        if info[1] not in (None, "ACTIVE") or info[2]:
+            skip.append((rid, t, info[0], "거래 정지·비활성")); continue
+        q = math.floor(PER / px[t]) if mk == "KR" else math.floor(PER / fx / px[t])
+        if q < 1:
+            skip.append((rid, t, info[0], "1주가 300만원 초과")); continue
+        cid = re.sub(r"[^A-Za-z0-9_-]", "", f"ab{S['date']}{rid}{t}")[:36]
+        body = {"clientOrderId": cid, "symbol": t, "side": "BUY", "orderType": "MARKET", "quantity": str(q)}
+        if mk == "KR": body["timeInForce"] = "OPG"
+        o = dict(side="BUY", mk=mk, date=S["date"], rid=rid, t=t, name=info[0], qty=q, cid=cid, at=now().isoformat(), ref=px[t])
+        err = None
+        try:
+            o["oid"] = place(body)
+        except TossErr as ex:
+            err = ex
+            if mk == "KR" and ex.code in ("order-hours-closed", "order-type-not-allowed"):
+                # 장전 사전접수가 막히면 개장 직후 시장가로 — 시가 근처
+                log("OPG 거절(%s) — 개장 직후 시장가로" % ex.code)
+                sleep_until(S["start"] + dt.timedelta(seconds=20), "국장 개장 직후")
+                body.pop("timeInForce", None); body["clientOrderId"] = (cid + "m")[:36]; o["cid"] = body["clientOrderId"]
+                try:
+                    o["oid"] = place(body); err = None
+                except TossErr as ex2:
+                    err = ex2
+        if err is not None:
+            o["oid"] = None; o["err"] = err.code or str(err)[:120]
+            Lg["orders"].append(o); led_save(Lg)
+            if err.code == "insufficient-buying-power":
+                stop_reason = "매수가능 금액 부족"
+            skip.append((rid, t, info[0], "주문 거부 " + (err.code or str(err)[:60]))); continue
+        Lg["orders"].append(o); led_save(Lg); placed.append(o)
+        log("매수 주문:", mk, rid, t, q, "주")
+        time.sleep(0.3)
+    if placed:
+        sleep_until((S["start"] + dt.timedelta(seconds=90)) if mk == "KR" else now() + dt.timedelta(seconds=15), "체결 확인")
+    wait_fills(placed)
+    filled = []
+    for o in placed:
+        if o["fq"] > 0 and o["ap"] > 0:
+            o["pos"] = {"id": int(time.time() * 1000) + len(filled), "code": o["t"], "name": o["name"], "date": S["date"], "price": o["ap"],
+                        "qty": int(o["fq"]) if o["fq"] == int(o["fq"]) else o["fq"], "filters": [o["rid"]],
+                        "fx": fx if mk == "US" else None, "auto": True, "oid": o["oid"]}
+            filled.append(o)
+    led_save(Lg)
+    if filled:
+        site_update(lambda P: (P.extend(dict(o["pos"]) for o in filled) or True), "%s 매수 %d건" % (mk, len(filled)))
+    L = ["🤖 <b>자동매매 %s 매수</b> %s/%s" % ("국장" if mk == "KR" else "미장", S["date"][4:6], S["date"][6:])]
+    for o in filled:
         if mk == "KR":
-            q = math.floor(PER / px[t]); amt = q * px[t]
-            buy.append(dict(rid=rid, t=t, name=info[0], qty=q, px=px[t], krw=amt, usd=None, rank=rk, streak=stk))
+            L.append("✅ [%s] %s %d주 @ %s원 = %s" % (R[o["rid"]][0], o["name"], int(o["fq"]), f"{o['ap']:,.0f}", won(o["fq"] * o["ap"])))
         else:
-            usd = math.floor(PER / fx * 100) / 100
-            buy.append(dict(rid=rid, t=t, name=info[0], qty=round(usd / px[t], 4), px=px[t], krw=usd * fx, usd=usd, rank=rk, streak=stk))
-        left -= PER
-    try:
-        bp = buying_power("KRW" if mk == "KR" else "USD")
-    except TossErr as ex:
-        bp = None; log("매수가능금액 실패:", ex)
-    need = sum(b["usd"] if mk == "US" else b["krw"] for b in buy)
-    # 기록
-    f = OUT / "plan.csv"; new = not f.exists()
-    with open(f, "a", newline="", encoding="utf-8-sig") as fh:
-        w = csv.writer(fh)
-        if new:
-            w.writerow(["실행시각", "모드", "시장", "장시작", "결과", "규칙", "종목", "이름", "수량", "기준가", "원화", "달러", "우선", "연속일", "사유"])
-        for b in buy:
-            w.writerow([now.strftime("%Y-%m-%d %H:%M"), MODE, mk, open_at.strftime("%Y-%m-%d %H:%M"), "살 것", b["rid"], b["t"], b["name"], b["qty"], b["px"], round(b["krw"]), b["usd"], b["rank"], b["streak"], ""])
-        for rid, t, n, why in skip:
-            w.writerow([now.strftime("%Y-%m-%d %H:%M"), MODE, mk, open_at.strftime("%Y-%m-%d %H:%M"), "넘김", rid, t, n, "", px.get(t), "", "", rank.get(rid), "", why])
-    log("%s 계획: 살 것 %d · 넘김 %d · 한도 남음 %s원 · 보유 매수금 %s원 · 신호일 %s%s" % (
-        mk, len(buy), len(skip), f"{left:,.0f}", f"{tied:,.0f}", have, (" · ⚠ " + stale) if stale else ""))
-    # 알림 — 살 것·넘긴 것·경고가 있을 때만
-    if not (buy or skip or stale):
-        return
-    def won(v):
-        v = round(v / 1e4)                       # 만원 단위
-        return (f"{v // 10000}억" + (f" {v % 10000:,}만" if v % 10000 else "")) if v >= 10000 else f"{v:,}만"
-    head = "🧪 <b>자동매매 [알림만 · 실제 주문 없음]</b>"
-    when = ("국장 %s 09:00 시가" % open_at.strftime("%m/%d")) if mk == "KR" else ("미장 %s 개장(%s) 직후 시장가" % (open_at.strftime("%m/%d"), open_at.strftime("%H:%M")))
-    L = [head, "%s 매수 예정 <b>%d건</b>" % (when, len(buy))]
-    for i, b in enumerate(buy, 1):
-        rn = R[b["rid"]][0]
-        if mk == "KR":
-            L.append("%d. [%s] %s(%s) %d주 ≈ %s" % (i, rn, b["name"], b["t"], b["qty"], won(b["krw"])))
-        else:
-            L.append("%d. [%s] %s(%s) $%s ≈ %s (약 %.2f주)" % (i, rn, b["name"], b["t"], f"{b['usd']:,.2f}", won(b["krw"]), b["qty"]))
+            L.append("✅ [%s] %s(%s) %d주 @ $%s = $%s (≈%s)" % (R[o["rid"]][0], o["name"], o["t"], int(o["fq"]), f"{o['ap']:,.2f}", f"{o['fq']*o['ap']:,.0f}", won(o["fq"] * o["ap"] * fx)))
+    for o in placed:
+        if o not in filled:
+            L.append("❌ [%s] %s 미체결(%s)" % (R[o["rid"]][0], o["name"], o.get("status")))
     if skip:
-        L.append("넘김 %d건: " % len(skip) + " · ".join("[%s] %s(%s)" % (R[r][0] if r in R else r, n, why) for r, t, n, why in skip[:8]) + (" …" if len(skip) > 8 else ""))
-    L.append("한도: 보유 %s + 오늘 %s / 3억 · 남음 %s" % (won(tied), won(sum(b['krw'] for b in buy)), won(max(left, 0))))
-    if bp is not None:
-        ok = bp >= need
-        L.append("토스 매수가능 %s %s" % ((won(bp) if mk == "KR" else "$" + f"{bp:,.0f}"), "✅" if ok else "⚠ 부족(필요 %s)" % (won(need) if mk == "KR" else "$" + f"{need:,.0f}")))
-    if stale:
-        L.append("⚠ " + stale + " — 실제 주문 단계였다면 오늘은 사지 않는다")
+        L.append("못 산 것 %d건: " % len(skip) + " · ".join("[%s] %s(%s)" % (R[r][0] if r in R else r, n_, w) for r, t, n_, w in skip[:8]) + (" …" if len(skip) > 8 else ""))
+    try:
+        L.append("남은 매수가능 %s" % (won(buying_power("KRW")) if mk == "KR" else "$" + f"{buying_power('USD'):,.0f}"))
+    except TossErr: pass
     telegram("\n".join(L))
 
 
+# ── 매도 ───────────────────────────────────────────────────────────────
+def held_days(sym, buy_date, sess_date):
+    c = tget("/api/v1/candles", symbol=sym, interval="1d", count=200) or {}
+    ds = {x["timestamp"][:10].replace("-", "") for x in c.get("candles", [])}
+    ds.add(sess_date)
+    return len([d for d in ds if buy_date <= d <= sess_date])
+
+
+def sell(mk):
+    if not guard(): return
+    S = session(mk)
+    if not S:
+        log(mk, "오늘 장 없음 — 건너뜀"); return
+    n = now()
+    if mk == "KR":
+        if not (S["close_auction"] - dt.timedelta(minutes=30) <= n < S["end"] - dt.timedelta(minutes=2)):
+            log("국장 종가 단일가 근처 아님 — 건너뜀"); return
+        at = max(n, S["close_auction"] + dt.timedelta(seconds=60))
+    else:
+        if not (S["end"] - dt.timedelta(minutes=50) <= n < S["end"] - dt.timedelta(minutes=12)):
+            log("미장 마감 %s 50~12분 전 아님 — 건너뜀" % S["end"].strftime("%H:%M")); return
+        at = n
+    heal()
+    R = rules()
+    ST = site_state()
+    mine = [p for p in (ST.get("positions") or []) if p.get("auto") and not p.get("sell") and mk_of(p.get("code")) == mk]
+    due = []
+    for p in mine:
+        rid = (p.get("filters") or [None])[0]
+        if rid not in R:
+            log("규칙 모름 — 매도 판단 못함:", p["code"], rid); continue
+        try: d = held_days(p["code"], str(p["date"]), S["date"])
+        except TossErr as ex: log("보유일 계산 실패", p["code"], ex); continue
+        log("보유", p["code"], rid, "%d/%d일" % (d, R[rid][1]))
+        if d >= R[rid][1]: due.append((p, rid, d))
+    if not due:
+        log(mk, "오늘 팔 것 없음 (자동 보유 %d)" % len(mine)); return
+    sleep_until(at, "국장 종가 단일가" if mk == "KR" else "미장 LOC 접수")
+    Lg = led()
+    done_ids = {o["posId"] for o in Lg["orders"] if o.get("side") == "SELL" and o.get("oid") and o.get("date") == S["date"]}
+    px = prices(sorted({p["code"] for p, _, _ in due}))
+    if DRY: _dry_px.update(px)
+    placed, fail = [], []
+    for p, rid, d in due:
+        if p["id"] in done_ids: continue
+        q = p["qty"]
+        try:
+            have = sellable(p["code"]) if not DRY else float(q)
+        except TossErr as ex:
+            have = None; log("매도가능 조회 실패", ex)
+        if have is not None and have < float(q):
+            fail.append((p, "매도가능 %s주 < 기록 %s주" % (have, q))); continue
+        cid = re.sub(r"[^A-Za-z0-9_-]", "", f"as{S['date']}{p['id']}")[:36]
+        body = {"clientOrderId": cid, "symbol": p["code"], "side": "SELL", "quantity": str(q)}
+        if mk == "KR":
+            body["orderType"] = "MARKET"
+        else:
+            ref = px.get(p["code"], float(p["price"]))
+            body.update(orderType="LIMIT", timeInForce="CLS", price="%.2f" % (math.floor(ref * 80) / 100))   # 현재가의 80% — 종가가 그 위면 종가 체결
+        o = dict(side="SELL", mk=mk, date=S["date"], posId=p["id"], t=p["code"], name=p.get("name"), rid=rid, qty=q, cid=cid, at=now().isoformat(), days=d)
+        try:
+            o["oid"] = place(body)
+        except TossErr as ex:
+            o["oid"] = None; o["err"] = ex.code or str(ex)[:120]
+            if mk == "US" and ex.code in ("order-type-not-allowed", "price-out-of-range", "invalid-request"):
+                log("LOC 거절(%s) — 시장가로" % ex.code)
+                body = {"clientOrderId": (cid + "m")[:36], "symbol": p["code"], "side": "SELL", "orderType": "MARKET", "quantity": str(q)}
+                o["cid"] = body["clientOrderId"]
+                try:
+                    o["oid"] = place(body); o.pop("err", None)
+                except TossErr as ex2:
+                    o["err"] = ex2.code or str(ex2)[:120]
+        Lg["orders"].append(o); led_save(Lg)
+        if o.get("oid"): placed.append((o, p))
+        else: fail.append((p, "주문 거부 " + str(o.get("err"))))
+        time.sleep(0.3)
+    if placed:
+        sleep_until(S["end"] + dt.timedelta(seconds=90 if mk == "KR" else 150), "종가 체결 확인")
+    wait_fills([o for o, _ in placed])
+    fx = usdkrw() if mk == "US" else None
+    sold = []
+    for o, p in placed:
+        if o["fq"] > 0 and o["ap"] > 0:
+            o["sold"] = {"sell": o["ap"], "sellDate": S["date"]}
+            if mk == "US": o["sold"]["sellFx"] = fx
+            sold.append((o, p))
+    led_save(Lg)
+    if sold:
+        ids = {o["posId"]: o["sold"] for o, _ in sold}
+
+        def mark(P):
+            ch = False
+            for x in P:
+                if x.get("id") in ids and not x.get("sell"):
+                    x.update(ids[x["id"]]); ch = True
+            return ch
+        site_update(mark, "%s 매도 %d건" % (mk, len(sold)))
+    L = ["🤖 <b>자동매매 %s 매도</b> %s/%s" % ("국장" if mk == "KR" else "미장", S["date"][4:6], S["date"][6:])]
+    for o, p in sold:
+        r = (o["ap"] / float(p["price"]) - 1) * 100
+        bp_, sp_ = (f"{float(p['price']):,.0f}", f"{o['ap']:,.0f}") if mk == "KR" else ("$%.2f" % float(p["price"]), "$%.2f" % o["ap"])
+        L.append("%s [%s] %s %d주 %s → %s (%+.1f%%, %d일)" % ("🔺" if r > 0 else "🔻", R[o["rid"]][0], p.get("name"), int(o["fq"]), bp_, sp_, r, o["days"]))
+    sold_ids = {id(o) for o, _ in sold}
+    for o, p in placed:
+        if id(o) not in sold_ids:
+            L.append("❌ %s 매도 미체결(%s) — 직접 확인" % (p.get("name"), o.get("status")))
+    for p, why in fail:
+        L.append("⚠ %s 매도 못 함: %s — 직접 확인" % (p.get("name"), why))
+    telegram("\n".join(L))
+
+
+# ── 점검 ───────────────────────────────────────────────────────────────
 def check():
-    log("모드", MODE)
+    log("모드", MODE, "· STOP" if (OUT / "STOP").exists() else "")
     log("계좌 seq", ACCT())
-    for c in ("KRW", "USD"):
-        log("매수가능", c, f"{buying_power(c):,.2f}")
+    for c in ("KRW", "USD"): log("매수가능", c, f"{buying_power(c):,.2f}")
     log("환율", usdkrw())
     for mk in ("KR", "US"):
-        c = tget("/api/v1/market-calendar/" + mk)
-        log(mk, "오늘", json.dumps(c.get("today"), ensure_ascii=False)[:200])
-    F, ST = supa()
+        s = session(mk); log(mk, "세션", {k: (v.strftime("%m/%d %H:%M") if hasattr(v, "strftime") else v) for k, v in (s or {}).items()})
+    F = filters_state()
     log("신호 기준일", F.get("date"), "미장", F.get("usasof"), "· 대기", {k: len(v) for k, v in (F.get("filters") or {}).items() if v})
-    log("보유", len([p for p in ST.get("positions") or [] if not p.get("sell")]))
+    ST = site_state()
+    log("보유", len([p for p in ST.get("positions") or [] if not p.get("sell")]), "· 자동", len([p for p in ST.get("positions") or [] if p.get("auto") and not p.get("sell")]))
     log("우선순위", {k: round(v[2], 3) for k, v in sorted(rules().items(), key=lambda x: -x[1][2])})
 
 
 if __name__ == "__main__":
-    a = sys.argv[1:]
+    a = [x for x in sys.argv[1:] if not x.startswith("--")]
     try:
         if a[:1] == ["check"]:
             check()
-        elif a[:1] == ["plan"] and len(a) > 1 and a[1].lower() in ("kr", "us"):
-            if MODE != "notify":
-                raise SystemExit("AUTOTRADE_MODE=%s — 아직 알림만(notify) 단계만 있다" % MODE)
-            plan(a[1].upper())
+        elif a[:1] in (["plan"], ["buy"], ["sell"]) and len(a) > 1 and a[1].lower() in ("kr", "us"):
+            if MODE != "live" and not DRY:
+                log("AUTOTRADE_MODE=%s — 주문하지 않는다(live 일 때만)" % MODE)
+            elif a[0] == "sell":
+                sell(a[1].upper())
+            else:
+                buy(a[1].upper())
         else:
-            log("사용법: python autotrade.py check | plan kr | plan us")
+            log("사용법: python autotrade.py check | plan kr|us | sell kr|us  [--dry] [--wait0]")
     except Exception as ex:
         log("실패:", repr(ex)[:500])
-        telegram("⚠ 자동매매 [알림만] 실패: %s" % (str(ex)[:300]))
+        telegram("⚠ <b>자동매매 실패</b>: %s" % (str(ex)[:300]))
         raise
