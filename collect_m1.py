@@ -128,7 +128,7 @@ def universe(mk):
     for m in (("KOSPI", "KOSDAQ") if mk == "KR" else ("NYSE", "NASDAQ", "AMEX")):
         for x in get("/api/v1/stocks/all", market=m) or []:
             st = x.get("securityType")
-            if x.get("status") != "ACTIVE": continue
+            if x.get("status") not in (None, "ACTIVE"): continue          # stocks/all 은 기본이 활성만이라 status 칸이 없다
             if mk == "KR" and not (st == "STOCK" and x.get("isCommonShare")): continue
             if mk == "US" and st not in ("STOCK", "DEPOSITARY_RECEIPT"): continue
             U.append(x["symbol"])
