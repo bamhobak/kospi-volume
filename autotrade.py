@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """토스 자동매매 — 규칙 신호대로 **실제로 사고 판다** (2026-10-03 사용자: "바로 자동", "완전 자동을 직접 허용").
 
-사용자 결정(2026-10-03): 규칙마다 300만원씩 · 하루 최대 국장 5건·미장 5건 · 총 한도는 따로 두지 않는다
-  ("계좌에 3억이 있지는 않아 그건 신경쓰지 말고 조건대로") → 실제 한도는 **토스 매수가능 금액**. 모자라면 우선순위
-  낮은 것부터 못 사고 알린다.
+사용자 결정(2026-10-03): 시드 국장 5천만·미장 5천만(원화 기준, 미장은 달러로 직접 환전해 둔다) · 한 건에 국장 150만·미장 100만
+  · 하루 최대 국장 5건·미장 5건. 시드가 차거나 토스 매수가능 금액이 모자라면 우선순위 낮은 것부터 못 사고 알린다.
 무엇을 사나: 사이트 '매수 대기'와 같은 목록 — notify_new.py 가 매 수집 뒤 Supabase '__filters__' 에 저장하는
   규칙별 신호(그 규칙으로 아직 안 산 종목). 순서는 사이트 우선순위(하루당 기대수익 = stats.avg ÷ hold).
 무엇을 파나: **자동매매가 산 포지션(auto=true)만**. 손으로 기록한 것·토스 계좌의 다른 보유분(스페이스X 등)은 절대 안 건드린다.
@@ -36,7 +35,8 @@ if sys.stdout is not None:
     try: sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception: pass
 
-PER = 3_000_000               # 규칙 하나당(원)
+PER = {"KR": 1_500_000, "US": 1_000_000}      # 규칙 하나당(원) — 2026-10-03 사용자: 국장 150만·미장 100만
+SEED = {"KR": 50_000_000, "US": 50_000_000}   # 시장별 시드(원) — 자동매매가 들고 있는 매수금(미장은 그때 환율) + 오늘 살 것 ≤ 시드
 MAXDAY = {"KR": 5, "US": 5}   # 하루 최대 매수 건수
 KST = dt.timezone(dt.timedelta(hours=9))
 DRY = "--dry" in sys.argv
@@ -393,12 +393,17 @@ def buy(mk):
     rank = {rid: i + 1 for i, rid in enumerate(sorted([r for r in R if (r[0] == "N") == (mk == "US")], key=lambda r: -R[r][2]))}
     Lg = led()
     today_keys = {f"{o['rid']}:{o['t']}" for o in Lg["orders"] if o.get("side") == "BUY" and o.get("date") == S["date"]}
-    C = candidates(mk, F, site_state(), R, rank, today_keys)
+    ST = site_state()
+    C = candidates(mk, F, ST, R, rank, today_keys)
     if not C:
         log(mk, "살 것 없음 · 신호일", have); return
     syms = sorted({c[3] for c in C})
     nm = names(syms)
     fx = usdkrw() if mk == "US" else None
+    # 시드: 자동매매가 이 시장에서 들고 있는 매수금(원) — 손으로 기록한 것·토스의 다른 보유분은 안 센다
+    tied = sum(float(p.get("price") or 0) * float(p.get("qty") or 0) * ((float(p.get("fx") or fx or 0)) if mk == "US" else 1)
+               for p in (ST.get("positions") or []) if p.get("auto") and not p.get("sell") and mk_of(p.get("code")) == mk)
+    room = SEED[mk] - tied
     sleep_until(at, "국장 장전 시가 단일가" if mk == "KR" else "미장 개장+1분")
     px = prices(syms)
     if DRY: _dry_px.update(px)
@@ -413,9 +418,12 @@ def buy(mk):
             skip.append((rid, t, info[0], "현재가 없음")); continue
         if info[1] not in (None, "ACTIVE") or info[2]:
             skip.append((rid, t, info[0], "거래 정지·비활성")); continue
-        q = math.floor(PER / px[t]) if mk == "KR" else math.floor(PER / fx / px[t])
+        q = math.floor(PER[mk] / px[t]) if mk == "KR" else math.floor(PER[mk] / fx / px[t])
         if q < 1:
-            skip.append((rid, t, info[0], "1주가 300만원 초과")); continue
+            skip.append((rid, t, info[0], "1주가 %s원 초과" % won(PER[mk]))); continue
+        cost = q * px[t] * (fx if mk == "US" else 1)
+        if cost > room:
+            skip.append((rid, t, info[0], "시드 %s 다 참" % won(SEED[mk]))); continue
         cid = re.sub(r"[^A-Za-z0-9_-]", "", f"ab{S['date']}{rid}{t}")[:36]
         body = {"clientOrderId": cid, "symbol": t, "side": "BUY", "orderType": "MARKET", "quantity": str(q)}
         if mk == "KR": body["timeInForce"] = "OPG"
@@ -440,7 +448,7 @@ def buy(mk):
             if err.code == "insufficient-buying-power":
                 stop_reason = "매수가능 금액 부족"
             skip.append((rid, t, info[0], "주문 거부 " + (err.code or str(err)[:60]))); continue
-        Lg["orders"].append(o); led_save(Lg); placed.append(o)
+        Lg["orders"].append(o); led_save(Lg); placed.append(o); room -= cost
         log("매수 주문:", mk, rid, t, q, "주")
         time.sleep(0.3)
     if placed:
@@ -467,8 +475,9 @@ def buy(mk):
             L.append("❌ [%s] %s 미체결(%s)" % (R[o["rid"]][0], o["name"], o.get("status")))
     if skip:
         L.append("못 산 것 %d건: " % len(skip) + " · ".join("[%s] %s(%s)" % (R[r][0] if r in R else r, n_, w) for r, t, n_, w in skip[:8]) + (" …" if len(skip) > 8 else ""))
+    L.append("시드 %s 중 남은 %s" % (won(SEED[mk]), won(max(room, 0))))
     try:
-        L.append("남은 매수가능 %s" % (won(buying_power("KRW")) if mk == "KR" else "$" + f"{buying_power('USD'):,.0f}"))
+        L.append("토스 매수가능 %s" % (won(buying_power("KRW")) if mk == "KR" else "$" + f"{buying_power('USD'):,.0f}"))
     except TossErr: pass
     telegram("\n".join(L))
 
