@@ -26,7 +26,7 @@ if sys.stdout is not None:
 import collect_m1 as M          # 토스 호출(속도 조절·재시도·토큰 공용), 국장 종목 목록
 
 KST = M.KST
-COST = 0.22
+COST = 0.23                                      # 토스 실제 왕복: 수수료 0.015×2 + 거래세 0.20 (index.html DEFFEE)
 RULE = "갭 하락 조용주"
 
 
