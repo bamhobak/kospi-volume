@@ -717,7 +717,9 @@ function setMode(m){
   if(m===TMODE)return;
   TMODE=m; useRules(m==='scalp'?SCALP_FILTERS:SWING_FILTERS); PRI=null;
   try{localStorage.setItem('tmode',m)}catch(e){}
-  cur='all'; sel=null; render()}
+  /* 전환하면 매수 대기가 있으면 매수 대기, 없으면 보유 종목(2026-10-03 요청) */
+  const waiting=view.rows.some(r=>FILTERS.some(f=>f.fn(r)&&!heldBy(r.ticker,f.id)));
+  cur=waiting?'all':'pos'; sel=null; render()}
 let cur='all';  // 'all' = 하나라도 통과(OR), 숫자 = 해당 필터만
 /* 사용자가 탭을 직접 골랐나. 첫 화면 자동 판정은 미장 표가 늦게 와서 두 번 하는데,
    그 사이 사람이 탭을 골랐다면 밑에서 바꿔치기하면 안 된다. 쓰는 곳(탭 클릭)보다
