@@ -78,13 +78,14 @@ def load_market(mk):
         A = A[((A.close >= 1000) & (~A.pref.fillna(False))).fillna(False)]
         since = "20050101"
     else:
-        A = pd.read_pickle(BASE / "data/us_scan.pkl")
+        # 2026-10-04: **폐지 포함** 연구 패널로 교체(build_us_scan_full.py · 2007~ · 13,151종목 중 폐지 7,165).
+        #   옛 us_scan.pkl 은 살아남은 종목뿐(폐지 4)이라 '빠진 종목 사기' 규칙이 부풀었고, PBR 도 틀렸다(MSFT 2019 3.0 → 실제 ~10).
+        #   새 패널: 가격 칸은 옛 패널과 겹치는 920만 행 100% 일치 · PBR 은 us_full · PER 은 SEC 누적 EPS 를 TTM 으로 바꿔 계산 ·
+        #   업종(up)은 SIC 2자리(폐지 종목엔 업종명이 없어서). 옛 패널이 필요하면 US_PANEL=us_scan.pkl.
+        import os
+        A = pd.read_pickle(BASE / "data" / os.environ.get("US_PANEL", "us_scan_full.pkl"))
         A = A[((~A.pref.fillna(False)) & (A.rawclose >= 3)).fillna(False)]
         since = TR0
-        # ⚠ 2026-10-04: us_scan 은 **살아남은 종목뿐**(5,983종목 중 폐지 4 · 폐지 포함 패널은 13,151종목 중 6,061 폐지).
-        #   '빠진 종목 사기'(낙폭·저PBR·평균회귀) 규칙은 여기서 부풀려진다 — 1차 판정용으로만 쓰고,
-        #   채택 전 최종 측정은 폐지 포함 패널(research/gh_engine.load_us_full · us_surv_measure)로 다시 잴 것.
-        log("⚠ 미장 패널은 살아남은 종목뿐 — 채택 전 폐지 포함 패널로 다시 잴 것")
     A = A.sort_values(["ticker", "date"]).reset_index(drop=True)
     # 오늘의 시가·고가·저가·갭 — 미래 없이 (2026-09-25, 외국 셋업이 다 쓴다)
     g = A.groupby("ticker", sort=False)
