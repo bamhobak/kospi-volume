@@ -24,9 +24,12 @@ if sys.stdout is not None:
     try: sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception: pass
 import collect_m1 as M          # 토스 호출(속도 조절·재시도·토큰 공용), 국장 종목 목록
+import autotrade as AT          # 주문·체결 확인·장 시각·사이트 상태(같은 토큰을 쓴다)
 
 KST = M.KST
-COST = 0.23                                      # 토스 실제 왕복: 수수료 0.015×2 + 거래세 0.20 (index.html DEFFEE)
+DAY_PER = 500_000                                 # 2026-10-04 사용자: 데이는 건당 50만원으로 실매수 시작(.env DAY_MODE=live)
+DAY_MAX = 10                                      # 하루 최대 종목 수(후보 순서 = 시장 대비 더 빠진 순)
+COST = 0.23                                     # 토스 실제 왕복: 수수료 0.015×2 + 거래세 0.20 (index.html DEFFEE)
 RULE = "갭 하락 조용주"
 
 
@@ -155,8 +158,10 @@ def morning():
     except Exception as ex:
         log("사이트 기록 실패:", ex)
     log("후보 %d · 예상가 NXT %d · 호가 %d · 갭 10%% 선 %s%%" % (len(L), snap["src_n"]["NXT"], snap["src_n"]["호가"], snap["cut"]))
-    head = "🌅 <b>데이 [%s] 알림만</b> %s/%s 08:52" % (RULE, today[4:6], today[6:])
-    body = ["후보 %d종목 — 시가 단일가 매수 → 종가 매도 (실제 주문 없음 · 검증 중)" % len(L),
+    live = env().get("DAY_MODE", "notify") == "live"
+    head = "🌅 <b>데이 [%s] %s</b> %s/%s 08:52" % (RULE, "실매수" if live else "알림만", today[4:6], today[6:])
+    body = [("후보 %d종목 — 위에서 %d종목 %s원씩 시가 단일가 매수 → 오늘 종가 매도" % (len(L), min(len(L), DAY_MAX), f"{DAY_PER:,}")) if live
+            else ("후보 %d종목 — 시가 단일가 매수 → 종가 매도 (실제 주문 없음 · 검증 중)" % len(L)),
             "오늘 시장 갭 %+.1f%%%s" % (mg, " — 다 같이 빠진 날(과거 기대 큼)" if mg <= -1 else "")]
     for x in L[:15]:
         body.append("· %s(%s) 예상 갭 %+.1f%%(시장 대비 %+.1f) · 거래량 %.1f배%s [%s]" % (
@@ -164,6 +169,132 @@ def morning():
     if len(L) > 15: body.append("… 외 %d" % (len(L) - 15))
     body.append("갭 하위 10%% 선 %s%% · 예상가 NXT %d·호가 %d / 유니버스 %d" % (snap["cut"], snap["src_n"]["NXT"], snap["src_n"]["호가"], len(uni)))
     telegram("\n".join([head] + body))
+    try: M.BUSY.unlink()                                       # 고르는 건 끝났다 — 1분봉 과거 채우기를 다시 돌게 둔다
+    except Exception: pass
+    if live and L:
+        trade(L[:DAY_MAX], today)
+
+
+# ── 실매수(2026-10-04) — 시가 단일가(OPG) 매수 → 같은 날 종가 단일가 매도 · 사이트 데이 보유(positions_scalp)에 기록 ──
+LEDGER = OUT / "ledger.json"
+
+
+def _led():
+    try: return json.loads(LEDGER.read_text(encoding="utf-8"))
+    except Exception: return {"orders": []}
+
+
+def _led_save(L):
+    if AT.DRY: return
+    tmp = LEDGER.with_suffix(".tmp"); tmp.write_text(json.dumps(L, ensure_ascii=False, indent=1), encoding="utf-8"); tmp.replace(LEDGER)
+
+
+def scalp_update(mutate, why):
+    """사이트 데이 보유 목록(positions_scalp)을 읽고 고쳐 쓴다 — 스윙 목록(positions)은 건드리지 않는다."""
+    for att in range(3):
+        d = AT.site_state()
+        pos = d.get("positions_scalp") if isinstance(d.get("positions_scalp"), list) else []
+        if not mutate(pos): return
+        d["positions_scalp"] = pos; d["updated"] = int(time.time() * 1000)
+        if AT.DRY:
+            log("사이트 쓰기(보내지 않음):", why); return
+        AT.rpc("kospi_state_set", {"p_pin": AT._sb["pin"], "p_data": d})
+        if AT.site_state().get("updated") == d["updated"]:
+            log("사이트 기록:", why); return
+        time.sleep(1)
+    log("⚠ 사이트 기록 실패:", why)
+
+
+def trade(L, today):
+    if (AT.OUT / "STOP").exists():
+        telegram("⛔ 데이 실매수 멈춤(data/autotrade/STOP)"); return
+    S = AT.session("KR")
+    if not S or S["date"] != today or AT.now() >= S["start"]:
+        log("데이 매수 시각 지남 — 건너뜀"); return
+    Lg = _led(); done = {o["t"] for o in Lg["orders"] if o.get("date") == today and o.get("side") == "BUY"}
+    placed, skip = [], []
+    for x in L:
+        if x["t"] in done: continue
+        px = float(x["exp"] or x["pc"])
+        q = math.floor(DAY_PER / px)
+        if q < 1 and px <= DAY_PER * 2: q = 1
+        if q < 1:
+            skip.append((x["name"], "1주가 너무 비쌈")); continue
+        cid = re.sub(r"[^A-Za-z0-9_-]", "", f"db{today}{x['t']}")[:36]
+        o = dict(side="BUY", date=today, t=x["t"], name=x["name"], qty=q, cid=cid, rid="T1", at=AT.now().isoformat())
+        try:
+            o["oid"] = AT.place({"clientOrderId": cid, "symbol": x["t"], "side": "BUY", "orderType": "MARKET", "timeInForce": "OPG", "quantity": str(q)})
+        except AT.TossErr as ex:
+            o["oid"] = None; o["err"] = ex.code or str(ex)[:100]
+            skip.append((x["name"], "주문 거부 " + str(o["err"])))
+            Lg["orders"].append(o); _led_save(Lg)
+            if ex.code == "insufficient-buying-power": break
+            continue                                          # 시가 단일가를 놓치면 사지 않는다(09:05 만 늦어도 효과가 사라진다)
+        Lg["orders"].append(o); _led_save(Lg); placed.append(o)
+        time.sleep(0.3)
+    if not placed:
+        if skip: telegram("⚠ 데이 매수 0건 — " + " · ".join("%s(%s)" % s_ for s_ in skip[:6]))
+        return
+    AT.sleep_until(S["start"] + dt.timedelta(seconds=90), "데이 시가 체결 확인")
+    AT.wait_fills(placed)
+    got = [o for o in placed if o["fq"] > 0 and o["ap"] > 0]
+    for i, o in enumerate(got):
+        o["pos"] = {"id": int(time.time() * 1000) + i, "code": o["t"], "name": o["name"], "date": today, "price": o["ap"],
+                    "qty": int(o["fq"]), "filters": ["T1"], "auto": True, "day": True, "oid": o["oid"]}
+    _led_save(Lg)
+    if got:
+        scalp_update(lambda P: (P.extend(dict(o["pos"]) for o in got) or True), "데이 매수 %d건" % len(got))
+    lines = ["🌅 <b>데이 매수</b> %s/%s 시가" % (today[4:6], today[6:])]
+    lines += ["✅ %s %d주 @ %s원 = %s원" % (o["name"], int(o["fq"]), f"{o['ap']:,.0f}", f"{o['fq'] * o['ap']:,.0f}") for o in got]
+    lines += ["❌ %s 미체결(%s)" % (o["name"], o.get("status")) for o in placed if o not in got]
+    if skip: lines.append("못 산 것: " + " · ".join("%s(%s)" % s_ for s_ in skip[:6]))
+    telegram("\n".join(lines))
+    if not got: return
+    # 같은 날 종가 단일가(15:20~15:30)에 판다
+    AT.sleep_until(S["close_auction"] + dt.timedelta(seconds=60), "데이 종가 매도")
+    sold = []
+    for o in got:
+        try:
+            have = AT.sellable(o["t"]) if not AT.DRY else o["fq"]
+        except AT.TossErr:
+            have = None
+        q = int(o["fq"]) if have is None else int(min(o["fq"], have))
+        if q < 1: continue
+        so = dict(side="SELL", date=today, t=o["t"], name=o["name"], qty=q, posId=o["pos"]["id"], cid=("ds" + o["cid"][2:])[:36])
+        try:
+            so["oid"] = AT.place({"clientOrderId": so["cid"], "symbol": o["t"], "side": "SELL", "orderType": "MARKET", "quantity": str(q)})
+            sold.append((so, o))
+        except AT.TossErr as ex:
+            so["err"] = ex.code or str(ex)[:100]
+        Lg["orders"].append(so); _led_save(Lg)
+        time.sleep(0.3)
+    AT.sleep_until(S["end"] + dt.timedelta(seconds=90), "데이 종가 체결 확인")
+    AT.wait_fills([so for so, _ in sold])
+    fin = [(so, o) for so, o in sold if so["fq"] > 0 and so["ap"] > 0]
+    _led_save(Lg)
+    if fin:
+        ids = {o["pos"]["id"]: so["ap"] for so, o in fin}
+
+        def mark(P):
+            ch = False
+            for p_ in P:
+                if p_.get("id") in ids and not p_.get("sell"):
+                    p_["sell"] = ids[p_["id"]]; p_["sellDate"] = today; ch = True
+            return ch
+        scalp_update(mark, "데이 매도 %d건" % len(fin))
+    lines = ["🌇 <b>데이 매도</b> %s/%s 종가" % (today[4:6], today[6:])]
+    tot, rs = 0.0, []
+    for so, o in fin:
+        r = (so["ap"] / o["ap"] - 1) * 100 - COST
+        won_ = so["fq"] * (so["ap"] - o["ap"]) - so["fq"] * (so["ap"] * 0.00215 + o["ap"] * 0.00015)
+        tot += won_; rs.append(r)
+        lines.append("%s %s %+.2f%% (%s원)" % ("🔺" if r > 0 else "🔻", o["name"], r, f"{won_:+,.0f}"))
+    if rs:
+        lines.append("합계 %s원 · 평균 %+.2f%% · 오른 종목 %d/%d (수수료·세금 뒤)" % (f"{tot:+,.0f}", sum(rs) / len(rs), sum(r > 0 for r in rs), len(rs)))
+    fin_ids = {o["pos"]["id"] for _, o in fin}
+    left = [o["name"] for o in got if o["pos"]["id"] not in fin_ids]
+    if left: lines.append("⚠ 못 판 것: " + ", ".join(left) + " — 직접 확인")
+    telegram("\n".join(lines))
 
 
 def review():
@@ -212,7 +343,7 @@ def review():
         supa_set("__day__", {k: v for k, v in snap.items() if k != "all"})
     except Exception as ex:
         log("사이트 기록 실패:", ex)
-    L = ["📊 <b>데이 [%s] 오늘 결과</b> %s/%s (알림만 · 실제 주문 없음)" % (RULE, today[4:6], today[6:]),
+    L = ["📊 <b>데이 [%s] 오늘 결과</b> %s/%s (후보 전체 기준 · 예상 시가 점검)" % (RULE, today[4:6], today[6:]),
          "아침 후보 %d종목 시가→종가 평균 <b>%+.2f%%</b>(비용 뒤) · 오른 종목 %d/%d" % (len(rets), avg(rets), sum(r > 0 for r in rets), len(rets)),
          "실제 시가로 골랐다면 %d종목 평균 %+.2f%% · 아침 후보와 겹침 %d" % (len(real_rets), avg(real_rets), len(mine & real_cand)),
          "예상 시가 오차(갭 %%p): NXT %.2f(%d종목) · 호가 %.2f(%d종목)" % (mae(errs["NXT"]), len(errs["NXT"]), mae(errs["호가"]), len(errs["호가"]))]
