@@ -1126,7 +1126,7 @@ function showTable(on){const t=$('#tblcard'),c=$('#cards');
 const pctTxt=v=>v==null?'—':(v>0?'+':'')+v.toFixed(1)+'%';
 function whyCells(r,f){
   if(f.id==='T1'){const c=dayCand(r.ticker);if(!c)return '';
-    return [['예상 갭',(c.gap>0?'+':'')+c.gap.toFixed(1)+'%','var(--dn)','하위 10% 선 '+(DAYST.cut??'-')+'%'],['어제 거래량',c.vm.toFixed(2)+'배','var(--dn)','20일 평균 대비 · 하위 30%'],['예상가 출처',c.src||'-','var(--mut)',(DAYST.made||'')+' 기준']]
+    return [['예상 갭',(c.gap>0?'+':'')+c.gap.toFixed(1)+'%','var(--dn)','하위 10% 선 '+(DAYST.cut??'-')+'%'],['어제 거래량',c.vm.toFixed(2)+'배','var(--dn)','20일 평균 대비 · 하위 30%'],['시장 대비',c.rel!=null?((c.rel>0?'+':'')+c.rel.toFixed(1)+'%p'):'-','var(--dn)','시장 갭 '+(DAYST.mgap!=null?DAYST.mgap+'%':'-')],['5일선',c.d5!=null?((c.d5>0?'+':'')+c.d5.toFixed(1)+'%'):'-',c.d5low?'var(--dn)':'var(--mut)',c.d5low?'아래(기대 큼)':'예상가 '+(c.src||'-')]]
       .map(([l,v,col,sub])=>`<div><div class="l">${l}</div><div class="v" style="color:${col}">${v}</div><div class="s">${sub}</div></div>`).join('')}
   /* 규칙마다 '왜 걸렸나'를 조건별 실제값 + 기준값으로 보여준다 */
   const kospiDown=!(raw.kospi&&raw.kospi.up60);

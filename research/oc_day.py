@@ -29,7 +29,7 @@ NAME = {"r1": "어제 등락", "r5": "5일 등락", "r20": "20일 등락", "clv"
 
 def build(mk):
     A, uni, since = R.load_market(mk)
-    A = A[["ticker", "date", "open", "high", "low", "close", "volume", "amt20", "gap0"]].copy()
+    A = A[["ticker", "date", "open", "high", "low", "close", "volume", "amt20", "gap0"] + (["mk"] if "mk" in A.columns else [])].copy()
     A["uni"] = uni.values
     g = A.groupby("ticker", sort=False)
     pc = g.close.shift(1)
@@ -45,6 +45,15 @@ def build(mk):
     A["fh"] = (pc / g.high.transform(lambda s: s.shift(1).rolling(20, min_periods=15).max()) - 1) * 100
     A["d5"] = (pc / g.close.transform(lambda s: s.shift(1).rolling(5).mean()) - 1) * 100
     A["gap"] = A.gap0
+    # 오버나이트(종가 단일가 매수 → 다음날 시가 매도)용 — **오늘** 값과 다음날 시가(2026-10-03 day2.py)
+    #   ⚠ 걸러내기(유니버스·이음새) 전에 계산해야 다음 '거래일' 시가가 맞다
+    A["on"] = (g.open.shift(-1) / A.close - 1) * 100
+    A["r1t"] = (A.close / pc - 1) * 100
+    A["clvt"] = (A.close - A.low) / (A.high - A.low).replace(0, np.nan)
+    A["vmt"] = A.volume / g.volume.transform(lambda s: s.shift(1).rolling(20, min_periods=15).mean()).replace(0, np.nan)
+    A["rngt"] = (A.high - A.low) / A.close * 100
+    A["r5t"] = (A.close / g.close.shift(5) - 1) * 100
+    A["r20t"] = (A.close / g.close.shift(20) - 1) * 100
     feats = list(FEATS)
     if mk == "KR":
         c = sqlite3.connect("file:" + str(BASE / "data" / "investor.db") + "?mode=ro", uri=True)

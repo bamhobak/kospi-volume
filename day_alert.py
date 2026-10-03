@@ -93,7 +93,8 @@ def prep(today):
         amt20 = sum(a * b for a, b in zip(cl[-20:], v[-20:])) / 20
         base = sum(v[-21:-1]) / 20
         if base <= 0 or cl[-1] <= 0: continue
-        R[s] = dict(pc=cl[-1], amt20=amt20, vm=v[-1] / base, pdate=c[-1]["timestamp"][:10].replace("-", ""))
+        R[s] = dict(pc=cl[-1], amt20=amt20, vm=v[-1] / base, pdate=c[-1]["timestamp"][:10].replace("-", ""),
+                    d5=(cl[-1] / (sum(cl[-5:]) / 5) - 1) * 100)          # 어제 종가의 5일선 대비 — 낮을수록 기대 큼(day2.py)
     log("준비: %d종목 · %.1f분" % (len(R), (time.time() - t0) / 60))
     return R
 
@@ -134,13 +135,17 @@ def morning():
     src = {s: ("NXT" if s in nxt else ("호가" if s in ob else None)) for s in uni}
     gap = {s: (exp[s] / R[s]["pc"] - 1) * 100 for s in uni if exp[s]}
     gq = pct_rank(gap)
-    cand = sorted([s for s in pre if s in gq and gq[s] <= 0.10], key=lambda s: gap[s])
+    # 순서(2026-10-03 day2.py): 시장보다 더 빠진 순 — 시장 대비 -3%p 이상이면 하루 +0.9~1.0%(학습·검증), 그 안은 +0.3%
+    mg = sorted(gap.values())[len(gap) // 2] if gap else 0.0           # 오늘 유니버스 갭 중앙 = 시장 갭
+    d5q = pct_rank({k: R[k]["d5"] for k in uni})
+    cand = sorted([s for s in pre if s in gq and gq[s] <= 0.10], key=lambda s: gap[s] - mg)
     nm = {}
     for i in range(0, len(cand), 100):
         for x in M.get("/api/v1/stocks", symbols=",".join(cand[i:i + 100])) or []:
             nm[x["symbol"]] = x.get("name") or x["symbol"]
-    L = [dict(t=s, name=nm.get(s, s), gap=round(gap[s], 2), vm=round(R[s]["vm"], 2), exp=exp[s], pc=R[s]["pc"], src=src[s]) for s in cand]
-    snap = dict(date=today, prev=prev, made=dt.datetime.now(KST).strftime("%H:%M"), rule=RULE, n_uni=len(uni), n_gap=len(gap),
+    L = [dict(t=s, name=nm.get(s, s), gap=round(gap[s], 2), rel=round(gap[s] - mg, 2), vm=round(R[s]["vm"], 2), d5=round(R[s]["d5"], 2),
+              d5low=d5q[s] <= 0.30, exp=exp[s], pc=R[s]["pc"], src=src[s]) for s in cand]
+    snap = dict(date=today, prev=prev, made=dt.datetime.now(KST).strftime("%H:%M"), rule=RULE, n_uni=len(uni), n_gap=len(gap), mgap=round(mg, 2),
                 cut=round(sorted(gap.values())[max(int(len(gap) * 0.10) - 1, 0)], 2) if gap else None,
                 src_n={"NXT": sum(1 for s in src.values() if s == "NXT"), "호가": sum(1 for s in src.values() if s == "호가")}, cand=L,
                 all={s: dict(gap=round(gap[s], 3), src=src[s], pre=s in pre) for s in gap})
@@ -151,9 +156,11 @@ def morning():
         log("사이트 기록 실패:", ex)
     log("후보 %d · 예상가 NXT %d · 호가 %d · 갭 10%% 선 %s%%" % (len(L), snap["src_n"]["NXT"], snap["src_n"]["호가"], snap["cut"]))
     head = "🌅 <b>데이 [%s] 알림만</b> %s/%s 08:52" % (RULE, today[4:6], today[6:])
-    body = ["후보 %d종목 — 시가 단일가 매수 → 종가 매도 (실제 주문 없음 · 검증 중)" % len(L)]
+    body = ["후보 %d종목 — 시가 단일가 매수 → 종가 매도 (실제 주문 없음 · 검증 중)" % len(L),
+            "오늘 시장 갭 %+.1f%%%s" % (mg, " — 다 같이 빠진 날(과거 기대 큼)" if mg <= -1 else "")]
     for x in L[:15]:
-        body.append("· %s(%s) 예상 갭 %+.1f%% · 어제 거래량 %.1f배 [%s]" % (x["name"], x["t"], x["gap"], x["vm"], x["src"]))
+        body.append("· %s(%s) 예상 갭 %+.1f%%(시장 대비 %+.1f) · 거래량 %.1f배%s [%s]" % (
+            x["name"], x["t"], x["gap"], x["rel"], x["vm"], " · 5일선 아래" if x["d5low"] else "", x["src"]))
     if len(L) > 15: body.append("… 외 %d" % (len(L) - 15))
     body.append("갭 하위 10%% 선 %s%% · 예상가 NXT %d·호가 %d / 유니버스 %d" % (snap["cut"], snap["src_n"]["NXT"], snap["src_n"]["호가"], len(uni)))
     telegram("\n".join([head] + body))
