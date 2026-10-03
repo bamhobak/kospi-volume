@@ -145,7 +145,17 @@ def morning():
     mg = sorted(gap.values())[len(gap) // 2] if gap else 0.0           # 오늘 유니버스 갭 중앙 = 시장 갭
     d5q = pct_rank({k: R[k]["d5"] for k in uni})
     base_c = [s for s in pre if s in gq and gq[s] <= 0.10]                       # 예전 T1(넓은 조건) — 결과 비교용으로 남긴다
-    cand = sorted([s for s in base_c if s in tiny and gap[s] - mg <= -2], key=lambda s: gap[s] - mg)
+    # 2026-10-04 국면별 기준(사용자): 코스피 전날 종가가 60일선 위(상승장) → 시장보다 2%p↑ · 아래(하락장) → 1.5%p↑ 더 빠진 것
+    #   상승장 날 건당 +0.56/+1.32%·승률 61/63% · 하락장 날 +1.03/+1.37%·62/65% (학습/검증). 지수를 못 받으면 엄격한 2%p.
+    kup = None
+    try:
+        import index_cal as IC
+        kc = IC.naver_closes("KOSPI", 200); ks = [kc[d] for d in sorted(kc) if d < today]
+        if len(ks) >= 60: kup = ks[-1] > sum(ks[-60:]) / 60
+    except Exception as ex:
+        log("코스피 지수 못 받음:", ex)
+    thr = -1.5 if kup is False else -2.0
+    cand = sorted([s for s in base_c if s in tiny and gap[s] - mg <= thr], key=lambda s: gap[s] - mg)
     nm = {}
     for i in range(0, len(cand), 100):
         for x in M.get("/api/v1/stocks", symbols=",".join(cand[i:i + 100])) or []:
@@ -155,7 +165,7 @@ def morning():
     snap = dict(date=today, prev=prev, made=dt.datetime.now(KST).strftime("%H:%M"), rule=RULE, n_uni=len(uni), n_gap=len(gap), mgap=round(mg, 2),
                 cut=round(sorted(gap.values())[max(int(len(gap) * 0.10) - 1, 0)], 2) if gap else None,
                 src_n={"NXT": sum(1 for s in src.values() if s == "NXT"), "호가": sum(1 for s in src.values() if s == "호가")}, cand=L,
-                n_base=len(base_c), all={s: dict(gap=round(gap[s], 3), src=src[s], pre=s in pre, tiny=s in tiny) for s in gap})
+                n_base=len(base_c), kup=kup, thr=thr, all={s: dict(gap=round(gap[s], 3), src=src[s], pre=s in pre, tiny=s in tiny) for s in gap})
     (OUT / ("snap_%s.json" % today)).write_text(json.dumps(snap, ensure_ascii=False), encoding="utf-8")
     try:
         supa_set("__day__", {k: v for k, v in snap.items() if k != "all"})
@@ -171,7 +181,8 @@ def morning():
         body.append("· %s(%s) 예상 갭 %+.1f%%(시장 대비 %+.1f) · 거래량 %.1f배%s [%s]" % (
             x["name"], x["t"], x["gap"], x["rel"], x["vm"], " · 5일선 아래" if x["d5low"] else "", x["src"]))
     if len(L) > 15: body.append("… 외 %d" % (len(L) - 15))
-    body.append("넓은 조건(예전 T1) %d개 중 좁힘(더 작은 종목 · 시장보다 2%%p↑ 더 빠짐) 통과 %d%s" % (len(base_c), len(L), " — 오늘은 안 산다" if not L else ""))
+    body.append("코스피 %s → 기준: 더 작은 종목 · 시장보다 %.1f%%p↑ 더 빠짐" % ({True: "상승장(60일선 위)", False: "하락장(60일선 아래)", None: "국면 모름"}[kup], -thr))
+    body.append("넓은 조건(예전 T1) %d개 중 통과 %d%s" % (len(base_c), len(L), " — 오늘은 안 산다" if not L else ""))
     body.append("갭 하위 10%% 선 %s%% · 예상가 NXT %d·호가 %d / 유니버스 %d" % (snap["cut"], snap["src_n"]["NXT"], snap["src_n"]["호가"], len(uni)))
     telegram("\n".join([head] + body))
     try: M.BUSY.unlink()                                       # 고르는 건 끝났다 — 1분봉 과거 채우기를 다시 돌게 둔다
@@ -328,7 +339,7 @@ def review():
     rq = pct_rank(real_gap)
     rmg = sorted(real_gap.values())[len(real_gap) // 2] if real_gap else 0.0
     real_cand = {s for s in real_gap if rq[s] <= 0.10 and snap["all"].get(s, {}).get("pre") and snap["all"].get(s, {}).get("tiny")
-                 and real_gap[s] - rmg <= -2}
+                 and real_gap[s] - rmg <= snap.get("thr", -2.0)}
     mine = {x["t"] for x in snap["cand"]}
     rets = []
     for x in snap["cand"]:
