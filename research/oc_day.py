@@ -56,6 +56,10 @@ def build(mk):
         feats += ["fr", "ir"]
         # 시가가 상한가 근처면 못 산다 · 거래 없는 날 제외
         A = A[(A.gap0 < 29) & (A.volume > 0)]
+        # ⚠ 2026-10-03: kr_scan 에 시가·종가 기준이 섞인 줄(이음새)이 있다 — 갭 -50%·장중 +60% 처럼 ±30% 가격제한으로 불가능한 줄.
+        #   그대로 두면 '갭 -5%↓' 칸이 가짜로 부푼다(494120·183300·327260, 2026-06~07). 가격제한·고저 범위를 벗어난 줄은 버린다.
+        bad = (A.gap0.abs() > 30.5) | ((A.close / pc - 1).abs() > 0.305) | (A.open > A.high * 1.001) | (A.open < A.low * 0.999)               | (A.close > A.high * 1.001) | (A.close < A.low * 0.999)
+        A = A[~bad.reindex(A.index).fillna(False)]
     A = A[A.uni & A.oc.notna() & (A.date >= "20050101")].copy()
     A["oc"] = A.oc.clip(-60, 60) - COST[mk]
     return A, feats

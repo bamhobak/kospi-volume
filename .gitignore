@@ -153,3 +153,6 @@ data/autotrade/
 
 # 1분봉(collect_m1.py) — 수 GB 라 로컬에만
 data/m1/
+
+# 데이 알림 기록(day_alert.py)
+data/day/

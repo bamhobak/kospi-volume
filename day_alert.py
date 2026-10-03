@@ -1,0 +1,230 @@
+# -*- coding: utf-8 -*-
+"""데이 첫 규칙 후보 [갭 하락 조용주] — **알림만**(실제 주문 없음) · 2026-10-03 (research H0285).
+
+규칙(일봉 2005~2026 실측, 비용 0.22% 뒤 하루 평균: 학습 16~22 +0.37% 7/7해 · 검증 23~ +0.39% 4/4해 · 05~15 +0.67% 11/11해):
+  유니버스 = 국장 보통주 중 20일 평균 거래대금 상위 40%
+  ① 그중 거래대금 아래 2/3(중소형)         — 위 1/3(대형)은 효과 없음
+  ② 오늘 갭(시가 ÷ 어제 종가)이 유니버스 하위 10%
+  ③ 어제 거래량 ÷ 그 전 20일 평균이 유니버스 하위 30%(조용했던 종목)
+  → **시가 단일가에 사서 같은 날 종가 단일가에 판다.** 1분봉으로 보면 09:05 에만 사도 효과가 사라진다 → 장전에 골라야 한다.
+⚠ 오늘 시가는 장 전에 모른다. 토스 API 에 '예상 체결가' 칸이 없어 두 가지로 미리 짐작하고, 장 끝나고 실제 시가와 맞춰 어느 쪽이 맞는지 잰다.
+   NXT = 넥스트레이드 장전(08:00~08:50) 마지막 체결가 · 호가 = 08:50 이후 장전 단일가 호가 1단계 가운데값
+
+  python day_alert.py morning   08:40 — 전 종목 일봉 25개(약 6분) → 08:52 예상 시가 → 후보 텔레그램 · 사이트(__day__)
+  python day_alert.py review    16:25 — 오늘 실제 시가·종가로 후보 성적 + 예상 시가가 맞았는지 → data/day/log.csv · 텔레그램
+"""
+import csv, datetime as dt, json, math, os, re, sys, time, urllib.request
+from pathlib import Path
+
+BASE = Path(__file__).parent
+sys.path.insert(0, str(BASE))
+OUT = BASE / "data" / "day"; OUT.mkdir(parents=True, exist_ok=True)
+LOG = OUT / "run.log"
+if sys.stdout is not None:
+    try: sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception: pass
+import collect_m1 as M          # 토스 호출(속도 조절·재시도·토큰 공용), 국장 종목 목록
+
+KST = M.KST
+COST = 0.22
+RULE = "갭 하락 조용주"
+
+
+def log(*a):
+    s = time.strftime("%Y-%m-%d %H:%M:%S ") + " ".join(str(x) for x in a)
+    try:
+        with open(LOG, "a", encoding="utf-8") as f: f.write(s + "\n")
+    except Exception: pass
+    if sys.stdout is not None:
+        try: print(s, flush=True)
+        except Exception: pass
+
+
+def env():
+    e = {}
+    f = BASE / ".env"
+    if f.exists():
+        for ln in f.read_text(encoding="utf-8").splitlines():
+            if "=" in ln and not ln.strip().startswith("#"):
+                k, v = ln.split("=", 1); e[k.strip()] = v.strip()
+    return e
+
+
+def telegram(text):
+    e = env(); tok, chat = e.get("TELEGRAM_BOT_TOKEN"), e.get("TELEGRAM_CHAT_ID")
+    if not (tok and chat):
+        log("텔레그램 미설정:", text.replace("\n", " | ")); return
+    try:
+        body = json.dumps({"chat_id": chat, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}).encode()
+        urllib.request.urlopen(urllib.request.Request(f"https://api.telegram.org/bot{tok}/sendMessage", data=body,
+                                                      headers={"Content-Type": "application/json"}), timeout=30).read()
+    except Exception as ex:
+        log("텔레그램 실패:", repr(ex)[:200])
+
+
+def supa_set(pin, data):
+    import requests
+    js = (BASE / "assets" / "sb.js").read_text(encoding="utf-8")
+    url = re.search(r"url:'([^']+)'", js).group(1); key = re.search(r"key:'([^']+)'", js).group(1)
+    H = {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    requests.post(f"{url}/rest/v1/rpc/kospi_state_set", headers=H, json={"p_pin": pin, "p_data": data}, timeout=30).raise_for_status()
+
+
+def today_session():
+    cal = M.get("/api/v1/market-calendar/KR")
+    it = (cal.get("today") or {}).get("integrated")
+    return (cal["today"]["date"].replace("-", ""), it, cal["previousBusinessDay"]["date"].replace("-", "")) if it else (None, None, None)
+
+
+def pct_rank(vals):
+    """{키: 값} → {키: 0~1 백분위}(작을수록 0)."""
+    ks = sorted(vals, key=lambda k: vals[k]); n = len(ks)
+    return {k: (i + 1) / n for i, k in enumerate(ks)}
+
+
+def prep(today):
+    """전 종목 일봉 25개 → 어제 종가·20일 평균 거래대금·어제 거래량 배수."""
+    U = M.universe("KR"); R = {}; t0 = time.time()
+    for s in U:
+        c = (M.get("/api/v1/candles", symbol=s, interval="1d", count=25) or {}).get("candles") or []
+        c = sorted([x for x in c if x["timestamp"][:10].replace("-", "") < today], key=lambda x: x["timestamp"])
+        if len(c) < 22: continue
+        v = [float(x["volume"]) for x in c]; cl = [float(x["closePrice"]) for x in c]
+        amt20 = sum(a * b for a, b in zip(cl[-20:], v[-20:])) / 20
+        base = sum(v[-21:-1]) / 20
+        if base <= 0 or cl[-1] <= 0: continue
+        R[s] = dict(pc=cl[-1], amt20=amt20, vm=v[-1] / base, pdate=c[-1]["timestamp"][:10].replace("-", ""))
+    log("준비: %d종목 · %.1f분" % (len(R), (time.time() - t0) / 60))
+    return R
+
+
+def morning():
+    today, it, prev = today_session()
+    if not today:
+        log("국장 휴장 — 건너뜀"); return
+    R = prep(today)
+    names = {}
+    # 유니버스: 20일 평균 거래대금 상위 40% (1,000원 미만 제외 — 연구와 같게)
+    R = {k: v for k, v in R.items() if v["pc"] >= 1000 and v["pdate"] == prev}
+    liq = pct_rank({k: v["amt20"] for k, v in R.items()})
+    uni = [k for k in R if liq[k] >= 0.60]
+    uliq = pct_rank({k: R[k]["amt20"] for k in uni})
+    small = [k for k in uni if uliq[k] <= 2 / 3]
+    vmq = pct_rank({k: R[k]["vm"] for k in uni})
+    pre = [k for k in small if vmq[k] <= 0.30]                 # ①③ 은 장 전에 확정 — 갭만 남는다
+    log("유니버스 %d · 중소형 %d · 조용(거래량 하위30%%) %d" % (len(uni), len(small), len(pre)))
+    # 08:52 까지 기다렸다 예상 시가 — NXT 장전 체결가(08:50 마감) + 장전 단일가 호가
+    at = dt.datetime.now(KST).replace(hour=8, minute=52, second=0, microsecond=0)
+    w = (at - dt.datetime.now(KST)).total_seconds()
+    if w > 0:
+        log("08:52 까지 기다림 %.0f초" % w); time.sleep(w)
+    nxt = {}
+    for i in range(0, len(uni), 200):
+        for x in M.get("/api/v1/prices", symbols=",".join(uni[i:i + 200])) or []:
+            ts = x.get("timestamp") or ""
+            if ts[:10].replace("-", "") == today:
+                nxt[x["symbol"]] = float(x["lastPrice"])
+    ob = {}
+    for s in uni:                                              # 갭 순위는 유니버스 전체에서 매긴다 → 전부 본다
+        r = M.get("/api/v1/orderbook", symbol=s) or {}
+        a = (r.get("asks") or [{}])[0].get("price"); b = (r.get("bids") or [{}])[0].get("price")
+        if a and b: ob[s] = (float(a) + float(b)) / 2
+        elif a or b: ob[s] = float(a or b)
+    exp = {s: nxt.get(s, ob.get(s)) for s in uni}
+    src = {s: ("NXT" if s in nxt else ("호가" if s in ob else None)) for s in uni}
+    gap = {s: (exp[s] / R[s]["pc"] - 1) * 100 for s in uni if exp[s]}
+    gq = pct_rank(gap)
+    cand = sorted([s for s in pre if s in gq and gq[s] <= 0.10], key=lambda s: gap[s])
+    nm = {}
+    for i in range(0, len(cand), 100):
+        for x in M.get("/api/v1/stocks", symbols=",".join(cand[i:i + 100])) or []:
+            nm[x["symbol"]] = x.get("name") or x["symbol"]
+    L = [dict(t=s, name=nm.get(s, s), gap=round(gap[s], 2), vm=round(R[s]["vm"], 2), exp=exp[s], pc=R[s]["pc"], src=src[s]) for s in cand]
+    snap = dict(date=today, prev=prev, made=dt.datetime.now(KST).strftime("%H:%M"), rule=RULE, n_uni=len(uni), n_gap=len(gap),
+                cut=round(sorted(gap.values())[max(int(len(gap) * 0.10) - 1, 0)], 2) if gap else None,
+                src_n={"NXT": sum(1 for s in src.values() if s == "NXT"), "호가": sum(1 for s in src.values() if s == "호가")}, cand=L,
+                all={s: dict(gap=round(gap[s], 3), src=src[s], pre=s in pre) for s in gap})
+    (OUT / ("snap_%s.json" % today)).write_text(json.dumps(snap, ensure_ascii=False), encoding="utf-8")
+    try:
+        supa_set("__day__", {k: v for k, v in snap.items() if k != "all"})
+    except Exception as ex:
+        log("사이트 기록 실패:", ex)
+    log("후보 %d · 예상가 NXT %d · 호가 %d · 갭 10%% 선 %s%%" % (len(L), snap["src_n"]["NXT"], snap["src_n"]["호가"], snap["cut"]))
+    head = "🌅 <b>데이 [%s] 알림만</b> %s/%s 08:52" % (RULE, today[4:6], today[6:])
+    body = ["후보 %d종목 — 시가 단일가 매수 → 종가 매도 (실제 주문 없음 · 검증 중)" % len(L)]
+    for x in L[:15]:
+        body.append("· %s(%s) 예상 갭 %+.1f%% · 어제 거래량 %.1f배 [%s]" % (x["name"], x["t"], x["gap"], x["vm"], x["src"]))
+    if len(L) > 15: body.append("… 외 %d" % (len(L) - 15))
+    body.append("갭 하위 10%% 선 %s%% · 예상가 NXT %d·호가 %d / 유니버스 %d" % (snap["cut"], snap["src_n"]["NXT"], snap["src_n"]["호가"], len(uni)))
+    telegram("\n".join([head] + body))
+
+
+def review():
+    today, it, prev = today_session()
+    if not today:
+        log("국장 휴장 — 건너뜀"); return
+    f = OUT / ("snap_%s.json" % today)
+    if not f.exists():
+        log("오늘 아침 기록 없음 — 건너뜀"); return
+    snap = json.loads(f.read_text(encoding="utf-8"))
+    syms = list(snap["all"].keys())
+    act, prevc = {}, {}                                    # 오늘 (시가, 종가) · 어제 종가
+    for s in syms:
+        c = (M.get("/api/v1/candles", symbol=s, interval="1d", count=3) or {}).get("candles") or []
+        c = sorted(c, key=lambda x: x["timestamp"])
+        t = [x for x in c if x["timestamp"][:10].replace("-", "") == today]
+        b = [x for x in c if x["timestamp"][:10].replace("-", "") < today]
+        if t: act[s] = (float(t[0]["openPrice"]), float(t[0]["closePrice"]))
+        if b: prevc[s] = float(b[-1]["closePrice"])
+    # 예상 시가가 맞았나 — 예상 갭 vs 실제 갭(같은 어제 종가 기준) · 실제 갭으로 다시 고르면 후보가 얼마나 겹치나
+    real_gap = {s: (act[s][0] / prevc[s] - 1) * 100 for s in syms if s in act and s in prevc}
+    errs = {"NXT": [], "호가": []}
+    for s, g in real_gap.items():
+        a = snap["all"].get(s)
+        if a and a.get("src") in errs: errs[a["src"]].append(a["gap"] - g)
+    rq = pct_rank(real_gap)
+    real_cand = {s for s in real_gap if rq[s] <= 0.10 and snap["all"].get(s, {}).get("pre")}
+    mine = {x["t"] for x in snap["cand"]}
+    rets = []
+    for x in snap["cand"]:
+        if x["t"] in act:
+            o, c = act[x["t"]]; r = (c / o - 1) * 100 - COST; rets.append(r)
+            x["open"], x["close"], x["ret"] = o, c, round(r, 3)
+    real_rets = [(act[s][1] / act[s][0] - 1) * 100 - COST for s in real_cand if s in act]
+    avg = lambda L: sum(L) / len(L) if L else float("nan")
+    mae = lambda L: sum(abs(v) for v in L) / len(L) if L else float("nan")
+    lf = OUT / "log.csv"; new = not lf.exists()
+    with open(lf, "a", newline="", encoding="utf-8-sig") as fh:
+        w = csv.writer(fh)
+        if new: w.writerow(["날짜", "후보수", "후보 평균(비용 뒤)", "실제 갭 기준 후보수", "그 평균", "겹친 수", "NXT 갭 오차(평균 절대 %p)", "호가 갭 오차", "NXT 수", "호가 수"])
+        w.writerow([today, len(rets), round(avg(rets), 3), len(real_rets), round(avg(real_rets), 3), len(mine & real_cand),
+                    round(mae(errs["NXT"]), 3), round(mae(errs["호가"]), 3), len(errs["NXT"]), len(errs["호가"])])
+    snap["review"] = dict(rets=rets, real_n=len(real_cand), overlap=len(mine & real_cand))
+    f.write_text(json.dumps(snap, ensure_ascii=False), encoding="utf-8")
+    try:
+        supa_set("__day__", {k: v for k, v in snap.items() if k != "all"})
+    except Exception as ex:
+        log("사이트 기록 실패:", ex)
+    L = ["📊 <b>데이 [%s] 오늘 결과</b> %s/%s (알림만 · 실제 주문 없음)" % (RULE, today[4:6], today[6:]),
+         "아침 후보 %d종목 시가→종가 평균 <b>%+.2f%%</b>(비용 뒤) · 오른 종목 %d/%d" % (len(rets), avg(rets), sum(r > 0 for r in rets), len(rets)),
+         "실제 시가로 골랐다면 %d종목 평균 %+.2f%% · 아침 후보와 겹침 %d" % (len(real_rets), avg(real_rets), len(mine & real_cand)),
+         "예상 시가 오차(갭 %%p): NXT %.2f(%d종목) · 호가 %.2f(%d종목)" % (mae(errs["NXT"]), len(errs["NXT"]), mae(errs["호가"]), len(errs["호가"]))]
+    telegram("\n".join(L))
+    log("리뷰:", L[1], "|", L[2], "|", L[3])
+
+
+if __name__ == "__main__":
+    a = sys.argv[1:]
+    try:
+        if a[:1] in (["morning"], ["review"]):
+            # 도는 동안 1분봉 과거 채우기를 쉬게 한다 — 토스 시세 호출은 초당 10회를 같이 쓴다(아침은 08:56 전에 끝나야 한다)
+            M.BUSY.write_text("day")
+            try:
+                morning() if a[0] == "morning" else review()
+            finally:
+                try: M.BUSY.unlink()
+                except Exception: pass
+        else: log("사용법: python day_alert.py morning | review")
+    except Exception as ex:
+        log("실패:", repr(ex)[:500])
+        telegram("⚠ 데이 알림 실패: %s" % str(ex)[:300]); raise

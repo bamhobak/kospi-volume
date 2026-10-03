@@ -709,7 +709,20 @@ const FILTERS=[
    ⚠ 'const FILTERS=' 글자는 점검 도구들(selftest·check_rule_fields·audit_rules·site_eval)이 찾는 표지라
      이름을 바꾸지 않고 **내용을 갈아 끼운다**. */
 const SWING_FILTERS=FILTERS.slice();
-const SCALP_FILTERS=[];
+/* 데이 첫 규칙 후보 [갭 하락 조용주](2026-10-03 · research H0285) — **알림만 · 검증 중**.
+   후보는 장전 08:52 에 이 PC 의 day_alert.py 가 골라 Supabase '__day__' 에 둔다(오늘 갭은 장 전에만 알 수 있어 사이트 표로는 못 고른다). */
+let DAYST=null;
+const kstToday=()=>{const d=new Date(Date.now()+9*3600e3);return d.toISOString().slice(0,10).replace(/-/g,'')};
+const dayCand=t=>(DAYST&&DAYST.date===kstToday()&&(DAYST.cand||[]).find(x=>x.t===t))||null;
+const SCALP_FILTERS=[
+  {id:'T1',regime:'both',gate:'always',name:'A1 · 갭 하락 조용주',mkt:'BOTH',
+   cond:'국장 · 20일 평균 거래대금 상위 40% 중 **아래 2/3(중소형)** · **오늘 갭(시가÷어제 종가)이 그중 하위 10%** · **어제 거래량이 그 전 20일 평균 대비 하위 30%(조용했던 종목)** — 후보는 장전 08:52 에 골라 알림',
+   desc:'**2026-10-03 · 알림만(실제 주문 없음)** · 일봉 2005~2026 실측(비용 0.22% 뒤 하루 평균): 학습 2016~22 **+0.37%**(7/7해) · 검증 2023~ **+0.39%**(4/4해) · 참고 2005~15 +0.67%(11/11해). 대형(유니버스 위 1/3)은 효과 없음. 1분봉으로 보면 **09:05 에만 사도 효과가 사라진다** — 시가 단일가에서 사야 한다. ⚠ 오늘 시가는 장 전에 모른다 — NXT 장전 체결가·장전 호가로 짐작하고 장 끝나고 실제와 맞춰 본다(16:10 결과 알림).',
+   rule:{hold:1,stop:null,trail:null,target:null},ruleText:'오늘 <em>시가 단일가 매수</em> · 같은 날 <em>종가 단일가 매도</em>',
+   stats:{n:13284,perMonth:312,monthsActive:45,spanMonths:45,medPerActive:15,topMonth:'-',topN:0,win:56,pf:1.51,avg:0.52,
+     years:'**검증 2023~** 13,284건 건당 평균 +0.52% · 중앙 +0.33% · 승률 55.5% · PF 1.51 · 하루 약 15종목 — 해별 건당 평균 2016 +0.47 / 2017 +0.31 / 2018 +0.59 / 2019 +0.52 / 2020 +0.53 / 2021 +0.21 / 2022 +0.42 / 2023 +0.46 / 2024 +0.41 / 2025 +0.56 / 2026 +0.72'},
+   fn:r=>!!dayCand(r.ticker)}
+];
 let TMODE=(()=>{try{return localStorage.getItem('tmode')==='scalp'?'scalp':'swing'}catch(e){return 'swing'}})();
 function useRules(L){FILTERS.length=0;L.forEach(f=>FILTERS.push(f))}
 if(TMODE==='scalp')useRules(SCALP_FILTERS);
@@ -1112,6 +1125,9 @@ function showTable(on){const t=$('#tblcard'),c=$('#cards');
   if(t)t.style.display=on?'':'none'; if(c)c.style.display=on?'none':'flex'}
 const pctTxt=v=>v==null?'—':(v>0?'+':'')+v.toFixed(1)+'%';
 function whyCells(r,f){
+  if(f.id==='T1'){const c=dayCand(r.ticker);if(!c)return '';
+    return [['예상 갭',(c.gap>0?'+':'')+c.gap.toFixed(1)+'%','var(--dn)','하위 10% 선 '+(DAYST.cut??'-')+'%'],['어제 거래량',c.vm.toFixed(2)+'배','var(--dn)','20일 평균 대비 · 하위 30%'],['예상가 출처',c.src||'-','var(--mut)',(DAYST.made||'')+' 기준']]
+      .map(([l,v,col,sub])=>`<div><div class="l">${l}</div><div class="v" style="color:${col}">${v}</div><div class="s">${sub}</div></div>`).join('')}
   /* 규칙마다 '왜 걸렸나'를 조건별 실제값 + 기준값으로 보여준다 */
   const kospiDown=!(raw.kospi&&raw.kospi.up60);
   const C={dn:'var(--dn)',up:'var(--up)'};
@@ -1145,6 +1161,7 @@ function renderCards(rows){
     const us=ud?`미장 ${mdShort(ud)}`:(raw.usFail?'미장 자료 못 받음':'미장 불러오는 중…');
     const parts=[dd?`국장 ${mdShort(dd)}`:'',us].filter(Boolean);
     const on=parts.length?`현재[${parts.join(' · ')}] 조건`:'현재 조건';
+    if(TMODE==='scalp'&&cur==='all'&&!(DAYST&&DAYST.date===kstToday())){box.innerHTML=`<div class="empty" style="margin-top:60px">오늘 데이 후보가 아직 없습니다.<div style="font-size:12px;margin-top:8px;color:var(--faint)">[갭 하락 조용주] 후보는 장 여는 날 08:52 에 뜹니다(알림만 · 검증 중).</div></div>`;return}
     if(TMODE==='scalp'&&!FILTERS.length){box.innerHTML=`<div class="empty" style="margin-top:60px">데이 규칙이 아직 없습니다.<div style="font-size:12px;margin-top:8px;color:var(--faint)">1분봉을 모으는 중입니다 — 규칙을 찾으면 여기에 매수 대기가 뜹니다.</div></div>`;return}
     box.innerHTML=`<div class="empty" style="margin-top:60px">${cur==='all'?on+'을 만족한 종목이 없습니다.':on+'으로 이 규칙에 걸린 종목이 없습니다.'}<div style="font-size:12px;margin-top:8px;color:var(--faint)">신호가 없는 날이 더 많습니다.</div></div>`;return}
   /* 매수 대기: **규칙마다 카드 한 장**(2026-10-03 요청) — A 종목이 N1·N2 에 걸리면 N1 카드·N2 카드 둘.
@@ -1189,11 +1206,11 @@ function renderCards(rows){
       </div>
       <div><div class="why">${whyCells(r,f)}</div></div>
       <div class="plan">
-        <div class="st"><span class="k">매수</span><b>다음날 시가</b></div>
+        <div class="st"><span class="k">매수</span><b>${f.id==='T1'?'오늘 시가(단일가)':'다음날 시가'}</b></div>
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        <div class="st"><span class="k">보유</span><b>${hold}거래일${f.rule.target?' · 익절 +'+f.rule.target+'%':''}</b></div>
+        <div class="st"><span class="k">보유</span><b>${f.id==='T1'?'당일':hold+'거래일'}${f.rule.target?' · 익절 +'+f.rule.target+'%':''}</b></div>
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        <div class="st"><span class="k">매도</span><b>${hold}일 뒤 종가</b></div>
+        <div class="st"><span class="k">매도</span><b>${f.id==='T1'?'오늘 종가(단일가)':hold+'일 뒤 종가'}</b></div>
         <div style="flex:none">${heldBy(r.ticker,f.id)
           ?`<button class="ghost" data-buy="${r.ticker}" data-rid="${f.id}" title="이 규칙으로 이미 보유 중입니다. 그래도 추가 매수를 기록하려면 누르세요">추가 매수</button>`
           :`<button data-buy="${r.ticker}" data-rid="${f.id}" title="${codeOf(f.id)} 규칙으로 매수를 기록합니다 — 매도일도 이 규칙(${hold}거래일)으로 잡힙니다">매수 기록</button>`}</div>
@@ -1899,6 +1916,7 @@ async function load(){
     await showStock(DETAIL); return;
   }
   await pullRemote();raw=await (await fetch('data/table.json?v='+Date.now())).json();
+  try{DAYST=await rpc('kospi_state_get',{p_pin:'__day__'})}catch(e){DAYST=null}   /* 데이 후보(장전 08:52) */
   /* 미장 거래일 달력 + 정렬용 환율(4KB). 미장 표(3.6MB)는 배경으로 늦게 오므로
      보유일 계산이 첫 화면에서 어긋나지 않게 이 작은 파일을 먼저 받는다. */
   try{raw.uscal=await (await fetch('data/uscal.json?v='+Date.now())).json()}catch(e){raw.uscal=null}
