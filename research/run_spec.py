@@ -81,6 +81,10 @@ def load_market(mk):
         A = pd.read_pickle(BASE / "data/us_scan.pkl")
         A = A[((~A.pref.fillna(False)) & (A.rawclose >= 3)).fillna(False)]
         since = TR0
+        # ⚠ 2026-10-04: us_scan 은 **살아남은 종목뿐**(5,983종목 중 폐지 4 · 폐지 포함 패널은 13,151종목 중 6,061 폐지).
+        #   '빠진 종목 사기'(낙폭·저PBR·평균회귀) 규칙은 여기서 부풀려진다 — 1차 판정용으로만 쓰고,
+        #   채택 전 최종 측정은 폐지 포함 패널(research/gh_engine.load_us_full · us_surv_measure)로 다시 잴 것.
+        log("⚠ 미장 패널은 살아남은 종목뿐 — 채택 전 폐지 포함 패널로 다시 잴 것")
     A = A.sort_values(["ticker", "date"]).reset_index(drop=True)
     # 오늘의 시가·고가·저가·갭 — 미래 없이 (2026-09-25, 외국 셋업이 다 쓴다)
     g = A.groupby("ticker", sort=False)
@@ -92,6 +96,19 @@ def load_market(mk):
         A["high"] = A["low"] + R
     A["gap0"] = (A.open / pc - 1) * 100
     uni = (A.groupby("date").amt20.rank(pct=True) >= 0.60).fillna(False)
+    if mk == "KR":
+        # ⚠ 2026-10-04: kr_scan 에 가격제한으로 불가능한 하루 변동(액면분할·병합 미반영 이음새)이 있다 — 2016~ 394줄·303종목.
+        #   이음새 근처는 앞으로의 수익(n5~n60)도 뒤로의 특징값(ret20·고점 대비 등)도 틀리므로 **앞뒤 60거래일을 유니버스에서 뺀다**.
+        #   가격제한: 2015-06-15 전 ±15% · 그 뒤 ±30% (여유 1%p). 실전 운영 DB 는 find_seams.py 가 매일 고친다(이건 연구 패널 전용).
+        lim = np.where(A.date < "20150615", 0.16, 0.31)
+        seam = ((A.close / pc - 1).abs() > lim) | (A.gap0.abs() / 100 > lim)
+        di = A.groupby("ticker").cumcount().to_numpy()
+        tk = A.ticker.to_numpy(); bad = np.zeros(len(A), dtype=bool)
+        for i in np.flatnonzero(seam.to_numpy()):
+            lo, hi = max(i - 60, 0), min(i + 60, len(A) - 1)
+            bad[lo:hi + 1] |= (tk[lo:hi + 1] == tk[i])
+        uni = uni & ~pd.Series(bad, index=A.index)
+        log("국장 이음새 %d줄 → 앞뒤 60거래일 %s행 유니버스 제외" % (int(seam.sum()), f"{int(bad.sum()):,}"))
     return A, uni, since
 
 
