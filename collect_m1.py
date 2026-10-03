@@ -17,7 +17,7 @@ REST 가 맞다(장 끝나고 그날 것을 받는다). 단타 규칙이 생기�
 쓰는 법:
   python collect_m1.py daily kr        장 끝난 뒤(16:05) — 오늘 국장 전 종목
   python collect_m1.py daily us        06:35 — 방금 끝난 미장 전 종목(서머타임 자동)
-  python collect_m1.py backfill --hours 22   거래대금 상위(국장 500·미장 1000)부터 과거 채우기, 시간 다 되면 멈추고 다음에 이어서
+  python collect_m1.py backfill --hours 22   거래대금 상위(국장 1000·미장 1000)부터 과거 채우기, 시간 다 되면 멈추고 다음에 이어서
   python collect_m1.py status          얼마나 모였나
 ⚠ 토큰은 autotrade·collect_toss 와 같은 캐시(toss.token) — 따로 받으면 서로를 끊는다.
 ⚠ 시세 API 는 초당 10회 — 여기선 초당 ~7회로 줄이고, 매일 수집이 도는 동안 과거 채우기는 쉰다(.busy 파일).
@@ -38,7 +38,7 @@ if sys.stdout is not None:
     except Exception: pass
 KST, NY = ZoneInfo("Asia/Seoul"), ZoneInfo("America/New_York")
 START = {"KR": "20221201", "US": "20211201"}
-TOP = {"KR": 500, "US": 1000}
+TOP = {"KR": 1000, "US": 1000}     # 2026-10-03: 국장 1000 — 갭 하락 데이 효과가 중소형(유니버스 아래 2/3)에 있어서
 EXTRA = {"KR": ["069500", "229200"], "US": ["SPY", "QQQ", "IWM"]}     # 시장 잣대용 ETF
 GAP = 0.14                                                          # 초당 ~7회
 
