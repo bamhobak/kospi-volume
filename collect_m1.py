@@ -150,23 +150,45 @@ def last_session(mk):
     return None
 
 
-def daily(mk):
-    day = last_session(mk)
-    if not day:
-        log(mk, "끝난 정규장 없음 — 건너뜀"); return
+CATCH = 5                                                           # 한 번에 메우는 최대 날 수(국장 하루 13분 · 미장 26분)
+
+
+def trading_days(mk, count=60):
+    """최근 거래일 목록(YYYYMMDD) — 큰 종목 일봉 날짜로. 미장 일봉 시각은 뉴욕 날짜다."""
+    sym = "005930" if mk == "KR" else "SPY"
+    c = (get("/api/v1/candles", symbol=sym, interval="1d", count=count) or {}).get("candles") or []
+    return sorted({x["timestamp"][:10].replace("-", "") for x in c})
+
+
+def collect_day(mk, day):
     out = ROOT / mk / "day" / (day + ".parquet")
-    if out.exists():
-        log(mk, day, "이미 있음"); return
     out.parent.mkdir(parents=True, exist_ok=True)
+    U = universe(mk); rows = []; n0 = 0; t0 = time.time()
+    for i, s in enumerate(U):
+        r = fetch_day(mk, s, day)
+        rows += r; n0 += bool(r)
+        if i % 500 == 499: log(mk, day, "%d/%d · 봉 있는 종목 %d" % (i + 1, len(U), n0))
+    frame(rows).to_parquet(out, index=False, compression="zstd")
+    log(mk, day, "끝 — %d종목 중 %d · 봉 %d · %.0f분 · %.1fMB" % (len(U), n0, len(rows), (time.time() - t0) / 60, out.stat().st_size / 1e6))
+
+
+def daily(mk):
+    """방금 끝난 정규장 + **PC 가 꺼져 있어 빠진 날**(2026-10-05 사용자 요청)을 전 종목 받는다.
+    토스가 1분봉 과거를 계속 주므로 늦게 받아도 같다. 첫 매일 파일 날짜 이후만 메운다(그 전은 과거 채우기 몫)."""
+    last = last_session(mk)
+    if not last:
+        log(mk, "끝난 정규장 없음 — 건너뜀"); return
+    have = {p.stem for p in (ROOT / mk / "day").glob("*.parquet")}
+    first = min(have) if have else last
+    todo = [d for d in trading_days(mk) if first <= d <= last and d not in have]
+    if not todo:
+        log(mk, last, "이미 있음"); return
+    if len(todo) > 1:
+        log(mk, "빠진 날 %d일 메움: %s" % (len(todo), ", ".join(todo[-CATCH:])))
     BUSY.write_text(mk)
     try:
-        U = universe(mk); rows = []; n0 = 0; t0 = time.time()
-        for i, s in enumerate(U):
-            r = fetch_day(mk, s, day)
-            rows += r; n0 += bool(r)
-            if i % 500 == 499: log(mk, day, "%d/%d · 봉 있는 종목 %d" % (i + 1, len(U), n0))
-        frame(rows).to_parquet(out, index=False, compression="zstd")
-        log(mk, day, "끝 — %d종목 중 %d · 봉 %d · %.0f분 · %.1fMB" % (len(U), n0, len(rows), (time.time() - t0) / 60, out.stat().st_size / 1e6))
+        for d in sorted(todo)[-CATCH:][::-1]:                     # 최근 날부터(연구에 바로 쓰이게)
+            collect_day(mk, d)
     finally:
         try: BUSY.unlink()
         except Exception: pass
