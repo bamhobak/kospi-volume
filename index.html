@@ -1649,8 +1649,8 @@ async function renderPositions(){
     const statHtml=()=>{const m=sumMoney(sel,usdOnly);return `<div class="dstat" title="동일 = 건별 수익률의 단순 평균 — 종목마다 넣은 돈이 달라도 &#10;       전부 같은 금액을 넣었다면 지금 몇 % 인가 (규칙 자체의 성적 · 백테스트와 비교용)&#10;수익률 = 총평가손익 ÷ 총매수금액 — 내 계좌가 실제로 벌고 있는 비율&#10;&#10;둘 다 매매비용 차감 후입니다.${m.navg&&m.navg!==(sel||[]).length?'&#10;현재가를 모르는 '+((sel||[]).length-m.navg)+'건은 동일가중에서 제외':''}">`
       +`<b class="${selF?mkCls(selF.mkt):''}">${posRule?codeOf(posRule)+' · '+((selF&&selF.name&&selF.name.split(' · ')[1])||posRule):'전체'}</b>`
       +`<span><span class="k">매수금액</span>${m.inv?amt(m.inv)+(m.noFX?' (국내만)':''):'—'}</span>`
-      +`<span><span class="k">동일</span><span class="${sg(m.avg)}">${m.avg==null?'—':(m.avg>0?'+':'')+m.avg.toFixed(1)+'%'}</span></span>`
-      +`<span><span class="k">수익률</span><span class="${sg(m.ret)}">${m.inv?(m.ret>0?'+':'')+m.ret.toFixed(1)+'%':'—'}</span></span>`
+      +`<span><span class="k">동일</span><span class="${sg(m.avg)}">${m.avg==null?'—':(m.avg>0?'+':'')+m.avg.toFixed(2)+'%'}</span></span>`
+      +`<span><span class="k">수익률</span><span class="${sg(m.ret)}">${m.inv?(m.ret>0?'+':'')+m.ret.toFixed(2)+'%':'—'}</span></span>`
       +`<span><span class="k">평가손익</span><span class="${sg(m.pnl)}">${m.inv?amt(m.pnl,1):'—'}</span></span>`
       /* 현재가를 아직 못 받은 건이 있으면 **말해 준다** — 일부만 반영된 합계를 전부인 척
          보여주면 안 된다. 미장 표가 도착하면 사라진다. */
