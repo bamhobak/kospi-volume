@@ -1645,7 +1645,8 @@ async function renderPositions(){
     const amt=(v,sign)=>usdOnly?usd(v,sign):kor(v,sign);
     /* '동일' 은 완료 탭에 있던 것을 보유 탭에도 놓은 것이다(2026-09-14 요청) — 종목마다
        넣은 돈이 달라도 **다 똑같이 넣었다면 몇 %였나**. 그 옆 '수익률' 은 금액가중이다. */
-    const stat=`<div class="dstat" title="동일 = 건별 수익률의 단순 평균 — 종목마다 넣은 돈이 달라도 &#10;       전부 같은 금액을 넣었다면 지금 몇 % 인가 (규칙 자체의 성적 · 백테스트와 비교용)&#10;수익률 = 총평가손익 ÷ 총매수금액 — 내 계좌가 실제로 벌고 있는 비율&#10;&#10;둘 다 매매비용 차감 후입니다.${m.navg&&m.navg!==(sel||[]).length?'&#10;현재가를 모르는 '+((sel||[]).length-m.navg)+'건은 동일가중에서 제외':''}">`
+    /* 요약 줄은 함수로 — 실시간 틱(rtPaint)이 올 때마다 같은 계산으로 제자리 갱신한다(2026-10-06 신고: 표 칸만 바뀌고 요약은 F5 전까지 그대로) */
+    const statHtml=()=>{const m=sumMoney(sel,usdOnly);return `<div class="dstat" title="동일 = 건별 수익률의 단순 평균 — 종목마다 넣은 돈이 달라도 &#10;       전부 같은 금액을 넣었다면 지금 몇 % 인가 (규칙 자체의 성적 · 백테스트와 비교용)&#10;수익률 = 총평가손익 ÷ 총매수금액 — 내 계좌가 실제로 벌고 있는 비율&#10;&#10;둘 다 매매비용 차감 후입니다.${m.navg&&m.navg!==(sel||[]).length?'&#10;현재가를 모르는 '+((sel||[]).length-m.navg)+'건은 동일가중에서 제외':''}">`
       +`<b class="${selF?mkCls(selF.mkt):''}">${posRule?codeOf(posRule)+' · '+((selF&&selF.name&&selF.name.split(' · ')[1])||posRule):'전체'}</b>`
       +`<span><span class="k">매수금액</span>${m.inv?amt(m.inv)+(m.noFX?' (국내만)':''):'—'}</span>`
       +`<span><span class="k">동일</span><span class="${sg(m.avg)}">${m.avg==null?'—':(m.avg>0?'+':'')+m.avg.toFixed(1)+'%'}</span></span>`
@@ -1654,7 +1655,9 @@ async function renderPositions(){
       /* 현재가를 아직 못 받은 건이 있으면 **말해 준다** — 일부만 반영된 합계를 전부인 척
          보여주면 안 된다. 미장 표가 도착하면 사라진다. */
       +(m.miss?`<span class="k" style="color:var(--up)">${USROWS?m.miss+'건 시세없음':'미장 '+m.miss+'건 받는 중…'}</span>`:'')
-      +`</div>`;
+      +`</div>`};
+    const stat=statHtml();
+    STATPAINT=()=>{const el=document.querySelector('#pchips .dstat');if(el&&cur==='pos')el.outerHTML=statHtml()};
     const box=$('#pchips');
     if(box){
       box.style.display=all.length?'':'none';
@@ -1950,7 +1953,9 @@ async function load(){
   setInterval(async()=>{
     LVTICK++;
     const fast=!!(RT.on&&RT.ws);
-    if(!fast&&LVTICK%10!==0)return;
+    /* 실시간이 아니면 평소 10분 · 장 시간에 보유 탭을 보고 있으면 2분(2026-10-06 — F5 를 눌러야 바뀐다는 신고) */
+    const every=(rtWindow()&&cur==='pos')?2:10;
+    if(!fast&&LVTICK%every!==0)return;
     await pullLive(); mktBadge();
     if(fast)rtPaint();
     else if(cur==='pos'||cur==='done')render()},60000);
@@ -1981,6 +1986,7 @@ let LIVE={updated:'',prices:{},index:null};      /* 10분마다 갱신되는 실
 
    ⚠ 비공식 경로다. 실패하면 **조용히 10분 폴링으로 돌아간다** — 끊겨도 화면은 멀쩡해야 한다. */
 const RT={on:false,ws:null,hb:null,rev:{},map:{},tmr:null,fail:0,ticks:0,stat:'꺼짐'};
+let STATPAINT=null;              /* 보유 탭 요약 줄 다시 그리기(renderPositions 가 매번 새로 둔다) */
 function rtSave(v){try{localStorage.setItem('rt_on',v?'1':'0')}catch(e){}}
 function rtWindow(){                       /* 국내장 또는 미장 시간대인가 (KST) */
   const d=new Date(),w=d.getDay(),t=d.getHours()*60+d.getMinutes();
@@ -2031,6 +2037,7 @@ function rtPaint(){
     set('ret',(ret>0?'+':'')+ret.toFixed(1)+'%');
     set('pnl',p.qty?amon((sellNow(now,code)-costBuy(p))*p.qty,code,1):'');
   });
+  if(STATPAINT)STATPAINT();
 }
 async function rtStart(){
   if(!RT.on||RT.ws)return;
