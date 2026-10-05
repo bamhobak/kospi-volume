@@ -1560,6 +1560,9 @@ async function renderPositions(){
      아래 표를 그리기 직전에 저장 시세를 다시 읽어, 요약과 표가 다른 시세를 썼고 다음 클릭 때 요약 숫자가 바뀌었다. */
   if(!DONE)await pullLive(false);
   const rid=p=>normId((p.filters||[])[0])||'-';          // 매수 당시 규칙 (첫 번째)
+  /* 전체와 규칙 칩 사이에 국장·미장 묶음(2026-10-06 요청) — 그 시장의 모든 규칙 건을 모아 본다 */
+  const MKG=['국장','미장'], inMk=(k,p)=>(k==='미장')===isUSCode(p.code);
+  const mkChips=(all,mk)=>MKG.filter(k=>all.some(p=>inMk(k,p))).map(k=>mk(k,all.filter(p=>inMk(k,p))));
   let ps=positions().filter(p=>DONE?p.sell:!p.sell);     // 보유 탭은 미매도, 완료 탭은 매도된 것만
   if(DONE){
     /* 수익률·수익금 모두 **비용 차감 후**다. 백테스트 숫자도 비용을 뺀 값이라 그래야 나란히 놓인다.
@@ -1577,10 +1580,10 @@ async function renderPositions(){
        예) 100만원 넣어 0% · 200만원 넣어 +5% → 동일가중 +2.5% · 금액가중 +3.33%.
        수량이 없는 기록은 매수금액을 모르므로 금액가중에서만 뺀다(동일가중에는 남긴다). */
     const chip=(k,list,on)=>{
-      const f=k==='전체'?null:fOf(k), kq=f&&mkCls(f.mkt);
+      const f=(k==='전체'||MKG.includes(k))?null:fOf(k), kq=MKG.includes(k)?mkCls(k==='미장'?'US':'KR'):f&&mkCls(f.mkt);
       return `<span class="dchip ${on?'on':''} ${kq||''}" data-r="${k}"><b>${k==='전체'?k:(f&&f.name?codeOf(k)+' · '+(f.name.split(' · ')[1]||f.name):codeOf(k))}</b><span class="c">${list.length}건</span></span>`};
     const stat=(k,list)=>{
-      const f=k==='전체'?null:fOf(k), kq=f&&mkCls(f.mkt);
+      const f=(k==='전체'||MKG.includes(k))?null:fOf(k), kq=MKG.includes(k)?mkCls(k==='미장'?'US':'KR'):f&&mkCls(f.mkt);
       const avg=list.reduce((a,p)=>a+ret(p),0)/list.length;
       const wl=list.filter(p=>(p.qty||0)>0);
       /* 원화로 합친다. 미장은 **매수 때 환율로 산 돈**, **매도 때 환율로 받은 돈**을 쓴다 —
@@ -1596,21 +1599,22 @@ async function renderPositions(){
       const _f=fees();
       return `<div class="dstat" title="동일가중 = 건별 수익률의 단순 평균(규칙 자체의 성적, 백테스트와 비교용)&#10;금액가중 = 총손익 ÷ 총매수금액(내 계좌가 실제로 번 비율)&#10;&#10;매매비용 차감 후입니다 — 국내 매수 ${_f.KR.b}% / 매도 ${_f.KR.s}% · 미장 매수 ${_f.US.b}% / 매도 ${_f.US.s}%.&#10;슬리피지는 빼지 않습니다: 직접 적은 체결가에 이미 들어 있습니다.${miss?'&#10;수량 없는 기록 '+miss+'건은 금액가중에서 제외':''}">`
         +`<b class="${kq||''}">${k==='전체'?k:(f&&f.name?codeOf(k)+' · '+(f.name.split(' · ')[1]||f.name):codeOf(k))}</b>`
-        +`<span><span class="k">동일</span><span class="${sg(avg)}">${avg>0?'+':''}${avg.toFixed(1)}%</span></span>`
-        +`<span><span class="k">금액</span><span class="${sg(wavg)}">${wavg==null?'—':(wavg>0?'+':'')+wavg.toFixed(1)+'%'}</span></span>`
+        +`<span><span class="k">동일</span><span class="${sg(avg)}">${avg>0?'+':''}${avg.toFixed(2)}%</span></span>`
+        +`<span><span class="k">금액</span><span class="${sg(wavg)}">${wavg==null?'—':(wavg>0?'+':'')+wavg.toFixed(2)+'%'}</span></span>`
         +`<span><span class="k">수익금</span><span class="${sg(sum)}">${sum?kor(sum,1)+'원':'—'}</span></span></div>`};
     /* 칩도 레일과 같은 순서로 — 목록에 없는 옛 규칙(P0 등)은 뒤에 */
     const ordIds=orderedAll().map(f=>f.id);
     const keys=Object.keys(by).sort((x,y)=>{
       const a_=ordIds.indexOf(normId(x)),b_=ordIds.indexOf(normId(y));
       return (a_<0?99:a_)-(b_<0?99:b_)||String(x).localeCompare(String(y))});
-    const chips=[chip('전체',all,doneRule===null)].concat(
+    MKG.forEach(k=>{const l=all.filter(p=>inMk(k,p));if(l.length)by[k]=l});
+    const chips=[chip('전체',all,doneRule===null)].concat(mkChips(all,(k,l)=>chip(k,l,doneRule===k)),
       keys.map(k=>chip(k,by[k],doneRule===k))).join('');
     const selK=doneRule&&by[doneRule]?doneRule:'전체';
     $('#fdesc').innerHTML=`<div class="dsum">${chips}</div>${stat(selK,selK==='전체'?all:by[selK])}`;
     document.querySelectorAll('.dchip').forEach(el=>el.onclick=()=>{
       doneRule=el.dataset.r==='전체'?null:el.dataset.r;render()});
-    if(doneRule)ps=ps.filter(p=>rid(p)===doneRule);
+    if(doneRule)ps=ps.filter(p=>MKG.includes(doneRule)?inMk(doneRule,p):rid(p)===doneRule);
   }else{
     /* 보유 탭에도 규칙 칩을 둔다(2026-09-12 사용자 요청). 규칙이 14개라 표에 섞여 있으면
        '이 규칙으로 뭘 들고 있나 · 자리가 남았나 · 지금 벌고 있나' 를 한눈에 못 본다.
@@ -1621,9 +1625,10 @@ async function renderPositions(){
     const keys=Object.keys(by).sort((x,y)=>{
       const a_=ordIds.indexOf(normId(x)),b_=ordIds.indexOf(normId(y));
       return (a_<0?99:a_)-(b_<0?99:b_)||String(x).localeCompare(String(y))});
+    MKG.forEach(k=>{const l=all.filter(p=>inMk(k,p));if(l.length)by[k]=l});
     if(posRule&&!by[posRule])posRule=null;          /* 마지막 한 종목을 팔면 그 칩이 사라진다 */
     const chip=(k,list,on)=>{
-      const f=k==='전체'?null:fOf(k), kq=f&&mkCls(f.mkt);
+      const f=(k==='전체'||MKG.includes(k))?null:fOf(k), kq=MKG.includes(k)?mkCls(k==='미장'?'US':'KR'):f&&mkCls(f.mkt);
       const al=f&&f.alloc;
       const slot=` <span class="c">${list.length}</span>`;
       return `<span class="dchip ${on?'on':''} ${kq||''}" data-pr="${k}"`
@@ -1633,11 +1638,11 @@ async function renderPositions(){
        예전에는 헤더에 늘 떠 있었는데, 규칙을 고르면 표만 걸러지고 헤더는 전체여서
        두 값이 따로 놀았다. 이제 칩 바로 아래에서 같이 움직인다. */
     const sel=posRule&&by[posRule]?by[posRule]:all;
-    const selF=posRule?fOf(posRule):null;
+    const selF=posRule&&!MKG.includes(posRule)?fOf(posRule):null;
     /* 미장 규칙 탭은 **달러 그대로** 보여준다(2026-09-12 요청) — 그 규칙 안은 전부 달러라
        원화로 바꾸면 실제 체결 금액과 달라 보인다. '전체' 탭만 원화로 합치고, 그때 쓰는
        환율은 실시간값(지수와 같은 10분 주기)이다. */
-    const usdOnly=!!(selF&&selF.mkt==='US');
+    const usdOnly=!!(selF&&selF.mkt==='US')||posRule==='미장';   /* 미장 묶음도 달러(2026-10-06 요청) */
     const m=sumMoney(sel,usdOnly);
     const sg=x=>x>0?'pos':x<0?'neg':'';
     const usd=(v,sign)=>(v<0?'-':(sign&&v>0?'+':''))+'$'
@@ -1647,7 +1652,7 @@ async function renderPositions(){
        넣은 돈이 달라도 **다 똑같이 넣었다면 몇 %였나**. 그 옆 '수익률' 은 금액가중이다. */
     /* 요약 줄은 함수로 — 실시간 틱(rtPaint)이 올 때마다 같은 계산으로 제자리 갱신한다(2026-10-06 신고: 표 칸만 바뀌고 요약은 F5 전까지 그대로) */
     const statHtml=()=>{const m=sumMoney(sel,usdOnly);return `<div class="dstat" title="동일 = 건별 수익률의 단순 평균 — 종목마다 넣은 돈이 달라도 &#10;       전부 같은 금액을 넣었다면 지금 몇 % 인가 (규칙 자체의 성적 · 백테스트와 비교용)&#10;수익률 = 총평가손익 ÷ 총매수금액 — 내 계좌가 실제로 벌고 있는 비율&#10;&#10;둘 다 매매비용 차감 후입니다.${m.navg&&m.navg!==(sel||[]).length?'&#10;현재가를 모르는 '+((sel||[]).length-m.navg)+'건은 동일가중에서 제외':''}">`
-      +`<b class="${selF?mkCls(selF.mkt):''}">${posRule?codeOf(posRule)+' · '+((selF&&selF.name&&selF.name.split(' · ')[1])||posRule):'전체'}</b>`
+      +`<b class="${selF?mkCls(selF.mkt):MKG.includes(posRule)?mkCls(posRule==='미장'?'US':'KR'):''}">${MKG.includes(posRule)?posRule:posRule?codeOf(posRule)+' · '+((selF&&selF.name&&selF.name.split(' · ')[1])||posRule):'전체'}</b>`
       +`<span><span class="k">매수금액</span>${m.inv?amt(m.inv)+(m.noFX?' (국내만)':''):'—'}</span>`
       +`<span><span class="k">동일</span><span class="${sg(m.avg)}">${m.avg==null?'—':(m.avg>0?'+':'')+m.avg.toFixed(2)+'%'}</span></span>`
       +`<span><span class="k">수익률</span><span class="${sg(m.ret)}">${m.inv?(m.ret>0?'+':'')+m.ret.toFixed(2)+'%':'—'}</span></span>`
@@ -1662,12 +1667,12 @@ async function renderPositions(){
     if(box){
       box.style.display=all.length?'':'none';
       box.innerHTML=`<div class="dsum">`
-        +[chip('전체',all,posRule===null)].concat(keys.map(k=>chip(k,by[k],posRule===k))).join('')
+        +[chip('전체',all,posRule===null)].concat(mkChips(all,(k,l)=>chip(k,l,posRule===k)),keys.map(k=>chip(k,by[k],posRule===k))).join('')
         +`</div>`+stat;
       box.querySelectorAll('.dchip').forEach(el=>el.onclick=()=>{
         posRule=el.dataset.pr==='전체'?null:el.dataset.pr;render()});
     }
-    if(posRule)ps=ps.filter(p=>rid(p)===posRule);
+    if(posRule)ps=ps.filter(p=>MKG.includes(posRule)?inMk(posRule,p):rid(p)===posRule);
   }
   const live=LIVE;   /* 시세는 맨 위에서 맞췄다 — 탭 전환마다 새로 받지 않는다(접속 시와 10분 주기에만 갱신) */
   await pullStreaks();
