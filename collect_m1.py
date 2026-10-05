@@ -40,7 +40,8 @@ KST, NY = ZoneInfo("Asia/Seoul"), ZoneInfo("America/New_York")
 START = {"KR": "20221201", "US": "20211201"}
 TOP = {"KR": 1000, "US": 1000}     # 2026-10-03: 국장 1000 — 갭 하락 데이 효과가 중소형(유니버스 아래 2/3)에 있어서
 EXTRA = {"KR": ["069500", "229200"], "US": ["SPY", "QQQ", "IWM"]}     # 시장 잣대용 ETF
-GAP = 0.14                                                          # 초당 ~7회
+GAP = 0.07                                                          # 초당 ~14회(2026-10-06 — 토스 한도 X-RateLimit-Limit 20/초 확인)
+WORKERS = 4                                                         # 동시 요청 수 — 한 요청 0.2~0.3초 대기라 한 줄로는 초당 5~6회가 끝
 
 
 def log(*a):
@@ -53,15 +54,24 @@ def log(*a):
         except Exception: pass
 
 
+import threading
 _last = [0.0]
+_lock = threading.Lock()
+
+
+def _throttle():
+    """여러 스레드가 같이 써도 전체가 초당 1/GAP 회를 넘지 않게 — 다음 차례 시각을 잠금 안에서 잡는다."""
+    with _lock:
+        t = max(time.time(), _last[0] + GAP)
+        _last[0] = t
+    w = t - time.time()
+    if w > 0: time.sleep(w)
 
 
 def get(path, **q):
     u = toss.B + path + "?" + urllib.parse.urlencode(q)
     for att in range(6):
-        w = GAP - (time.time() - _last[0])
-        if w > 0: time.sleep(w)
-        _last[0] = time.time()
+        _throttle()
         try:
             rq = urllib.request.Request(u, headers={"Authorization": "Bearer " + toss.token(), "Accept": "application/json"})
             return json.loads(urllib.request.urlopen(rq, timeout=30).read().decode()).get("result")
@@ -164,10 +174,11 @@ def collect_day(mk, day):
     out = ROOT / mk / "day" / (day + ".parquet")
     out.parent.mkdir(parents=True, exist_ok=True)
     U = universe(mk); rows = []; n0 = 0; t0 = time.time()
-    for i, s in enumerate(U):
-        r = fetch_day(mk, s, day)
-        rows += r; n0 += bool(r)
-        if i % 500 == 499: log(mk, day, "%d/%d · 봉 있는 종목 %d" % (i + 1, len(U), n0))
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(WORKERS) as ex:
+        for i, r in enumerate(ex.map(lambda s_: fetch_day(mk, s_, day), U)):
+            rows += r; n0 += bool(r)
+            if i % 500 == 499: log(mk, day, "%d/%d · 봉 있는 종목 %d" % (i + 1, len(U), n0))
     frame(rows).to_parquet(out, index=False, compression="zstd")
     log(mk, day, "끝 — %d종목 중 %d · 봉 %d · %.0f분 · %.1fMB" % (len(U), n0, len(rows), (time.time() - t0) / 60, out.stat().st_size / 1e6))
 
@@ -239,12 +250,15 @@ def backfill(hours):
         dayfiles = {p.stem for p in (ROOT / mk / "day").glob("*.parquet")}
         todo = [d for d in days_of(mk, sym) if d not in have and d not in dayfiles]
         t0 = time.time(); rows = []; cut = False
-        for i, d in enumerate(todo):
-            while BUSY.exists():
-                time.sleep(30)                                      # 매일 수집이 도는 동안은 쉰다
-            rows += fetch_day(mk, sym, d)
-            if time.time() > stop_at + 1800:                        # 종목 하나는 마무리하되 30분 넘게 넘기지 않는다
-                cut = True; break
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(WORKERS) as ex:
+            for i in range(0, len(todo), 40):                          # 40일씩 묶어 동시에 — 묶음 사이에 쉼·시간 확인
+                while BUSY.exists():
+                    time.sleep(30)                                  # 매일 수집·데이 알림이 도는 동안은 쉰다
+                for r_ in ex.map(lambda d: fetch_day(mk, sym, d), todo[i:i + 40]):
+                    rows += r_
+                if time.time() > stop_at + 1800:                    # 종목 하나는 마무리하되 30분 넘게 넘기지 않는다
+                    cut = True; break
         if rows:
             D = frame(rows)
             if out.exists(): D = pd.concat([pd.read_parquet(out), D]).drop_duplicates(["t", "ts"]).sort_values("ts")
