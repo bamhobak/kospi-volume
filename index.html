@@ -1956,9 +1956,16 @@ async function load(){
     /* 실시간이 아니면 평소 10분 · 장 시간에 보유 탭을 보고 있으면 2분(2026-10-06 — F5 를 눌러야 바뀐다는 신고) */
     const every=(rtWindow()&&cur==='pos')?2:10;
     if(!fast&&LVTICK%every!==0)return;
-    await pullLive(); mktBadge();
+    await pullLive(); mktBadge(); LVSEEN=Date.now();
     if(fast)rtPaint();
     else if(cur==='pos'||cur==='done')render()},60000);
+  /* 탭을 다시 보면 바로 새로 받는다(2026-10-06 신고: 10분보다 훨씬 오래 안 바뀜) — 크롬은 뒤에 있는 탭의
+     타이머를 늦추거나 멈춘다. 다시 볼 때 마지막으로 받은 지 1분이 넘었으면 지금 받는다. */
+  let LVSEEN=Date.now();
+  document.addEventListener('visibilitychange',async()=>{
+    if(document.visibilityState!=='visible'||Date.now()-LVSEEN<60000)return;
+    LVSEEN=Date.now();
+    try{await pullLive(); mktBadge(); if(RT.on&&RT.ws)rtPaint(); else if(cur==='pos'||cur==='done')render()}catch(e){}});
   /* 실시간 토글 — 저장된 값으로 되살리고, 장이 열리면 붙고 닫히면 놓는다 */
   try{RT.on=localStorage.getItem('rt_on')==='1'}catch(e){}
   if(isMobile())RT.on=false;        /* 모바일은 토글 자체를 안 띄운다 — 붙지도 않는다 */

@@ -632,13 +632,21 @@ def main():
     #   None 으로 남겨 화면에 빈칸으로 둔다. 단위는 거래대금과 같은 **백만 달러**.
     SHR = {}
     _fp = BASE / "data" / "us" / "fin.pkl"
+    _fr = BASE / "data" / "us" / "fin_recent.csv"
     if _fp.exists():
         _F = pd.read_pickle(_fp).dropna(subset=["shares"])
         _F = _F[_F.shares > 0].sort_values("filed").drop_duplicates("ticker", keep="last")
         SHR = dict(zip(_F.ticker, _F.shares))
         log(f"  주식수 {len(SHR):,}종목 (SEC XBRL) → 시가총액 계산")
+    elif _fr.exists():
+        # ⚠ 2026-10-06: Actions 엔 fin.pkl 이 없어(로컬 전용) 미장 시가총액이 늘 빈칸이었다.
+        #   커밋되는 요약본 fin_recent.csv(us_fin.py · 종목별 최신 제출분)에도 주식수가 있다 — 그걸 쓴다.
+        _F = pd.read_csv(_fr, dtype={"filed": str}).dropna(subset=["shares"])
+        _F = _F[_F.shares > 0].sort_values("filed").drop_duplicates("ticker", keep="last")
+        SHR = dict(zip(_F.ticker, _F.shares))
+        log(f"  주식수 {len(SHR):,}종목 (fin_recent.csv) → 시가총액 계산")
     else:
-        log("  data/us/fin.pkl 없음 — 시가총액은 빈칸으로 둔다")
+        log("  data/us/fin.pkl·fin_recent.csv 없음 — 시가총액은 빈칸으로 둔다")
 
     # ── 자사주 집행 보고일 — collect_us_buyback.py 가 만든 CSV. [자사주 낙폭] 이 쓴다 ──
     BBD = {}
