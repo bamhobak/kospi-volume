@@ -214,6 +214,9 @@ header{flex:none}
 .dchip.us.on{border-color:var(--usc);background:#2b1a08}
 .dchip b{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--acc)}
 .dchip.kq b{color:var(--ind)}
+.dchip.grp b{color:var(--bth)}
+.dchip.grp:hover,.dchip.grp.on{border-color:var(--bth)}
+.dchip.grp.on{background:#0d2417}
 .dchip .c{color:var(--dim)}
 .dstat{display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding:6px 2px 2px;font-family:'JetBrains Mono',monospace;font-size:13px}
 .dstat .k{color:var(--dim);font-family:inherit;margin-right:4px}
@@ -1580,7 +1583,7 @@ async function renderPositions(){
        예) 100만원 넣어 0% · 200만원 넣어 +5% → 동일가중 +2.5% · 금액가중 +3.33%.
        수량이 없는 기록은 매수금액을 모르므로 금액가중에서만 뺀다(동일가중에는 남긴다). */
     const chip=(k,list,on)=>{
-      const f=(k==='전체'||MKG.includes(k))?null:fOf(k), kq=MKG.includes(k)?mkCls(k==='미장'?'US':'KR'):f&&mkCls(f.mkt);
+      const f=(k==='전체'||MKG.includes(k))?null:fOf(k), kq=(k==='전체'||MKG.includes(k))?'grp':f&&mkCls(f.mkt);
       return `<span class="dchip ${on?'on':''} ${kq||''}" data-r="${k}"><b>${k==='전체'?k:(f&&f.name?codeOf(k)+' · '+(f.name.split(' · ')[1]||f.name):codeOf(k))}</b><span class="c">${list.length}건</span></span>`};
     const stat=(k,list)=>{
       const f=(k==='전체'||MKG.includes(k))?null:fOf(k), kq=MKG.includes(k)?mkCls(k==='미장'?'US':'KR'):f&&mkCls(f.mkt);
@@ -1628,7 +1631,7 @@ async function renderPositions(){
     MKG.forEach(k=>{const l=all.filter(p=>inMk(k,p));if(l.length)by[k]=l});
     if(posRule&&!by[posRule])posRule=null;          /* 마지막 한 종목을 팔면 그 칩이 사라진다 */
     const chip=(k,list,on)=>{
-      const f=(k==='전체'||MKG.includes(k))?null:fOf(k), kq=MKG.includes(k)?mkCls(k==='미장'?'US':'KR'):f&&mkCls(f.mkt);
+      const f=(k==='전체'||MKG.includes(k))?null:fOf(k), kq=(k==='전체'||MKG.includes(k))?'grp':f&&mkCls(f.mkt);
       const al=f&&f.alloc;
       const slot=` <span class="c">${list.length}</span>`;
       return `<span class="dchip ${on?'on':''} ${kq||''}" data-pr="${k}"`
