@@ -24,7 +24,7 @@
 ⚠ 사이트는 보유 목록을 통째로 덮어쓴다(updated 가 늦은 쪽이 이김). 열린 탭이 옛 목록을 올리면 자동 기록이 지워질 수 있어
    매 실행 처음에 원장(ledger.json)과 맞춰 **빠진 자동 포지션을 되살린다**.
 """
-import datetime as dt, json, math, os, re, sys, time, urllib.parse, urllib.request
+import datetime as dt, gzip, json, math, os, re, sys, time, urllib.parse, urllib.request
 from pathlib import Path
 
 BASE = Path(__file__).parent
@@ -104,6 +104,9 @@ def won(v):
 import toss
 
 
+GZ = bytes([0x1F, 0x8B])
+
+
 class TossErr(Exception):
     def __init__(self, msg, code=None, status=None):
         super().__init__(msg); self.code = code; self.status = status
@@ -122,10 +125,17 @@ def call(method, path, acct=False, body=None, **q):
             data = json.dumps(body).encode(); h["Content-Type"] = "application/json"
         try:
             r = urllib.request.urlopen(urllib.request.Request(u, data=data, headers=h, method=method), timeout=30)
-            d = json.loads(r.read().decode() or "{}")
+            b = r.read()
+            if b.startswith(GZ):
+                b = gzip.decompress(b)
+            d = json.loads(b.decode() or "{}")
             return d.get("result", d)
         except urllib.error.HTTPError as ex:
-            raw = ex.read().decode(errors="replace")[:500]
+            raw = ex.read()
+            if raw.startswith(GZ):              # 토스 오류 본문이 gzip 으로 올 때가 있다(10-06 데이 매수 422 원인을 못 읽음)
+                try: raw = gzip.decompress(raw)
+                except Exception: pass
+            raw = raw.decode(errors="replace")[:500]
             try: code = json.loads(raw).get("error", {}).get("code")
             except Exception: code = None
             if ex.code == 401 and att == 0:              # 다른 프로세스가 새 토큰을 받아 이 토큰이 죽은 경우

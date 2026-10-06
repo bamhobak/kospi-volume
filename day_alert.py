@@ -229,6 +229,12 @@ def trade(L, today):
         log("데이 매수 시각 지남 — 건너뜀"); return
     Lg = _led(); done = {o["t"] for o in Lg["orders"] if o.get("date") == today and o.get("side") == "BUY"}
     placed, skip = [], []
+    # 원화가 없으면 토스가 422 로 하나씩 거절한다(10-06: 매수가능 7,821원에 3건 다 거절) — 미리 보고 이유를 똑바로 알린다
+    try: bp = AT.buying_power("KRW")
+    except AT.TossErr: bp = None
+    if bp is not None and L and bp < min(float(x["exp"] or x["pc"]) for x in L):
+        telegram("⚠ 데이 매수 0건 — 원화 매수가능 %s원뿐이라 후보 %d종목을 못 삼(토스 계좌에 원화 입금 필요)" % (f"{bp:,.0f}", len(L)))
+        log("원화 부족 — 매수가능", bp); return
     for x in L:
         if x["t"] in done: continue
         px = float(x["exp"] or x["pc"])
