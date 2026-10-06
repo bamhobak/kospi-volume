@@ -275,7 +275,7 @@ Deno.serve(async (req) => {
       const _rows2: any[] = _r.ok ? await _r.json() : [];
       const held = [...new Set(_rows2
         .filter((r) => !String(r.pin ?? "").startsWith("__"))
-        .flatMap((r) => (r.data?.positions ?? []))
+        .flatMap((r) => [...(r.data?.positions ?? []), ...(r.data?.positions_scalp ?? [])])   // 데이 보유도 실시간(10-06)
         .filter((p: any) => p && p.code && !p.sell)
         .map((p: any) => String(p.code)))];
       const cache: Record<string, string> =
@@ -321,7 +321,13 @@ Deno.serve(async (req) => {
       .filter((r) => !String(r.pin ?? "").startsWith("__"))     // __filters__ 등 시스템 키 제외
       .flatMap((r) => (r.data?.positions ?? []))
       .filter((p: any) => p && p.code && !p.sell);
-    const codes = [...new Set(positions.map((p) => p.code).filter(Boolean))] as string[];
+    // 데이(positions_scalp) 보유도 시세만 받는다 — 알림(손절·매도일)은 스윙 positions 만 본다.
+    // 2026-10-06: 데이 보유 현재가가 직전 거래일 종가에 멈춰 있었다(이 목록에 없어서).
+    const scalp: any[] = _rows
+      .filter((r) => !String(r.pin ?? "").startsWith("__"))
+      .flatMap((r) => (r.data?.positions_scalp ?? []))
+      .filter((p: any) => p && p.code && !p.sell);
+    const codes = [...new Set([...positions, ...scalp].map((p) => p.code).filter(Boolean))] as string[];
 
     // 2) 종목 시세 · 3) 지수 — 실패한 항목은 건너뛴다
     const prices: Record<string, any> = {};
