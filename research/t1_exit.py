@@ -56,7 +56,9 @@ def paths(C):
 
 def exits(o, A, close):
     """o = 시가, A = [hm,h,l,c] 1분봉 → {이름: 비용 뒤 수익률%}."""
-    hm = A[:, 0]; h = A[:, 1].astype(float); l = A[:, 2].astype(float); c = A[:, 3].astype(float)
+    hm = A[:, 0]; h = A[:, 1].astype(float); l = A[:, 2].astype(float); c = A[:, 3].astype(float); ob = A[:, 4].astype(float)
+    # 손절 체결가: 그 1분봉이 이미 손절선 아래에서 시작했으면(뚫고 내려옴) 그 봉 시가 — 손절선 값으로 셈하면 너무 좋게 나온다
+    sfill = lambda i, px: (min(px, ob[i]) / o - 1) * 100 - COST - SLIP
     cl = close
     R = {"종가 단일가(지금)": (cl / o - 1) * 100 - COST}
     for t_ in TIMES:
@@ -67,11 +69,11 @@ def exits(o, A, close):
         R["익절 +%d%%" % tp] = (tp - COST) if len(hit) else R["종가 단일가(지금)"]
     for sl in (2, 3, 5):
         hit = np.where(l <= o * (1 - sl / 100))[0]
-        R["손절 -%d%%" % sl] = (-sl - COST - SLIP) if len(hit) else R["종가 단일가(지금)"]
+        R["손절 -%d%%" % sl] = sfill(hit[0], o * (1 - sl / 100)) if len(hit) else R["종가 단일가(지금)"]
     for tp, sl in ((2, 3), (3, 3), (3, 5), (5, 5)):
         th = np.where(h >= o * (1 + tp / 100))[0]; ts = np.where(l <= o * (1 - sl / 100))[0]
         a = th[0] if len(th) else 10 ** 9; b = ts[0] if len(ts) else 10 ** 9
-        if b <= a and len(ts): R["익절 +%d%% · 손절 -%d%%" % (tp, sl)] = -sl - COST - SLIP
+        if b <= a and len(ts): R["익절 +%d%% · 손절 -%d%%" % (tp, sl)] = sfill(b, o * (1 - sl / 100))
         elif len(th): R["익절 +%d%% · 손절 -%d%%" % (tp, sl)] = tp - COST
         else: R["익절 +%d%% · 손절 -%d%%" % (tp, sl)] = R["종가 단일가(지금)"]
     for tr, arm in ((2, 1), (3, 2), (3, 0)):
@@ -79,7 +81,7 @@ def exits(o, A, close):
         peak = np.maximum.accumulate(h); armed = peak >= o * (1 + arm / 100)
         trig = np.where(armed & (l <= peak * (1 - tr / 100)))[0]
         nm = "트레일링 고점 -%d%%" % tr + (" (+%d%% 넘은 뒤)" % arm if arm else " (처음부터)")
-        R[nm] = ((peak[trig[0]] * (1 - tr / 100)) / o - 1) * 100 - COST - SLIP if len(trig) else R["종가 단일가(지금)"]
+        R[nm] = sfill(trig[0], peak[trig[0]] * (1 - tr / 100)) if len(trig) else R["종가 단일가(지금)"]
     # 참고: 그날 고점이 언제였나 · 최고·최저
     R["_hi_t"] = hm[int(np.argmax(h))]; R["_mfe"] = (h.max() / o - 1) * 100; R["_mae"] = (l.min() / o - 1) * 100
     return R
@@ -102,10 +104,13 @@ def main():
     R = pd.DataFrame(rows)
     R["yr"] = R.date.str[:4]
     nadj = int(R.adj.sum())
+    # 1분봉 시가가 일봉 시가와 1%↑ 다르면 1분봉 자체가 어긋난 것(분할 전후 기준가 섞임 등) — 그 145건은 종가 수익이 일봉 +1.8% vs 1분봉 -6.1% 였다 → 뺀다
+    R = R[~R.adj].copy()
     P("# 데이 [갭 하락 조용주] 언제 파나 — 1분봉 · %s" % time.strftime("%Y-%m-%d")); P("")
     P("- T1 후보 %d건(%s~%s) 중 1분봉 있는 것 **%d건(%.0f%%)** · %d일 · 매수 = 시가 단일가" % (
         len(C), C.date.min(), C.date.max(), len(R), len(R) / len(C) * 100, R.date.nunique()))
-    P("- 1분봉 시가가 일봉 시가와 1%%↑ 다른(분할·증자 등 수정주가) %d건 — 1분봉 가격끼리만 계산해 영향 없음" % nadj)
+    P("- 1분봉 시가가 일봉 시가와 1%%↑ 어긋난 %d건은 뺐다(1분봉 쪽 가격 기준이 섞임 — 남은 건은 일봉 종가 수익과 같음) → **%d건**" % (nadj, len(R)))
+    P("- 손절·트레일링 체결가 = 손절선, 단 그 1분봉이 이미 선 아래에서 시작했으면 그 봉 시가(뚫고 내려온 경우)")
     P("- 비용: 단일가 %.2f%% · 장중 시장가 +%.2f%% · 손절·트레일링 +%.2f%% (같은 1분에 익절·손절 둘 다 닿으면 손절로 셈)" % (COST, MKT, SLIP)); P("")
     names = [k for k in R.columns if not k.startswith("_") and k not in ("date", "ticker", "yr", "adj")]
     base = R["종가 단일가(지금)"]
