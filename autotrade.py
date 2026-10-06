@@ -600,6 +600,9 @@ def sell(mk):
     sleep_until(at, "국장 종가 단일가" if mk == "KR" else "미장 LOC 접수")
     Lg = led()
     done_ids = {o["posId"] for o in Lg["orders"] if o.get("side") == "SELL" and o.get("oid") and o.get("date") == S["date"]}
+    due = [x for x in due if x[0]["id"] not in done_ids]
+    if not due:          # 두 번째(지킴이) 실행 — 앞 실행이 이미 다 냈다
+        log(mk, "매도 주문 이미 다 나감 — 지킴이 할 일 없음"); return
     px = prices(sorted({p["code"] for p, _, _ in due}))
     if DRY: _dry_px.update(px)
     placed, fail = [], []
