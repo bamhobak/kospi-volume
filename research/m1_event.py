@@ -16,10 +16,22 @@ import collect_m1 as M
 TZ = {"KR": "Asia/Seoul", "US": "America/New_York"}
 
 
-def _dates_in(f, mk):
+OFF = {"KR": 9 * 3600, "US": -5 * 3600}          # 미장 정규장은 EST·EDT 어느 쪽이든 −5시간 하면 같은 날짜에 든다
+
+
+def _dn(d):
+    return int((pd.Timestamp(d) - pd.Timestamp("1970-01-01")).days)
+
+
+def _daynums(f, mk):
+    """파일의 거래일을 '1970 부터 날 수' 로 — 시간대 변환·문자열 없이(큰 파일 수백 개를 볼 때 몇십 배 빠르다)."""
     if not f.exists(): return set()
-    D = pd.read_parquet(f, columns=["ts"])
-    return set(pd.to_datetime(D.ts, unit="s", utc=True).dt.tz_convert(TZ[mk]).dt.strftime("%Y%m%d"))
+    ts = pd.read_parquet(f, columns=["ts"]).ts.values.astype("int64")
+    return set(np.unique((ts + OFF[mk]) // 86400).tolist())
+
+
+def _dates_in(f, mk):
+    return {pd.Timestamp("1970-01-01") + pd.Timedelta(days=x) for x in _daynums(f, mk)}
 
 
 def ensure(mk, pairs, log=print):
@@ -29,8 +41,8 @@ def ensure(mk, pairs, log=print):
     for t, d in pairs: by.setdefault(t, set()).add(d)
     need = []
     for t, ds in by.items():
-        have = _dates_in(bf / (t + ".parquet"), mk)
-        need += [(t, d) for d in sorted(ds - have)]
+        have = _daynums(bf / (t + ".parquet"), mk)
+        need += [(t, d) for d in sorted(ds) if _dn(d) not in have]
     if not need: return 0, 0
     log("1분봉 받을 종목-일 %d (종목 %d)" % (len(need), len({t for t, _ in need})))
     M.BUSY.write_text("event")
@@ -54,6 +66,8 @@ def bars(mk, ticker, dates):
     f = BASE / "data" / "m1" / mk / "bf" / (ticker + ".parquet")
     if not f.exists(): return {}
     D = pd.read_parquet(f, columns=["ts", "o", "h", "l", "c", "v"])
+    want = {_dn(d) for d in dates}
+    D = D[np.isin((D.ts.values.astype("int64") + OFF[mk]) // 86400, list(want))]   # 필요한 날만 먼저 남기고 시간 변환
     t = pd.to_datetime(D.ts, unit="s", utc=True).dt.tz_convert(TZ[mk])
     D["date"] = t.dt.strftime("%Y%m%d").values; D["hm"] = t.dt.strftime("%H%M").values
     D = D[D.date.isin(set(dates))].sort_values("ts")
