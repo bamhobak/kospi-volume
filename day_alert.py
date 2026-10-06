@@ -31,7 +31,7 @@ DAY_PER = 500_000                                 # 2026-10-04 사용자: 데이
 DAY_MAX = 10                                      # 하루 최대 종목 수(후보 순서 = 시장 대비 더 빠진 순)
 COST = 0.23                                     # 토스 실제 왕복: 수수료 0.015×2 + 거래세 0.20 (index.html DEFFEE)
 RULE = "갭 하락 조용주"
-RNAME = {"T1": "갭 하락 조용주", "T2": "막판 밀린 갭 하락"}
+RNAME = {"T1": "갭 하락 조용주", "T2": "갭 하락 조용주 +"}
 T2_CUT = -1.0                                     # 2026-10-06 H0297: 어제 14:00→종가 이 값 이하면 T2(한 번 더 산다)
 
 
@@ -201,7 +201,7 @@ def morning():
             (" · 어제 막판 %+.1f%%" % x["lh"]) if x.get("lh") is not None else "", x["src"]))
     if len(L) > 15: body.append("… 외 %d" % (len(L) - 15))
     n2 = sum(1 for x in L if x.get("t2"))
-    if n2: body.append("⭐ = [막판 밀린 갭 하락] 도 걸림(어제 14:00→종가 %.0f%%↓) — %d종목은 한 번 더 산다" % (T2_CUT, n2))
+    if n2: body.append("⭐ = [갭 하락 조용주 +] 도 걸림(어제 14:00→종가 %.0f%%↓) — %d종목은 한 번 더 산다" % (T2_CUT, n2))
     body.append("코스피 %s → 기준: 더 작은 종목 · 시장보다 %.1f%%p↑ 더 빠짐" % ({True: "상승장(60일선 위)", False: "하락장(60일선 아래)", None: "국면 모름"}[kup], -thr))
     body.append("넓은 조건(예전 T1) %d개 중 통과 %d%s" % (len(base_c), len(L), " — 오늘은 안 산다" if not L else ""))
     body.append("갭 하위 10%% 선 %s%% · 예상가 NXT %d·호가 %d / 유니버스 %d" % (snap["cut"], snap["src_n"]["NXT"], snap["src_n"]["호가"], len(uni)))
