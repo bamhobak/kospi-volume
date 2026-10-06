@@ -233,7 +233,7 @@ def trade(L, today):
     try: bp = AT.buying_power("KRW")
     except AT.TossErr: bp = None
     if bp is not None and L and bp < min(float(x["exp"] or x["pc"]) for x in L):
-        telegram("⚠ 데이 매수 0건 — 원화 매수가능 %s원뿐이라 후보 %d종목을 못 삼(토스 계좌에 원화 입금 필요)" % (f"{bp:,.0f}", len(L)))
+        telegram("⚠ 데이 매수 0건 — 원화 매수가능 %s원 — 후보 %d종목 모두 1주도 못 삼(토스 계좌에 원화 입금 필요)" % (f"{bp:,.0f}", len(L)))
         log("원화 부족 — 매수가능", bp); return
     for x in L:
         if x["t"] in done: continue
@@ -242,17 +242,31 @@ def trade(L, today):
         if q < 1 and px <= DAY_PER * 2: q = 1
         if q < 1:
             skip.append((x["name"], "1주가 너무 비쌈")); continue
+        # 2026-10-06 사용자: 돈이 모자라면 1주씩만 산다(규칙이 제대로 도는지 보는 게 먼저)
+        if bp is not None and q * px > bp:
+            if px > bp:
+                skip.append((x["name"], "매수가능 부족")); continue
+            log("매수가능 부족 — 1주만:", x["t"], "%d→1주" % q); q = 1
         cid = re.sub(r"[^A-Za-z0-9_-]", "", f"db{today}{x['t']}")[:36]
         o = dict(side="BUY", date=today, t=x["t"], name=x["name"], qty=q, cid=cid, rid="T1", at=AT.now().isoformat())
+        body = {"clientOrderId": cid, "symbol": x["t"], "side": "BUY", "orderType": "MARKET", "timeInForce": "OPG", "quantity": str(q)}
         try:
-            o["oid"] = AT.place({"clientOrderId": cid, "symbol": x["t"], "side": "BUY", "orderType": "MARKET", "timeInForce": "OPG", "quantity": str(q)})
+            try:
+                o["oid"] = AT.place(body)
+            except AT.TossErr as ex:
+                if ex.code != "insufficient-buying-power" or q == 1: raise
+                # 시장가는 토스가 넉넉히 잡아 둬서 모자랄 수 있다 → 1주로 한 번 더
+                log("매수가능 부족 거절 — 1주로 다시:", x["t"])
+                q = 1; body.update(quantity="1", clientOrderId=(cid + "o")[:36]); o.update(qty=1, cid=body["clientOrderId"])
+                o["oid"] = AT.place(body)
         except AT.TossErr as ex:
             o["oid"] = None; o["err"] = ex.code or str(ex)[:100]
             skip.append((x["name"], "주문 거부 " + str(o["err"])))
             Lg["orders"].append(o); _led_save(Lg)
-            if ex.code == "insufficient-buying-power": break
+            if ex.code == "insufficient-buying-power" and bp is not None: bp = min(bp, px * 0.999)   # 이보다 비싼 건 건너뛴다
             continue                                          # 시가 단일가를 놓치면 사지 않는다(09:05 만 늦어도 효과가 사라진다)
         Lg["orders"].append(o); _led_save(Lg); placed.append(o)
+        if bp is not None: bp -= q * px
         time.sleep(0.3)
     if not placed:
         if skip: telegram("⚠ 데이 매수 0건 — " + " · ".join("%s(%s)" % s_ for s_ in skip[:6]))

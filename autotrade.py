@@ -417,6 +417,9 @@ def buy(mk):
     sleep_until(at, "국장 장전 시가 단일가" if mk == "KR" else "미장 개장+1분")
     px = prices(syms)
     if DRY: _dry_px.update(px)
+    # 2026-10-06 사용자: 돈이 모자라면 1주씩만 산다(규칙이 제대로 도는지 보는 게 먼저) — 매수가능(그 시장 통화)을 들고 깎아 간다
+    try: cash = buying_power("KRW" if mk == "KR" else "USD") if not DRY else float("inf")
+    except TossErr as ex: cash = None; log("매수가능 조회 실패", ex)
     placed, skip, stop_reason = [], [], None
     for rk, stk, rid, t in C:
         info = nm.get(t, (t, None, None))
@@ -434,6 +437,10 @@ def buy(mk):
             q = 1
         if q < 1:
             skip.append((rid, t, info[0], "1주가 %s원 초과" % won(PER[mk] * 2))); continue
+        if cash is not None and q * px[t] > cash:
+            if px[t] > cash:
+                skip.append((rid, t, info[0], "매수가능 부족(1주도 못 삼)")); continue
+            log("매수가능 부족 — 1주만:", rid, t, "%d→1주" % q); q = 1
         cost = q * px[t] * (fx if mk == "US" else 1)
         if cost > room:
             skip.append((rid, t, info[0], "시드 %s 다 참" % won(SEED[mk]))); continue
@@ -455,13 +462,25 @@ def buy(mk):
                     o["oid"] = place(body); err = None
                 except TossErr as ex2:
                     err = ex2
+        if err is not None and err.code == "insufficient-buying-power" and q > 1:
+            # 시장가는 토스가 현재가보다 넉넉히 잡아 둬서 미리 본 매수가능으론 모자랄 수 있다 → 1주로 한 번 더
+            log("매수가능 부족 거절 — 1주로 다시:", rid, t)
+            q = 1; body["quantity"] = "1"; body["clientOrderId"] = (body["clientOrderId"] + "o")[:36]
+            o.update(qty=1, cid=body["clientOrderId"]); cost = px[t] * (fx if mk == "US" else 1)
+            try:
+                o["oid"] = place(body); err = None
+            except TossErr as ex3:
+                err = ex3
         if err is not None:
             o["oid"] = None; o["err"] = err.code or str(err)[:120]
             Lg["orders"].append(o); led_save(Lg)
-            if err.code == "insufficient-buying-power":
-                stop_reason = "매수가능 금액 부족"
+            if err.code == "insufficient-buying-power" and cash is None:
+                stop_reason = "매수가능 금액 부족"     # 남은 돈을 모를 때만 멈춘다 — 알면 더 싼 종목 1주는 계속 시도
+            elif err.code == "insufficient-buying-power":
+                cash = min(cash, px[t] * 0.999)             # 이 값 1주도 안 됐으니 이보다 비싼 건 건너뛴다
             skip.append((rid, t, info[0], "주문 거부 " + (err.code or str(err)[:60]))); continue
         Lg["orders"].append(o); led_save(Lg); placed.append(o); room -= cost
+        if cash is not None: cash -= q * px[t]
         log("매수 주문:", mk, rid, t, q, "주")
         time.sleep(0.3)
     if placed:
