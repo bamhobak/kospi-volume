@@ -896,8 +896,11 @@ function heldDays(p){try{const a=new Date(p.date.slice(0,4),+p.date.slice(4,6)-1
   return Math.max(0,Math.round((Date.now()-a)/864e5))}catch(e){return null}}
 /* 그 규칙으로 이미 산 종목인가 — 같은 규칙 탭에서는 감추고, 다른 규칙에 걸렸을 때만 보여준다 */
 /* 2026-10-03: 한 종목을 규칙마다 따로 산다(N1·N2 둘 다 걸리면 포지션 둘) — 첫 포지션만 보면 안 된다 */
+/* 데이 규칙(T…)은 **오늘 한 번 산 종목이면 팔았어도** 이미 한 것으로 본다 — 종가에 팔고 나면 아직 '오늘 후보' 라
+   매수 대기에 다시 떴다(2026-10-07 사용자). 스윙은 팔면 다시 살 수 있어야 하니 그대로. */
 function heldBy(code,rid){
-  return positions().some(p=>p.code===code&&!p.sell&&(p.filters||[]).some(f=>normId(f)===normId(rid)))}
+  const day=String(normId(rid))[0]==='T', today=kstToday();
+  return positions().some(p=>p.code===code&&(!p.sell||(day&&String(p.date)===today))&&(p.filters||[]).some(f=>normId(f)===normId(rid)))}
 function passes(r){
   if(cur==='done'||cur==='pos')return false;   /* 규칙 탭이 아닌 곳에서는 걸러 낼 것이 없다 */
   if(cur==='kp')return r.mk==='KOSPI';        /* 전체 종목 탭은 보유 여부와 무관하게 다 보여준다 */
