@@ -24,7 +24,7 @@
 ⚠ 사이트는 보유 목록을 통째로 덮어쓴다(updated 가 늦은 쪽이 이김). 열린 탭이 옛 목록을 올리면 자동 기록이 지워질 수 있어
    매 실행 처음에 원장(ledger.json)과 맞춰 **빠진 자동 포지션을 되살린다**.
 """
-import datetime as dt, gzip, json, math, os, re, sys, time, urllib.parse, urllib.request
+import datetime as dt, gzip, http.client, json, math, os, re, sys, time, urllib.parse, urllib.request
 from pathlib import Path
 
 BASE = Path(__file__).parent
@@ -72,15 +72,40 @@ MODE = E.get("AUTOTRADE_MODE", "notify")
 def telegram(text):
     if DRY:
         log("텔레그램(보내지 않음):\n" + text); return
-    tok, chat = E.get("TELEGRAM_BOT_TOKEN"), E.get("TELEGRAM_CHAT_ID")
+    tg_send(E.get("TELEGRAM_BOT_TOKEN"), E.get("TELEGRAM_CHAT_ID"), text)
+
+
+TG_PEND = BASE / "data" / "autotrade" / "tg_pending.jsonl"
+
+
+def tg_send(tok, chat, text):
+    """텔레그램 — 몇 번 다시 하고, 그래도 안 되면 파일에 쌓아 두었다가 다음 알림 때 같이 보낸다(10-06 매도 실패 알림도 같이 사라졌다)."""
     if not (tok and chat):
         log("텔레그램 미설정:", text.replace("\n", " | ")); return
+    msgs = []
     try:
-        body = json.dumps({"chat_id": chat, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}).encode()
-        rq = urllib.request.Request(f"https://api.telegram.org/bot{tok}/sendMessage", data=body, headers={"Content-Type": "application/json"})
-        urllib.request.urlopen(rq, timeout=30).read()
-    except Exception as ex:
-        log("텔레그램 실패:", repr(ex)[:200])
+        if TG_PEND.exists():
+            msgs = [json.loads(l) for l in TG_PEND.read_text(encoding="utf-8").splitlines() if l.strip()]
+    except Exception: msgs = []
+    msgs.append(text)
+    left = []
+    for m in msgs:
+        ok = False
+        for i in range(4):
+            try:
+                body = json.dumps({"chat_id": chat, "text": m, "parse_mode": "HTML", "disable_web_page_preview": True}).encode()
+                rq = urllib.request.Request(f"https://api.telegram.org/bot{tok}/sendMessage", data=body, headers={"Content-Type": "application/json"})
+                urllib.request.urlopen(rq, timeout=30).read(); ok = True; break
+            except urllib.error.HTTPError as ex:
+                log("텔레그램 거절:", ex.code); ok = True; break        # 형식 문제면 다시 해도 같다 — 쌓지 않는다
+            except Exception as ex:
+                log("텔레그램 실패(%d):" % (i + 1), repr(ex)[:120]); time.sleep(5 * (i + 1))
+        if not ok: left.append(m)
+    try:
+        TG_PEND.parent.mkdir(parents=True, exist_ok=True)
+        if left: TG_PEND.write_text("".join(json.dumps(m, ensure_ascii=False) + "\n" for m in left), encoding="utf-8")
+        elif TG_PEND.exists(): TG_PEND.unlink()
+    except Exception: pass
 
 
 def now():
@@ -115,7 +140,28 @@ class TossErr(Exception):
 _acct = {}
 
 
+NET_WAIT = 300      # 네트워크가 끊겨도 이만큼(초)은 다시 해 본다 — 종가 단일가(15:20~30) 안에 붙어야 한다
+
+
 def call(method, path, acct=False, body=None, **q):
+    """2026-10-06: 15:21 데이 종가 매도가 DNS 실패(getaddrinfo) 한 번에 통째로 죽었다 → 3주가 안 팔렸다.
+    이제 네트워크 오류(DNS·연결 끊김·시간 초과)는 NET_WAIT 동안 5→30초 간격으로 다시 한다.
+    clientOrderId 가 10분 멱등키라 주문을 다시 보내도 두 번 체결되지 않는다."""
+    t0 = time.time(); k = 0
+    while True:
+        try:
+            return _call(method, path, acct, body, **q)
+        except TossErr:
+            raise
+        except (urllib.error.URLError, OSError, TimeoutError, http.client.HTTPException) as ex:
+            k += 1
+            if time.time() - t0 > NET_WAIT:
+                raise TossErr("네트워크 %d번 실패(%.0f초) %s: %s" % (k, time.time() - t0, path, repr(ex)[:120]), "network")
+            w = min(30, 5 * k); log("네트워크 오류 — %d초 뒤 다시(%d번째):" % (w, k), path, repr(ex)[:120])
+            time.sleep(w)
+
+
+def _call(method, path, acct=False, body=None, **q):
     u = toss.B + path + ("?" + urllib.parse.urlencode(q) if q else "")
     for att in range(3):
         h = {"Authorization": "Bearer " + toss.token(), "Accept": "application/json"}

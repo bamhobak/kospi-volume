@@ -54,15 +54,8 @@ def env():
 
 
 def telegram(text):
-    e = env(); tok, chat = e.get("TELEGRAM_BOT_TOKEN"), e.get("TELEGRAM_CHAT_ID")
-    if not (tok and chat):
-        log("텔레그램 미설정:", text.replace("\n", " | ")); return
-    try:
-        body = json.dumps({"chat_id": chat, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}).encode()
-        urllib.request.urlopen(urllib.request.Request(f"https://api.telegram.org/bot{tok}/sendMessage", data=body,
-                                                      headers={"Content-Type": "application/json"}), timeout=30).read()
-    except Exception as ex:
-        log("텔레그램 실패:", repr(ex)[:200])
+    e = env()
+    AT.tg_send(e.get("TELEGRAM_BOT_TOKEN"), e.get("TELEGRAM_CHAT_ID"), text)   # 다시 하기·못 보낸 건 쌓아 두기(10-06)
 
 
 def supa_set(pin, data):
@@ -292,24 +285,42 @@ def trade(L, today):
 def close_sell(got, Lg, S, today):
     """같은 날 종가 단일가(15:20~15:30)에 판다 — got = 체결된 매수 주문(o['pos'] 기록 포함)."""
     AT.sleep_until(S["close_auction"] + dt.timedelta(seconds=60), "데이 종가 매도")
-    sold = []
-    for o in got:
-        try:
-            have = AT.sellable(o["t"]) if not AT.DRY else o["fq"]
-        except AT.TossErr:
-            have = None
-        q = int(o["fq"]) if have is None else int(min(o["fq"], have))
-        if q < 1: continue
-        so = dict(side="SELL", date=today, t=o["t"], name=o["name"], qty=q, posId=o["pos"]["id"], cid=("ds" + o["cid"][2:])[:36])
-        try:
-            so["oid"] = AT.place({"clientOrderId": so["cid"], "symbol": o["t"], "side": "SELL", "orderType": "MARKET", "quantity": str(q)})
-            sold.append((so, o))
-        except AT.TossErr as ex:
-            so["err"] = ex.code or str(ex)[:100]
-        Lg["orders"].append(so); _led_save(Lg)
-        time.sleep(0.3)
+    # 2026-10-06: 15:21 DNS 실패 한 번에 프로세스가 죽어 3주가 안 팔렸다 → 못 낸 주문은 15:29 까지 20초마다 다시 낸다.
+    #   (네트워크 한 번의 실패는 AT.call 이 5분까지 다시 한다 · 그래도 남으면 여기서 또 · 끝내 못 팔면 알림)
+    sold, pend = [], list(got)
+    deadline = S["end"] - dt.timedelta(minutes=1)
+    while pend:
+        nxt = []
+        for o in pend:
+            try:
+                have = AT.sellable(o["t"]) if not AT.DRY else o["fq"]
+            except Exception:
+                have = None
+            q = int(o["fq"]) if have is None else int(min(o["fq"], have))
+            if q < 1:
+                log("매도가능 0 — 이미 팔렸거나 주문이 들어가 있음:", o["t"]); continue
+            so = dict(side="SELL", date=today, t=o["t"], name=o["name"], qty=q, posId=o["pos"]["id"], cid=("ds" + o["cid"][2:])[:36])
+            try:
+                so["oid"] = AT.place({"clientOrderId": so["cid"], "symbol": o["t"], "side": "SELL", "orderType": "MARKET", "quantity": str(q)})
+                sold.append((so, o))
+            except Exception as ex:
+                so["err"] = getattr(ex, "code", None) or str(ex)[:100]; nxt.append(o)
+                log("데이 매도 주문 실패 — 다시 할 것:", o["t"], so["err"])
+            Lg["orders"].append(so); _led_save(Lg)
+            time.sleep(0.3)
+        pend = nxt
+        if pend and AT.now() < deadline:
+            time.sleep(20)
+        else:
+            break
+    if pend:
+        telegram("🚨 <b>데이 종가 매도 못 함</b> — " + ", ".join(o["name"] for o in pend) + " · 토스에서 직접 확인")
     AT.sleep_until(S["end"] + dt.timedelta(seconds=90), "데이 종가 체결 확인")
-    AT.wait_fills([so for so, _ in sold])
+    try:
+        AT.wait_fills([so for so, _ in sold])
+    except Exception as ex:
+        log("체결 확인 실패:", repr(ex)[:200])
+        for so, _ in sold: so.setdefault("fq", 0); so.setdefault("ap", 0)
     fin = [(so, o) for so, o in sold if so["fq"] > 0 and so["ap"] > 0]
     _led_save(Lg)
     if fin:
@@ -335,6 +346,26 @@ def close_sell(got, Lg, S, today):
     left = [o["name"] for o in got if o["pos"]["id"] not in fin_ids]
     if left: lines.append("⚠ 못 판 것: " + ", ".join(left) + " — 직접 확인")
     telegram("\n".join(lines))
+
+
+def close_watch(today):
+    """15:24 예약 — 아침 프로세스가 죽었어도(10-06 DNS 실패로 사망) 오늘 산 데이 종목을 종가 단일가에 판다.
+    원장에 오늘 체결된 매수 중 **매도 주문(oid)이 아직 없는 것**만. 아침 프로세스가 이미 냈으면 아무것도 안 한다
+    (같은 clientOrderId 라 겹쳐 내도 토스가 한 번만 받는다)."""
+    S = AT.session("KR")
+    if not S or S["date"] != today:
+        log("국장 휴장 — 건너뜀"); return
+    if not (S["close_auction"] <= AT.now() < S["end"] - dt.timedelta(minutes=1)):
+        log("종가 단일가 시간 아님 — 건너뜀"); return
+    Lg = _led()
+    sold_pos = {o.get("posId") for o in Lg["orders"] if o.get("side") == "SELL" and o.get("date") == today and o.get("oid")}
+    got = [o for o in Lg["orders"] if o.get("side") == "BUY" and o.get("date") == today and o.get("pos")
+           and (o.get("fq") or 0) > 0 and o["pos"]["id"] not in sold_pos]
+    if not got:
+        log("지킴이: 오늘 팔 데이 종목 없음(또는 이미 주문됨)"); return
+    log("지킴이: 매도 주문 없는 데이 %d종목 — 지금 판다" % len(got))
+    telegram("🛟 데이 지킴이: 아침 프로세스가 못 판 %d종목을 종가 단일가로 매도" % len(got))
+    close_sell(got, Lg, S, today)
 
 
 def late(today):
@@ -444,7 +475,9 @@ if __name__ == "__main__":
                 except Exception: pass
         elif a[:1] == ["late"]:
             late(AT.now().strftime("%Y%m%d"))
-        else: log("사용법: python day_alert.py morning | review | late")
+        elif a[:1] == ["close"]:
+            close_watch(AT.now().strftime("%Y%m%d"))
+        else: log("사용법: python day_alert.py morning | review | late | close")
     except Exception as ex:
         log("실패:", repr(ex)[:500])
         telegram("⚠ 데이 알림 실패: %s" % str(ex)[:300]); raise
