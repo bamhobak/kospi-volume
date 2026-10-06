@@ -286,7 +286,11 @@ def trade(L, today):
     if skip: lines.append("못 산 것: " + " · ".join("%s(%s)" % s_ for s_ in skip[:6]))
     telegram("\n".join(lines))
     if not got: return
-    # 같은 날 종가 단일가(15:20~15:30)에 판다
+    close_sell(got, Lg, S, today)
+
+
+def close_sell(got, Lg, S, today):
+    """같은 날 종가 단일가(15:20~15:30)에 판다 — got = 체결된 매수 주문(o['pos'] 기록 포함)."""
     AT.sleep_until(S["close_auction"] + dt.timedelta(seconds=60), "데이 종가 매도")
     sold = []
     for o in got:
@@ -331,6 +335,44 @@ def trade(L, today):
     left = [o["name"] for o in got if o["pos"]["id"] not in fin_ids]
     if left: lines.append("⚠ 못 판 것: " + ", ".join(left) + " — 직접 확인")
     telegram("\n".join(lines))
+
+
+def late(today):
+    """2026-10-06 사용자: 원화가 없어 아침 시가 주문이 다 거절된 날, 입금 뒤 **지금 시장가로 1주씩** 사고 종가에 판다.
+    규칙(시가 매수)과 다른 체결이라 기록에 late=True 를 붙인다 — 규칙 성적과 섞어 보지 말 것."""
+    S = AT.session("KR")
+    if not S or S["date"] != today or not (S["start"] <= AT.now() < S["close_auction"] - dt.timedelta(minutes=5)):
+        log("장중(종가 단일가 5분 전까지)이 아님 — 건너뜀"); return
+    snap = json.loads((OUT / ("snap_%s.json" % today)).read_text(encoding="utf-8"))
+    L = snap.get("cand") or []
+    Lg = _led()
+    done = {o["t"] for o in Lg["orders"] if o.get("date") == today and o.get("side") == "BUY" and o.get("oid")}
+    placed, skip = [], []
+    for x in L[:DAY_MAX]:
+        if x["t"] in done: continue
+        cid = re.sub(r"[^A-Za-z0-9_-]", "", f"dl{today}{x['t']}")[:36]
+        o = dict(side="BUY", date=today, t=x["t"], name=x["name"], qty=1, cid=cid, rid="T1", late=True, at=AT.now().isoformat())
+        try:
+            o["oid"] = AT.place({"clientOrderId": cid, "symbol": x["t"], "side": "BUY", "orderType": "MARKET", "quantity": "1"})
+        except AT.TossErr as ex:
+            o["oid"] = None; o["err"] = ex.code or str(ex)[:100]; skip.append((x["name"], "주문 거부 " + str(o["err"])))
+        Lg["orders"].append(o); _led_save(Lg)
+        if o["oid"]: placed.append(o)
+        time.sleep(0.3)
+    AT.wait_fills(placed)
+    got = [o for o in placed if o["fq"] > 0 and o["ap"] > 0]
+    for i, o in enumerate(got):
+        o["pos"] = {"id": int(time.time() * 1000) + i, "code": o["t"], "name": o["name"], "date": today, "price": o["ap"],
+                    "qty": int(o["fq"]), "filters": ["T1"], "auto": True, "day": True, "late": True, "oid": o["oid"]}
+    _led_save(Lg)
+    if got:
+        scalp_update(lambda P: (P.extend(dict(o["pos"]) for o in got) or True), "데이 늦은 매수 %d건" % len(got))
+    lines = ["🕚 <b>데이 늦은 매수</b> %s/%s 지금 시장가 1주씩(시가 아님)" % (today[4:6], today[6:])]
+    lines += ["✅ %s %d주 @ %s원" % (o["name"], int(o["fq"]), f"{o['ap']:,.0f}") for o in got]
+    lines += ["❌ %s 미체결(%s)" % (o["name"], o.get("status")) for o in placed if o not in got]
+    if skip: lines.append("못 산 것: " + " · ".join("%s(%s)" % s_ for s_ in skip[:6]))
+    telegram("\n".join(lines))
+    if got: close_sell(got, Lg, S, today)
 
 
 def review():
@@ -400,7 +442,9 @@ if __name__ == "__main__":
             finally:
                 try: M.BUSY.unlink()
                 except Exception: pass
-        else: log("사용법: python day_alert.py morning | review")
+        elif a[:1] == ["late"]:
+            late(AT.now().strftime("%Y%m%d"))
+        else: log("사용법: python day_alert.py morning | review | late")
     except Exception as ex:
         log("실패:", repr(ex)[:500])
         telegram("⚠ 데이 알림 실패: %s" % str(ex)[:300]); raise
