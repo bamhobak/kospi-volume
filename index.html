@@ -101,7 +101,14 @@ body{display:flex;flex-direction:column;height:100%}
 header{flex:none}
 .shell{display:flex;flex:1;min-height:0}
 .rail{width:212px;flex:none;background:#0c0e12;border-right:1px solid var(--line);
-      display:flex;flex-direction:column;padding:14px 10px;gap:15px;overflow-y:auto}
+      display:flex;flex-direction:column;padding:14px 10px;gap:15px;overflow-y:auto;
+      /* 스크롤바는 거의 안 보이게(2026-10-07) — 가늘고 배경과 거의 같은 색, 마우스를 올리면 살짝만 */
+      scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.05) transparent}
+.rail:hover{scrollbar-color:rgba(255,255,255,.14) transparent}
+.rail::-webkit-scrollbar{width:4px}
+.rail::-webkit-scrollbar-track{background:transparent}
+.rail::-webkit-scrollbar-thumb{background:rgba(255,255,255,.05);border-radius:4px}
+.rail:hover::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14)}
 .tmode{display:inline-flex;flex:none;border:1px solid var(--line);background:var(--bg)}
 .tmode button{padding:3px 9px;border:0;background:transparent;color:var(--mut);font-weight:700;font-size:11px;line-height:1.4;cursor:pointer;border-radius:0}
 .tmode button+button{border-left:1px solid var(--line)}
