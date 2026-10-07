@@ -192,14 +192,7 @@ FILTERS = [
      and r.get("usvq") is not None and r["usvq"] >= 0.8       # 2026-09-30 좁힘: 거래 주식 수 상위 20%
      and r.get("v5v60") is not None and r["v5v60"] <= 0.8     # 2026-10-02 2차 좁힘: 5일 거래량 ≤ 60일 평균 0.8배
      and bool(us_reg.get("up60"))),
-    ("N2", "낙폭과대 (20일 보유)",
-     lambda r: r.get("mk") == "US" and not r.get("pref")
-     and us_reg.get("up60") is False
-     and r.get("ret20") is not None and r["ret20"] <= -30
-     and r.get("su1") is not None and r["su1"] >= 2
-     and r.get("sr60") is not None and r["sr60"] <= -10
-     and (r.get("dbt") is None or r["dbt"] <= 200)
-     and (r.get("amt20") or 0) >= 2 and (r.get("c") or 0) >= 3),
+    # ("N2") 2026-10-07 폐기(사용자 · research H0306 · us_drop2_acct.py) — 사이트 RETIRED 로 남김
     ("N3", "저PBR 낙폭 (60일 보유)",
      lambda r: r.get("mk") == "US" and not r.get("pref")
      and us_reg.get("up60") is False
@@ -211,17 +204,7 @@ FILTERS = [
     # bbnew = 「고점 -30%·20일 -20%·자사주 집행 중」 상태에 오늘 처음 들어왔나(수집기가 계산).
     # bbd 는 마지막 보고 이후 달력일로, 화면 확인용이다.
     # 국내 A1 은 '결정 공시' 라는 사건이지만 이쪽은 '집행 중' 이라는 상태다.
-    ("N4", "자사주 낙폭 (미장·60일 보유)",
-     lambda r: r.get("mk") == "US" and not r.get("pref")
-     and r.get("usliq") is True and (r.get("c") or 0) >= 3
-     and r.get("bbnew") is True
-     and r.get("fromhi") is not None and r["fromhi"] <= -30
-     and r.get("ret20") is not None and r["ret20"] <= -20),
-    # qnew = 「1년 120%↑ · 3·6·12개월 양수 · 60일 평균 일간등락 1.5% 이하」에 오늘 처음 들어온 날
-    # (최근 20거래일은 밖). qage = 그 사건이 며칠 전인가 — 3거래일까지 후보로 남긴다
-    # (3일 늦게 사도 초과 +2.94→+2.85 로 거의 그대로, 10일부터 꺾인다).
-    # 같은 상승폭인데 요란한 쪽(absr>=3)은 승률 40.5%·초과 -2.59 로 부호가 갈린다.
-    # 국면 게이트 없음 — 안 걸어도 신호가 금융여건 완화기에만 나온다(내생적).
+    # ("N4") 2026-10-07 폐기(사용자 · research H0306 · us_drop2_acct.py) — 사이트 RETIRED 로 남김
     ("N5", "잔잔한 급등주 (미장·60일 보유)",
      lambda r: r.get("mk") == "US" and not r.get("pref")
      and r.get("usliq") is True and (r.get("c") or 0) >= 3
