@@ -78,6 +78,31 @@ def update():
     return A
 
 
+def fill_missing(days=62, rate=8.0):
+    """최근 거래일에 있는데 일봉 기록이 days 일보다 짧은 종목(1분봉 과거 채우기 상위 1,000 밖)을 1분봉으로 메운다.
+    안 메우면 그 종목들(유니버스의 약 1/4)은 20·60일 재료가 몇 주 동안 빈칸이다(2026-10-08 점검기가 잡음)."""
+    from concurrent.futures import ThreadPoolExecutor
+    M = C.toss(rate)
+    A = pd.read_parquet(DAILY)
+    cal = sorted(A[A.ticker == "005930"].date.unique())[-days:]
+    have = A[A.date.isin(cal)].groupby("ticker").date.apply(set)
+    last = cal[-1]
+    R = A[A.date.isin(cal[-5:])].assign(amt=lambda x: x.close * x.volume).groupby("ticker").amt.mean()
+    tick = sorted(R[R.rank(pct=True) >= 0.45].index.intersection(A[A.date == last].ticker.unique()))   # 유니버스(상위 40%)에 들 만한 종목만
+    todo = [(t, d) for t in tick for d in cal if d not in have.get(t, set())]
+    C.log("빈 일봉 메우기: %d종목 · %d종목-일" % (len({t for t, _ in todo}), len(todo)))
+    rows, t0 = [], time.time()
+    with C.Busy("fac"), ThreadPoolExecutor(3) as ex:
+        for i, r in enumerate(ex.map(lambda td: M.fetch_day("KR", td[0], td[1]), todo)):
+            rows += r
+            if i % 2000 == 1999: C.log("  %d/%d · %.0f분" % (i + 1, len(todo), (time.time() - t0) / 60))
+    if rows:
+        N = agg(M.frame(rows))
+        A = pd.concat([A, N], ignore_index=True).drop_duplicates(["ticker", "date"], keep="first").sort_values(["ticker", "date"])
+        A.to_parquet(DAILY, index=False)
+    C.log("빈 일봉 메우기 끝: %d줄 · %.0f분" % (len(rows), (time.time() - t0) / 60))
+
+
 def names(force=False):
     p = C.DATA / "names.json"
     j = C.jload(p, {})

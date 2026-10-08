@@ -5,6 +5,7 @@
   python research/factory/run.py close       15:18  마감 동시호가 녹화(~15:31)
   python research/factory/run.py evening     16:45  1분봉 일봉 → 정답지 역추적 · 그림자 전진 성적 → 텔레그램
   python research/factory/run.py night       01:30  AI 수집 일꾼 · 정답지 후보 · 진화기 · 깔때기(+뒤집기 짝) → 보고서·텔레그램
+  python research/factory/run.py check       09:20  공장 점검(맞게 돌았나 — 문제 있을 때만 텔레그램, 월요일 주간 한 줄)
   python research/factory/run.py usage              클로드 크레딧 이달 사용·한 달 예상
   python research/factory/run.py status             등록부 요약
   python research/factory/run.py add <명세.json>    손으로 명세 넣기(바로 판정)
@@ -57,7 +58,9 @@ def evening():
 
 
 def night():
-    import lab, answer, evolve, harvest
+    import lab, answer, evolve, harvest, health
+    try: health.deadman()
+    except Exception as ex: C.log("점검기 감시 실패:", repr(ex)[:200])
     from verdict import trial_count
     t0 = time.time()
     rep = ["# 규칙 공장 밤 보고 · %s" % time.strftime("%Y-%m-%d %H:%M"), ""]
@@ -139,6 +142,7 @@ if __name__ == "__main__":
         elif cmd == "close": close()
         elif cmd == "evening": evening()
         elif cmd == "night": night()
+        elif cmd == "check": __import__("health").run()
         elif cmd == "usage": print("\n".join(__import__("harvest").usage_report()))
         elif cmd == "status": status()
         elif cmd == "add": add_file(a[1])
