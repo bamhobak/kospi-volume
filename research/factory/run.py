@@ -53,7 +53,7 @@ def evening():
     if N is not None and len(N):
         g = N.groupby("id").ret.agg(["size", "mean"])
         lines.append("그림자 오늘: " + " · ".join("%s %d건 %+.2f%%" % (i, r["size"], r["mean"]) for i, r in g.iterrows()))
-    C.tg("\n".join(lines))
+    C.log(" | ".join(lines))                    # 2026-10-08 사용자: 텔레그램은 중요한 것만 — 정답지는 data/factory/answer/YYYYMMDD.md
 
 
 def night():
@@ -109,7 +109,7 @@ def night():
           "검증까지 통과 → 그림자: %d개%s" % (len(passed), (" — " + ", ".join("%s %s" % (x["id"], (x.get("desc") or "")[:50]) for x in passed[:3])) if passed else ""),
           "그림자 지켜보는 중 %d개 · 공장 누적 시험 %s" % (len(sh), f"{trial_count('factory'):,}"),
           harvest.usage_report()[0], "보고서: research/reports/factory/%s" % f.name]
-    C.tg("\n".join(tg))
+    if passed: C.tg("\n".join(tg))             # 중요한 것만: 검증까지 통과해 그림자에 새로 들어간 게 있을 때
     C.log("밤 끝 — 판정 %d · 그림자 %d · %.1f분" % (len(done), len(sh), (time.time() - t0) / 60))
 
 

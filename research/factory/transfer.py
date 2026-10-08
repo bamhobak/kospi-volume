@@ -150,6 +150,6 @@ def morning(day):
         lines.append("미장 따라 높게 열릴 쪽: " + ", ".join("%s(%s %+.1f)" % (names.get(t, t), pred[t][0], v) for t, v in pp[::-1][:5]))
         lines.append("낮게 열릴 쪽: " + ", ".join("%s(%s %+.1f)" % (names.get(t, t), pred[t][0], v) for t, v in pp[:5]))
     lines.append("(장전 08:59 예상가와 비교해 '덜 반영된 종목'은 녹화기가 저녁 정답지에 넣는다)")
-    C.tg("\n".join(lines))
+    (TD / ("%s.md" % day)).write_text("\n".join(lines) + "\n", encoding="utf-8")   # 2026-10-08 사용자: 텔레그램은 중요한 것만 — 파일로만
     C.log("전이표 오늘 %d종목" % len(pred))
     return out
