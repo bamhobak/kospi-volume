@@ -1,5 +1,5 @@
 {
- "total": 33133,
+ "total": 33846,
  "by_topic": {
   "상승장 탐색": 12000,
   "유튜브·커뮤니티 기법": 311,
@@ -297,6 +297,9 @@
   "us_rules_recheck_20261007": 24,
   "yt_wonyo_20261008": 12,
   "sector_day_20261008": 94,
-  "sector_day_m1_20261008": 138
+  "sector_day_m1_20261008": 138,
+  "sector_swing_20261008": 310,
+  "sector_leader_20261008": 84,
+  "factory": 319
  }
 }

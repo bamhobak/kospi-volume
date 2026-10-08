@@ -253,8 +253,8 @@ def backfill(hours):
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(WORKERS) as ex:
             for i in range(0, len(todo), 40):                          # 40일씩 묶어 동시에 — 묶음 사이에 쉼·시간 확인
-                while BUSY.exists():
-                    time.sleep(30)                                  # 매일 수집·데이 알림이 도는 동안은 쉰다
+                while BUSY.exists() or any(ROOT.glob(".busy_*")):
+                    time.sleep(30)                                  # 매일 수집·데이 알림·공장 녹화기(.busy_*)가 도는 동안은 쉰다
                 for r_ in ex.map(lambda d: fetch_day(mk, sym, d), todo[i:i + 40]):
                     rows += r_
                 if time.time() > stop_at + 1800:                    # 종목 하나는 마무리하되 30분 넘게 넘기지 않는다
