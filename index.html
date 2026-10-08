@@ -1595,6 +1595,10 @@ async function renderPositions(){
     const stat=(k,list)=>{
       const f=(k==='전체'||MKG.includes(k))?null:fOf(k), kq=MKG.includes(k)?mkCls(k==='미장'?'US':'KR'):f&&mkCls(f.mkt);
       const avg=list.reduce((a,p)=>a+ret(p),0)/list.length;
+      /* 승률 = 금액과 상관없이 건별로 비용 뒤 플러스였던 비율 · PF = 이긴 건 수익률 합 ÷ 진 건 손실률 합(건별, 2026-10-08 요청) */
+      const rs=list.map(ret), win=rs.filter(x=>x>0).length/rs.length*100;
+      const gp=rs.filter(x=>x>0).reduce((a,x)=>a+x,0), gl=-rs.filter(x=>x<0).reduce((a,x)=>a+x,0);
+      const pfv=gl>0?gp/gl:(gp>0?Infinity:null);
       const wl=list.filter(p=>(p.qty||0)>0);
       /* 원화로 합친다. 미장은 **매수 때 환율로 산 돈**, **매도 때 환율로 받은 돈**을 쓴다 —
          지금 환율로 다시 환산하면 실제로 오간 돈과 달라진다. 환율이 없는 옛 기록은
@@ -1607,11 +1611,13 @@ async function renderPositions(){
       const sg=x=>x>0?'pos':x<0?'neg':'';
       const miss=list.length-wl.length;
       const _f=fees();
-      return `<div class="dstat" title="동일가중 = 건별 수익률의 단순 평균(규칙 자체의 성적, 백테스트와 비교용)&#10;금액가중 = 총손익 ÷ 총매수금액(내 계좌가 실제로 번 비율)&#10;&#10;매매비용 차감 후입니다 — 국내 매수 ${_f.KR.b}% / 매도 ${_f.KR.s}% · 미장 매수 ${_f.US.b}% / 매도 ${_f.US.s}%.&#10;슬리피지는 빼지 않습니다: 직접 적은 체결가에 이미 들어 있습니다.${miss?'&#10;수량 없는 기록 '+miss+'건은 금액가중에서 제외':''}">`
+      return `<div class="dstat" title="동일가중 = 건별 수익률의 단순 평균(규칙 자체의 성적, 백테스트와 비교용)&#10;금액가중 = 총손익 ÷ 총매수금액(내 계좌가 실제로 번 비율)&#10;승률 = 금액과 상관없이 비용 뒤 수익으로 끝난 건의 비율&#10;PF = 이긴 건 수익률 합 ÷ 진 건 손실률 합(1 보다 크면 번 쪽이 큼)&#10;&#10;매매비용 차감 후입니다 — 국내 매수 ${_f.KR.b}% / 매도 ${_f.KR.s}% · 미장 매수 ${_f.US.b}% / 매도 ${_f.US.s}%.&#10;슬리피지는 빼지 않습니다: 직접 적은 체결가에 이미 들어 있습니다.${miss?'&#10;수량 없는 기록 '+miss+'건은 금액가중에서 제외':''}">`
         +`<b class="${kq||''}">${k==='전체'?k:(f&&f.name?codeOf(k)+' · '+(f.name.split(' · ')[1]||f.name):codeOf(k))}</b>`
         +`<span><span class="k">동일</span><span class="${sg(avg)}">${avg>0?'+':''}${avg.toFixed(2)}%</span></span>`
         +`<span><span class="k">금액</span><span class="${sg(wavg)}">${wavg==null?'—':(wavg>0?'+':'')+wavg.toFixed(2)+'%'}</span></span>`
-        +`<span><span class="k">수익금</span><span class="${sg(sum)}">${sum?kor(sum,1)+'원':'—'}</span></span></div>`};
+        +`<span><span class="k">수익금</span><span class="${sg(sum)}">${sum?kor(sum,1)+'원':'—'}</span></span>`
+        +`<span><span class="k">승률</span><span>${win.toFixed(0)}% <span class="k">(${rs.filter(x=>x>0).length}/${rs.length})</span></span></span>`
+        +`<span><span class="k">PF</span><span class="${pfv==null?'':pfv>=1?'pos':'neg'}">${pfv==null?'—':pfv===Infinity?'∞':pfv.toFixed(2)}</span></span></div>`};
     /* 칩도 레일과 같은 순서로 — 목록에 없는 옛 규칙(P0 등)은 뒤에 */
     const ordIds=orderedAll().map(f=>f.id);
     const keys=Object.keys(by).sort((x,y)=>{
