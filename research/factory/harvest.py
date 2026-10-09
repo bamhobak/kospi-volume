@@ -147,7 +147,7 @@ def extract_sys():
 
 답은 JSON 하나만:
 {"summary": "기법 한 줄 요약", "specs": [{"name": "짧은 이름", "mode": "oc", "conds": [...], "approx": "근사한 부분", "untestable": "못 옮긴 부분"}]}
-규칙: 명세는 최대 3개(원안 1개 + 영상이 직접 말한 변형). 영상이 말하지 않은 조건을 지어내지 않는다. 옮길 게 없으면 "specs": [].""".replace("{MODES}", md).replace("{FEATS}", fl).replace("%%", "%")
+규칙: 명세는 최대 3개(원안 1개 + 영상이 직접 말한 변형). 명세 하나에 조건은 최대 5개 — 넘으면 핵심 5개만 남기고 나머지는 approx 에 적는다. 영상이 말하지 않은 조건을 지어내지 않는다. 옮길 게 없으면 "specs": [].""".replace("{MODES}", md).replace("{FEATS}", fl).replace("%%", "%")
 
 
 def _json(s):
