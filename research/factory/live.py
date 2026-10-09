@@ -122,23 +122,37 @@ def names(force=False):
     if j and not force and time.time() - p.stat().st_mtime < 7 * 86400: return j
     M = C.toss(rate=8)
     U = M.universe("KR")
+    meta = {}
     for i in range(0, len(U), 100):
         for x in M.get("/api/v1/stocks", symbols=",".join(U[i:i + 100])) or []:
             j[x["symbol"]] = x.get("name") or x["symbol"]
-    C.jsave(p, j)
+            meta[x["symbol"]] = {"shares": float(x.get("sharesOutstanding") or 0) or None, "list": (x.get("listDate") or "").replace("-", "")}
+    C.jsave(p, j); C.jsave(C.DATA / "meta.json", meta)            # 시가총액(발행 주식 수)·상장 후 일수(상장일) 재료용
     return j
+
+
+def meta():
+    m = C.jload(C.DATA / "meta.json", {})
+    if not m: names(force=True); m = C.jload(C.DATA / "meta.json", {})
+    return m
 
 
 def frame(days=None, A=None):
     """최근 일봉으로 재료를 만든다 → 유니버스 줄만(q_ 포함). days = 돌려받을 날짜 목록(없으면 마지막 날)."""
     import lab
     A = update() if A is None else A
-    keep = sorted(A.date.unique())[-150:]
+    keep = sorted(A.date.unique())[-260:]                               # 52주·224일선 재료가 250일을 본다
     A = A[A.date.isin(keep)]
+    mt = meta()
+    A = A.assign(shares=A.ticker.map(lambda t: (mt.get(t) or {}).get("shares")))
     fl = lab.load_flows(since=keep[0])
     X = FT.make(A, fl, lab.load_themes(), seam=False, amt_mp=3)
     days = days or [keep[-1]]
     U = X[X.uni & X.date.isin(days)].drop(columns=["uni"]).reset_index(drop=True)
+    # 상장 후 일수 — 매일 자료는 260일뿐이라 상장일로(과거 자료와 같게 250 에서 자른다)
+    lst = U.ticker.map(lambda t: (mt.get(t) or {}).get("list") or "")
+    dd = (pd.to_datetime(U.date) - pd.to_datetime(lst, errors="coerce")).dt.days * 250 / 365
+    U["age"] = np.where(dd.notna(), np.minimum(dd, 250), U.age)
     attach_transfer(U)
     attach_auction(U)
     return FT.shrink(FT.qcols(U, [f for f in FT.FEATS if f in U.columns]))

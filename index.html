@@ -17,6 +17,7 @@ input:not([type=checkbox]),select{background:var(--panel2);border:1px solid var(
 input:focus{border-color:var(--acc)}input:not([type=checkbox]){flex:1;min-width:120px}
 button{background:var(--acc);border:0;color:#0a0b0e;border-radius:0;padding:8px 14px;font-weight:600;cursor:pointer;font-size:13px}
 button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
+.fac-link{background:var(--panel2);border:1px solid var(--line);color:var(--acc);text-decoration:none;padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap}
 #q{flex:none;width:180px;padding:6px 10px;font-size:12px;border-radius:0}
 /* 실시간 토글 — 검색창 오른쪽. **PC 에서만** 띄운다(모바일은 배터리·데이터를 먹고
    화면 밖에서 소켓을 붙들 이유도 없다 · 2026-09-14 요청) */
@@ -423,6 +424,7 @@ button.prim{background:var(--acc);border:1px solid var(--acc);color:#0a0b0e;font
   <span id="mktstate" class="mktstate"></span>
   <input id="q" type="search" placeholder="종목명·코드 검색" autocomplete="off">
   <button id="rtsw" class="rtsw" type="button" title="실시간 시세 — 꺼짐"></button>
+  <a href="factory.html" class="fac-link" title="규칙 공장이 찾은 후보(검증 통과) — 2026-10-10">규칙 후보</a>
   <div id="status">불러오는 중…</div>
 </header>
 <div class="shell">

@@ -14,14 +14,14 @@
 import numpy as np, pandas as pd
 
 COST = 0.23            # 국장 왕복(수수료 0.015×2 + 거래세 0.20) — 단일가 체결 가정
+SWH = (5, 10, 20, 40, 60)                  # 스윙 보유 거래일(2026-10-10 사용자: 스윙 기법도 같이)
 MODES = {"oc": ("시가 매수 → 같은 날 종가 매도", {"pre", "open"}),
-         "on": ("종가 매수 → 다음날 시가 매도", {"pre", "open", "close"}),
-         "sw5": ("시가 매수 → 5거래일 뒤 종가", {"pre", "open"}),
-         "sw20": ("시가 매수 → 20거래일 뒤 종가", {"pre", "open"})}
-TARGET = {"oc": "oc", "on": "on", "sw5": "sw5", "sw20": "sw20"}
+         "on": ("종가 매수 → 다음날 시가 매도", {"pre", "open", "close"})}
+MODES.update({"sw%d" % h: ("시가 매수 → %d거래일 들고 종가 매도(스윙)" % h, {"pre", "open"}) for h in SWH})
+TARGET = {m: m for m in MODES}
 
 # 이름: (설명, 언제, 뒤집을 때 성질, 언제부터)
-#   성질: s = 0 기준 부호(값 → -값) · r = 1 기준 배수(값 → 1/값) · u = 0~1(값 → 1-값) · c = 그대로(부등호만 뒤집음)
+#   성질: s = 0 기준 부호(값 → -값) · r = 1 기준 배수(값 → 1/값) · u = 0~1(값 → 1-값) · h = 0~100(값 → 100-값) · c = 그대로(부등호만 뒤집음)
 FEATS = {
     "r1": ("어제 등락률 %", "pre", "s"), "r5": ("최근 5일 등락률 %", "pre", "s"), "r20": ("최근 20일 등락률 %", "pre", "s"),
     "r60": ("최근 60일 등락률 %", "pre", "s"),
@@ -45,6 +45,22 @@ FEATS = {
     "r1t": ("오늘 등락률 %(종가 무렵)", "close", "s"), "clvt": ("오늘 종가 위치", "close", "u"),
     "vmt": ("오늘 거래량 ÷ 20일 평균(배)", "close", "r"), "rngt": ("오늘 고저폭 %", "close", "c"),
     "oct": ("오늘 시가→종가 %", "close", "s"),
+    # 2026-10-10 추가(사용자: 못 옮긴 조건 중 지금 자료로 만들 수 있는 건 재료로) — 전부 일봉으로 계산
+    "hi250": ("어제 종가의 52주(250일) 고가 대비 %(0 이하, 0=신고가)", "pre", "c"),
+    "lo250": ("어제 종가의 52주 저가 대비 %(0 이상)", "pre", "c"),
+    "hi60": ("어제 종가의 60일 고가(전고점) 대비 %", "pre", "c"),
+    "d120": ("어제 종가의 120일선 대비 %", "pre", "s"), "d224": ("어제 종가의 224일선 대비 %", "pre", "s"),
+    "rsi14": ("RSI(14) 어제 값(0~100)", "pre", "h"), "bbp": ("볼린저(20,2) %b 어제 값(0=하단·1=상단)", "pre", "u"),
+    "bbw": ("볼린저(20,2) 폭 %", "pre", "c"), "macd": ("MACD(12,26) 히스토그램 ÷ 종가 %", "pre", "s"),
+    "ich": ("어제 종가의 일목 기준선(26일 고저 중간) 대비 %", "pre", "s"),
+    "uw": ("어제 윗꼬리 비율(0~1)", "pre", "u"), "lw": ("어제 아랫꼬리 비율(0~1)", "pre", "u"),
+    "body": ("어제 몸통 %(종가÷시가-1, 양봉 +)", "pre", "s"),
+    "lu20": ("최근 20일 상한가(+29%↑ 마감) 횟수", "pre", "c"), "age": ("상장 후 거래일 수(250 이상은 250)", "pre", "c"),
+    "mcap": ("시가총액(억원, 어제 종가)", "pre", "c"),
+    "uwt": ("오늘 윗꼬리 비율(종가 무렵)", "close", "u"),
+    "hi20t": ("오늘 종가의 20일 고가(오늘 포함) 대비 %(0=20일 신고가로 마감)", "close", "c"),
+    "align": ("이평 정배열 단계 0~3(어제 종가 기준 5>20·20>60·60>120 일 선 만족 수)", "pre", "c"),
+    "engulf": ("어제 상승 장악형 캔들(1=양봉 몸통이 그제 음봉 몸통을 감쌈)", "pre", "c"),
     # 실시간 녹화(과거 없음) — 정답지·그림자 전용
     "a_eq": ("08:59 장전 호가로 본 예상 갭 %", "live", "s"), "a_drift": ("장전 예상 갭 변화(08:59 - 08:31) %p", "live", "s"),
     "a_imb": ("08:59 장전 호가 매수잔량 쏠림(-1~1)", "live", "s"), "a_nxt": ("NXT 장전 마지막 체결가 갭 %", "live", "s"),
@@ -99,11 +115,52 @@ def make(D, flows=None, themes=None, us=None, seam=True, amt_mp=15):
     F["vmt"] = v / v20p.replace(0, np.nan)
     F["rngt"] = (h - l) / c * 100
     F["oct"] = (c / o - 1) * 100
+    # ── 2026-10-10 추가 재료(전부 어제 종가까지 → shift 1) ──
+    s1 = lambda x: x.groupby(tk).shift(1)
+    F["hi250"] = (pc / s1(roll(h, 250, "max", 120)) - 1) * 100
+    F["lo250"] = (pc / s1(roll(l, 250, "min", 120)) - 1) * 100
+    F["hi60"] = (pc / s1(roll(h, 60, "max", 40)) - 1) * 100
+    for n in (120, 224):
+        F["d%d" % n] = (pc / s1(roll(c, n, "mean", int(n * 0.8))) - 1) * 100
+    dc = c.groupby(tk).diff()
+    up_ = dc.clip(lower=0).groupby(tk).transform(lambda s: s.ewm(alpha=1 / 14, adjust=False).mean())
+    dn_ = (-dc.clip(upper=0)).groupby(tk).transform(lambda s: s.ewm(alpha=1 / 14, adjust=False).mean())
+    F["rsi14"] = s1(100 - 100 / (1 + up_ / dn_.replace(0, np.nan)))
+    m20, sd20 = roll(c, 20, "mean"), roll(c, 20, "std")
+    F["bbp"] = s1((c - (m20 - 2 * sd20)) / (4 * sd20).replace(0, np.nan))
+    F["bbw"] = s1(4 * sd20 / m20 * 100)
+    e12 = c.groupby(tk).transform(lambda s: s.ewm(span=12, adjust=False).mean())
+    e26 = c.groupby(tk).transform(lambda s: s.ewm(span=26, adjust=False).mean())
+    mac = e12 - e26
+    sig = mac.groupby(tk).transform(lambda s: s.ewm(span=9, adjust=False).mean())
+    F["macd"] = s1((mac - sig) / c * 100)
+    F["ich"] = (pc / s1((roll(h, 26, "max") + roll(l, 26, "min")) / 2) - 1) * 100
+    rg = (h - l).replace(0, np.nan)
+    uw_t = (h - np.maximum(o, c)) / rg
+    F["uw"] = s1(uw_t); F["lw"] = s1((np.minimum(o, c) - l) / rg)
+    F["body"] = s1((c / o - 1) * 100)
+    lim_up = np.where(D.date < "20150615", 14.5, 29.0)
+    F["lu20"] = s1(roll((ret >= lim_up).astype(float), 20, "sum", 1))
+    F["age"] = g.cumcount().clip(upper=250).astype(float)
+    if "marcap" in D.columns:
+        mc = D.marcap.astype(float); mc = mc.where(mc < 1e9, mc / 1e8)           # 일부 날짜가 원 단위로 섞여 있다(억 단위 최대 ~2천만 → 1e9 넘으면 원)
+        F["mcap"] = s1(mc)
+    elif "shares" in D.columns:
+        F["mcap"] = D.shares.astype(float) * pc / 1e8
+    else:
+        F["mcap"] = np.nan
+    F["uwt"] = uw_t
+    F["hi20t"] = (c / roll(h, 20, "max", 15) - 1) * 100
+    ma = {n: roll(c, n, "mean", int(n * 0.8)) for n in (5, 20, 60, 120)}
+    F["align"] = s1(((ma[5] > ma[20]).astype(float) + (ma[20] > ma[60]).astype(float) + (ma[60] > ma[120]).astype(float)).where(ma[120].notna()))
+    po, pcl = g.open.shift(1), g.close.shift(1)
+    eng = (c > o) & (pcl < po) & (c >= po) & (o <= pcl)                      # 오늘 양봉 몸통이 어제 음봉 몸통을 감쌈
+    F["engulf"] = s1(eng.astype(float))
     # 목표
     F["oc"] = F["oct"]
     F["on"] = (g.open.shift(-1) / c - 1) * 100
     F.loc[F.on.abs() > 30.5, "on"] = np.nan                           # 거래정지 뒤 첫 시가 같은 이음새
-    for hd in (5, 20):
+    for hd in SWH:
         if "n%d" % hd in D.columns: F["sw%d" % hd] = D["n%d" % hd].groupby(tk).shift(1)   # 패널 n{h} = 신호 다음날 시가 매수 → 비용 포함
         else: F["sw%d" % hd] = (g.close.shift(-(hd - 1)) / o - 1) * 100 - 0.6               # 매일 자료: t 시가 → t+h-1 종가, 비용 0.6%(패널 하단)
     # 쓸 수 없는 줄: 가격제한으로 불가능한 변동(이음새) · 거래 없음 · 시가 상한가 근처(못 산다)

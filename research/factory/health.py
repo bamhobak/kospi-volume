@@ -111,7 +111,7 @@ def check():
         old = [x["id"] for x in L if x.get("status") == "queued" and x.get("created", "9")[:10].replace("-", "") < y1]
         if err: bad("⚠", "깔때기 판정 오류 %d개: %s" % (len(err), ", ".join(err[:5])))
         if old: bad("⚠", "깔때기에 하루 넘게 묵은 명세 %d개(판정 안 됨)" % len(old))
-        ok.append("명세 %d개(그림자 %d)" % (len(L), sum(x.get("status") in ("shadow", "propose") for x in L)))
+        ok.append("명세 %d개(그림자 %d)" % (len(L), sum(x.get("status") in ("shadow", "propose", "review", "adopted") for x in L)))
     except Exception as ex:
         bad("🚨", "명세 등록부를 못 읽음: %s" % str(ex)[:150])
     gp = C.DATA / "gp_pop.json"

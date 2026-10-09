@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>규칙 후보</title>
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap">
+<script src="sb.js"></script>
+<!-- 규칙 공장 후보 페이지(2026-10-10 사용자: "규칙 후보군 한 번에 볼 수 있게, 언제든"). 밤 작업(research/factory/board.py)이 Supabase '__factory__' 에 쓴다. -->
+<style>
+:root{--bg:#0a0b0e;--panel:#101217;--panel2:#171a21;--line:#272b34;--txt:#eef1f6;--mut:#858c99;--dim:#5b626d;--acc:#a78bfa;--up:#f87171;--dn:#60a5fa;--ind:#fbbf24;--ok:#4ade80}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:'Noto Sans KR',Pretendard,-apple-system,"Malgun Gothic",sans-serif;font-size:13px;line-height:1.5}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+header h1{font-size:16px;margin:0;font-weight:700}
+header a{color:var(--mut);text-decoration:none;border:1px solid var(--line);padding:5px 10px;background:var(--panel2)}
+header .up{margin-left:auto;color:var(--mut);font-size:12px}
+main{max-width:980px;margin:0 auto;padding:14px 16px 60px}
+.strip{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.si{background:var(--panel2);border:1px solid var(--line);padding:6px 12px;min-width:84px}
+.si b{display:block;font-size:15px;color:var(--acc)}.si small{color:var(--mut);font-size:11px}
+.note{color:var(--mut);font-size:12px;border-left:2px solid var(--line);padding:4px 10px;margin:0 0 14px}
+.card{background:var(--panel);border:1px solid var(--line);margin-bottom:14px}
+.ch{padding:12px 14px;border-bottom:1px solid var(--line)}
+.ch .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.id{font-weight:700;font-size:15px}
+.badge{font-size:11px;padding:2px 8px;border:1px solid var(--line);font-weight:600}
+.b-review{color:var(--ind);border-color:var(--ind)}.b-adopted{color:var(--ok);border-color:var(--ok)}.b-kind{color:var(--acc);border-color:var(--acc)}
+.desc{margin-top:6px;color:var(--txt);word-break:keep-all}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;padding:12px 14px}
+.kpi{background:var(--panel2);border:1px solid var(--line);padding:8px 10px}
+.kpi small{color:var(--mut);font-size:11px;display:block}
+.kpi b{font-size:16px}.kpi span{color:var(--mut);font-size:11px;display:block}
+.pos{color:var(--up)}.neg{color:var(--dn)}
+.yr{display:flex;align-items:flex-end;gap:3px;height:56px;padding:0 14px 4px}
+.yr div{flex:1;min-width:10px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%}
+.yr i{display:block;width:100%;}
+.yrl{display:flex;gap:3px;padding:0 14px 10px;color:var(--dim);font-size:10px}.yrl span{flex:1;min-width:10px;text-align:center}
+details{border-top:1px solid var(--line)}
+summary{cursor:pointer;padding:9px 14px;color:var(--mut);font-weight:600;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:'▸ ';color:var(--dim)}details[open] summary::before{content:'▾ '}
+.dbody{padding:0 14px 12px}
+.tw{overflow-x:auto;border:1px solid var(--line)}
+table{border-collapse:collapse;width:100%;font-size:12px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{color:var(--mut);font-weight:600;background:var(--panel2);position:sticky;top:0}
+td.l{white-space:normal;min-width:180px}
+tr.base td{background:#151a14}
+.muted{color:var(--mut)}
+.src{color:var(--mut);font-size:12px;word-break:break-all}
+.src a{color:var(--acc)}
+.how{background:var(--panel2);border:1px solid var(--line);padding:8px 10px;margin-top:8px}
+h2{font-size:14px;margin:22px 0 8px;color:var(--mut);font-weight:600}
+.empty{color:var(--mut);padding:30px;text-align:center;border:1px dashed var(--line)}
+@media (max-width:600px){main{padding:10px 12px 60px}.kpis{grid-template-columns:1fr 1fr}}
+</style></head><body>
+<header><a href="./">← 선별기</a><h1>규칙 후보</h1><span class="up" id="upd">불러오는 중…</span></header>
+<main>
+  <div class="strip" id="strip"></div>
+  <p class="note">공장이 매일 밤 찾은 규칙 중 <b>학습(2016~22)·잠가 둔 검증(2023~)·다중검정</b>을 통과한 것만 여기 올라온다. 수익은 전부 <b>비용 뒤 건당</b>. 조정 후보 칸을 고를 땐 검증 칸만 좋은 것보다 참고·학습 칸도 같이 좋은 걸로 — 여러 칸을 보고 고르는 것도 운이 섞인다. 채택·조정은 클로드 창에서 "F0035 채택"처럼 말하면 된다.</p>
+  <div id="cands"></div>
+  <h2>공장이 아직 못 옮긴 조건(최근 30일) — 무엇이 있어야 시험할 수 있나</h2>
+  <div class="tw" id="needs"></div>
+  <h2 id="shh" style="display:none">실시간 재료 그림자(과거 없음 · 앞으로 성적만 기록)</h2>
+  <div id="shadow"></div>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pct=(v,d=2)=>v==null?'-':`<span class="${v>0?'pos':v<0?'neg':''}">${v>0?'+':''}${(+v).toFixed(d)}%</span>`;
+const st=s=>s?`${pct(s.mean)} <span class="muted">· 승률 ${Math.round(s.win)}% · ${(+s.n).toLocaleString()}건${s.ex!=null?' · 초과 '+(s.ex>0?'+':'')+(+s.ex).toFixed(2):''}</span>`:'<span class="muted">-</span>';
+const kpi=(lab,s,extra='')=>`<div class="kpi"><small>${lab}</small>${s?`<b class="mono">${pct(s.mean)}</b><span>승률 ${Math.round(s.win)}% · ${(+s.n).toLocaleString()}건${s.ny?` · 플러스 해 ${s.ypos}/${s.ny}`:''}${s.ex!=null?` · 같은 날 아무 종목 대비 ${s.ex>0?'+':''}${(+s.ex).toFixed(2)}%p`:''}${extra}</span>`:'<b class="muted">-</b>'}</div>`;
+async function rpc(fn,body){const r=await fetch(`${SB.url}/rest/v1/rpc/${fn}`,{method:'POST',headers:{apikey:SB.key,Authorization:'Bearer '+SB.key,'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error(fn+' '+r.status);const t=await r.text();return t?JSON.parse(t):null}
+function yearly(Y){if(!Y||!Y.length)return'';const mx=Math.max(...Y.map(y=>Math.abs(y[2])),.01);
+  return `<div class="yr">${Y.map(([y,n,m])=>`<div title="${y} · ${n}건 · ${m>0?'+':''}${m.toFixed(2)}%"><i style="height:${Math.max(2,Math.abs(m)/mx*50)}px;background:${m>=0?'var(--up)':'var(--dn)'}"></i></div>`).join('')}</div>
+  <div class="yrl">${Y.map(([y])=>`<span>${String(y).slice(2)}</span>`).join('')}</div>`}
+function card(d){const r=d.res||{};const stl={review:'검토 대기',adopted:'채택'}[d.status]||d.status;
+  const src=/https?:\/\/\S+/.exec(d.source||'');
+  return `<div class="card"><div class="ch"><div class="top"><span class="id mono">${esc(d.id)}</span><span class="badge b-${esc(d.status)}">${stl}</span><span class="badge b-kind">${esc(d.kind)}</span><span class="muted">${esc(d.name)}</span></div>
+    <div class="desc">${esc(d.desc)}</div></div>
+  <div class="kpis">${kpi('참고 2010~15',r.ref)}${kpi('학습 2016~22',r.tr)}${kpi('검증 2023~',r.va)}${r.honest?kpi('15:19 가격으로 고르면(2023~)',r.honest):''}
+    <div class="kpi"><small>다중검정 · 빈도</small><b class="mono">${r.dsr!=null?(+r.dsr).toFixed(2):'-'}</b><span>신호 날 하루 ${d.perday}종목 · 신호 있는 날 ${d.dayshare}%</span></div></div>
+  ${yearly(d.yearly)}
+  <details><summary>조정 후보 ${d.variants.length}개 — 조건 빼기·문턱 옮기기${d.kind==='스윙'?'·손절익절·보유기간':''}</summary><div class="dbody"><div class="tw"><table><tr><th>바꾼 것</th><th>참고 2010~15</th><th>학습 2016~22</th><th>검증 2023~</th></tr>
+    <tr class="base"><td class="l"><b>원안</b></td><td>${st(r.ref)}</td><td>${st(r.tr)}</td><td>${st(r.va)}</td></tr>
+    ${d.variants.map(v=>`<tr><td class="l">${esc(v.label)}</td><td>${st(v.ref)}</td><td>${st(v.tr)}</td><td>${st(v.va)}</td></tr>`).join('')}</table></div></div></details>
+  <details><summary>어디서 먹히나 — 종목 크기·시장 국면·비용</summary><div class="dbody"><div class="tw"><table><tr><th>나눔</th><th>학습 2016~22</th><th>검증 2023~</th></tr>
+    ${d.parts.map(p=>`<tr><td class="l">${esc(p.label)}</td><td>${st(p.tr)}</td><td>${st(p.va)}</td></tr>`).join('')}</table></div></div></details>
+  <details><summary>최근 신호 10개 · 겹침 · 형제</summary><div class="dbody">
+    ${d.overlap.length?`<p class="muted">${d.overlap.map(o=>`${esc(o.with)} 와 겹침 ${o.pct}%`).join(' · ')}</p>`:''}
+    ${d.siblings.length?`<p class="muted">형제(같은 규칙으로 묶음): ${d.siblings.map(esc).join(', ')}</p>`:''}
+    <div class="tw"><table><tr><th>날짜</th><th>종목</th><th>수익(비용 뒤)</th></tr>${d.recent.map(([dt,n,rr])=>`<tr><td class="mono">${dt.slice(0,4)}-${dt.slice(4,6)}-${dt.slice(6)}</td><td>${esc(n)}</td><td class="mono">${pct(rr)}</td></tr>`).join('')}</table></div></div></details>
+  <details><summary>실전이면 · 출처 · 못 옮긴 부분</summary><div class="dbody">
+    <div class="how">${esc(d.how)}</div>
+    <p class="src">출처: ${esc(d.origin)} · ${src?`<a href="${esc(src[0])}" target="_blank" rel="noopener">${esc((d.source||'').replace(src[0],'').trim()||src[0])}</a>`:esc(d.source)}</p>
+    ${d.approx?`<p class="src">근사한 부분: ${esc(d.approx)}</p>`:''}${d.untestable?`<p class="src">못 옮긴 부분: ${esc(d.untestable)}</p>`:''}
+    ${d.fwd&&d.fwd.n?`<p class="src">통과 뒤 앞으로 성적: ${d.fwd.n}건 ${pct(d.fwd.mean)} · 승률 ${Math.round(d.fwd.win)}% (${d.fwd.days}거래일)</p>`:`<p class="src">통과 뒤 앞으로 성적: 아직 없음(${esc(d.since||'')}부터 기록)</p>`}
+  </div></details></div>`}
+async function load(){let D=null;try{D=await rpc('kospi_state_get',{p_pin:'__factory__'})}catch(e){}
+  if(!D){$('#upd').textContent='아직 데이터 없음';$('#cands').innerHTML='<div class="empty">공장 밤 작업이 한 번 돌면 채워진다</div>';return}
+  $('#upd').textContent='갱신 '+D.updated;
+  const c=D.counts||{};const nR=(c.review||0),nA=(c.adopted||0);
+  $('#strip').innerHTML=[['검토 대기',nR],['채택',nA],['형제로 묶음',c.sibling||0],['지금까지 판정',Object.values(c).reduce((a,b)=>a+b,0)],['공장 누적 시험',(D.trials||0).toLocaleString()]]
+    .map(([l,v])=>`<div class="si"><b class="mono">${v}</b><small>${l}</small></div>`).join('')+`<div class="si" style="flex:1;min-width:220px"><small>클로드 크레딧</small><div class="muted" style="font-size:12px">${esc(D.usage||'')}</div></div>`;
+  $('#cands').innerHTML=(D.cands||[]).length?D.cands.map(card).join(''):'<div class="empty">지금은 검토 대기 후보가 없다</div>';
+  const N=D.needs||[];
+  $('#needs').innerHTML=N.length?`<table><tr><th>종류</th><th>건수(글)</th><th>지금 상태</th><th>자주 나온 것</th><th>할 수 있는 것</th></tr>${N.map(n=>`<tr><td>${esc(n.cat)}</td><td class="mono">${n.n}(${n.docs})</td><td>${esc(n.status)}</td><td class="l">${n.top.map(([k,v])=>esc(k)+' '+v).join(', ')}</td><td class="l">${esc(n.how)}</td></tr>`).join('')}</table>`:'<div class="empty">아직 기록 없음 — 수집 일꾼이 번역할 때마다 쌓인다</div>';
+  const S=D.shadow||[];if(S.length){$('#shh').style.display='';$('#shadow').innerHTML=S.map(s=>`<div class="card"><div class="ch"><span class="id mono">${esc(s.id)}</span> <span class="muted">${esc(s.desc)}</span></div></div>`).join('')}
+}
+load();
+</script></body></html>

@@ -24,7 +24,7 @@ import feats as FT
 
 SPECS = C.DATA / "specs.jsonl"
 HIST = C.CACHE / "factory_kr.pkl"
-VER = "f1"                      # 재료 정의 바꾸면 올린다 → 과거 자료 다시 만든다
+VER = "f4"                      # 재료 정의 바꾸면 올린다 → 과거 자료 다시 만든다(f2 2026-10-10: 재료 17개·스윙 10/40/60일 추가)
 TR = ("20160101", "20221231"); VA = ("20230101", "20991231"); REF = ("20100101", "20151231")
 DSR_MIN = 0.90
 _U = None
@@ -51,7 +51,8 @@ def build_hist(force=False):
         return
     t0 = time.time(); C.log("과거 자료 만들기 시작(kr_scan → 재료)")
     A = pd.read_pickle(src)
-    A = A[A.date >= "20090101"][["ticker", "date", "open", "high", "low", "close", "volume", "pref", "n5", "n20"]].copy()
+    A = A[A.date >= "20090101"][["ticker", "date", "open", "high", "low", "close", "volume", "pref", "marcap", "n5", "n10", "n20", "n40", "n60"]].copy()
+    A[["ticker", "date", "open", "high", "low", "close"]].to_pickle(PXF)      # 손절·익절 청산 계산용 가격 길(2026-10-10)
     X = FT.make(A, load_flows(), load_themes())
     del A
     U = X[X.uni & (X.date >= REF[0])].drop(columns=["uni"]).reset_index(drop=True)
@@ -81,7 +82,8 @@ def hist():
 def canon(spec):
     cs = sorted((c["f"], bool(c.get("q")), c["op"], round(float(c["v"]), 4)) for c in spec["conds"])
     top = spec.get("top") or {}
-    return json.dumps([spec["mode"], cs, top.get("n"), top.get("by"), top.get("asc")], ensure_ascii=False)
+    ex = spec.get("exit") or {}
+    return json.dumps([spec["mode"], cs, top.get("n"), top.get("by"), top.get("asc")] + ([ex.get("stop"), ex.get("take")] if ex else []), ensure_ascii=False)
 
 
 def key(spec):
@@ -105,6 +107,15 @@ def check(spec):
         if c.get("q") and not 0 <= float(c["v"]) <= 1: return "백분위 값은 0~1"
     t = spec.get("top")
     if t and (t.get("by") not in FT.FEATS or not isinstance(t.get("n"), int)): return "top 형식 오류"
+    ex = spec.get("exit")
+    if ex:
+        if not mode.startswith("sw"): return "손절·익절(exit)은 스윙(sw*) 방식에만"
+        try:
+            st, tk = ex.get("stop"), ex.get("take")
+            if st is not None and not -50 <= float(st) < 0: return "손절은 -50~0 사이 음수(%)"
+            if tk is not None and not 0 < float(tk) <= 200: return "익절은 0~200 사이 양수(%)"
+            if st is None and tk is None: return "exit 에 stop·take 중 하나는 있어야"
+        except Exception: return "exit 형식 오류"
     return None
 
 
@@ -124,6 +135,9 @@ def desc(spec):
             ps.append("%s %s %g" % (nm, c["op"], float(c["v"])))
     t = spec.get("top")
     if t: ps.append("하루 %d종목(%s %s)" % (t["n"], FT.FEATS[t["by"]][0], "낮은 순" if t.get("asc", True) else "높은 순"))
+    ex = spec.get("exit") or {}
+    if ex.get("stop") is not None: ps.append("손절 %g%%" % float(ex["stop"]))
+    if ex.get("take") is not None: ps.append("익절 +%g%%" % float(ex["take"]))
     return "[%s] " % FT.MODES[spec["mode"]][0] + " · ".join(ps)
 
 
@@ -133,6 +147,7 @@ def invert(spec):
     for c in spec["conds"]:
         f = c["f"]; v = float(c["v"]); op = ">=" if c["op"] == "<=" else "<="
         if c.get("q") or FT.FEATS[f][2] == "u": v2 = 1 - v
+        elif FT.FEATS[f][2] == "h": v2 = 100 - v                        # 0~100(RSI)
         elif FT.FEATS[f][2] == "s": v2 = -v if v else 0.0
         elif FT.FEATS[f][2] == "r": v2 = (1 / v) if v > 0 else v
         else: v2 = v
@@ -140,6 +155,7 @@ def invert(spec):
     t = spec.get("top")
     out = {"name": "뒤집기: " + spec.get("name", ""), "origin": "invert", "source": spec.get("id", ""), "mode": spec["mode"], "conds": cs}
     if t: out["top"] = dict(t, asc=not t.get("asc", True))
+    if spec.get("exit"): out["exit"] = dict(spec["exit"])
     return out
 
 
@@ -157,9 +173,50 @@ def mask(U, spec):
     return m
 
 
-def trades(U, spec):
+PXF = C.CACHE / "factory_px.pkl"
+_PXD = {}
+EXIT_COST = 0.6                    # 손절·익절 청산은 패널 비용 대신 0.6%(패널 하단 · 매일 자료 스윙과 같게)
+
+
+def px_dict(P=None, key="hist"):
+    """종목 → (날짜, 시, 고, 저, 종) 배열. P 없으면 과거 가격 길(factory_px.pkl)."""
+    if key not in _PXD:
+        P = pd.read_pickle(PXF) if P is None else P
+        P = P.sort_values(["ticker", "date"])
+        _PXD[key] = {t: (g.date.to_numpy(), g.open.to_numpy(float), g.high.to_numpy(float), g.low.to_numpy(float), g.close.to_numpy(float))
+                     for t, g in P.groupby("ticker", sort=False)}
+    return _PXD[key]
+
+
+def exit_returns(T, h, stop, take, PXD):
+    """시가 매수 → h 거래일 안에 손절(stop %)·익절(take %) 먼저 닿는 쪽, 아니면 h 일째 종가. 같은 날 둘 다면 손절(보수적).
+    다음날 이후 시가가 이미 넘어가 있으면 시가에 판다(갭). 미래가 h 일 안 되면 NaN."""
+    out = np.full(len(T), np.nan)
+    dts = T.date.to_numpy(); tks = T.ticker.to_numpy()
+    for j in range(len(T)):
+        z = PXD.get(tks[j])
+        if z is None: continue
+        d, o, hi, lo, c = z
+        p = np.searchsorted(d, dts[j])
+        if p >= len(d) or d[p] != dts[j] or p + h > len(d): continue
+        ent = o[p]
+        if not ent > 0: continue
+        sp = ent * (1 + stop / 100) if stop is not None else -np.inf
+        tp = ent * (1 + take / 100) if take is not None else np.inf
+        L, H, O = lo[p:p + h], hi[p:p + h], o[p:p + h]
+        hs = np.flatnonzero(L <= sp); ht = np.flatnonzero(H >= tp)
+        ks = hs[0] if len(hs) else 10 ** 6; kt = ht[0] if len(ht) else 10 ** 6
+        if ks <= kt and ks < 10 ** 6: px = sp if ks == 0 else min(O[ks], sp)
+        elif kt < 10 ** 6: px = tp if kt == 0 else max(O[kt], tp)
+        else: px = c[p + h - 1]
+        out[j] = (px / ent - 1) * 100 - EXIT_COST
+    return out
+
+
+def trades(U, spec, PXD=None):
     tgt = FT.TARGET[spec["mode"]]
-    m = mask(U, spec) & U[tgt].notna().to_numpy()
+    ex = spec.get("exit")
+    m = mask(U, spec) & (U[tgt].notna().to_numpy() if not ex else np.ones(len(U), bool))
     if spec["mode"] == "on":                                            # 상한가로 마감한 종목은 종가에 못 산다(줄만 서고 안 채워진다 — H0288 교훈)
         lim = np.where(U.date.to_numpy() < "20150615", 14.5, 29.5)
         m &= ~(U.r1t.to_numpy() >= lim)
@@ -177,6 +234,11 @@ def trades(U, spec):
             if last.get(tk_, -10 ** 9) >= i: continue
             last[tk_] = i + h; keep.append(ix)
         T = T.loc[keep]
+        if ex:                                                          # 손절·익절 청산(2026-10-10 — 못 옮긴 조건 1위)
+            r2 = exit_returns(T, h, None if ex.get("stop") is None else float(ex["stop"]), None if ex.get("take") is None else float(ex["take"]),
+                              PXD if PXD is not None else px_dict())
+            T = T.assign(ret=np.clip(r2, -60, 200))
+            T = T[T.ret.notna()]
     return T
 
 
@@ -188,7 +250,8 @@ def stats(T):
     return dict(n=int(len(T)), days=int(len(d)), mean=float(T.ret.mean()), med=float(T.ret.median()), win=float((T.ret > 0).mean() * 100),
                 dmean=float(d.mean()), t=float(d.mean() / sd * math.sqrt(len(d))) if sd and sd > 0 else 0.0,
                 ypos=int((yr > 0).sum()), ny=int(len(yr)), perday=float(len(T) / max(len(d), 1)),
-                t1=float(T.t1.mean() * 100) if "t1" in T.columns and len(T) else 0.0)
+                t1=float(T.t1.mean() * 100) if "t1" in T.columns and len(T) else 0.0,
+                ex=float(T.ex.mean()) if "ex" in T.columns else None)
 
 
 def seg(T, a, b):
@@ -200,6 +263,10 @@ def judge(spec, U=None, n_trials=None):
     from verdict import deflated_sharpe, trial_count
     U = hist() if U is None else U
     T = trades(U, spec)
+    sw = spec["mode"].startswith("sw")
+    if sw:                                                              # 스윙: 같은 날 아무 종목을 같은 기간 들고 간 것보다 나은가(드리프트 착시 방지)
+        tg = FT.TARGET[spec["mode"]]
+        T = T.assign(ex=T.ret - T.date.map(U.groupby("date")[tg].mean()))
     tr0 = "20180101" if any(c["f"] in FT.FLOW for c in spec["conds"]) else TR[0]
     R = dict(stage=0, why="", ref=stats(seg(T, *REF)), tr=stats(seg(T, tr0, TR[1])), va=None, dsr=None)
     s = R["tr"]
@@ -209,6 +276,7 @@ def judge(spec, U=None, n_trials=None):
         if s["mean"] <= 0: why.append("학습 건당 %+.2f%%" % s["mean"])
         if s["t"] < 2: why.append("학습 하루 t %.1f" % s["t"])
         if s["ypos"] < 0.6 * s["ny"]: why.append("학습 플러스 해 %d/%d" % (s["ypos"], s["ny"]))
+        if sw and not (s["ex"] or 0) > 0: why.append("학습: 같은 날 아무 종목보다 %+.2f%%p(못 이김)" % (s["ex"] or 0))
     if why:
         R["why"] = " · ".join(why); return R
     R["stage"] = 1
@@ -223,6 +291,7 @@ def judge(spec, U=None, n_trials=None):
         if v["mean"] <= 0: why.append("검증 건당 %+.2f%%" % v["mean"])
         if v["t"] < 1: why.append("검증 하루 t %.1f" % v["t"])
         if v["ypos"] * 2 < v["ny"]: why.append("검증 플러스 해 %d/%d" % (v["ypos"], v["ny"]))
+        if sw and not (v["ex"] or 0) > 0: why.append("검증: 같은 날 아무 종목보다 %+.2f%%p(못 이김)" % (v["ex"] or 0))
     if R["dsr"] is None or R["dsr"] < DSR_MIN: why.append("다중검정 %.2f < %.2f(공장 누적 %d개 기준)" % (R["dsr"] or 0, DSR_MIN, n_tr))
     ov = stats(seg(T, tr0, VA[1]))["t1"]
     if ov >= 50: why.append("T1 과 겹침 %.0f%%" % ov)
@@ -242,7 +311,7 @@ def judge(spec, U=None, n_trials=None):
 # 실제로는 15:20 종가 단일가 **전에** 골라야 하는데 최종 종가(단일가에서 움직인 몫 포함)로 고른 셈이 된다.
 # 1분봉이 있는 2022-12~ 는 15:19 까지 봉으로 재료를 다시 만들어 같은 명세를 다시 잰다(가격은 1분봉끼리만 — H0295 함정).
 # ══════════════════════════════════════════════════════════════════════
-CLOSE_F = {"r1t", "clvt", "vmt", "rngt", "oct"}
+CLOSE_F = {"r1t", "clvt", "vmt", "rngt", "oct", "uwt", "hi20t"}
 _M1 = None
 
 
@@ -254,11 +323,15 @@ def needs_1519(spec):
 def apply_1519(Z):
     """Z: 1분봉 기준 pc_m · o_m · p1519 · hi1519 · lo1519 · v1519 · vol_m 을 가진 줄 → 종가 재료를 15:19 값으로 바꾸고 q_ 다시."""
     Z = Z.copy()
+    cfin = Z.pc_m * (1 + Z.r1t / 100)                                   # 최종 종가(바꾸기 전 r1t 로)
+    if "hi20t" in Z.columns:                                            # 20일 고가는 그대로 두고 가격만 15:19 로
+        Z["hi20t"] = ((1 + Z.hi20t / 100) * Z.p1519 / cfin - 1) * 100
     Z["r1t"] = (Z.p1519 / Z.pc_m - 1) * 100
     Z["oct"] = (Z.p1519 / Z.o_m - 1) * 100
     Z["clvt"] = (Z.p1519 - Z.lo1519) / (Z.hi1519 - Z.lo1519).replace(0, np.nan)
     Z["rngt"] = (Z.hi1519 - Z.lo1519) / Z.p1519 * 100
     Z["vmt"] = Z.vmt * (Z.v1519 / Z.vol_m.replace(0, np.nan))
+    Z["uwt"] = (Z.hi1519 - np.maximum(Z.o_m, Z.p1519)) / (Z.hi1519 - Z.lo1519).replace(0, np.nan)
     for f in CLOSE_F:
         Z["q_" + f] = Z.groupby("date")[f].rank(pct=True).astype("float32")
     return Z
@@ -327,9 +400,9 @@ def process(L=None, limit=200):
         if R["stage"] >= 2:
             sib = sibling(x, L, U)
             if sib:
-                x.update(status="sibling", why="그림자 %s 와 거래 %.0f%% 겹침 — 같은 규칙으로 보고 따로 안 봄" % sib)
-            else:
-                x.update(status="shadow", shadow_from=time.strftime("%Y%m%d"))
+                x.update(status="sibling", why="검토 %s 와 거래 %.0f%% 겹침 — 같은 규칙으로 보고 따로 안 봄" % sib)
+            else:                                                       # 2026-10-10 사용자: 그림자 말고 바로 알려서 조정·채택
+                x.update(status="review", shadow_from=time.strftime("%Y%m%d"))
         else:
             x["status"] = "rejected"
         done.append(x)
@@ -354,7 +427,7 @@ def sibling(x, L, U, cut=0.6):
     if not A: return None
     best = None
     for y in L:
-        if y is x or y.get("status") not in ("shadow", "propose") or uses_live(y): continue
+        if y is x or y.get("status") not in ("shadow", "propose", "review", "adopted") or uses_live(y): continue
         B = _tset(y, U)
         ov = len(A & B) / max(min(len(A), len(B)), 1)
         if ov >= cut and (best is None or ov > best[1] / 100):

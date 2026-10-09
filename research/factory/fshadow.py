@@ -14,14 +14,14 @@ import common as C
 import lab
 
 TRF = C.DATA / "shadow_trades.csv"
-LAG = {"oc": 0, "on": 1, "sw5": 4, "sw20": 19}       # 오늘 저녁에 성적이 확정되는 매수일 = 오늘에서 몇 거래일 전
+LAG = {"oc": 0, "on": 1, "sw5": 4, "sw10": 9, "sw20": 19, "sw40": 39, "sw60": 59}   # 오늘 저녁에 성적이 확정되는 매수일 = 오늘에서 몇 거래일 전
 
 
 def daily(A, today):
     """A = live 일봉(전체). 오늘 확정되는 매수일들의 재료를 만들어 그림자 명세마다 거래를 적는다."""
     import live
     L = lab.load()
-    S = [x for x in L if x.get("status") in ("shadow", "propose")]
+    S = [x for x in L if x.get("status") in ("shadow", "propose", "review", "adopted")]
     dates = sorted(A.date.unique())
     if today not in dates:
         C.log("그림자: 오늘 일봉 없음"); return []
@@ -44,7 +44,7 @@ def daily(A, today):
             if honest[d] is None:
                 C.log("그림자: %s 1분봉 없어 %s 건너뜀" % (d, x["id"])); continue
             Ud = honest[d]
-        T = lab.trades(Ud, x)
+        T = lab.trades(Ud, x, PXD=(lab.px_dict(A, key='live' + today) if x.get('exit') else None))
         rows += [(x["id"], x["mode"], d, t, round(float(r), 4)) for t, r in zip(T.ticker, T.ret)]
     N = pd.DataFrame(rows, columns=["id", "mode", "date", "ticker", "ret"])
     allT = pd.concat([old, N]).drop_duplicates(["id", "date", "ticker"], keep="last")
@@ -61,7 +61,7 @@ def daily(A, today):
             msgs.append("🧪 <b>공장 그림자 통과</b> %s %s\n%s\n앞으로 %d거래일 %d건 건당 %+.2f%% · 승률 %.0f%% (과거 학습 %s / 검증 %s)\n→ 1주 실전으로 올릴지 정해줘(자동 주문 안 함)" % (
                 x["id"], x.get("name", ""), x.get("desc", ""), nd, len(T), T.ret.mean(), (T.ret > 0).mean() * 100,
                 lab.fmt_s((x.get("res") or {}).get("tr")), lab.fmt_s((x.get("res") or {}).get("va"))))
-        elif nd >= 40 and T.ret.mean() < 0:
+        elif x["status"] == "shadow" and nd >= 40 and T.ret.mean() < 0:      # 검토·채택은 사람이 정한다 — 자동으로 내리지 않음
             x["status"] = "retired"; x["why"] = (x.get("why") or "") + " · 그림자 %d거래일 건당 %+.2f%% → 그만" % (nd, T.ret.mean())
     lab.save(L)
     for m in msgs: C.tg(m)
