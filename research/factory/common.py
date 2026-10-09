@@ -47,7 +47,7 @@ def log(*a):
 
 def env():
     e = {}
-    for f in (BASE / ".env", BASE.parent / ".claude_api.env"):     # 클로드 API 키는 G:\vscode\.claude_api.env(공용·깃 밖)
+    for f in (BASE / ".env", BASE / ".env.reddit", BASE.parent / ".claude_api.env"):     # 클로드 API 키는 G:\vscode\.claude_api.env(공용·깃 밖) · 레딧 쿠키는 .env.reddit
         if f.exists():
             for ln in f.read_text(encoding="utf-8").splitlines():
                 if "=" in ln and not ln.strip().startswith("#"):
