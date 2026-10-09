@@ -158,7 +158,7 @@ def frame(days=None, A=None):
     mt = meta()
     A = A.assign(shares=A.ticker.map(lambda t: (mt.get(t) or {}).get("shares")))
     fl = lab.load_flows(since=keep[0])
-    X = FT.make(A, fl, lab.load_themes(), seam=False, amt_mp=3)
+    X = FT.make(A, fl, lab.load_themes(), seam=False, amt_mp=3, kospi=lab.load_kospi())
     days = days or [keep[-1]]
     U = X[X.uni & X.date.isin(days)].drop(columns=["uni"]).reset_index(drop=True)
     # 상장 후 일수 — 매일 자료는 260일뿐이라 상장일로(과거 자료와 같게 250 에서 자른다)

@@ -24,7 +24,7 @@ import feats as FT
 
 SPECS = C.DATA / "specs.jsonl"
 HIST = C.CACHE / "factory_kr.pkl"
-VER = "f5"                      # 재료 정의 바꾸면 올린다 → 과거 자료 다시 만든다(f2 2026-10-10: 재료 17개·스윙 10/40/60일 추가)
+VER = "f6"                      # 재료 정의 바꾸면 올린다 → 과거 자료 다시 만든다(f2 2026-10-10: 재료 17개·스윙 10/40/60일 추가)
 TR = ("20160101", "20221231"); VA = ("20230101", "20991231"); REF = ("20100101", "20151231")
 DSR_MIN = 0.90
 _U = None
@@ -37,6 +37,20 @@ def load_flows(since="20170101"):
     c = sqlite3.connect("file:" + str(C.BASE / "data" / "investor.db") + "?mode=ro", uri=True)
     return pd.read_sql("SELECT ticker, date, indiv, frgn, (COALESCE(fin,0)+COALESCE(ins,0)+COALESCE(tru,0)+COALESCE(pef,0)+COALESCE(bank,0)+COALESCE(ofin,0)+COALESCE(pens,0)) AS inst "
                        "FROM flow11 WHERE date >= ?", c, params=(since,))
+
+
+def load_kospi(back=6600):
+    """코스피 일별 종가(네이버) — data/factory/kospi.json 에 두고 하루 한 번 새로(국면 재료 kdev 용)."""
+    f = C.DATA / "kospi.json"
+    if f.exists() and time.time() - f.stat().st_mtime < 20 * 3600:
+        return C.jload(f, {})
+    try:
+        import index_cal as IC
+        k = IC.naver_closes("KOSPI", back)
+        if len(k) > 200: C.jsave(f, k)
+        return k
+    except Exception as ex:
+        C.log("코스피 지수 못 받음:", repr(ex)[:150]); return C.jload(f, {})
 
 
 def load_themes():
@@ -54,7 +68,7 @@ def build_hist(force=False):
     A = pd.read_pickle(src)
     A = A[A.date >= "20090101"][["ticker", "date", "open", "high", "low", "close", "volume", "pref", "marcap", "n5", "n10", "n20", "n40", "n60"]].copy()
     A[["ticker", "date", "open", "high", "low", "close"]].to_pickle(PXF)      # 손절·익절 청산 계산용 가격 길(2026-10-10)
-    X = FT.make(A, load_flows(), load_themes())
+    X = FT.make(A, load_flows(), load_themes(), kospi=load_kospi())
     del A
     U = X[X.uni & (X.date >= REF[0])].drop(columns=["uni"]).reset_index(drop=True)
     del X

@@ -92,6 +92,15 @@ def night():
         rep.append("")
     except Exception as ex:
         rep += ["## 진화기 실패", "", repr(ex)[:300], ""]; C.log(traceback.format_exc()[-800:])
+    for camp in evolve.CAMPAIGNS:                                          # 숙제(2026-10-10 사용자: 국장 스윙 · 코스피 60일선 ±3% 구간)
+        try:
+            prom, best, ev = evolve.run(campaign=camp)
+            for sp, f, n in prom: added.append(lab.add(sp, L))
+            rep += ["## 숙제 — %s · %d개 평가" % (evolve.CAMPAIGNS[camp]["name"], ev), "", "| 적합도(초과 하루 t) | 학습 건수 | 방식 | 조건 |", "|---|---|---|---|"]
+            rep += ["| %.2f | %s | %s | %s |" % (f, f"{n:,}", ind["mode"], " & ".join("%s %s %.2f" % tuple(c) for c in ind["conds"])) for f, n, ind in best[:6]]
+            rep.append("")
+        except Exception as ex:
+            rep += ["## 숙제 %s 실패" % camp, "", repr(ex)[:300], ""]; C.log(traceback.format_exc()[-800:])
     # ④ 깔때기 (+ 뒤집기 짝은 add 가 같이 세운다)
     done = lab.process(L)
     lab.save(L)

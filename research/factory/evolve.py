@@ -18,11 +18,17 @@ POP = C.DATA / "gp_pop.json"
 THR_LO, THR_HI = [0.05, 0.1, 0.2, 0.3], [0.7, 0.8, 0.9, 0.95]
 GP_MODES = ["oc", "on"]
 _A = None
+FIXED = []                 # 숙제(campaign)의 고정 조건(원래 값) — 예: 코스피 60일선 ±3%
+EXCESS = False             # 숙제는 '같은 날 아무 종목 대비 초과'로 고른다(스윙 드리프트 착시 방지)
+NOQ = {"liq", "kdev", "mk_r1", "mk_r5", "mgap", "us_ewy"}           # 그날 모든 종목이 같은 값 — 백분위로 못 쓴다
+# 2026-10-10 사용자 숙제: "국장 스윙, 코스피 60일선 근처(±3%)일 때만 시험 — 이 구간에서 버티는 규칙을 찾게"
+CAMPAIGNS = {"flat": {"name": "국장 스윙 · 코스피 60일선 ±3% 구간 전용", "modes": ["sw5", "sw10", "sw20"],
+                      "fixed": [["kdev", ">=", -3.0], ["kdev", "<=", 3.0]], "excess": True}}
 
 
 def feats_for(mode):
     ok = FT.MODES[mode][1]
-    return [f for f in FT.HIST if FT.FEATS[f][1] in ok and f not in ("liq",)] + ["liq"]
+    return [f for f in FT.HIST if FT.FEATS[f][1] in ok and f not in NOQ] + ["liq"]
 
 
 def arrays():
@@ -30,21 +36,33 @@ def arrays():
     if _A is not None: return _A
     U = lab.hist()
     Z = U[(U.date >= lab.TR[0]) & (U.date <= lab.TR[1])]
-    fs = sorted(set(feats_for("oc")) | set(feats_for("on")))
+    fs = sorted(set().union(*[set(feats_for(m)) for m in GP_MODES]))
     fs = [f for f in fs if ("q_" + f) in Z.columns]
     Q = np.column_stack([Z["q_" + f].to_numpy(np.float32) for f in fs])
     dates = Z.date.to_numpy(); ud, di = np.unique(dates, return_inverse=True)
-    on = Z.on.to_numpy(np.float64) - FT.COST
-    on[Z.r1t.to_numpy() >= np.where(dates < "20150615", 14.5, 29.5)] = np.nan       # 상한가 마감은 종가에 못 산다
-    _A = dict(fs=fs, col={f: i for i, f in enumerate(fs)}, Q=Q, di=di, nd=len(ud),
-              y={"oc": (Z.oc.to_numpy(np.float64) - FT.COST), "on": on})
+    y = {}
+    for m in GP_MODES:
+        if m == "on":
+            v = Z.on.to_numpy(np.float64) - FT.COST
+            v[Z.r1t.to_numpy() >= np.where(dates < "20150615", 14.5, 29.5)] = np.nan       # 상한가 마감은 종가에 못 산다
+        elif m == "oc": v = Z.oc.to_numpy(np.float64) - FT.COST
+        else: v = Z[m].to_numpy(np.float64)
+        if EXCESS:                                                     # 같은 날 유니버스 평균을 뺀다
+            v = v - pd.Series(v).groupby(dates).transform("mean").to_numpy()
+        y[m] = v
+    base = np.ones(len(Z), bool)
+    for f, op, v in FIXED:
+        x = Z[f].to_numpy(np.float64)
+        with np.errstate(invalid="ignore"): base &= (x <= v) if op == "<=" else (x >= v)
+    raw = {m: (Z[m].to_numpy(np.float64) if m.startswith("sw") else None) for m in GP_MODES}
+    _A = dict(fs=fs, col={f: i for i, f in enumerate(fs)}, Q=Q, di=di, nd=len(ud), y=y, base=base, raw=raw)
     return _A
 
 
 def fitness(ind):
     A = arrays()
     y = A["y"][ind["mode"]]
-    m = np.isfinite(y)
+    m = np.isfinite(y) & A["base"]
     for f, op, v in ind["conds"]:
         if f not in A["col"]: return -9.0, 0
         x = A["Q"][:, A["col"][f]]
@@ -52,12 +70,18 @@ def fitness(ind):
             m &= (x <= v) if op == "<=" else (x >= v)
     n = int(m.sum())
     if n < 150: return -9.0, n
+    r = A["raw"].get(ind["mode"])
+    if EXCESS and r is not None:                                       # 숙제: '아무 종목보다 낫다'(초과>0)는 조건, 고르는 건 **실제 수익** t 로
+        if np.nanmean(y[m]) <= 0: return -9.0, n
+        y = r
     s = np.bincount(A["di"][m], weights=y[m], minlength=A["nd"]); c = np.bincount(A["di"][m], minlength=A["nd"])
     ok = c > 0
     if ok.sum() < 60: return -9.0, n
     d = s[ok] / c[ok]
     t = d.mean() / (d.std(ddof=1) + 1e-12) * np.sqrt(len(d))
     if y[m].mean() <= 0: t = min(t, 0)
+    r = A["raw"].get(ind["mode"])
+    if r is not None and np.nanmean(r[m]) <= 0: t = min(t, 0)        # 스윙은 원래 수익도 플러스여야
     return float(t - 0.3 * (len(ind["conds"]) - 1)), n
 
 
@@ -102,7 +126,7 @@ def mutate(ind):
     elif k < 0.92 and len(cs) > 1:                                     # 조건 빼기
         cs.pop(random.randrange(len(cs)))
     else:                                                              # 매매 방식 바꾸기
-        x["mode"] = "on" if x["mode"] == "oc" else "oc"
+        x["mode"] = random.choice([m for m in GP_MODES if m != x["mode"]] or GP_MODES)
     return fix(x)
 
 
@@ -112,19 +136,27 @@ def cross(a, b):
 
 
 def to_spec(ind, fit):
-    return {"name": "진화기: " + " & ".join("%s%s%.2f" % tuple(c) for c in ind["conds"]), "origin": "gp",
-            "source": "진화기 적합도 %.2f(학습 하루 t)" % fit, "mode": ind["mode"],
-            "conds": [{"f": f, "q": True, "op": op, "v": v} for f, op, v in ind["conds"]]}
+    return {"name": ("숙제 " if FIXED else "") + "진화기: " + " & ".join("%s%s%.2f" % tuple(c) for c in ind["conds"]), "origin": "gp",
+            "source": "진화기 적합도 %.2f(학습 하루 t%s)" % (fit, " · " + CAMP_NAME if FIXED else ""), "mode": ind["mode"],
+            "conds": [{"f": f, "q": True, "op": op, "v": v} for f, op, v in ind["conds"]] + [{"f": f, "op": op, "v": v} for f, op, v in FIXED]}
 
 
 def ikey(ind):
     return lab.key(to_spec(ind, 0))
 
 
-def run(gens=8, pop=40, kids=40, promote=3, seed=None):
+CAMP_NAME = ""
+
+
+def run(gens=8, pop=40, kids=40, promote=3, seed=None, campaign=None):
+    global GP_MODES, FIXED, EXCESS, _A, CAMP_NAME
+    cfg = CAMPAIGNS.get(campaign) if campaign else None
+    GP_MODES, FIXED, EXCESS, CAMP_NAME = ((cfg["modes"], cfg["fixed"], cfg["excess"], cfg["name"]) if cfg else (["oc", "on"], [], False, ""))
+    _A = None
+    pf = POP if not cfg else C.DATA / ("gp_pop_%s.json" % campaign)
     random.seed(seed or int(time.time()))
     t0 = time.time()
-    P = C.jload(POP, []) or [rind() for _ in range(pop * 2)]
+    P = [i for i in (C.jload(pf, []) or []) if i.get("mode") in GP_MODES] or [rind() for _ in range(pop * 2)]
     scored, evals = {}, 0
 
     def ev(ind):
@@ -145,7 +177,7 @@ def run(gens=8, pop=40, kids=40, promote=3, seed=None):
             else:
                 ev(mutate(random.choice(par[: max(5, pop // 2)])[2]))
     best = sorted(scored.values(), key=lambda z: -z[0])
-    C.jsave(POP, [z[2] for z in best[:pop]])
+    C.jsave(pf, [z[2] for z in best[:pop]])
     from verdict import log_trials
     log_trials("factory", evals)
     have = {x.get("key") for x in lab.load()}
@@ -155,5 +187,5 @@ def run(gens=8, pop=40, kids=40, promote=3, seed=None):
         sp = to_spec(ind, f)
         if lab.key(sp) in have: continue
         out.append((sp, f, n))
-    C.log("진화기: %d개 평가 · 최고 %.2f · 깔때기로 %d · %.1f분" % (evals, best[0][0] if best else 0, len(out), (time.time() - t0) / 60))
+    C.log(("[%s] " % CAMP_NAME if cfg else "") + "진화기: %d개 평가 · 최고 %.2f · 깔때기로 %d · %.1f분" % (evals, best[0][0] if best else 0, len(out), (time.time() - t0) / 60))
     return out, best[:10], evals

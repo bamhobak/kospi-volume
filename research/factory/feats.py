@@ -76,6 +76,7 @@ FEATS = {
     "turn": ("어제 회전율 %(거래량 ÷ 발행 주식)", "pre", "c"),
     "inst": ("어제 기관 순매수 ÷ 20일 평균 거래대금 %", "pre", "s"), "inst5": ("최근 5일 기관 순매수 합 ÷ 20일 평균 거래대금 %", "pre", "s"),
     "amtt": ("오늘 거래대금(억원, 종가 무렵)", "close", "c"),
+    "kdev": ("어제 코스피 종가의 60일선 대비 %(시장 국면 — 0 근처=애매한 구간)", "pre", "s"),
     # 장중(1분봉 2022-12~ · m10c/m14c 방식만)
     "i_r10": ("오늘 시가→10:00 %", "i10", "s"), "i_vw10": ("10:00 가격의 VWAP 대비 %", "i10", "s"),
     "i_a10": ("10:00까지 거래대금 ÷ 20일 평균 하루 거래대금", "i10", "r"),
@@ -116,7 +117,14 @@ def _streak(b, tk):
     return b.astype(int).groupby([tk, (~b).groupby(tk).cumsum()]).cumsum()
 
 
-def make(D, flows=None, themes=None, us=None, seam=True, amt_mp=15):
+def kospi_dev(kospi):
+    """{YYYYMMDD: 코스피 종가} → {거래일 t: 어제(t-1) 코스피 60일선 이격 %}."""
+    s = pd.Series(kospi).sort_index().astype(float)
+    dev = (s / s.rolling(60, min_periods=50).mean() - 1) * 100
+    return dev.shift(1).to_dict()
+
+
+def make(D, flows=None, themes=None, us=None, seam=True, amt_mp=15, kospi=None):
     """D: ticker,date,open,high,low,close,volume(+pref,n5,n20) — 종목·날짜순 정렬. 반환: 같은 줄 + 재료·목표·uni.
     flows: ticker,date,frgn,indiv(원) · themes: gname,ticker · us: transfer.attach 가 붙인다(따로)."""
     D = D.sort_values(["ticker", "date"]).reset_index(drop=True)
@@ -223,6 +231,7 @@ def make(D, flows=None, themes=None, us=None, seam=True, amt_mp=15):
     else:
         F["turn"] = np.nan
     F["amtt"] = c * v / 1e8
+    F["kdev"] = D.date.map(kospi_dev(kospi)) if kospi else np.nan
     # 목표
     F["oc"] = F["oct"]
     F["on"] = (g.open.shift(-1) / c - 1) * 100
