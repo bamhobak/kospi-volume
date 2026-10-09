@@ -188,5 +188,5 @@ def fetch(item):
         try:
             item["title"], item["text"] = item["_fetch"]()
         except Exception as ex:
-            C.log("본문 실패", item["key"], str(ex)[:100]); item["text"] = ""
+            C.log("본문 받기 오류(다음에 다시)", item["key"], str(ex)[:100]); item["text"] = None
     return item

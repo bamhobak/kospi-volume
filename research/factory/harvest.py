@@ -104,18 +104,21 @@ def vtt_text(p):
     return " ".join(out)
 
 
-def yt_text(vid):
+def yt_text(vid, lang="ko"):
+    """자막 — 영상 원래 언어(검색어 언어)로 받는다(2026-10-10: 전엔 한국어만 받아 영어 영상은 기계 번역 자막이었다).
+    받기 자체가 실패(네트워크 등)하면 None — 다음 밤에 다시 시도한다. 자막이 정말 없으면 ''."""
     import yt_dlp
     d = Path(tempfile.mkdtemp(prefix="hv_"))
     try:
+        langs = [lang] + ([lang + "-orig"] if lang != "ko" else [])
         opts = {"quiet": True, "no_warnings": True, "noprogress": True, "skip_download": True, "writeautomaticsub": True, "writesubtitles": True,
-                "subtitleslangs": ["ko"], "subtitlesformat": "vtt", "outtmpl": str(d / "%(id)s")}
+                "subtitleslangs": langs, "subtitlesformat": "vtt", "outtmpl": str(d / "%(id)s")}
         with yt_dlp.YoutubeDL(opts) as y:
             y.download(["https://www.youtube.com/watch?v=" + vid])
-        fs = glob.glob(str(d / "*.vtt"))
+        fs = sorted(glob.glob(str(d / "*.vtt")), key=lambda f: ("-orig" not in f, f))
         return vtt_text(fs[0]) if fs else ""
     except Exception as ex:
-        C.log("자막 실패", vid, str(ex)[:120]); return ""
+        C.log("자막 받기 오류(다음에 다시)", vid, str(ex)[:120]); return None
     finally:
         shutil.rmtree(d, ignore_errors=True)
 
@@ -171,6 +174,14 @@ def _json(s):
 
 
 QUERIES_SWING = ["스윙 매매법", "주식 스윙 기법", "눌림목 스윙 매매", "신고가 매매 기법", "박스권 돌파 매매", "추세추종 매매법"]
+# 2026-10-10 사용자: "유튜브도 한글 말고 영어나 각국 언어로" — (검색어, 자막 언어)
+QUERIES_FOREIGN = [("day trading strategy stocks", "en"), ("swing trading strategy backtest", "en"), ("gap and go strategy", "en"),
+                   ("opening range breakout strategy", "en"), ("mean reversion trading strategy stocks", "en"),
+                   ("momentum stock trading strategy", "en"), ("pullback trading strategy", "en"), ("overnight trading strategy stocks", "en"),
+                   ("デイトレ 手法 株", "ja"), ("スイングトレード 手法", "ja"), ("株 寄り付き 手法", "ja"),
+                   ("當沖 技巧 台股", "zh-Hant"), ("波段 操作 技巧 股票", "zh-Hant")]
+LANG_NAME = {"ko": "", "en": "(영어)", "ja": "(일본어)", "zh-Hant": "(중국어)"}
+RETRY = C.DATA / "harvest_retry.json"
 NB_QUERIES = ["단타 매매법", "종가베팅 기법", "시초가 매매 기법", "스윙 매매 기법", "눌림목 매매법", "주식 매매 기법 승률"]
 NEEDS = C.DATA / "needs.jsonl"
 
@@ -179,15 +190,16 @@ def candidates(seen):
     """수집처마다 후보를 모아 번갈아 섞는다(한 곳이 거르기 몫을 다 먹지 않게)."""
     import sources as S
     per = {"유튜브": [], "네이버 블로그": [], "게시판": [], "해외": []}
-    for q in QUERIES + QUERIES_SWING:
+    for q, lang in [(q, "ko") for q in QUERIES + QUERIES_SWING] + QUERIES_FOREIGN:
         try:
             for e in yt_search(q):
                 if e["id"] in seen: continue
                 dur = e.get("duration") or 0
                 if dur and not (180 <= dur <= 3600): seen[e["id"]] = "길이"; continue
                 vid = e["id"]
-                per["유튜브"].append(dict(key=vid, src="유튜브", title=e.get("title") or "", ch=e.get("channel") or "", url="https://youtu.be/" + vid,
-                                       text=None, _fetch=lambda vid=vid, t=e.get("title") or "": (t, yt_text(vid))))
+                per["유튜브"].append(dict(key=vid, src="유튜브" + LANG_NAME.get(lang, ""), title=e.get("title") or "", ch=e.get("channel") or "",
+                                       url="https://youtu.be/" + vid, text=None,
+                                       _fetch=lambda vid=vid, lang=lang, t=e.get("title") or "": (t, yt_text(vid, lang))))
         except Exception as ex:
             C.log("검색 실패", q, str(ex)[:120])
     for q in NB_QUERIES:
@@ -214,9 +226,14 @@ def run(max_extract=MAX_EXTRACT):
     cand = candidates(seen)[:MAX_SCREEN]
     specs, rep, nx = [], [], 0
     xsys = extract_sys()
+    retry = C.jload(RETRY, {})
     for it in cand:
         if month_spent() >= budget(): rep.append("이달 한도 다 써서 멈춤"); break
         S.fetch(it)
+        if it.get("text") is None:                                   # 받기 오류(네트워크 등) — 3번까지 다음 밤에 다시
+            retry[it["key"]] = retry.get(it["key"], 0) + 1
+            if retry[it["key"]] >= 3: seen[it["key"]] = "받기 3번 실패"
+            continue
         txt, title = it.get("text") or "", it.get("title") or ""
         if len(txt) < 300:
             seen[it["key"]] = "본문·자막 없음"; continue
@@ -250,6 +267,6 @@ def run(max_extract=MAX_EXTRACT):
                 rep.append("· %s — 명세 오류: %s" % (title[:40], err)); continue
             specs.append(sp); got += 1
         rep.append("· [%s·%s] %s — %s · 명세 %d개" % (it["src"], j.get("kind", ""), title[:45], (j.get("summary") or "")[:60], got))
-    C.jsave(SEEN, seen)
+    C.jsave(SEEN, seen); C.jsave(RETRY, {k: v for k, v in retry.items() if k not in seen})
     C.log("수집 일꾼: 후보 %d · 번역 %d · 명세 %d" % (len(cand), nx, len(specs)))
     return specs, rep
