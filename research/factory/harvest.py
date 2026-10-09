@@ -123,10 +123,11 @@ def yt_text(vid):
 
 
 # ── 프롬프트 ─────────────────────────────────────────────────────────
-SCREEN_SYS = """너는 한국 주식 매매 기법 글·영상을 1차로 거르는 사람이다. 제목과 앞부분을 보고 JSON 한 줄로만 답한다.
+SCREEN_SYS = """너는 주식 매매 기법 글·영상을 1차로 거르는 사람이다(글은 한국어·영어·일본어일 수 있다). 제목과 앞부분을 보고 JSON 한 줄로만 답한다.
 {"rule": true|false, "kind": "day"|"swing"|"none", "why": "한 줄"}
 rule=true 조건: 사고파는 조건이 숫자나 명확한 기준으로 나온다(예: 갭 -3%, 거래량 3배, 전일 양봉, 5일선, 신고가, 시초가 매수·종가 매도, 며칠 보유).
 뉴스·종목 추천·시황·심리·일반론·광고·강의 홍보·책 소개만 있으면 false.
+미국·일본 주식 기법도 일봉 주식 규칙으로 옮길 수 있으면 true. 코인·FX·선물에서만 되는 기법(레버리지·24시간 장 전제)은 false.
 kind=day: 하루 안에 사고파는 기법(종가베팅·시초가 포함) · kind=swing: 며칠~몇 주 들고 가는 기법 · 둘 다 아니면 none."""
 
 NEED_CATS = ["분봉·장중 흐름", "호가·체결 강도", "뉴스·공시·재료", "테마·업종·대장주 판단", "보조지표(일봉)", "가격·캔들 패턴(일봉)",
@@ -137,6 +138,7 @@ def extract_sys():
     fl = "\n".join("  %s — %s [%s]" % (k, v[0], v[1]) for k, v in FT.FEATS.items() if v[1] != "live")
     md = "\n".join("  %s — %s" % (k, v[0]) for k, v in FT.MODES.items())
     return """너는 매매 기법을 '시험 가능한 규칙 명세(JSON)'로 옮기는 번역가다. 우리 시험장은 국장(한국 주식) 일봉 기반이다(데이·스윙 둘 다).
+글은 한국어·영어·일본어일 수 있고 미국·일본 시장 기법일 수 있다 — 원리를 국장 일봉 규칙으로 옮기고, summary·name·approx·untestable·needs 는 한국어로 쓴다.
 할 일: 글·자막에서 사고파는 조건을 찾아 아래 재료 사전과 매매 방식으로만 옮긴다. 사전에 없는 것은 억지로 옮기지 말고 untestable 에 적고,
 **무엇이 있어야 옮길 수 있는지**를 needs 에 적는다. 비슷하게 근사할 수 있으면 근사하고 approx 에 어떻게 근사했는지 적는다.
 
@@ -176,7 +178,7 @@ NEEDS = C.DATA / "needs.jsonl"
 def candidates(seen):
     """수집처마다 후보를 모아 번갈아 섞는다(한 곳이 거르기 몫을 다 먹지 않게)."""
     import sources as S
-    per = {"유튜브": [], "네이버 블로그": [], "게시판": []}
+    per = {"유튜브": [], "네이버 블로그": [], "게시판": [], "해외": []}
     for q in QUERIES + QUERIES_SWING:
         try:
             for e in yt_search(q):
@@ -193,6 +195,8 @@ def candidates(seen):
         except Exception as ex: C.log("블로그 검색 실패", q, str(ex)[:120])
     try: per["게시판"] += [x for x in S.boards() if x["key"] not in seen]
     except Exception as ex: C.log("게시판 실패", str(ex)[:120])
+    try: per["해외"] += [x for x in S.overseas() if x["key"] not in seen]          # 트레이딩뷰·Quantocracy(영어)·note.com(일본어) — 2026-10-10
+    except Exception as ex: C.log("해외 실패", str(ex)[:120])
     out, keys = [], set()
     L = [list({x["key"]: x for x in v}.values()) for v in per.values()]
     for i in range(max(len(v) for v in L) if L else 0):

@@ -90,6 +90,98 @@ def _post(u, body):
     return clean(m.group(1)) if m else ""
 
 
+# ── 해외 (2026-10-10 사용자: "해외 커뮤에서도") — 레딧은 로그인 벽(403/HTML)·Medium·SSRN 은 Cloudflare 로 막힘 ──
+def article(u):
+    """일반 블로그 글 본문 — <article> 우선, 없으면 <p> 를 모은다."""
+    t = _get(u)
+    ti = re.search(r'<meta property="og:title" content="([^"]*)"', t) or re.search(r"<title[^>]*>([^<]*)", t)
+    a = re.search(r"<article.*?</article>", t, re.S)
+    body = clean(a.group(0)) if a else clean(" ".join(re.findall(r"<p[^>]*>(.*?)</p>", t, re.S)))
+    return (html.unescape(ti.group(1)).strip() if ti else u), body
+
+
+def tradingview(n=12):
+    """트레이딩뷰 전략 스크립트(최근) — 작성자 설명(전략 원리·진입·청산)."""
+    t = _get("https://www.tradingview.com/scripts/?script_type=strategies&sort=recent")
+    paths = list(dict.fromkeys(re.sub(r"#.*", "", p) for p in re.findall(r'(/script/[A-Za-z0-9]{6,10}-[^"\\ ?#]{3,90}/)', t)))[:n]
+    out = []
+    for p in paths:
+        sid = p.split("/")[2].split("-")[0]
+        out.append(dict(key="tv:" + sid, src="트레이딩뷰(영어)", url="https://www.tradingview.com" + p, title=None, text=None, _fetch=lambda p=p: _tv(p)))
+    return out
+
+
+def _tv(p):
+    t = _get("https://www.tradingview.com" + p)
+    j = re.findall(r'"description":"((?:[^"\\]|\\.){100,})"', t)
+    body = j[0].encode().decode("unicode_escape", errors="ignore") if j else ""
+    try: body = body.encode("latin-1").decode("utf-8")
+    except Exception: pass
+    return p.split("/")[2].split("-", 1)[-1].replace("-", " "), body
+
+
+def quantocracy(days=3):
+    """Quantocracy(미국 퀀트 블로그 모음) — 최근 요약 글에 실린 원래 블로그 글들."""
+    f = _get("https://quantocracy.com/feed/")
+    out = []
+    for link in re.findall(r"<item>.*?<link>(.*?)</link>", f, re.S)[:days]:
+        p = _get(link)
+        for u, ti in re.findall(r'<a[^>]+href="(https?://(?!quantocracy|www\.quantocracy|twitter|x\.com|facebook|linkedin)[^"]+)"[^>]*>([^<]{12,160})</a>', p):
+            out.append(dict(key="qc:" + u[:120], src="Quantocracy(영어)", url=u, title=html.unescape(ti), text=None, _fetch=lambda u=u: article(u)))
+    return list({x["key"]: x for x in out}.values())
+
+
+def note_jp(queries=("日本株 デイトレ 手法", "株 スイングトレード 手法"), n=10):
+    """일본 note.com — 무료 부분만 읽힌다(유료 글은 앞부분)."""
+    out = []
+    for q in queries:
+        t = _get("https://note.com/search?q=%s&context=note&mode=search" % urllib.parse.quote(q))
+        for u in list(dict.fromkeys(re.findall(r"https://note\.com/[A-Za-z0-9_]+/n/n[0-9a-f]+", t)))[:n]:
+            out.append(dict(key="note:" + u.rsplit("/", 1)[-1], src="note.com(일본어)", url=u, title=None, text=None, _fetch=lambda u=u: _note(u)))
+    return out
+
+
+def _note(u):
+    t = _get(u)
+    ti = re.search(r'<meta property="og:title" content="([^"]*)"', t)
+    b = re.search(r'<div[^>]+class="[^"]*note-common-styles__textnote-body[^"]*"[^>]*>(.*?)</div>\s*</div>', t, re.S)
+    body = clean(b.group(1)) if b else clean((re.search(r'<meta property="og:description" content="([^"]*)"', t) or [None, ""])[1] or "")
+    return (html.unescape(ti.group(1)) if ti else u), body
+
+
+REDDIT_SUBS = ["Daytrading", "swingtrading", "algotrading", "StockMarket"]
+
+
+def reddit(n=25):
+    """레딧(2026-10-10 사용자: 로그인 방식) — 앱 등록이 막혀(2025-11~ 사전 승인제) 로그인된 크롬 세션 쿠키(.env REDDIT_SESSION)로 읽는다.
+    하룻밤 게시판 목록 4번뿐(목록 응답에 본문이 같이 와서 글마다 안 연다). 쿠키가 없으면 건너뛴다. 만료되면 로그에 '레딧 실패' → 점검기."""
+    v = C.env().get("REDDIT_SESSION")
+    if not v: return []
+    from curl_cffi import requests as cr
+    out = []
+    for sub in REDDIT_SUBS:
+        time.sleep(3)
+        r = cr.get("https://old.reddit.com/r/%s/top.json?t=week&limit=%d" % (sub, n), impersonate="chrome", timeout=25, cookies={"reddit_session": v})
+        try: j = r.json()
+        except Exception:
+            C.log("레딧 실패(로그인 쿠키 만료? HTML 받음)", sub, r.status_code); continue
+        for c in (j.get("data") or {}).get("children") or []:
+            d = c.get("data") or {}
+            txt = d.get("selftext") or ""
+            if len(txt) < 400 or (d.get("score") or 0) < 5 or d.get("over_18"): continue
+            out.append(dict(key="rd:" + d.get("id", ""), src="레딧 r/%s(영어)" % sub, url="https://www.reddit.com" + d.get("permalink", ""),
+                            title=d.get("title", ""), text=d.get("title", "") + "\n\n" + txt))
+    return out
+
+
+def overseas():
+    out = []
+    for fn in (tradingview, quantocracy, note_jp, reddit):
+        try: out += fn()
+        except Exception as ex: C.log("해외 수집 실패", fn.__name__, str(ex)[:120])
+    return out
+
+
 def fetch(item):
     """본문을 읽어 title·text 를 채운다(실패하면 빈 글)."""
     if item.get("text") is None and item.get("_fetch"):

@@ -112,7 +112,7 @@ def night():
     rep += ["", "## 못 옮긴 조건 모음(최근 30일) — 무엇이 있어야 옮길 수 있나", ""] + needs.summary()
     rep += ["", "## 클로드 크레딧", ""] + ["- " + s for s in harvest.usage_report()]
     rep += ["", "(%.1f분)" % ((time.time() - t0) / 60)]
-    f = C.REP / ("%s.md" % time.strftime("%Y%m%d")); f.write_text("\n".join(rep) + "\n", encoding="utf-8")
+    f = C.REP / ("%s.md" % time.strftime("%Y%m%d")); f = f.with_name(f.stem + time.strftime("_%H%M") + ".md") if f.exists() else f; f.write_text("\n".join(rep) + "\n", encoding="utf-8")
     card.notify(rv)                              # 중요한 것만: 사용자가 정할 '검토 대기'가 새로 생겼을 때
     C.log("밤 끝 — 판정 %d · 검토 대기 새로 %d · %.1f분" % (len(done), len(rv), (time.time() - t0) / 60))
 
