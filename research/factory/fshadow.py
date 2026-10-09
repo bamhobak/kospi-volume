@@ -31,10 +31,20 @@ def daily(A, today):
     U = live.frame(days=sorted(set(need.values())), A=A)
     old = pd.read_csv(TRF, dtype={"date": str, "ticker": str}) if TRF.exists() else pd.DataFrame(columns=["id", "mode", "date", "ticker", "ret"])
     rows = []
+    honest = {}                                   # 종가 매수(on)는 15:19 까지 모습으로 고른다(종가 단일가 착시 방지, 2026-10-10)
     for x in S:
         d = need.get(x["mode"])
         if not d or d < x.get("shadow_from", "0"): continue
-        T = lab.trades(U[U.date == d], x)
+        Ud = U[U.date == d]
+        if lab.needs_1519(x):
+            if d not in honest:
+                sn = live.snap1519(d)
+                honest[d] = None if sn is None else lab.apply_1519(Ud.merge(sn, on="ticker", how="inner").assign(
+                    pc_m=lambda z: z.px.astype(float), o_m=lambda z: z.px.astype(float) * (1 + z.gap.astype(float) / 100)))
+            if honest[d] is None:
+                C.log("그림자: %s 1분봉 없어 %s 건너뜀" % (d, x["id"])); continue
+            Ud = honest[d]
+        T = lab.trades(Ud, x)
         rows += [(x["id"], x["mode"], d, t, round(float(r), 4)) for t, r in zip(T.ticker, T.ret)]
     N = pd.DataFrame(rows, columns=["id", "mode", "date", "ticker", "ret"])
     allT = pd.concat([old, N]).drop_duplicates(["id", "date", "ticker"], keep="last")

@@ -103,6 +103,19 @@ def fill_missing(days=62, rate=8.0):
     C.log("빈 일봉 메우기 끝: %d줄 · %.0f분" % (len(rows), (time.time() - t0) / 60))
 
 
+def snap1519(day):
+    """그날 1분봉에서 15:19 까지 모습(종가 단일가 전에 알 수 있는 것) — ticker · p1519 · hi1519 · lo1519 · v1519 · vol_m."""
+    f = M1 / "day" / ("%s.parquet" % day)
+    if not f.exists(): return None
+    D = pd.read_parquet(f)
+    k = D.ts.to_numpy().astype("int64") + 9 * 3600
+    hm = ((k % 86400) // 3600) * 100 + (k % 3600) // 60
+    D = D.assign(hm=hm)[(hm >= 901) & (hm <= 1531)].sort_values(["t", "ts"])
+    E = D[D.hm <= 1519]
+    g, ge = D.groupby("t"), E.groupby("t")
+    return pd.DataFrame({"p1519": ge.c.last(), "hi1519": ge.h.max(), "lo1519": ge.l.min(), "v1519": ge.v.sum(), "vol_m": g.v.sum()}).astype(float).rename_axis("ticker").reset_index()
+
+
 def names(force=False):
     p = C.DATA / "names.json"
     j = C.jload(p, {})

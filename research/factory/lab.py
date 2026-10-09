@@ -226,10 +226,51 @@ def judge(spec, U=None, n_trials=None):
     if R["dsr"] is None or R["dsr"] < DSR_MIN: why.append("다중검정 %.2f < %.2f(공장 누적 %d개 기준)" % (R["dsr"] or 0, DSR_MIN, n_tr))
     ov = stats(seg(T, tr0, VA[1]))["t1"]
     if ov >= 50: why.append("T1 과 겹침 %.0f%%" % ov)
+    if not why and needs_1519(spec):
+        H = R["honest"] = honest_1519(U, spec)
+        if not H or H["n"] < 40: why.append("15:19 가격 재검 표본 부족(%s건)" % (H["n"] if H else 0))
+        elif H["mean"] <= 0 or H["t"] < 1:
+            why.append("종가 단일가 착시 — 15:19 가격으로 고르면 %s건 %+.2f%% · t %.1f" % (f"{H['n']:,}", H["mean"], H["t"]))
     if why:
         R["why"] = " · ".join(why); return R
     R["stage"] = 2
     return R
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 종가 단일가 착시 확인 (2026-10-10) — 'on'(종가 매수) 방식이 '오늘 등락·오늘 시가→종가' 같은 종가 재료로 고르면
+# 실제로는 15:20 종가 단일가 **전에** 골라야 하는데 최종 종가(단일가에서 움직인 몫 포함)로 고른 셈이 된다.
+# 1분봉이 있는 2022-12~ 는 15:19 까지 봉으로 재료를 다시 만들어 같은 명세를 다시 잰다(가격은 1분봉끼리만 — H0295 함정).
+# ══════════════════════════════════════════════════════════════════════
+CLOSE_F = {"r1t", "clvt", "vmt", "rngt", "oct"}
+_M1 = None
+
+
+def needs_1519(spec):
+    t = spec.get("top") or {}
+    return spec["mode"] == "on" and (any(c["f"] in CLOSE_F for c in spec["conds"]) or t.get("by") in CLOSE_F)
+
+
+def apply_1519(Z):
+    """Z: 1분봉 기준 pc_m · o_m · p1519 · hi1519 · lo1519 · v1519 · vol_m 을 가진 줄 → 종가 재료를 15:19 값으로 바꾸고 q_ 다시."""
+    Z = Z.copy()
+    Z["r1t"] = (Z.p1519 / Z.pc_m - 1) * 100
+    Z["oct"] = (Z.p1519 / Z.o_m - 1) * 100
+    Z["clvt"] = (Z.p1519 - Z.lo1519) / (Z.hi1519 - Z.lo1519).replace(0, np.nan)
+    Z["rngt"] = (Z.hi1519 - Z.lo1519) / Z.p1519 * 100
+    Z["vmt"] = Z.vmt * (Z.v1519 / Z.vol_m.replace(0, np.nan))
+    for f in CLOSE_F:
+        Z["q_" + f] = Z.groupby("date")[f].rank(pct=True).astype("float32")
+    return Z
+
+
+def honest_1519(U, spec):
+    global _M1
+    if _M1 is None:
+        _M1 = pd.read_pickle(C.CACHE / "m1_panel_KR.pkl")[["ticker", "date", "o", "pc", "p1519", "hi1519", "lo1519", "v1519", "vol"]].rename(
+            columns={"o": "o_m", "pc": "pc_m", "vol": "vol_m"})
+    Z = U[U.date >= VA[0]].merge(_M1, on=["ticker", "date"], how="inner")
+    return stats(trades(apply_1519(Z), spec))
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -282,14 +323,43 @@ def process(L=None, limit=200):
             R = judge(x, U)
         except Exception as ex:
             x.update(status="error", why=repr(ex)[:200]); done.append(x); continue
-        x.update(stage=R["stage"], why=R["why"], res={k: R[k] for k in ("ref", "tr", "va", "dsr")}, judged=time.strftime("%Y-%m-%d %H:%M"))
+        x.update(stage=R["stage"], why=R["why"], res={k: R.get(k) for k in ("ref", "tr", "va", "dsr", "honest")}, judged=time.strftime("%Y-%m-%d %H:%M"))
         if R["stage"] >= 2:
-            x.update(status="shadow", shadow_from=time.strftime("%Y%m%d"))
+            sib = sibling(x, L, U)
+            if sib:
+                x.update(status="sibling", why="그림자 %s 와 거래 %.0f%% 겹침 — 같은 규칙으로 보고 따로 안 봄" % sib)
+            else:
+                x.update(status="shadow", shadow_from=time.strftime("%Y%m%d"))
         else:
             x["status"] = "rejected"
         done.append(x)
     if own: save(L)
     return done
+
+
+_TK = {}
+
+
+def _tset(spec, U):
+    k = spec.get("key") or key(spec)
+    if k not in _TK:
+        T = seg(trades(U, spec), *VA)
+        _TK[k] = set(zip(T.date, T.ticker))
+    return _TK[k]
+
+
+def sibling(x, L, U, cut=0.6):
+    """이미 그림자에 있는 명세와 검증 구간 거래가 cut 이상 겹치면 (그 id, 겹침%) — 같은 규칙을 여러 번 세지 않게(2026-10-10)."""
+    A = _tset(x, U)
+    if not A: return None
+    best = None
+    for y in L:
+        if y is x or y.get("status") not in ("shadow", "propose") or uses_live(y): continue
+        B = _tset(y, U)
+        ov = len(A & B) / max(min(len(A), len(B)), 1)
+        if ov >= cut and (best is None or ov > best[1] / 100):
+            best = (y["id"], ov * 100)
+    return best
 
 
 STAGE = {None: "-", 0: "학습 탈락", 1: "검증 탈락", 2: "그림자로"}
