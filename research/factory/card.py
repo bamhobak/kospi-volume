@@ -33,7 +33,7 @@ def _T(U, spec):
 def _s(T, a, b):
     s = lab.stats(lab.seg(T, a, b)) if T is not None and len(T) else None
     if not s: return None
-    return {k: (round(v, 3) if isinstance(v, float) else v) for k, v in s.items() if k in ("n", "mean", "med", "win", "t", "ypos", "ny", "ex", "perday")}
+    return {k: (round(v, 3) if isinstance(v, float) else v) for k, v in s.items() if k in ("n", "mean", "med", "win", "t", "ypos", "ny", "ex", "perday", "pf")}
 
 
 def _three(U, spec):
@@ -60,6 +60,9 @@ def variants(spec):
             ex = {k: v for k, v in (("stop", st), ("take", tk)) if v is not None}
             if ex != (spec.get("exit") or {}):
                 out.append(("청산: " + ("손절 %d%% " % st if st else "") + ("익절 +%d%%" % tk if tk else ""), dict(base, exit=ex)))
+        for lab_, ex in (("청산: 고점 대비 -8% 추적 손절", {"trail": -8}), ("청산: 손절 -7% + 고점 대비 -10% 추적", {"stop": -7, "trail": -10}),
+                         ("청산: +10%에 절반 익절 + 손절 -7%", {"half": 10, "stop": -7}), ("청산: +10% 절반 익절 + 고점 대비 -8% 추적", {"half": 10, "trail": -8})):
+            if ex != (spec.get("exit") or {}): out.append((lab_, dict(base, exit=ex)))
         if spec.get("exit"): out.append(("청산 없이(보유일 끝 종가)", base))
         for hh in FT.SWH:
             if "sw%d" % hh != spec["mode"]: out.append(("보유 %d일" % hh, dict(spec, mode="sw%d" % hh)))
@@ -101,7 +104,10 @@ def data(x, L=None):
     return {"id": x["id"], "status": x.get("status"), "name": x.get("name", ""), "desc": x.get("desc") or lab.desc(x), "mode": m,
             "kind": "스윙" if m.startswith("sw") else "데이", "origin": x.get("origin"), "source": x.get("source", ""),
             "approx": x.get("approx", ""), "untestable": x.get("untestable", ""), "since": x.get("shadow_from"),
-            "res": {k: r.get(k) for k in ("ref", "tr", "va", "honest", "dsr")},
+            "res": dict(_three(U, x), dsr=r.get("dsr"),                 # 카드 만들 때마다 다시 잰다(PF 등 새 칸이 생겨도 반영)
+                        honest=_s(lab.trades(lab.apply_1519(U[U.date >= lab.VA[0]].merge(lab._m1(), on=["ticker", "date"], how="inner")), x), *lab.VA)
+                        if lab.needs_1519(x) else None),
+            "res_us": x.get("res_us"), "why_us": x.get("why_us", ""), "pass_mk": x.get("pass_mk") or ["KR"],
             "yearly": [[y_, int(n), round(float(mn), 3)] for y_, (n, mn) in yr.iterrows()],
             "variants": var, "parts": parts, "overlap": ov, "siblings": sib,
             "recent": [[d, names.get(t, t), round(float(rr), 2)] for d, t, rr in zip(last.date, last.ticker, last.ret)],

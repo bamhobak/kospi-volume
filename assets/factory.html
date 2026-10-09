@@ -27,6 +27,7 @@ main{max-width:980px;margin:0 auto;padding:14px 16px 60px}
 .badge{font-size:11px;padding:2px 8px;border:1px solid var(--line);font-weight:600}
 .b-review{color:var(--ind);border-color:var(--ind)}.b-adopted{color:var(--ok);border-color:var(--ok)}.b-kind{color:var(--acc);border-color:var(--acc)}
 .desc{margin-top:6px;color:var(--txt);word-break:keep-all}
+.exp{margin-top:8px;padding:7px 10px;background:var(--panel2);border:1px solid var(--line);font-size:13px}.exp b{color:var(--txt)}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;padding:12px 14px}
 .kpi{background:var(--panel2);border:1px solid var(--line);padding:8px 10px}
 .kpi small{color:var(--mut);font-size:11px;display:block}
@@ -77,17 +78,20 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const pct=(v,d=2)=>v==null?'-':`<span class="${v>0?'pos':v<0?'neg':''}">${v>0?'+':''}${(+v).toFixed(d)}%</span>`;
 const st=s=>s?`${pct(s.mean)} <span class="muted">· 승률 ${Math.round(s.win)}% · ${(+s.n).toLocaleString()}건${s.ex!=null?' · 초과 '+(s.ex>0?'+':'')+(+s.ex).toFixed(2):''}</span>`:'<span class="muted">-</span>';
-const kpi=(lab,s,extra='')=>`<div class="kpi"><small>${lab}</small>${s?`<b class="mono">${pct(s.mean)}</b><span>승률 ${Math.round(s.win)}% · ${(+s.n).toLocaleString()}건${s.ny?` · 플러스 해 ${s.ypos}/${s.ny}`:''}${s.ex!=null?` · 같은 날 아무 종목 대비 ${s.ex>0?'+':''}${(+s.ex).toFixed(2)}%p`:''}${extra}</span>`:'<b class="muted">-</b>'}</div>`;
+const kpi=(lab,s,extra='')=>`<div class="kpi"><small>${lab}</small>${s?`<b class="mono">${pct(s.mean)}</b><span>승률 ${Math.round(s.win)}%${s.pf!=null?` · PF ${(+s.pf).toFixed(2)}`:''} · ${(+s.n).toLocaleString()}건${s.ny?` · 플러스 해 ${s.ypos}/${s.ny}`:''}${s.ex!=null?` · 같은 날 아무 종목 대비 ${s.ex>0?'+':''}${(+s.ex).toFixed(2)}%p`:''}${extra}</span>`:'<b class="muted">-</b>'}</div>`;
 async function rpc(fn,body){const r=await fetch(`${SB.url}/rest/v1/rpc/${fn}`,{method:'POST',headers:{apikey:SB.key,Authorization:'Bearer '+SB.key,'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error(fn+' '+r.status);const t=await r.text();return t?JSON.parse(t):null}
 function yearly(Y){if(!Y||!Y.length)return'';const mx=Math.max(...Y.map(y=>Math.abs(y[2])),.01);
   return `<div class="yr">${Y.map(([y,n,m])=>`<div title="${y} · ${n}건 · ${m>0?'+':''}${m.toFixed(2)}%"><i style="height:${Math.max(2,Math.abs(m)/mx*50)}px;background:${m>=0?'var(--up)':'var(--dn)'}"></i></div>`).join('')}</div>
   <div class="yrl">${Y.map(([y])=>`<span>${String(y).slice(2)}</span>`).join('')}</div>`}
 function card(d){const r=d.res||{};const stl={review:'검토 대기',adopted:'채택'}[d.status]||d.status;
   const src=/https?:\/\/\S+/.exec(d.source||'');
-  return `<div class="card"><div class="ch"><div class="top"><span class="id mono">${esc(d.id)}</span><span class="badge b-${esc(d.status)}">${stl}</span><span class="badge b-kind">${esc(d.kind)}</span><span class="muted">${esc(d.name)}</span></div>
-    <div class="desc">${esc(d.desc)}</div></div>
-  <div class="kpis">${kpi('참고 2010~15',r.ref)}${kpi('학습 2016~22',r.tr)}${kpi('검증 2023~',r.va)}${r.honest?kpi('15:19 가격으로 고르면(2023~)',r.honest):''}
+  const mks=(d.pass_mk||[]).map(m=>`<span class="badge" style="color:${m==='US'?'#fb923c':'#a78bfa'};border-color:${m==='US'?'#fb923c':'#a78bfa'}">${m==='US'?'미장 통과':'국장 통과'}</span>`).join('');
+  return `<div class="card"><div class="ch"><div class="top"><span class="id mono">${esc(d.id)}</span><span class="badge b-${esc(d.status)}">${stl}</span><span class="badge b-kind">${esc(d.kind)}</span>${mks}<span class="muted">${esc(d.name)}</span></div>
+    <div class="desc">${esc(d.desc)}</div>
+    ${(()=>{const e=(d.res&&d.res.honest)||(d.res&&d.res.va);if(!e)return'';return `<div class="exp">예상 <span class="muted">(${d.res.honest?'15:19 가격으로 고른 ':''}검증 2023~ 실측 — 만들 때 안 본 구간)</span> · 승률 <b>${Math.round(e.win)}%</b> · 건당 <b>${pct(e.mean)}</b> · PF <b class="mono">${e.pf!=null?(+e.pf).toFixed(2):'-'}</b> · 신호 날 하루 ${d.perday}종목</div>`})()}</div>
+  <div class="kpis">${kpi('국장 참고 2010~15',r.ref)}${kpi('국장 학습 2016~22',r.tr)}${kpi('국장 검증 2023~',r.va)}${r.honest?kpi('15:19 가격으로 고르면(2023~)',r.honest):''}
     <div class="kpi"><small>다중검정 · 빈도</small><b class="mono">${r.dsr!=null?(+r.dsr).toFixed(2):'-'}</b><span>신호 날 하루 ${d.perday}종목 · 신호 있는 날 ${d.dayshare}%</span></div></div>
+  ${d.res_us?`<div class="kpis" style="padding-top:0">${kpi('미장 학습 2016~22',d.res_us.tr)}${kpi('미장 검증 2023~',d.res_us.va)}<div class="kpi"><small>미장 판정</small><b>${(d.pass_mk||[]).includes('US')?'<span class="pos">통과</span>':'탈락'}</b><span>${esc(d.why_us||'')}</span></div></div>`:`<p class="src" style="padding:0 14px">미장: ${esc(d.why_us||'판정 전')}</p>`}
   ${yearly(d.yearly)}
   <details><summary>조정 후보 ${d.variants.length}개 — 조건 빼기·문턱 옮기기${d.kind==='스윙'?'·손절익절·보유기간':''}</summary><div class="dbody"><div class="tw"><table><tr><th>바꾼 것</th><th>참고 2010~15</th><th>학습 2016~22</th><th>검증 2023~</th></tr>
     <tr class="base"><td class="l"><b>원안</b></td><td>${st(r.ref)}</td><td>${st(r.tr)}</td><td>${st(r.va)}</td></tr>

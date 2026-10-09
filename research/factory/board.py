@@ -68,6 +68,8 @@ def _pace():
     try:
         import pace
         P = pace.summary()
+        for h, g in pace.DEFAULT.items():                              # 아직 한 번도 안 부른 사이트도 기본 간격으로 보여 준다
+            P.setdefault(h, {"gap": g, "base": g, "paused": False, "hits": 0})
         ev = []
         if pace.LOG.exists():
             ev = [json.loads(l) for l in pace.LOG.read_text(encoding="utf-8").splitlines()[-15:] if l.strip()]

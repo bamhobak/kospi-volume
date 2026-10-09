@@ -117,6 +117,14 @@ def _streak(b, tk):
     return b.astype(int).groupby([tk, (~b).groupby(tk).cumsum()]).cumsum()
 
 
+def cross(F, dates):
+    """날짜별 단면 재료(유니버스 안 거래대금 순위·시장 중앙 등락·시장 갭) — F.uni 기준."""
+    F["liq"] = F.amt20.where(F.uni).groupby(dates).rank(pct=True)
+    um = lambda s: s.where(F.uni).groupby(dates).transform("median")
+    F["mk_r1"] = um(F.r1); F["mk_r5"] = um(F.r5); F["mgap"] = um(F.gap)
+    F["rgap"] = F.gap - F.mgap
+
+
 def kospi_dev(kospi):
     """{YYYYMMDD: 코스피 종가} → {거래일 t: 어제(t-1) 코스피 60일선 이격 %}."""
     s = pd.Series(kospi).sort_index().astype(float)
@@ -124,7 +132,10 @@ def kospi_dev(kospi):
     return dev.shift(1).to_dict()
 
 
-def make(D, flows=None, themes=None, us=None, seam=True, amt_mp=15, kospi=None):
+KR_ONLY = {"fr", "ir", "fr5", "inst", "inst5", "th", "us_ewy", "tr_us", "tr_pred", "tr_res", "kdev"}     # 미장 판정에 못 쓰는 재료(국장 자료만 있음)
+
+
+def make(D, flows=None, themes=None, us=None, seam=True, amt_mp=15, kospi=None, mk="KR", uni_pct=0.60):
     """D: ticker,date,open,high,low,close,volume(+pref,n5,n20) — 종목·날짜순 정렬. 반환: 같은 줄 + 재료·목표·uni.
     flows: ticker,date,frgn,indiv(원) · themes: gname,ticker · us: transfer.attach 가 붙인다(따로)."""
     D = D.sort_values(["ticker", "date"]).reset_index(drop=True)
@@ -187,7 +198,7 @@ def make(D, flows=None, themes=None, us=None, seam=True, amt_mp=15, kospi=None):
     uw_t = (h - np.maximum(o, c)) / rg
     F["uw"] = s1(uw_t); F["lw"] = s1((np.minimum(o, c) - l) / rg)
     F["body"] = s1((c / o - 1) * 100)
-    lim_up = np.where(D.date < "20150615", 14.5, 29.0)
+    lim_up = np.where(D.date < "20150615", 14.5, 29.0) if mk == "KR" else np.full(len(D), 29.0)   # 미장은 '+29%↑ 급등' 으로 같은 칸
     F["lu20"] = s1(roll((ret >= lim_up).astype(float), 20, "sum", 1))
     F["age"] = g.cumcount().clip(upper=250).astype(float)
     if "marcap" in D.columns:
@@ -240,7 +251,7 @@ def make(D, flows=None, themes=None, us=None, seam=True, amt_mp=15, kospi=None):
         if "n%d" % hd in D.columns: F["sw%d" % hd] = D["n%d" % hd].groupby(tk).shift(1)   # 패널 n{h} = 신호 다음날 시가 매수 → 비용 포함
         else: F["sw%d" % hd] = (g.close.shift(-(hd - 1)) / o - 1) * 100 - 0.6               # 매일 자료: t 시가 → t+h-1 종가, 비용 0.6%(패널 하단)
     # 쓸 수 없는 줄: 가격제한으로 불가능한 변동(이음새) · 거래 없음 · 시가 상한가 근처(못 산다)
-    lim = np.where(D.date < "20150615", 16.0, 30.5)
+    lim = np.where(D.date < "20150615", 16.0, 30.5) if mk == "KR" else np.full(len(D), 300.0)   # 미장은 가격제한 없음 — 터무니없는 줄만
     bad = (F.gap.abs() > lim) | (F.r1t.abs() > lim) | (o > h * 1.001) | (o < l * 0.999) | (c > h * 1.001) | (c < l * 0.999) | (v <= 0)
     okrow = ~bad.fillna(True)
     if seam:                                                          # 이음새 앞뒤 60거래일 — 앞뒤 재료·목표가 다 틀린다(run_spec 과 같은 규율)
@@ -250,12 +261,15 @@ def make(D, flows=None, themes=None, us=None, seam=True, amt_mp=15, kospi=None):
             badm[lo_:hi_ + 1] |= (tkv[lo_:hi_ + 1] == tkv[i])
         okrow &= ~pd.Series(badm, index=D.index)
     pref = D["pref"].fillna(False).astype(bool) if "pref" in D.columns else False
-    elig = okrow & (F.px >= 1000) & F.amt20.notna() & ~pref & (F.gap < 29)
-    F["uni"] = (F.amt20.where(elig).groupby(D.date).rank(pct=True) >= 0.60) & elig
-    F["liq"] = F.amt20.where(F.uni).groupby(D.date).rank(pct=True)
-    um = lambda s: s.where(F.uni).groupby(D.date).transform("median")
-    F["mk_r1"] = um(F.r1); F["mk_r5"] = um(F.r5); F["mgap"] = um(F.gap)
-    F["rgap"] = F.gap - F.mgap
+    if mk == "KR":
+        elig = okrow & (F.px >= 1000) & F.amt20.notna() & ~pref & (F.gap < 29)
+    else:                                                              # 미장: $3 이상(패널 rawclose 기준과 같게) · 갭 제한 없음
+        elig = okrow & (F.px >= 3) & F.amt20.notna() & ~pref
+    if uni_pct is None:                                                # 종목 묶음으로 나눠 만들 때 — 날짜별 순위·중앙값은 합친 뒤 cross() 로
+        F["uni"] = elig; F["liq"] = F["mk_r1"] = F["mk_r5"] = F["mgap"] = F["rgap"] = np.nan
+    else:
+        F["uni"] = (F.amt20.where(elig).groupby(D.date).rank(pct=True) >= uni_pct) & elig
+        cross(F, D.date)
     if flows is not None and len(flows):
         m = D[["ticker", "date"]].merge(flows[["ticker", "date", "frgn", "indiv"]], on=["ticker", "date"], how="left")
         fr_, ir_ = m.frgn.astype(float), m.indiv.astype(float)
