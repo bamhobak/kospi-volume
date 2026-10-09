@@ -182,6 +182,15 @@ def check():
             try: b.unlink()
             except Exception: pass
             bad("⚠", "%s 표시가 %.0f시간 남아 있어 지움(1분봉 과거 채우기가 그동안 멈춰 있었음)" % (b.name, age))
+    rs = C.env().get("REDDIT_SESSION")                                   # 레딧 로그인 쿠키 만료 2주 전 미리 알림(2026-10-10 · 쿠키는 6개월짜리)
+    if rs:
+        try:
+            import base64
+            p = rs.split(".")[1]; exp = json.loads(base64.urlsafe_b64decode(p + "=" * (-len(p) % 4)))["exp"]
+            left = (exp - time.time()) / 86400
+            if left < 14: bad("⚠", "레딧 로그인 쿠키가 %.0f일 뒤 만료 — 크롬에서 reddit_session 값을 .env.reddit 에 새로 넣기" % left)
+            else: ok.append("레딧 쿠키 %.0f일 남음" % left)
+        except Exception: pass
     free = shutil.disk_usage(str(C.BASE)).free / 1e9
     if free < 20: bad("⚠", "G: 남은 공간 %.0fGB" % free)
     lg = C.LOG.read_text(encoding="utf-8", errors="replace").splitlines()[-3000:] if C.LOG.exists() else []
