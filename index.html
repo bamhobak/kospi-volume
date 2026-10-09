@@ -98,6 +98,7 @@ header{min-height:52px;padding:6px 18px;flex-wrap:wrap;gap:8px 16px;align-conten
           border:1px solid var(--line);color:var(--mut);font-size:11px;white-space:nowrap}
 .mktstate i{width:6px;height:6px;border-radius:999px;background:var(--org);display:inline-block}
 .mktstate b{color:var(--txt)}
+#mktstate{display:none !important}   /* 2026-10-10 요청: 국면 칩(코스피/S&P500 60일선 위·아래)은 PC 에서도 감춘다 — 미장 표 묵음 경보(#usstate)는 그대로 */
 body{display:flex;flex-direction:column;height:100%}
 header{flex:none}
 .shell{display:flex;flex:1;min-height:0}
@@ -929,11 +930,15 @@ function curName(){
    배율은 2018~26 전 규칙 신호를 이격 구간별로 세어 같은 국면 평균으로 나눈 값이다. */
 const FREQ_MULT=[[-20,36.3],[-10,7.0],[-5,0.83],[-2,0.22],[0,0.05],[3,0.74],[7,0.94],[999,1.54]];
 function freqNote(){
-  let up=0, dn=0, miss=0;
+  /* 2026-10-10 사용자: "월 x.x건(국장 x.x, 미장 x.x)". 예전엔 미장 규칙(S&P 게이트)도 '항상'으로 섞어 코스피 이격 배율을 곱했다 → 1.9건처럼 작게 나왔다.
+     국장 = 코스피 국면 합 × 코스피 이격 배율(아래 그대로) · 미장 = 지금 S&P500 국면에 열린 미장 규칙의 월 빈도 합(코스피 배율 안 곱함) */
+  let up=0, dn=0, miss=0, us=0, usAll=0, day=0;
   orderedAll().forEach(f=>{
     const pm=(f.stats&&typeof f.stats.perMonth==='number')?f.stats.perMonth:null;
     if(pm===null){miss++;return}
     const g=f.gate||'always';
+    if(String(f.id).startsWith('T')){day+=pm;return}               /* 데이 규칙(국장) — 매일 나는 규칙이라 폭락장 이격 배율을 안 곱한다 */
+    if(f.mkt==='US'){usAll+=pm;if(g==='always'||(GATE[g]&&GATE[g](raw.kospi||{})))us+=pm;return}
     if(g==='up60')up+=pm; else if(g==='dn60'||g==='dn20')dn+=pm; else {up+=pm;dn+=pm}
   });
   const k=raw.kospi||{};
@@ -944,11 +949,14 @@ function freqNote(){
   if(dev!==null){for(const[hi,m]of FREQ_MULT){if(dev<=hi){mult=m;break}}}
   const est=(gateSum!==null&&mult!==null)?gateSum*mult:null;
   const fx=v=>v>=10?v.toFixed(0):v.toFixed(1);
-  const txt=est!==null?`월 ${fx(est)}건(예상)`
-    :(gateSum!==null?`월 ${fx(gateSum)}건(예상)`:`상승장 월 ${fx(up)}건 · 하락장 월 ${fx(dn)}건`);
+  const kr0=est!==null?est:(gateSum!==null?gateSum:null);
+  const kr=kr0===null?(day?day:null):kr0+day;
+  const txt=kr!==null?`월 ${fx(kr+us)}건(K ${fx(kr)}, N ${fx(us)})`
+    :`월 K 상승장 ${fx(up)}·하락장 ${fx(dn)}건, N ${fx(us)}건`;
   const tip=[
-    est!==null?`지금: 코스피 60일선 이격 ${dev.toFixed(1)}% · ${isUp?'상승장':'하락장'}`:null,
-    est!==null?`계산: 국면 기준 월 ${fx(gateSum)}건 × 이격 구간 배율 ${mult} = 약 ${fx(est)}건`:null,
+    `미장: 지금 S&P500 60일선 ${raw.us&&raw.us.up60===true?'위':raw.us&&raw.us.up60===false?'아래':'?'} — 열린 미장 규칙 월 ${fx(us)}건(미장 규칙 전체 ${fx(usAll)}건 중)`,
+    est!==null?`국장 지금: 코스피 60일선 이격 ${dev.toFixed(1)}% · ${isUp?'상승장':'하락장'}`:null,
+    est!==null?`국장 계산: 국면 기준 월 ${fx(gateSum)}건 × 이격 구간 배율 ${mult} = 약 ${fx(est)}건`:null,
     '',
     `국면 기준  상승장 월 ${fx(up)}건 · 하락장 월 ${fx(dn)}건`,
     '  규칙별 검증기간(2023~) 실측 빈도를 게이트별로 합한 값입니다.',
