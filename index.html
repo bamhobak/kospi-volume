@@ -98,7 +98,11 @@ header{min-height:52px;padding:6px 18px;flex-wrap:wrap;gap:8px 16px;align-conten
           border:1px solid var(--line);color:var(--mut);font-size:11px;white-space:nowrap}
 .mktstate i{width:6px;height:6px;border-radius:999px;background:var(--org);display:inline-block}
 .mktstate b{color:var(--txt)}
-#mktstate{display:none !important}   /* 2026-10-10 요청: 국면 칩(코스피/S&P500 60일선 위·아래)은 PC 에서도 감춘다 — 미장 표 묵음 경보(#usstate)는 그대로 */
+#mktstate{display:none !important}   /* 2026-10-10 요청: 머리줄 국면 칩은 감추고, 왼쪽 레일 '완료'와 '규칙' 사이(.railstate)에 PC 에서만 보인다 — 미장 표 묵음 경보(#usstate)는 그대로 */
+.railstate{display:flex;align-items:center;gap:7px;margin:2px 0 10px;padding:6px 11px;background:var(--panel2);border:1px solid var(--line);color:var(--mut);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.railstate:empty{display:none}
+.railstate i{width:6px;height:6px;border-radius:999px;display:inline-block;flex:none}
+@media(max-width:900px){.railstate{display:none !important}}
 body{display:flex;flex-direction:column;height:100%}
 header{flex:none}
 .shell{display:flex;flex:1;min-height:0}
@@ -1005,6 +1009,7 @@ function renderTabs(){
     + nrow('all','','매수 대기',wait)
     + nrow('pos','pos','보유 종목',positions().filter(p=>!p.sell).length)
     + nrow('done','done','완료',positions().filter(p=>p.sell).length) + `</div>`
+    + `<div class="railstate" title="${(($('#mktstate')||{}).title||'').replace(/"/g,'&quot;')}">${($('#mktstate')||{}).innerHTML||''}</div>`   /* 2026-10-10 요청: 국면 칩(S&P500·코스피 60일선)을 완료와 규칙 사이에 — PC 만 */
     + (FILTERS.length?`<div class="grp"><div class="k khead">규칙${freqNote()}</div>${rules}</div>`
        :`<div class="grp"><div class="k">규칙</div><div class="it" style="cursor:default;color:var(--dim)">데이 규칙 없음 · 1분봉 모으는 중</div></div>`)
     + `<div class="grp"><div class="k">조회</div>`
@@ -1123,6 +1128,7 @@ function renderTabs(){
     }
     usState();
   }else $('#mktstate').innerHTML='';
+  document.querySelectorAll('.railstate').forEach(el=>{el.innerHTML=$('#mktstate').innerHTML;el.title=$('#mktstate').title||''});   /* 레일 칩도 같이 */
   $('#fdesc').innerHTML=cur==='done'?`매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요. 수익률은 <b>매매비용 차감 후</b>입니다 — 국내 왕복 ${feeSum(fees().KR)}%(매수 ${fees().KR.b} + 매도 ${fees().KR.s}) · 미장 왕복 ${feeSum(fees().US)}%(매수 ${fees().US.b} + 매도 ${fees().US.s}). <b>슬리피지는 빼지 않습니다</b> — 직접 적은 체결가에 이미 들어 있습니다. 환전 수수료도 빠져 있습니다.`:cur==='pos'?''   /* 보유 탭 설명은 없앴다(2026-09-12 요청) — 규칙 칩과 표가 자리를 차지한다 */:cur==='all'?'':cur==='us'?(USROWS?`나스닥·뉴욕·아멕스 상장 ${USROWS.length.toLocaleString()}종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. <b>가격·시가총액·거래대금은 달러</b>이고, 열 설정은 코스피·코스닥 표와 따로 저장됩니다. ${raw.usUpdated?'기준 '+raw.usUpdated:''}`:'미장 자료를 받는 중입니다…')
       :(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));{const fd=$('#fdesc');
   if(fd&&fd.style){const has=(fd.innerHTML||'').trim();
