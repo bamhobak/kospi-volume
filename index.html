@@ -805,6 +805,8 @@ function splitSfx(n){const m=String(n||'').match(SECSFX);
   return m?[String(n).slice(0,m.index),m[1]]:[String(n||''),null]}
 function dispName(n){const [b,x]=splitSfx(n);
   return x?b+' <span class="sfx">('+x+')</span>':b}
+/* 보유·완료 이름 — 미장은 한글 이름표(us_kr.json) 우선(2026-10-10) */
+function pname(p){return (USKR&&USKR[p.code])||p.name||p.code}
 function dispNameTxt(n){const [b,x]=splitSfx(n);return x?b+' ('+x+')':b}
 function codeOf(id){
   const nid=normId(id);
@@ -1791,7 +1793,7 @@ async function renderPositions(){
        환율을 못 받았으면(fx=0) 예전처럼 숫자를 그대로 쓴다. */
     const fx=usdkrw(), us=isUSCode(p.code);
     const amt=(v)=>v==null?null:((us&&fx)?v*fx:v);
-    const V={name:p.name||p.code, rule:(p.filters||[])[0]||'', bdate:p.date,
+    const V={name:pname(p), rule:(p.filters||[])[0]||'', bdate:p.date,
       bprice:amt(p.price), qty:p.qty||0, bamt:amt((p.qty||0)*p.price), detail:null, act:null};
     if(DONE)return Object.assign(V,{sdate2:p.sellDate||'', sprice:amt(p.sell),
       dret:p.sell?(p.sell/p.price-1)*100:null,
@@ -1810,7 +1812,7 @@ async function renderPositions(){
   $('#tbl tbody').innerHTML=rows.map(({p,now,hi,days,line,tgt,ret,st,sc,streak,rule,useLive,lvDate,rid0})=>{
     const nowCell=pmon(now,p.code);
     const C={
-      name:`<td class="l name">${dispName(p.name)} <span class="code cpy" data-cp="${p.code}">${p.code}</span>${DONE?'':warnBadge(p.code)}</td>`,
+      name:`<td class="l name">${dispName(pname(p))} <span class="code cpy" data-cp="${p.code}">${p.code}</span>${DONE?'':warnBadge(p.code)}</td>`,
       rule:`<td class="l">${(p.filters||[]).map(f=>{const ff=fOf(f);return `<span class="tag ${ff?mkCls(ff.mkt):''}">${fcode(f)}</span>`}).join('')||'<span class="code">-</span>'}</td>`,
       bdate:`<td class="l">${md(p.date)}</td>`,
       bprice:`<td>${pmon(p.price,p.code)}</td>`,
@@ -1871,7 +1873,7 @@ async function renderPositions(){
   document.querySelectorAll('.pdet[data-detail]').forEach(b=>b.onclick=e=>{
     e.preventDefault();e.stopPropagation();openDetail(b.dataset.detail)});
   document.querySelectorAll('[data-sell]').forEach(b=>b.onclick=async e=>{e.stopPropagation();const a=positions();const p=a.find(x=>x.id==b.dataset.sell);const r=rows.find(r=>r.p.id==p.id);
-    const nm=dispNameTxt(p.name);
+    const nm=dispNameTxt(pname(p));
     const sell=await ask(nm,`매도가 (${unitOf(p.code)})`,r.now||p.price,'num');if(sell===null)return;
     /* 매도일 기본값은 '오늘'. 예전엔 데이터 최신일(전 거래일)을 말없이 넣어 하루씩 어긋났다(2026-09-09). */
     const _t=new Date(),pad=n=>String(n).padStart(2,'0');
@@ -1883,7 +1885,7 @@ async function renderPositions(){
   /* 수정 — 잘못 넣은 값을 고친다. 보유 상태면 매수 때 넣은 값(매수일·매수가·수량),
      완료 상태면 매도 때 넣은 값(매도가·매도일). 취소(null)하면 아무것도 안 바꾼다. */
   document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=async e=>{e.stopPropagation();const a=positions();const p=a.find(x=>x.id==b.dataset.edit);if(!p)return;
-    const nm=dispNameTxt(p.name);
+    const nm=dispNameTxt(pname(p));
     /* 고치는 자리에서도 빈 값·0 을 받지 않는다. 예전엔 수량만 '비우면 0' 이라 매수 기록을
        고치다가 수량이 0 이 되곤 했다(2026-09-11 사용자 요청). */
     if(p.sell){
@@ -2295,7 +2297,7 @@ function mktBadge(){const k=raw.kospi,el=$('#mkt');if(!k){el.style.display='none
   const kn=isMobile()?'P':'코스피', qn=isMobile()?'D':'코스닥';
   el.innerHTML=`${arr(kc)}${kn} ${ixf(kv)}${pct(kc)}`
     +(qv?` &nbsp;<span class="mkt ${cls(qc)}" style="margin-left:6px">${arr(qc)}${qn} ${ixf(qv)}${pct(qc)}</span>`:'')}
-let USROWS=null;
+let USROWS=null, USKR={};
 /* 미장 자료는 눌렀을 때 한 번만 받아 raw.rows 뒤에 붙인다. 규칙은 mk 로 시장을 가리므로
    미장 종목이 규칙 목록에 섞이지 않는다. 수급(개인·기관·외국인) 자료가 없어 0 배열로 채운다. */
 async function loadUS(quiet){
@@ -2309,8 +2311,11 @@ async function loadUS(quiet){
     const uv=(raw.uscal&&raw.uscal.updated)||raw.updated||'';
     raw.usFail=false;
     const d=await (await fetch('data/table_us.json?v='+uv)).json();
+    /* 미장 한글 이름(토스 이름표 · make_us_kr_names.py → us_kr.json, 2026-10-10 요청 "Meta Platforms Inc. → 메타").
+       영어 이름은 ne 에 남겨 검색에 쓴다. 이름표에 없는(새 상장) 종목은 영어 그대로. */
+    try{USKR=await (await fetch('us_kr.json?v='+uv)).json()}catch(e){USKR=USKR||{}}
     const z=new Array((raw.dates||[]).length).fill(0);
-    USROWS=(d.rows||[]).map(r=>Object.assign({fr:null,i:z,o:z,f:z,streak:0,per:null,pbr:null,pcr:null,dy:null},r));
+    USROWS=(d.rows||[]).map(r=>Object.assign({fr:null,i:z,o:z,f:z,streak:0,per:null,pbr:null,pcr:null,dy:null},r,USKR[r.t]?{n:USKR[r.t],ne:r.n}:{}));
     /* 미장 국면(S&P500 60일선)은 table.json 이 아니라 이 파일에만 들어 있다. 여기서
        raw.us 에 옮겨 담지 않으면 GATE.usUp60() 이 항상 거짓이라 미장 규칙이 절대 안 켜진다
        (2026-09-10 발견 — 알림은 2건인데 화면은 0 이었다). */
@@ -2325,7 +2330,7 @@ function prep(){const n=7,D=raw.dates,k=Math.max(0,D.length-n);view.dates=D.slic
   view.rows=raw.rows.map(r=>{const vols=r.v.slice(k),valid=vols.filter(x=>x!=null);const sum=a=>a.slice(k).reduce((x,y)=>x+(y||0),0);
     const prev=vols.slice(0,-1).filter(x=>x!=null),last=vols[vols.length-1];const avg=valid.length?valid.reduce((a,b)=>a+b,0)/valid.length:0;
     const ratio=(prev.length&&last!=null&&prev.reduce((a,b)=>a+b,0))?last/(prev.reduce((a,b)=>a+b,0)/prev.length)*100:null;
-    return {ticker:r.t,name:r.n,close:r.c,change:r.ch,foreign_ratio:r.fr,vols,avg,total:valid.reduce((a,b)=>a+b,0),ratio,indiv:sum(r.i),organ:sum(r.o),frgn:sum(r.f),amt:r.amt,cap:r.cap,r1m:r.r1m,r3m:r.r3m,r6m:r.r6m,r1y:r.r1y,per:r.per,pbr:r.pbr,pcr:r.pcr,dy:r.dy,pref:r.pref,fw:r.f.slice(-5).reduce((x,y)=>x+(y||0),0),v5:r.v.slice(-5).reduce((x,y)=>x+(y||0),0),fwp:(()=>{const v=r.v.slice(-5).reduce((x,y)=>x+(y||0),0),f=r.f.slice(-5).reduce((x,y)=>x+(y||0),0);return v?f/v*100:null})(),streak:r.streak||0,ret3:r.ret3,ret5:r.ret5,dma5:r.dma5,ret10:r.ret10,ret20:r.ret20,sr60:r.sr60,vs1:r.vs1,fw60:r.fw60,amt20:r.amt20,disc:r.disc,fromhi:r.fromhi,fromlo:r.fromlo,ins60:r.ins60,crc:r.crc,fw20:r.fw20,ow60:r.ow60,bb:r.bb,bbt:r.bbt,dev25:r.dev25,fw5:r.fw5,vol20:r.vol20,ret2y:r.ret2y,ret250:r.ret250,above20:r.above20,sr20:r.sr20,ow20:r.ow20,dbt:r.dbt,pbrd:r.pbrd,dma20:r.dma20,mdd60:r.mdd60,up:r.up,rs:r.rs,sr:r.sr,srDown:r.srDown,dilu:r.dilu,th:r.th||[],mk:r.mk||'KOSPI',ex:r.ex,ret60:r.ret60,su1:r.su1!=null?r.su1:r.vs1,nh5:r.nh5,remo:r.remo,bbd:r.bbd,bbnew:r.bbnew,pinr:r.pinr,hl20:r.hl20,absr:r.absr,qnew:r.qnew,qage:r.qage,spd:r.spd,v5v60:r.v5v60,spdel:r.spdel,spdelret:r.spdelret,peadq:r.peadq,peadgap:r.peadgap,peadage:r.peadage,peaddn:r.peaddn,peadrc:r.peadrc,aw:r.aw,a1:r.a1,a6:r.a6,r16:(r.a1&&r.a6)?r.a1/r.a6*100:null,rw1:(r.aw&&r.a1)?r.aw/r.a1*100:null,last:last??-1,chpct:(r.c&&r.ch!=null&&r.c-r.ch)?r.ch/(r.c-r.ch)*100:-999}});markUS(view.rows)}
+    return {ticker:r.t,name:r.n,ne:r.ne||'',close:r.c,change:r.ch,foreign_ratio:r.fr,vols,avg,total:valid.reduce((a,b)=>a+b,0),ratio,indiv:sum(r.i),organ:sum(r.o),frgn:sum(r.f),amt:r.amt,cap:r.cap,r1m:r.r1m,r3m:r.r3m,r6m:r.r6m,r1y:r.r1y,per:r.per,pbr:r.pbr,pcr:r.pcr,dy:r.dy,pref:r.pref,fw:r.f.slice(-5).reduce((x,y)=>x+(y||0),0),v5:r.v.slice(-5).reduce((x,y)=>x+(y||0),0),fwp:(()=>{const v=r.v.slice(-5).reduce((x,y)=>x+(y||0),0),f=r.f.slice(-5).reduce((x,y)=>x+(y||0),0);return v?f/v*100:null})(),streak:r.streak||0,ret3:r.ret3,ret5:r.ret5,dma5:r.dma5,ret10:r.ret10,ret20:r.ret20,sr60:r.sr60,vs1:r.vs1,fw60:r.fw60,amt20:r.amt20,disc:r.disc,fromhi:r.fromhi,fromlo:r.fromlo,ins60:r.ins60,crc:r.crc,fw20:r.fw20,ow60:r.ow60,bb:r.bb,bbt:r.bbt,dev25:r.dev25,fw5:r.fw5,vol20:r.vol20,ret2y:r.ret2y,ret250:r.ret250,above20:r.above20,sr20:r.sr20,ow20:r.ow20,dbt:r.dbt,pbrd:r.pbrd,dma20:r.dma20,mdd60:r.mdd60,up:r.up,rs:r.rs,sr:r.sr,srDown:r.srDown,dilu:r.dilu,th:r.th||[],mk:r.mk||'KOSPI',ex:r.ex,ret60:r.ret60,su1:r.su1!=null?r.su1:r.vs1,nh5:r.nh5,remo:r.remo,bbd:r.bbd,bbnew:r.bbnew,pinr:r.pinr,hl20:r.hl20,absr:r.absr,qnew:r.qnew,qage:r.qage,spd:r.spd,v5v60:r.v5v60,spdel:r.spdel,spdelret:r.spdelret,peadq:r.peadq,peadgap:r.peadgap,peadage:r.peadage,peaddn:r.peaddn,peadrc:r.peadrc,aw:r.aw,a1:r.a1,a6:r.a6,r16:(r.a1&&r.a6)?r.a1/r.a6*100:null,rw1:(r.aw&&r.a1)?r.aw/r.a1*100:null,last:last??-1,chpct:(r.c&&r.ch!=null&&r.c-r.ch)?r.ch/(r.c-r.ch)*100:-999}});markUS(view.rows)}
 /* ── 미장 유동성 플래그 — [상승장 신고가]가 쓴다 ───────────────────────────
    조건이 '그날 미장 전체 대비 거래대금 상위 40%' 라서 종목 하나만 보고는 판정할 수 없다.
    표를 만든 뒤 한 번에 매긴다. 신고가 **진입 이벤트**(nh5)는 종목 자기 이력만으로 정해져
@@ -2350,12 +2355,15 @@ const isMobile=()=>(typeof window!=='undefined'&&window.innerWidth<=900);
 let POSSORT={key:null,desc:true};
 const isCardView=()=>cur==='all'||FILTERS.some(f=>f.id===cur);   /* 규칙·매수대기는 카드, 조회는 표 */
 function render(){renderTabs();
+  /* 검색창은 검색이 되는 조회 탭(코스피·코스닥·미장 전체)에서만 보인다(2026-10-10 요청). 다른 탭에선 감추고 검색어도 푼다.
+     모바일은 CSS 가 원래 감춘다(#q{display:none}) — 여기 인라인 '' 은 그 규칙을 이기지 않는다. */
+  {const qb=$('#q'),qs=['kp','kq','us'].includes(cur);if(qb){qb.style.display=qs?'':'none';if(!qs&&qb.value){qb.value='';query=''}}}
   /* 규칙 칩은 보유 탭 전용이다. 다른 탭으로 가면 숨기고 고른 것도 푼다 —
      안 그러면 완료·조회 탭에 남의 칩이 남아 있고, 돌아왔을 때 표가 걸러진 채로 보인다. */
   if(cur!=='pos'){posRule=null;const _b=$('#pchips');if(_b)_b.style.display='none'}
   if(cur==='pos'||cur==='done'){showTable(true);renderPositions();return}
   const q=query.trim().toLowerCase();const D=view.dates;
-  let rows=view.rows.filter(r=>!q||r.name.toLowerCase().includes(q)||r.ticker.includes(q));
+  let rows=view.rows.filter(r=>!q||r.name.toLowerCase().includes(q)||(r.ne&&r.ne.toLowerCase().includes(q))||r.ticker.includes(q));
   const th2=200;
   rows=rows.filter(passes);
   if(isCardView()){showTable(false);renderCards(rows);return}
