@@ -18,7 +18,10 @@ SWH = (5, 10, 20, 40, 60)                  # 스윙 보유 거래일(2026-10-10 
 MODES = {"oc": ("시가 매수 → 같은 날 종가 매도", {"pre", "open"}),
          "on": ("종가 매수 → 다음날 시가 매도", {"pre", "open", "close"})}
 MODES.update({"sw%d" % h: ("시가 매수 → %d거래일 들고 종가 매도(스윙)" % h, {"pre", "open"}) for h in SWH})
+MODES.update({"m10c": ("10:00 매수 → 같은 날 종가 매도(1분봉 2022-12~)", {"pre", "open", "i10"}),          # 2026-10-10 장중 방식
+              "m14c": ("14:00 매수 → 같은 날 종가 매도(1분봉 2022-12~)", {"pre", "open", "i10", "i14"})})
 TARGET = {m: m for m in MODES}
+INTRA_SLIP = 0.05                          # 장중 시장가 매수 미끄러짐(단일가가 아니라서) — 비용에 더한다
 
 # 이름: (설명, 언제, 뒤집을 때 성질, 언제부터)
 #   성질: s = 0 기준 부호(값 → -값) · r = 1 기준 배수(값 → 1/값) · u = 0~1(값 → 1-값) · h = 0~100(값 → 100-값) · c = 그대로(부등호만 뒤집음)
@@ -61,14 +64,51 @@ FEATS = {
     "hi20t": ("오늘 종가의 20일 고가(오늘 포함) 대비 %(0=20일 신고가로 마감)", "close", "c"),
     "align": ("이평 정배열 단계 0~3(어제 종가 기준 5>20·20>60·60>120 일 선 만족 수)", "pre", "c"),
     "engulf": ("어제 상승 장악형 캔들(1=양봉 몸통이 그제 음봉 몸통을 감쌈)", "pre", "c"),
+    # 2026-10-10 2차(사용자: "여기서 할 수 있는 거 다 수집해" — 못 옮긴 조건 표)
+    "d50": ("어제 종가의 50일선 대비 %", "pre", "s"), "d200": ("어제 종가의 200일선 대비 %", "pre", "s"),
+    "st_up": ("어제 Supertrend(ATR10·배수3) 상승 추세면 1", "pre", "c"),
+    "lr50": ("최근 50일 종가 선형회귀 기울기(하루당 %)", "pre", "s"),
+    "vbrk": ("어제 거래량 ÷ 그 전 60일 최대 거래량(1↑=60일 신고 거래량)", "pre", "r"),
+    "c40": ("어제 종가의 그 전 40일 종가 최고 대비 %(0↑=40일 종가 신고)", "pre", "c"),
+    "bigd": ("최근 장대양봉(+7%↑·거래량 2배↑) 뒤 지난 거래일 수(30 이상은 30)", "pre", "c"),
+    "bodyr": ("어제 몸통 ÷ 고저폭(0=도지·1=꼬리 없는 마루보주)", "pre", "u"),
+    "sweep": ("어제 20일 저가를 깼다가 그 위로 마감(스윕 후 복귀)=1", "pre", "c"),
+    "turn": ("어제 회전율 %(거래량 ÷ 발행 주식)", "pre", "c"),
+    "inst": ("어제 기관 순매수 ÷ 20일 평균 거래대금 %", "pre", "s"), "inst5": ("최근 5일 기관 순매수 합 ÷ 20일 평균 거래대금 %", "pre", "s"),
+    "amtt": ("오늘 거래대금(억원, 종가 무렵)", "close", "c"),
+    # 장중(1분봉 2022-12~ · m10c/m14c 방식만)
+    "i_r10": ("오늘 시가→10:00 %", "i10", "s"), "i_vw10": ("10:00 가격의 VWAP 대비 %", "i10", "s"),
+    "i_a10": ("10:00까지 거래대금 ÷ 20일 평균 하루 거래대금", "i10", "r"),
+    "i_r14": ("오늘 시가→14:00 %", "i14", "s"), "i_vw14": ("14:00 가격의 VWAP 대비 %", "i14", "s"),
+    "i_pos14": ("14:00 가격의 오늘 고저 위치(0~1)", "i14", "u"), "i_a14": ("14:00까지 거래대금 ÷ 20일 평균 하루 거래대금", "i14", "r"),
     # 실시간 녹화(과거 없음) — 정답지·그림자 전용
     "a_eq": ("08:59 장전 호가로 본 예상 갭 %", "live", "s"), "a_drift": ("장전 예상 갭 변화(08:59 - 08:31) %p", "live", "s"),
     "a_imb": ("08:59 장전 호가 매수잔량 쏠림(-1~1)", "live", "s"), "a_nxt": ("NXT 장전 마지막 체결가 갭 %", "live", "s"),
     "a_err": ("장전 예상 갭 - 실제 갭 %p(예상이 얼마나 빗나갔나)", "live", "s"),
     "c_imb": ("15:27 마감 동시호가 매수잔량 쏠림", "live", "s"), "c_drift": ("마감 동시호가 예상가 - 15:20 가격 %", "live", "s"),
 }
-FLOW = {"fr", "ir", "fr5"}            # 2018~ 만 있다
+FLOW = {"fr", "ir", "fr5", "inst", "inst5"}            # 2018~ 만 있다
+INTRA = {k for k, v in FEATS.items() if v[1] in ("i10", "i14")}
 HIST = [k for k, v in FEATS.items() if v[1] != "live"]
+
+
+def _supertrend(tk, h, l, c, atr, mult):
+    """Supertrend 방향(1 상승·0 하락) — 종목이 바뀌면 처음부터. 종가가 위 밴드를 넘으면 상승, 아래 밴드를 깨면 하락."""
+    n = len(c); out = np.full(n, np.nan)
+    fu = fl = np.nan; up = True
+    for i in range(n):
+        if i == 0 or tk[i] != tk[i - 1]:
+            fu = fl = np.nan; up = True
+        a = atr[i]
+        if not (a == a): continue
+        mid = (h[i] + l[i]) / 2; ub = mid + mult * a; lb = mid - mult * a
+        pc_ = c[i - 1] if i and tk[i] == tk[i - 1] else c[i]
+        fu = ub if not (fu == fu) or ub < fu or pc_ > fu else fu
+        fl = lb if not (fl == fl) or lb > fl or pc_ < fl else fl
+        if up and c[i] < fl: up = False
+        elif not up and c[i] > fu: up = True
+        out[i] = 1.0 if up else 0.0
+    return out
 
 
 def _streak(b, tk):
@@ -156,6 +196,33 @@ def make(D, flows=None, themes=None, us=None, seam=True, amt_mp=15):
     po, pcl = g.open.shift(1), g.close.shift(1)
     eng = (c > o) & (pcl < po) & (c >= po) & (o <= pcl)                      # 오늘 양봉 몸통이 어제 음봉 몸통을 감쌈
     F["engulf"] = s1(eng.astype(float))
+    # ── 2026-10-10 2차 ──
+    for n in (50, 200):
+        F["d%d" % n] = (pc / s1(roll(c, n, "mean", int(n * 0.8))) - 1) * 100
+    tr_ = pd.concat([h - l, (h - pc).abs(), (l - pc).abs()], axis=1).max(axis=1)
+    atr = tr_.groupby(tk).transform(lambda s: s.ewm(alpha=1 / 10, adjust=False).mean())
+    F["st_up"] = s1(pd.Series(_supertrend(D.ticker.to_numpy(), h.to_numpy(), l.to_numpy(), c.to_numpy(), atr.to_numpy(), 3.0), index=D.index))
+    lc = np.log(c.where(c > 0))                                       # 50일 회귀 기울기 — 누적합 공식(빠르게): slope = (nΣty − ΣtΣy)/(nΣt² − (Σt)²)
+    n_ = 50.0; t_ = g.cumcount().astype(float)
+    Sy = roll(lc, 50, "sum"); Sty = roll(t_ * lc, 50, "sum")
+    St = n_ * t_ - n_ * (n_ - 1) / 2; Stt = roll(t_ * t_, 50, "sum")
+    F["lr50"] = s1((n_ * Sty - St * Sy) / (n_ * Stt - St * St)) * 100
+    F["vbrk"] = pv / s1(roll(v, 60, "max", 40)).groupby(tk).shift(1).replace(0, np.nan)
+    F["c40"] = (pc / s1(roll(c, 40, "max", 30)).groupby(tk).shift(1) - 1) * 100
+    big = ((ret >= 7) & (v >= 2 * v20p)).astype(float)
+    idx = pd.Series(np.where(big > 0, g.cumcount(), np.nan), index=D.index).groupby(tk).ffill()
+    F["bigd"] = s1((g.cumcount() - idx).clip(upper=30)).fillna(30)
+    F["bodyr"] = s1((c - o).abs() / rg)
+    lo20 = s1(roll(l, 20, "min", 15))
+    F["sweep"] = s1(((l < lo20) & (c > lo20)).astype(float))
+    if "marcap" in D.columns:
+        shares = (mc * 1e8 / c).where(c > 0)
+        F["turn"] = s1(v / shares * 100)
+    elif "shares" in D.columns:
+        F["turn"] = s1(v / D.shares.astype(float) * 100)
+    else:
+        F["turn"] = np.nan
+    F["amtt"] = c * v / 1e8
     # 목표
     F["oc"] = F["oct"]
     F["on"] = (g.open.shift(-1) / c - 1) * 100
@@ -187,8 +254,14 @@ def make(D, flows=None, themes=None, us=None, seam=True, amt_mp=15):
         F["fr"] = fr_.groupby(tk).shift(1).values / a8 * 100
         F["ir"] = ir_.groupby(tk).shift(1).values / a8 * 100
         F["fr5"] = fr_.groupby(tk).rolling(5, min_periods=3).sum().reset_index(level=0, drop=True).groupby(tk).shift(1).values / a8 * 100
+        if "inst" in flows.columns:
+            in_ = D[["ticker", "date"]].merge(flows[["ticker", "date", "inst"]], on=["ticker", "date"], how="left").inst.astype(float)
+            F["inst"] = in_.groupby(tk).shift(1).values / a8 * 100
+            F["inst5"] = in_.groupby(tk).rolling(5, min_periods=3).sum().reset_index(level=0, drop=True).groupby(tk).shift(1).values / a8 * 100
+        else:
+            F["inst"] = F["inst5"] = np.nan
     else:
-        F["fr"] = F["ir"] = F["fr5"] = np.nan
+        F["fr"] = F["ir"] = F["fr5"] = F["inst"] = F["inst5"] = np.nan
     if themes is not None and len(themes):
         R = D[["ticker", "date"]].assign(ret=ret.clip(-30, 30))
         M = themes[["gname", "ticker"]].drop_duplicates().merge(R, on="ticker")
@@ -204,6 +277,22 @@ def make(D, flows=None, themes=None, us=None, seam=True, amt_mp=15):
         F[k] = np.nan
     out = pd.concat([D[["ticker", "date"]], F], axis=1)
     return out
+
+
+def intra(U, M):
+    """장중 재료·목표(m10c·m14c) — M: ticker,date + 1분봉 단면 o_m,c_m,p1000,vw1000,v1000,p1400,vw1400,hi1400,lo1400,v1400,amt20_m
+    (가격은 1분봉끼리만 — 일봉 수정주가와 섞지 않는다 · H0295 함정). U 에 붙여 돌려준다(1분봉 없는 줄은 빈칸)."""
+    Z = U[["ticker", "date"]].merge(M, on=["ticker", "date"], how="left")
+    U["i_r10"] = ((Z.p1000 / Z.o_m - 1) * 100).values
+    U["i_vw10"] = ((Z.p1000 / Z.vw1000 - 1) * 100).values
+    U["i_a10"] = (Z.v1000 * Z.vw1000 / Z.amt20_m.replace(0, np.nan)).values
+    U["i_r14"] = ((Z.p1400 / Z.o_m - 1) * 100).values
+    U["i_vw14"] = ((Z.p1400 / Z.vw1400 - 1) * 100).values
+    U["i_pos14"] = ((Z.p1400 - Z.lo1400) / (Z.hi1400 - Z.lo1400).replace(0, np.nan)).values
+    U["i_a14"] = (Z.v1400 * Z.vw1400 / Z.amt20_m.replace(0, np.nan)).values
+    U["m10c"] = ((Z.c_m / Z.p1000 - 1) * 100).values
+    U["m14c"] = ((Z.c_m / Z.p1400 - 1) * 100).values
+    return U
 
 
 def qcols(U, feats=None):

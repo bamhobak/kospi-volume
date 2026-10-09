@@ -103,17 +103,29 @@ def fill_missing(days=62, rate=8.0):
     C.log("빈 일봉 메우기 끝: %d줄 · %.0f분" % (len(rows), (time.time() - t0) / 60))
 
 
-def snap1519(day):
-    """그날 1분봉에서 15:19 까지 모습(종가 단일가 전에 알 수 있는 것) — ticker · p1519 · hi1519 · lo1519 · v1519 · vol_m."""
+def snap_m1(day):
+    """그날 1분봉 단면 — 10:00·14:00·15:19 까지 가격·VWAP·고저·거래량 + 시가·종가(장중 방식·종가 매수 15:19 재검용)."""
     f = M1 / "day" / ("%s.parquet" % day)
     if not f.exists(): return None
     D = pd.read_parquet(f)
     k = D.ts.to_numpy().astype("int64") + 9 * 3600
     hm = ((k % 86400) // 3600) * 100 + (k % 3600) // 60
     D = D.assign(hm=hm)[(hm >= 901) & (hm <= 1531)].sort_values(["t", "ts"])
-    E = D[D.hm <= 1519]
-    g, ge = D.groupby("t"), E.groupby("t")
-    return pd.DataFrame({"p1519": ge.c.last(), "hi1519": ge.h.max(), "lo1519": ge.l.min(), "v1519": ge.v.sum(), "vol_m": g.v.sum()}).astype(float).rename_axis("ticker").reset_index()
+    D["pv"] = D.c.astype(float) * D.v.astype(float)
+    g = D.groupby("t")
+    out = {"o_m": g.o.first(), "c_m": g.c.last(), "vol_m": g.v.sum()}
+    for t in ("1000", "1400", "1519"):
+        E = D[D.hm <= int(t)]; ge = E.groupby("t")
+        out.update({"p" + t: ge.c.last(), "hi" + t: ge.h.max(), "lo" + t: ge.l.min(), "v" + t: ge.v.sum(),
+                    "vw" + t: ge.pv.sum() / ge.v.sum().replace(0, np.nan)})
+    R = pd.DataFrame(out).astype(float).rename_axis("ticker").reset_index()
+    R.loc[g.hm.first().reindex(R.ticker).to_numpy() != 901, "o_m"] = np.nan          # 첫 봉이 09:01 이 아니면 시가 단일가가 아님
+    return R.assign(date=day)
+
+
+def snap1519(day):
+    R = snap_m1(day)
+    return None if R is None else R[["ticker", "p1519", "hi1519", "lo1519", "v1519", "vol_m"]]
 
 
 def names(force=False):
@@ -155,6 +167,12 @@ def frame(days=None, A=None):
     U["age"] = np.where(dd.notna(), np.minimum(dd, 250), U.age)
     attach_transfer(U)
     attach_auction(U)
+    Ms = [m for m in (snap_m1(d) for d in sorted(U.date.unique())) if m is not None]     # 장중 재료·목표(m10c·m14c)
+    if Ms:
+        M = pd.concat(Ms, ignore_index=True).merge(U[["ticker", "date", "amt20"]], on=["ticker", "date"], how="left")
+        FT.intra(U, M.assign(amt20_m=M.amt20 * 1e8).drop(columns=["amt20"]))
+    else:
+        for k in list(FT.INTRA) + ["m10c", "m14c"]: U[k] = np.nan
     return FT.shrink(FT.qcols(U, [f for f in FT.FEATS if f in U.columns]))
 
 

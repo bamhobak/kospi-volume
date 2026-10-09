@@ -18,6 +18,7 @@ import lab
 
 RV = C.REP / "review"; RV.mkdir(parents=True, exist_ok=True)
 HOW = {"oc": "08:5x 장전에 골라 시가 단일가(OPG) 매수 → 같은 날 15:20~30 종가 단일가 매도 — [갭 하락 조용주] 와 같은 방식(day_alert 에 붙인다)",
+       "m": "%s:00 에 그때까지 모습으로 골라 장중 시장가 매수 → 같은 날 종가 단일가 매도 — 데이 탭 장중 규칙으로 새로 붙인다(토스 실시간 소켓 200종목 한계 안)",
        "on": "15:19 가격으로 골라 종가 단일가(15:20~30) 매수 → 다음날 시가 단일가 매도 — 데이 탭에 '종가 매수' 규칙으로 새로 붙인다",
        "sw": "장전에 골라 시가 매수 → %d거래일 뒤 종가 매도%s — 스윙 탭 규칙(사이트 FILTERS + 엣지 함수 보유일 + autotrade)"}
 
@@ -37,7 +38,8 @@ def _s(T, a, b):
 
 def _three(U, spec):
     T = _T(U, spec)
-    return {"ref": _s(T, *lab.REF), "tr": _s(T, *lab.TR), "va": _s(T, *lab.VA)}
+    rf, tr, va = lab.periods(spec)
+    return {"ref": _s(T, *rf) if rf else None, "tr": _s(T, *tr), "va": _s(T, *va)}
 
 
 def variants(spec):
@@ -67,6 +69,7 @@ def variants(spec):
 def data(x, L=None):
     U = lab.hist()
     T = _T(U, x)
+    RF, TRp, VAp = lab.periods(x)
     names = C.jload(C.DATA / "names.json", {})
     L = L or lab.load()
     r = x.get("res") or {}
@@ -76,25 +79,25 @@ def data(x, L=None):
     for nm, m in (("작은 종목(거래대금 아래 1/3)", Tm.liq <= 1 / 3), ("중간", (Tm.liq > 1 / 3) & (Tm.liq <= 2 / 3)), ("큰 종목(위 1/3)", Tm.liq > 2 / 3),
                   ("시장 5일 오름", Tm.mk_r5 > 0), ("시장 5일 내림", Tm.mk_r5 <= 0)):
         z = Tm[m.fillna(False)]
-        parts.append({"label": nm, "tr": _s(z, *lab.TR), "va": _s(z, *lab.VA)})
+        parts.append({"label": nm, "tr": _s(z, *TRp), "va": _s(z, *VAp)})
     z = T.assign(ret=T.ret - 0.1)
-    parts.append({"label": "비용 +0.1%p 더 들면", "tr": _s(z, *lab.TR), "va": _s(z, *lab.VA)})
+    parts.append({"label": "비용 +0.1%p 더 들면", "tr": _s(z, *TRp), "va": _s(z, *VAp)})
     var = []
     for lab_, sp in variants(x):
         try: var.append(dict(label=lab_, **_three(U, sp)))
         except Exception as ex: var.append({"label": lab_, "err": str(ex)[:60]})
     ov = []
     if "t1" in T.columns: ov.append({"with": "[갭 하락 조용주] T1", "pct": round(float(T.t1.mean() * 100), 1)})
-    A = set(zip(lab.seg(T, *lab.VA).date, lab.seg(T, *lab.VA).ticker))
+    A = set(zip(lab.seg(T, *VAp).date, lab.seg(T, *VAp).ticker))
     for y in L:
         if y["id"] != x["id"] and y.get("status") in ("review", "adopted"):
             B = lab._tset(y, U)
             if A and B: ov.append({"with": y["id"], "pct": round(len(A & B) / max(min(len(A), len(B)), 1) * 100, 1)})
     sib = [y["id"] for y in L if y.get("status") == "sibling" and x["id"] in (y.get("why") or "")]
     last = T.sort_values("date").tail(10)
-    va = lab.seg(T, *lab.VA)
+    va = lab.seg(T, *VAp)
     m = x["mode"]; ex = x.get("exit") or {}
-    how = HOW["sw"] % (int(m[2:]), (" (보유 중 %s%s)" % (("손절 %g%% " % ex["stop"]) if ex.get("stop") else "", ("익절 +%g%%" % ex["take"]) if ex.get("take") else "")) if ex else "") if m.startswith("sw") else HOW[m]
+    how = (HOW["m"] % m[1:3]) if m.startswith("m") else HOW["sw"] % (int(m[2:]), (" (보유 중 %s%s)" % (("손절 %g%% " % ex["stop"]) if ex.get("stop") else "", ("익절 +%g%%" % ex["take"]) if ex.get("take") else "")) if ex else "") if m.startswith("sw") else HOW[m]
     return {"id": x["id"], "status": x.get("status"), "name": x.get("name", ""), "desc": x.get("desc") or lab.desc(x), "mode": m,
             "kind": "스윙" if m.startswith("sw") else "데이", "origin": x.get("origin"), "source": x.get("source", ""),
             "approx": x.get("approx", ""), "untestable": x.get("untestable", ""), "since": x.get("shadow_from"),
@@ -103,7 +106,7 @@ def data(x, L=None):
             "variants": var, "parts": parts, "overlap": ov, "siblings": sib,
             "recent": [[d, names.get(t, t), round(float(rr), 2)] for d, t, rr in zip(last.date, last.ticker, last.ret)],
             "perday": round(float(lab.stats(va)["perday"]), 2) if len(va) else 0,
-            "dayshare": round(va.date.nunique() / max(U[U.date >= lab.VA[0]].date.nunique(), 1) * 100, 1),
+            "dayshare": round(va.date.nunique() / max(U[U.date >= VAp[0]].date.nunique(), 1) * 100, 1),
             "how": how, "fwd": x.get("fwd") or {}}
 
 

@@ -24,7 +24,7 @@ import feats as FT
 
 SPECS = C.DATA / "specs.jsonl"
 HIST = C.CACHE / "factory_kr.pkl"
-VER = "f4"                      # 재료 정의 바꾸면 올린다 → 과거 자료 다시 만든다(f2 2026-10-10: 재료 17개·스윙 10/40/60일 추가)
+VER = "f5"                      # 재료 정의 바꾸면 올린다 → 과거 자료 다시 만든다(f2 2026-10-10: 재료 17개·스윙 10/40/60일 추가)
 TR = ("20160101", "20221231"); VA = ("20230101", "20991231"); REF = ("20100101", "20151231")
 DSR_MIN = 0.90
 _U = None
@@ -35,7 +35,8 @@ _U = None
 # ══════════════════════════════════════════════════════════════════════
 def load_flows(since="20170101"):
     c = sqlite3.connect("file:" + str(C.BASE / "data" / "investor.db") + "?mode=ro", uri=True)
-    return pd.read_sql("SELECT ticker, date, indiv, frgn FROM flow11 WHERE date >= ?", c, params=(since,))
+    return pd.read_sql("SELECT ticker, date, indiv, frgn, (COALESCE(fin,0)+COALESCE(ins,0)+COALESCE(tru,0)+COALESCE(pef,0)+COALESCE(bank,0)+COALESCE(ofin,0)+COALESCE(pens,0)) AS inst "
+                       "FROM flow11 WHERE date >= ?", c, params=(since,))
 
 
 def load_themes():
@@ -62,6 +63,11 @@ def build_hist(force=False):
         TF.attach_hist(U)
     except Exception as ex:
         C.log("전이표 재료 못 붙임(미장 자료 없음?):", repr(ex)[:200])
+    try:                                                                # 장중 방식(m10c·m14c) — 1분봉 단면 2022-12~ 상위 1,000
+        Mp = pd.read_pickle(C.CACHE / "m1_panel_KR.pkl")[["ticker", "date", "o", "c", "p1000", "vw1000", "v1000", "p1400", "vw1400", "hi1400", "lo1400", "v1400", "amt20"]]
+        FT.intra(U, Mp.rename(columns={"o": "o_m", "c": "c_m", "amt20": "amt20_m"}))
+    except Exception as ex:
+        C.log("장중 재료 못 붙임:", repr(ex)[:200])
     U = FT.shrink(FT.qcols(U, FT.HIST))
     U["t1"] = ((U.q_gap <= 0.10) & (U.q_vm <= 0.30) & (U.liq <= 1 / 3) & (U.rgap <= -2.0)).astype(bool)   # T1 근사(겹침 확인용)
     U.to_pickle(HIST); meta.write_text(key)
@@ -225,7 +231,7 @@ def trades(U, spec, PXD=None):
         t = spec["top"]
         T = T.sort_values(["date", t["by"]], ascending=[True, t.get("asc", True)]).groupby("date").head(int(t["n"]))
     r = T[tgt].astype(float).clip(-60, 60)
-    T = T.assign(ret=(r - FT.COST) if spec["mode"] in ("oc", "on") else r)
+    T = T.assign(ret=(r - FT.COST) if spec["mode"] in ("oc", "on") else (r - FT.COST - FT.INTRA_SLIP) if spec["mode"].startswith("m") else r)
     if spec["mode"].startswith("sw"):                                   # 보유 중 같은 종목 다시 안 산다
         h = int(spec["mode"][2:]); dates = sorted(U.date.unique()); di = {d: i for i, d in enumerate(dates)}
         T = T.sort_values("date"); keep, last = [], {}
@@ -254,6 +260,13 @@ def stats(T):
                 ex=float(T.ex.mean()) if "ex" in T.columns else None)
 
 
+def periods(spec):
+    """(참고, 학습, 검증) — 장중 방식(m*)은 1분봉이 2022-12~ 라 학습 2022-12~24 · 검증 2025~ · 참고 없음."""
+    if spec["mode"].startswith("m"):
+        return None, ("20221201", "20241231"), ("20250101", "20991231")
+    return REF, TR, VA
+
+
 def seg(T, a, b):
     return T[(T.date >= a) & (T.date <= b)]
 
@@ -267,8 +280,9 @@ def judge(spec, U=None, n_trials=None):
     if sw:                                                              # 스윙: 같은 날 아무 종목을 같은 기간 들고 간 것보다 나은가(드리프트 착시 방지)
         tg = FT.TARGET[spec["mode"]]
         T = T.assign(ex=T.ret - T.date.map(U.groupby("date")[tg].mean()))
-    tr0 = "20180101" if any(c["f"] in FT.FLOW for c in spec["conds"]) else TR[0]
-    R = dict(stage=0, why="", ref=stats(seg(T, *REF)), tr=stats(seg(T, tr0, TR[1])), va=None, dsr=None)
+    REF_, TR_, VA_ = periods(spec)
+    tr0 = max("20180101", TR_[0]) if any(c["f"] in FT.FLOW for c in spec["conds"]) else TR_[0]
+    R = dict(stage=0, why="", ref=stats(seg(T, *REF_)) if REF_ else None, tr=stats(seg(T, tr0, TR_[1])), va=None, dsr=None)
     s = R["tr"]
     why = []
     if not s or s["n"] < 150 or s["days"] < 60: why.append("학습 건수 부족(%s건)" % (s["n"] if s else 0))
@@ -280,9 +294,9 @@ def judge(spec, U=None, n_trials=None):
     if why:
         R["why"] = " · ".join(why); return R
     R["stage"] = 1
-    v = R["va"] = stats(seg(T, *VA))
+    v = R["va"] = stats(seg(T, *VA_))
     n_tr = n_trials or max(trial_count("factory"), 1)
-    mon = seg(T, tr0, VA[1]).groupby("date").ret.mean()
+    mon = seg(T, tr0, VA_[1]).groupby("date").ret.mean()
     mon = mon.groupby(mon.index.str[:6]).mean()
     d = deflated_sharpe(mon, n_tr)
     R["dsr"] = d["dsr"] if d else None
@@ -293,7 +307,7 @@ def judge(spec, U=None, n_trials=None):
         if v["ypos"] * 2 < v["ny"]: why.append("검증 플러스 해 %d/%d" % (v["ypos"], v["ny"]))
         if sw and not (v["ex"] or 0) > 0: why.append("검증: 같은 날 아무 종목보다 %+.2f%%p(못 이김)" % (v["ex"] or 0))
     if R["dsr"] is None or R["dsr"] < DSR_MIN: why.append("다중검정 %.2f < %.2f(공장 누적 %d개 기준)" % (R["dsr"] or 0, DSR_MIN, n_tr))
-    ov = stats(seg(T, tr0, VA[1]))["t1"]
+    ov = stats(seg(T, tr0, VA_[1]))["t1"]
     if ov >= 50: why.append("T1 과 겹침 %.0f%%" % ov)
     if not why and needs_1519(spec):
         H = R["honest"] = honest_1519(U, spec)
@@ -416,7 +430,7 @@ _TK = {}
 def _tset(spec, U):
     k = spec.get("key") or key(spec)
     if k not in _TK:
-        T = seg(trades(U, spec), *VA)
+        T = seg(trades(U, spec), *periods(spec)[2])
         _TK[k] = set(zip(T.date, T.ticker))
     return _TK[k]
 
@@ -428,6 +442,7 @@ def sibling(x, L, U, cut=0.6):
     best = None
     for y in L:
         if y is x or y.get("status") not in ("shadow", "propose", "review", "adopted") or uses_live(y): continue
+        if x.get("origin") == "tighten" and y["id"] == x.get("source"): continue     # 조인 판은 원안의 부분집합이 당연 — 따로 본다
         B = _tset(y, U)
         ov = len(A & B) / max(min(len(A), len(B)), 1)
         if ov >= cut and (best is None or ov > best[1] / 100):

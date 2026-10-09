@@ -7,18 +7,30 @@
   게시판은 잡담이 대부분 → 제목에 기법 말(KEYS)이 있는 글만 연다.
 반환: dict(key, src, title, url, text) — key 는 본 목록(harvest_seen) 중복 막기용.
 """
-import html, re, time, urllib.parse
+import html, json, re, time, urllib.parse
 
 import common as C
 
 KEYS = re.compile(r"매매법|기법|매매 ?전략|단타|스윙|종가 ?베팅|종가 ?배팅|시초가|눌림|돌파|승률|매수 ?타점|매수 ?조건|상한가 ?따라|스캘핑|데이 ?트레이딩|추세 ?추종|역추세|패턴")
 
 
+class Blocked(Exception):
+    pass
+
+
 def _get(u, **kw):
+    """사이트별 속도 조절(pace) — 막힌 낌새면 그 사이트 간격을 늘리고 Blocked, 12시간 쉬는 중이면 바로 Blocked."""
+    import pace
     from curl_cffi import requests as cr
-    time.sleep(1.0)
+    h = pace.host_of(u)
+    if pace.blocked(h): raise Blocked(h + " 쉬는 중")
+    pace.wait(h)
     r = cr.get(u, impersonate="chrome", timeout=25, **kw)
+    head = r.text[:4000]
+    if r.status_code in (403, 429, 503) or "Just a moment" in head or ("captcha" in head.lower() and len(r.text) < 30000):
+        pace.hit(h, "HTTP %d" % r.status_code); raise Blocked("%s HTTP %d" % (h, r.status_code))
     r.raise_for_status()
+    pace.ok(h)
     return r.text
 
 
@@ -157,14 +169,16 @@ def reddit(n=25):
     하룻밤 게시판 목록 4번뿐(목록 응답에 본문이 같이 와서 글마다 안 연다). 쿠키가 없으면 건너뛴다. 만료되면 로그에 '레딧 실패' → 점검기."""
     v = C.env().get("REDDIT_SESSION")
     if not v: return []
-    from curl_cffi import requests as cr
+    import pace
     out = []
     for sub in REDDIT_SUBS:
-        time.sleep(3)
-        r = cr.get("https://old.reddit.com/r/%s/top.json?t=week&limit=%d" % (sub, n), impersonate="chrome", timeout=25, cookies={"reddit_session": v})
-        try: j = r.json()
+        try:
+            t = _get("https://old.reddit.com/r/%s/top.json?t=week&limit=%d" % (sub, n), cookies={"reddit_session": v})
+            j = json.loads(t)
+        except Blocked as ex:
+            C.log("레딧 속도 조절로 멈춤", sub, str(ex)[:80]); break
         except Exception:
-            C.log("레딧 실패(로그인 쿠키 만료? HTML 받음)", sub, r.status_code); continue
+            C.log("레딧 실패(로그인 쿠키 만료? HTML 받음)", sub); continue
         for c in (j.get("data") or {}).get("children") or []:
             d = c.get("data") or {}
             txt = d.get("selftext") or ""
@@ -187,6 +201,8 @@ def fetch(item):
     if item.get("text") is None and item.get("_fetch"):
         try:
             item["title"], item["text"] = item["_fetch"]()
+        except Blocked as ex:
+            item["text"] = None; item["blocked"] = True                 # 속도 조절로 쉬는 중 — 재시도 횟수에 안 센다
         except Exception as ex:
             C.log("본문 받기 오류(다음에 다시)", item["key"], str(ex)[:100]); item["text"] = None
     return item

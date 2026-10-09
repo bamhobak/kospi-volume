@@ -182,6 +182,23 @@ def check():
             try: b.unlink()
             except Exception: pass
             bad("⚠", "%s 표시가 %.0f시간 남아 있어 지움(1분봉 과거 채우기가 그동안 멈춰 있었음)" % (b.name, age))
+    # 출처별 수집 — 시도했는데 두 밤 연속 하나도 못 읽은 곳 · 속도 조절로 쉬는 사이트(2026-10-10)
+    sf = C.DATA / "harvest_stats.jsonl"
+    if sf.exists():
+        import collections
+        rows = [json.loads(l) for l in sf.read_text(encoding="utf-8").splitlines() if l.strip()]
+        ds = sorted({r["date"] for r in rows})[-2:]
+        by = collections.defaultdict(list)
+        for r in rows:
+            if r["date"] in ds: by[r["src"]].append(r)
+        for src, rs_ in by.items():
+            if len({r["date"] for r in rs_}) == 2 and all(r["tried"] > 0 and r["ok"] == 0 for r in rs_):
+                bad("⚠", "수집처 '%s' 두 밤 연속 본문 0건(시도 %d) — 막혔거나 화면 구조가 바뀜" % (src, sum(r["tried"] for r in rs_)))
+    try:
+        import pace
+        for h, p in pace.summary().items():
+            if p["paused"]: bad("⚠", "수집처 %s 막힌 낌새로 12시간 쉬는 중(간격 %.0f초) — 자동으로 느리게 다시 시도" % (h, p["gap"]))
+    except Exception: pass
     rs = C.env().get("REDDIT_SESSION")                                   # 레딧 로그인 쿠키 만료 2주 전 미리 알림(2026-10-10 · 쿠키는 6개월짜리)
     if rs:
         try:

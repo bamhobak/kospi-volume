@@ -88,10 +88,17 @@ def usage_report():
 
 # ── 수집 ────────────────────────────────────────────────────────────
 def yt_search(q, n=8):
-    import yt_dlp
+    import yt_dlp, pace
+    if pace.blocked("youtube_search"): return []
+    pace.wait("youtube_search")
     u = "https://www.youtube.com/results?search_query=%s&sp=CAI%%3D" % urllib.parse.quote(q)      # 업로드 날짜순
-    with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "extract_flat": True, "skip_download": True, "playlistend": n}) as y:
-        j = y.extract_info(u, download=False) or {}
+    try:
+        with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "extract_flat": True, "skip_download": True, "playlistend": n}) as y:
+            j = y.extract_info(u, download=False) or {}
+    except Exception as ex:
+        if pace.is_block(ex): pace.hit("youtube_search", str(ex)[:120]); return []
+        raise
+    pace.ok("youtube_search")
     return [e for e in (j.get("entries") or []) if e.get("id") and len(e["id"]) == 11]
 
 
@@ -107,7 +114,10 @@ def vtt_text(p):
 def yt_text(vid, lang="ko"):
     """자막 — 영상 원래 언어(검색어 언어)로 받는다(2026-10-10: 전엔 한국어만 받아 영어 영상은 기계 번역 자막이었다).
     받기 자체가 실패(네트워크 등)하면 None — 다음 밤에 다시 시도한다. 자막이 정말 없으면 ''."""
-    import yt_dlp
+    import yt_dlp, pace
+    import sources as S
+    if pace.blocked("youtube"): raise S.Blocked("youtube 쉬는 중")
+    pace.wait("youtube")
     d = Path(tempfile.mkdtemp(prefix="hv_"))
     try:
         langs = [lang] + ([lang + "-orig"] if lang != "ko" else [])
@@ -116,8 +126,11 @@ def yt_text(vid, lang="ko"):
         with yt_dlp.YoutubeDL(opts) as y:
             y.download(["https://www.youtube.com/watch?v=" + vid])
         fs = sorted(glob.glob(str(d / "*.vtt")), key=lambda f: ("-orig" not in f, f))
+        pace.ok("youtube")
         return vtt_text(fs[0]) if fs else ""
     except Exception as ex:
+        if pace.is_block(ex):                                          # 429 등 — 간격 늘리고 이 영상은 다음 밤에(재시도 횟수 안 셈)
+            pace.hit("youtube", str(ex)[:120]); raise S.Blocked("youtube " + str(ex)[:60])
         C.log("자막 받기 오류(다음에 다시)", vid, str(ex)[:120]); return None
     finally:
         shutil.rmtree(d, ignore_errors=True)
@@ -147,7 +160,8 @@ def extract_sys():
 
 매매 방식(mode) — 데이는 oc/on, 스윙은 보유 기간이 가장 가까운 sw*(영상이 '며칠'만 말하면 sw5·sw10·sw20 중 가까운 것):
 {MODES}
-재료 사전(f — 설명 [언제 아는가]): pre=어제 종가까지 확정 · open=오늘 시가(장전 예상가로 미리 보임) · close=오늘 종가 무렵(on 방식만)
+재료 사전(f — 설명 [언제 아는가]): pre=어제 종가까지 확정 · open=오늘 시가(장전 예상가로 미리 보임) · close=오늘 종가 무렵(on 방식만) ·
+  i10=오늘 10:00까지 장중 모습(m10c·m14c 방식만) · i14=14:00까지(m14c 만). '장 초반 30분 보고 매수'·'오후 2시 이후 매수' 같은 장중 기법은 m10c·m14c 로 옮긴다.
 {FEATS}
 
 조건 형식: {"f": 재료, "op": "<=" 또는 ">=", "v": 숫자, "q": true/false}
@@ -182,6 +196,7 @@ QUERIES_FOREIGN = [("day trading strategy stocks", "en"), ("swing trading strate
                    ("當沖 技巧 台股", "zh-Hant"), ("波段 操作 技巧 股票", "zh-Hant")]
 LANG_NAME = {"ko": "", "en": "(영어)", "ja": "(일본어)", "zh-Hant": "(중국어)"}
 RETRY = C.DATA / "harvest_retry.json"
+STATS = C.DATA / "harvest_stats.jsonl"          # 수집 기록(출처별·밤마다 건수)
 NB_QUERIES = ["단타 매매법", "종가베팅 기법", "시초가 매매 기법", "스윙 매매 기법", "눌림목 매매법", "주식 매매 기법 승률"]
 NEEDS = C.DATA / "needs.jsonl"
 
@@ -223,29 +238,38 @@ def run(max_extract=MAX_EXTRACT):
     """하룻밤 수집 → 명세 목록(아직 깔때기에 안 넣음). 반환 (명세들, 보고 줄들)."""
     import lab, sources as S
     seen = C.jload(SEEN, {})
-    cand = candidates(seen)[:MAX_SCREEN]
+    allc = candidates(seen)
+    cand = allc[:MAX_SCREEN]
     specs, rep, nx = [], [], 0
     xsys = extract_sys()
     retry = C.jload(RETRY, {})
+    import collections                                                # 수집 기록(2026-10-10 사용자: 사이트별로 제대로 가져오나 날짜별로)
+    ST = collections.defaultdict(lambda: dict(found=0, tried=0, ok=0, err=0, blocked=0, short=0, passed=0, xl=0, specs=0))
+    for x in allc: ST[x["src"]]["found"] += 1
     for it in cand:
         if month_spent() >= budget(): rep.append("이달 한도 다 써서 멈춤"); break
+        st_ = ST[it["src"]]; st_["tried"] += 1
         S.fetch(it)
         if it.get("text") is None:                                   # 받기 오류(네트워크 등) — 3번까지 다음 밤에 다시
+            if it.get("blocked"): st_["blocked"] += 1; continue      # 속도 조절로 쉬는 중이면 재시도 횟수에 안 센다
+            st_["err"] += 1
             retry[it["key"]] = retry.get(it["key"], 0) + 1
             if retry[it["key"]] >= 3: seen[it["key"]] = "받기 3번 실패"
             continue
         txt, title = it.get("text") or "", it.get("title") or ""
         if len(txt) < 300:
-            seen[it["key"]] = "본문·자막 없음"; continue
+            st_["short"] += 1; seen[it["key"]] = "본문·자막 없음"; continue
+        st_["ok"] += 1
         try:
             s = _json(ask(SCREEN_MODEL, SCREEN_SYS, "출처: %s\n제목: %s\n앞부분: %s" % (it["src"], title, txt[:2500]), "거르기", 300, think=False)) or {}
         except Exception as ex:
             C.log("거르기 실패", it["key"], str(ex)[:150]); continue
         if not s.get("rule") or s.get("kind") not in ("day", "swing"):
             seen[it["key"]] = "거름: %s" % (s.get("why") or s.get("kind")); continue
+        st_["passed"] += 1
         if nx >= max_extract:
             continue                                                  # 내일 밤 다시(본 목록에 안 넣음)
-        nx += 1
+        nx += 1; st_["xl"] += 1
         (HV / ("%s.txt" % re.sub(r"[^\w.-]", "_", it["key"]))).write_text("%s\n%s\n%s\n\n%s" % (it["src"], title, it.get("url", ""), txt), encoding="utf-8")
         try:
             j = _json(ask(EXTRACT_MODEL, xsys, "출처: %s\n제목: %s\n본문:\n%s" % (it["src"], title, txt[:30000]), "번역", 12000)) or {}
@@ -265,8 +289,11 @@ def run(max_extract=MAX_EXTRACT):
             err = lab.check(sp)
             if err:
                 rep.append("· %s — 명세 오류: %s" % (title[:40], err)); continue
-            specs.append(sp); got += 1
+            specs.append(sp); got += 1; st_["specs"] += 1
         rep.append("· [%s·%s] %s — %s · 명세 %d개" % (it["src"], j.get("kind", ""), title[:45], (j.get("summary") or "")[:60], got))
     C.jsave(SEEN, seen); C.jsave(RETRY, {k: v for k, v in retry.items() if k not in seen})
+    with open(STATS, "a", encoding="utf-8") as fh:
+        for src, v in ST.items():
+            fh.write(json.dumps(dict(date=time.strftime("%Y%m%d"), ts=time.strftime("%H:%M"), src=src, **v), ensure_ascii=False) + "\n")
     C.log("수집 일꾼: 후보 %d · 번역 %d · 명세 %d" % (len(cand), nx, len(specs)))
     return specs, rep

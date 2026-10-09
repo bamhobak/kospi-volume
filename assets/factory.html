@@ -64,6 +64,13 @@ h2{font-size:14px;margin:22px 0 8px;color:var(--mut);font-weight:600}
   <div class="tw" id="needs"></div>
   <h2 id="shh" style="display:none">실시간 재료 그림자(과거 없음 · 앞으로 성적만 기록)</h2>
   <div id="shadow"></div>
+  <h2>수집 기록 — 출처별·날짜별 건수 (제대로 가져오나 확인용)</h2>
+  <p class="note">찾음 = 검색·목록에 새로 뜬 글 · 읽음 = 본문 받기 성공 · 오류/쉼 = 받기 실패·속도 조절로 쉼 · 통과 = 1차 거르기(숫자 있는 매매 조건) · 번역 = 명세로 옮기기 · 명세 = 깔때기로 간 수. 하룻밤 거르기는 80개(출처를 번갈아), 번역은 10개까지.</p>
+  <div class="tw" id="cstat"></div>
+  <h2>수집처 — 어디서 · 어떻게</h2>
+  <div class="tw" id="cmeth"></div>
+  <h2>속도 조절 — 막힌 낌새가 보이면 그 사이트 간격을 2배로(3번이면 12시간 쉼), 20번 성공마다 10%씩 되돌림</h2>
+  <div class="tw" id="cpace"></div>
 </main>
 <script>
 const $=s=>document.querySelector(s);
@@ -107,6 +114,15 @@ async function load(){let D=null;try{D=await rpc('kospi_state_get',{p_pin:'__fac
   const N=D.needs||[];
   $('#needs').innerHTML=N.length?`<table><tr><th>종류</th><th>건수(글)</th><th>지금 상태</th><th>자주 나온 것</th><th>할 수 있는 것</th></tr>${N.map(n=>`<tr><td>${esc(n.cat)}</td><td class="mono">${n.n}(${n.docs})</td><td>${esc(n.status)}</td><td class="l">${n.top.map(([k,v])=>esc(k)+' '+v).join(', ')}</td><td class="l">${esc(n.how)}</td></tr>`).join('')}</table>`:'<div class="empty">아직 기록 없음 — 수집 일꾼이 번역할 때마다 쌓인다</div>';
   const S=D.shadow||[];if(S.length){$('#shh').style.display='';$('#shadow').innerHTML=S.map(s=>`<div class="card"><div class="ch"><span class="id mono">${esc(s.id)}</span> <span class="muted">${esc(s.desc)}</span></div></div>`).join('')}
+  const CL=D.collect||{};const R=CL.stats||[];
+  if(R.length){const dates=[...new Set(R.map(r=>r.date))].sort().reverse().slice(0,10);const srcs=[...new Set(R.map(r=>r.src))].sort();
+    const cell=r=>r?`<span title="찾음 ${r.found} · 시도 ${r.tried} · 읽음 ${r.ok} · 오류 ${r.err} · 쉼 ${r.blocked} · 짧음 ${r.short} · 통과 ${r.passed} · 번역 ${r.xl} · 명세 ${r.specs}">${r.found}<span class="muted">→</span>${r.ok}${(r.err||r.blocked)?`<span class="neg">(${r.err+r.blocked}×)</span>`:''}<span class="muted">→</span>${r.passed}<span class="muted">→</span>${r.xl}<span class="muted">→</span><b>${r.specs}</b></span>`:'<span class="muted">-</span>';
+    $('#cstat').innerHTML=`<table><tr><th>출처 \\ 날짜<br><span class="muted">찾음→읽음(오류)→통과→번역→명세</span></th>${dates.map(d=>`<th>${d.slice(4,6)}/${d.slice(6)}</th>`).join('')}</tr>${srcs.map(s=>`<tr><td>${esc(s)}</td>${dates.map(d=>`<td class="mono">${cell(R.find(r=>r.date===d&&r.src===s))}</td>`).join('')}</tr>`).join('')}</table>`}
+  else $('#cstat').innerHTML='<div class="empty">오늘 밤 수집부터 쌓인다</div>';
+  $('#cmeth').innerHTML=`<table><tr><th>수집처</th><th>어떻게</th><th>방법</th></tr>${(CL.methods||[]).map(m=>`<tr><td>${esc(m.name)}</td><td class="l">${esc(m.how)}</td><td class="l muted">${esc(m.via)}</td></tr>`).join('')}</table>`;
+  const P=(CL.pace||{}).hosts||{},E=(CL.pace||{}).events||[];
+  $('#cpace').innerHTML=`<table><tr><th>사이트</th><th>지금 간격</th><th>기본</th><th>상태</th><th>누적 걸림</th></tr>${Object.entries(P).map(([h,p])=>`<tr><td>${esc(h)}</td><td class="mono">${p.gap}초</td><td class="mono muted">${p.base}초</td><td>${p.paused?'<span class="neg">쉬는 중</span>':(p.gap>p.base*1.5?'<span class="neg">느리게</span>':'보통')}</td><td class="mono">${p.hits||0}</td></tr>`).join('')}</table>`+
+    (E.length?`<table><tr><th>최근 사건</th><th>사이트</th><th>조치</th><th>이유</th></tr>${E.slice().reverse().map(e=>`<tr><td class="mono">${esc(e.ts)}</td><td>${esc(e.host)}</td><td>${esc(e.event)} → ${e.gap}초</td><td class="l muted">${esc(e.why)}</td></tr>`).join('')}</table>`:'');
 }
 load();
 </script></body></html>

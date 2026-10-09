@@ -14,7 +14,7 @@ import common as C
 import lab
 
 TRF = C.DATA / "shadow_trades.csv"
-LAG = {"oc": 0, "on": 1, "sw5": 4, "sw10": 9, "sw20": 19, "sw40": 39, "sw60": 59}   # 오늘 저녁에 성적이 확정되는 매수일 = 오늘에서 몇 거래일 전
+LAG = {"oc": 0, "on": 1, "m10c": 0, "m14c": 0, "sw5": 4, "sw10": 9, "sw20": 19, "sw40": 39, "sw60": 59}   # 오늘 저녁에 성적이 확정되는 매수일 = 오늘에서 몇 거래일 전
 
 
 def daily(A, today):
