@@ -61,8 +61,6 @@ h2{font-size:14px;margin:22px 0 8px;color:var(--mut);font-weight:600}
   <div class="strip" id="strip"></div>
   <p class="note">공장이 매일 밤 찾은 규칙 중 <b>학습(2016~22)·잠가 둔 검증(2023~)·다중검정</b>을 통과한 것만 여기 올라온다. 수익은 전부 <b>비용 뒤 건당</b>. 조정 후보 칸을 고를 땐 검증 칸만 좋은 것보다 참고·학습 칸도 같이 좋은 걸로 — 여러 칸을 보고 고르는 것도 운이 섞인다. 채택·조정은 클로드 창에서 "F0035 채택"처럼 말하면 된다.</p>
   <div id="cands"></div>
-  <h2>공장이 아직 못 옮긴 조건(최근 30일) — 무엇이 있어야 시험할 수 있나</h2>
-  <div class="tw" id="needs"></div>
   <h2 id="shh" style="display:none">실시간 재료 그림자(과거 없음 · 앞으로 성적만 기록)</h2>
   <div id="shadow"></div>
   <h2>수집 기록 — 출처별·날짜별 건수 (제대로 가져오나 확인용)</h2>
@@ -115,8 +113,6 @@ async function load(){let D=null;try{D=await rpc('kospi_state_get',{p_pin:'__fac
   $('#strip').innerHTML=[['검토 대기',nR],['채택',nA],['형제로 묶음',c.sibling||0],['지금까지 판정',Object.values(c).reduce((a,b)=>a+b,0)],['공장 누적 시험',(D.trials||0).toLocaleString()]]
     .map(([l,v])=>`<div class="si"><b class="mono">${v}</b><small>${l}</small></div>`).join('')+`<div class="si" style="flex:1;min-width:220px"><small>클로드 크레딧</small><div class="muted" style="font-size:12px">${esc(D.usage||'')}</div></div>`;
   $('#cands').innerHTML=(D.cands||[]).length?D.cands.map(card).join(''):'<div class="empty">지금은 검토 대기 후보가 없다</div>';
-  const N=D.needs||[];
-  $('#needs').innerHTML=N.length?`<table><tr><th>종류</th><th>건수(글)</th><th>지금 상태</th><th>자주 나온 것</th><th>할 수 있는 것</th></tr>${N.map(n=>`<tr><td>${esc(n.cat)}</td><td class="mono">${n.n}(${n.docs})</td><td>${esc(n.status)}</td><td class="l">${n.top.map(([k,v])=>esc(k)+' '+v).join(', ')}</td><td class="l">${esc(n.how)}</td></tr>`).join('')}</table>`:'<div class="empty">아직 기록 없음 — 수집 일꾼이 번역할 때마다 쌓인다</div>';
   const S=D.shadow||[];if(S.length){$('#shh').style.display='';$('#shadow').innerHTML=S.map(s=>`<div class="card"><div class="ch"><span class="id mono">${esc(s.id)}</span> <span class="muted">${esc(s.desc)}</span></div></div>`).join('')}
   const CL=D.collect||{};const R=CL.stats||[];
   if(R.length){const dates=[...new Set(R.map(r=>r.date))].sort().reverse().slice(0,10);const srcs=[...new Set(R.map(r=>r.src))].sort();
