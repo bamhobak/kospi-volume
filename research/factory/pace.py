@@ -39,7 +39,10 @@ def host_of(u):
                     ("tradingview", ("tradingview.com",)), ("quantocracy", ("quantocracy.com",)), ("note", ("note.com",)),
                     ("board", ("clien.net", "ppomppu.co.kr", "dcinside.com"))):
         if any(x in u for x in keys): return k
-    return "web"
+    # 2026-10-11: 그 밖의 블로그를 'web' 한 칸으로 묶었더니 서로 다른 블로그 3곳의 403 으로 'web' 전체가 12시간 쉬었다 → 도메인마다 따로
+    import urllib.parse
+    d = urllib.parse.urlparse(u).netloc
+    return "web:" + (d[4:] if d.startswith("www.") else d) if d else "web"
 
 
 def st(h):

@@ -18,17 +18,19 @@ class Blocked(Exception):
     pass
 
 
-def _get(u, **kw):
-    """사이트별 속도 조절(pace) — 막힌 낌새면 그 사이트 간격을 늘리고 Blocked, 12시간 쉬는 중이면 바로 Blocked."""
+def _get(u, imp="chrome", strict=True, **kw):
+    """사이트별 속도 조절(pace) — 막힌 낌새면 그 사이트 간격을 늘리고 Blocked, 12시간 쉬는 중이면 바로 Blocked.
+    strict=False 면 막혀도 기록하지 않고 Blocked 만 던진다(다른 길로 다시 해 볼 때 — article())."""
     import pace
     from curl_cffi import requests as cr
     h = pace.host_of(u)
     if pace.blocked(h): raise Blocked(h + " 쉬는 중")
     pace.wait(h)
-    r = cr.get(u, impersonate="chrome", timeout=25, **kw)
+    r = cr.get(u, impersonate=imp, timeout=25, **kw)
     head = r.text[:4000]
     if r.status_code in (403, 429, 503) or "Just a moment" in head or ("captcha" in head.lower() and len(r.text) < 30000):
-        pace.hit(h, "HTTP %d" % r.status_code); raise Blocked("%s HTTP %d" % (h, r.status_code))
+        if strict: pace.hit(h, "HTTP %d" % r.status_code)
+        raise Blocked("%s HTTP %d" % (h, r.status_code))
     r.raise_for_status()
     pace.ok(h)
     return r.text
@@ -104,12 +106,66 @@ def _post(u, body):
 
 # ── 해외 (2026-10-10 사용자: "해외 커뮤에서도") — 레딧은 로그인 벽(403/HTML)·Medium·SSRN 은 Cloudflare 로 막힘 ──
 def article(u):
-    """일반 블로그 글 본문 — <article> 우선, 없으면 <p> 를 모은다."""
-    t = _get(u)
+    """일반 블로그 글 본문 — <article> 우선, 없으면 <p> 를 모은다.
+    2026-10-11 Quantocracy 에 실린 블로그 중 봇 차단(403·Cloudflare)이 있어 길을 셋 둔다:
+      크롬 흉내 → 사파리 흉내(cssanalytics·macrosynergy 통과) → 그 블로그 RSS 의 같은 글 본문(alphaarchitect 통과).
+    셋 다 막혀야 그 사이트를 '막힘'으로 기록한다."""
+    t = None
+    for imp in ("chrome", "safari"):
+        try:
+            t = _get(u, imp=imp, strict=False); break
+        except Blocked:
+            continue
+    if t is None:
+        fb = _feed_item(u)
+        if fb: return fb
+        import pace
+        pace.hit(pace.host_of(u), "HTTP 403(크롬·사파리·RSS 다 막힘)")
+        raise Blocked(pace.host_of(u) + " 막힘")
     ti = re.search(r'<meta property="og:title" content="([^"]*)"', t) or re.search(r"<title[^>]*>([^<]*)", t)
     a = re.search(r"<article.*?</article>", t, re.S)
     body = clean(a.group(0)) if a else clean(" ".join(re.findall(r"<p[^>]*>(.*?)</p>", t, re.S)))
+    if len(body) < 800 and "/wp-content/" in t:                     # 워드프레스인데 본문을 못 뽑음(macrosynergy 124자) → API·RSS 로
+        fb = _wp_post(u) or _feed_item(u)
+        if fb and len(fb[1]) > len(body): return fb
     return (html.unescape(ti.group(1)).strip() if ti else u), body
+
+
+def _wp_post(u):
+    """워드프레스 API — 주소 끝 조각(slug)으로 글 본문."""
+    p = urllib.parse.urlparse(u)
+    slug = p.path.rstrip("/").rsplit("/", 1)[-1]
+    if not slug: return None
+    for imp in ("chrome", "safari"):
+        try:
+            j = json.loads(_get("%s://%s/wp-json/wp/v2/posts?slug=%s&_fields=title,content" % (p.scheme, p.netloc, urllib.parse.quote(slug)), imp=imp, strict=False))
+        except Exception:
+            continue
+        if j: return clean(j[0]["title"]["rendered"]), clean(j[0]["content"]["rendered"])
+        return None
+    return None
+
+
+def _feed_item(u):
+    """그 블로그 /feed/ 에서 같은 주소의 글을 찾아 (제목, 본문) — 워드프레스 RSS 는 content:encoded 에 본문 전체가 든다."""
+    p = urllib.parse.urlparse(u)
+    want = p.netloc + p.path.rstrip("/")
+    for imp in ("chrome", "safari"):
+        try:
+            f = _get("%s://%s/feed/" % (p.scheme, p.netloc), imp=imp, strict=False)
+        except Exception:
+            continue
+        for it in re.findall(r"<item>(.*?)</item>", f, re.S):
+            lk = re.search(r"<link>(.*?)</link>", it, re.S)
+            if not lk: continue
+            q = urllib.parse.urlparse(html.unescape(lk.group(1).strip()))
+            if q.netloc + q.path.rstrip("/") != want: continue
+            ti = re.search(r"<title>(.*?)</title>", it, re.S)
+            body = re.search(r"<content:encoded>(.*?)</content:encoded>", it, re.S) or re.search(r"<description>(.*?)</description>", it, re.S)
+            strip = lambda s: re.sub(r"^<!\[CDATA\[|\]\]>$", "", s.strip())
+            return (clean(strip(ti.group(1))) if ti else u), (clean(strip(body.group(1))) if body else "")
+        return None
+    return None
 
 
 def tradingview(n=12):

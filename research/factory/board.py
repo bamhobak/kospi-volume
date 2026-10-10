@@ -24,7 +24,7 @@ SRC_INFO = [   # 어디서 · 어떻게 (페이지 '수집 기록' 맨 아래 �
     ("네이버 블로그", "검색어 6개 · 최근 1주 최신순 → 글 본문(스마트에디터 문단)", "웹 검색(크롬 지문)"),
     ("게시판", "뽐뿌 증권포럼·디시 실전주식투자 제목 검색(매매법·기법·종가베팅·스윙·단타) + 클리앙 주식한당 첫 쪽 → 제목에 기법 말 있는 글만", "웹"),
     ("트레이딩뷰(영어)", "최근 올라온 전략 스크립트 12개 → 작성자 설명(원리·진입·청산)", "웹"),
-    ("Quantocracy(영어)", "미국 퀀트 블로그 모음 RSS 최근 3일 → 실린 원래 블로그 글", "RSS + 웹"),
+    ("Quantocracy(영어)", "미국 퀀트 블로그 모음 RSS 최근 3일 → 실린 원래 블로그 글", "RSS + 웹(봇 차단 블로그는 사파리 흉내·그 블로그 RSS·워드프레스 API 로)"),
     ("note.com(일본어)", "'日本株 デイトレ 手法'·'株 スイングトレード 手法' 검색 → 무료 부분", "웹"),
     ("레딧(영어)", "r/Daytrading·swingtrading·algotrading·StockMarket 주간 인기 · 본문 400자↑ · 점수 5↑", "로그인 쿠키(.env.reddit · 2027-04 만료)"),
 ]
@@ -68,6 +68,8 @@ def _pace():
     try:
         import pace
         P = pace.summary()
+        # 블로그는 도메인마다 따로 센다(10-11) — 표에는 막힌 적 있는 블로그만
+        P = {h: v for h, v in P.items() if not h.startswith("web:") or v["hits"] or v["paused"] or v["gap"] > v["base"]}
         for h, g in pace.DEFAULT.items():                              # 아직 한 번도 안 부른 사이트도 기본 간격으로 보여 준다
             P.setdefault(h, {"gap": g, "base": g, "paused": False, "hits": 0})
         ev = []
