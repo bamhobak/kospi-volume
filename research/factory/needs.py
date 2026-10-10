@@ -24,6 +24,13 @@ STATUS = {   # 2026-10-10 저녁 기준 — 실제로 넣은 것 반영(사용�
 }
 
 
+# 처리 끝난 종류 → 그 날짜까지 쌓인 기록은 표에서 뺀다(2026-10-10 사용자: "다 된 거면 안 보이게").
+# 그 뒤 새로 나온 못 옮긴 조건은 다시 보인다. 새로 처리하면 여기 날짜를 올린다.
+RESOLVED = {"보조지표(일봉)": "20261010", "손절·익절·분할 매매": "20261010", "가격·캔들 패턴(일봉)": "20261010",
+            "분봉·장중 흐름": "20261010", "재무·실적": "20261010", "기타": "20261010", "시장 국면·지수": "20261010",
+            "수급(기관·외인·프로그램·신용)": "20261010"}
+
+
 def load(days=30):
     if not NEEDS.exists(): return []
     cut = time.strftime("%Y%m%d", time.localtime(time.time() - days * 86400))
@@ -33,7 +40,10 @@ def load(days=30):
 def rows(days=30, top=6):
     L = load(days)
     by = collections.defaultdict(list)
-    for x in L: by[x["cat"] if x["cat"] in STATUS else "기타"].append(x)
+    for x in L:
+        cat = x["cat"] if x["cat"] in STATUS else "기타"
+        if x["date"] <= RESOLVED.get(cat, ""): continue                # 처리 끝난 기록은 숨긴다
+        by[cat].append(x)
     out = []
     for cat, xs in sorted(by.items(), key=lambda kv: -len(kv[1])):
         cc = collections.Counter(x["concept"].strip()[:24] for x in xs if x.get("concept"))
