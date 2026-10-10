@@ -66,7 +66,7 @@ BOARDS = {
                   "https://www.ppomppu.co.kr/zboard/%s", r"<td class='board-contents'[^>]*>(.*?)</td>"),
     "디시 실전주식투자": ("https://gall.dcinside.com/mgallery/board/lists/?id=jusik&exception_mode=recommend",
                    r'href="(/mgallery/board/view/\?id=jusik&(?:amp;)?no=\d+)[^"]*"[^>]*>\s*(?:<em[^>]*></em>)?\s*([^<]{3,90})',
-                   "https://gall.dcinside.com%s", r'<div class="write_div"[^>]*>(.*?)</div>'),
+                   "https://gall.dcinside.com%s", r'<div class="write_div"[^>]*>(.*?)(?:<script|<!-- 추천|<div class="btn_recommend)'),   # 본문 안 div 중첩 — 첫 </div> 에서 자르면 52자만 남았다(10-11)
 }
 
 

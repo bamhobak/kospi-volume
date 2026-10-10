@@ -25,7 +25,7 @@ PRICE = {"claude-haiku-5-5": (0.10, 0.50, 0.125, 0.01), "claude-sonnet-5-5": (2.
 QUERIES = ["단타 매매법", "데이트레이딩 기법", "종가베팅 매매법", "시초가 매매 기법", "스캘핑 주식 기법", "단타 승률 높은 방법",
            "갭 매매 기법", "눌림목 단타", "상한가 따라잡기", "거래량 급증 매매"]
 MAX_EXTRACT = 10           # 하룻밤 번역(비싼 쪽) 상한 — 2026-10-10 수집처 넓히며 6→10(한 달 약 $15~20)
-MAX_SCREEN = 80
+MAX_SCREEN = 120                 # 2026-10-11 80→120: 출처 14곳을 번갈아 읽으려고(거르기 개당 $0.0004)
 
 
 # ── 크레딧 ──────────────────────────────────────────────────────────
@@ -226,7 +226,12 @@ def candidates(seen):
     try: per["해외"] += [x for x in S.overseas() if x["key"] not in seen]          # 트레이딩뷰·Quantocracy(영어)·note.com(일본어) — 2026-10-10
     except Exception as ex: C.log("해외 실패", str(ex)[:120])
     out, keys = [], set()
-    L = [list({x["key"]: x for x in v}.values()) for v in per.values()]
+    # 2026-10-11: 4묶음(유튜브·블로그·게시판·해외)으로만 번갈면 묶음 안 앞쪽(한국어 유튜브·트레이딩뷰 등)이 몫을 다 먹어
+    #   영어·일본어·중국어 유튜브·레딧은 매일 시도 0 이었다 → 출처(src)마다 번갈아 넣는다
+    by = {}
+    for v in per.values():
+        for x in v: by.setdefault(x["src"], {})[x["key"]] = x
+    L = [list(d.values()) for d in by.values()]
     for i in range(max(len(v) for v in L) if L else 0):
         for v in L:
             if i < len(v) and v[i]["key"] not in keys:

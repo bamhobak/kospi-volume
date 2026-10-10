@@ -16,7 +16,7 @@ import m1_event as ME
 
 AMT = 1_500_000
 SCALE, NSIM = 0.55, 10
-THRS = [-1.0, -1.25, -1.5, -1.75, -2.0, -2.5, -3.0]
+THRS = [float(x) for x in sys.argv[1].split(",")] if len(sys.argv) > 1 else [-1.0, -1.25, -1.5, -1.75, -2.0, -2.5, -3.0]
 E = pd.read_pickle(C.CACHE / "gap_err_3d.pkl")
 ERR = {k: (g.gx - g.gr).values for k, g in E.groupby("tiny")}
 
