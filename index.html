@@ -728,13 +728,22 @@ const SCALP_FILTERS=[
      years:'**검증 2023~** 2,188건 건당 평균 +1.35% · 중앙 +1.19% · 승률 64.5% · PF 2.28 · 하루 약 2.4종목(신호 난 날 72%) · **학습 2016~22** 4,203건 +0.92% · 승률 61.8% · PF 1.80 · 참고 2005~15 +1.20% · 61.5% — 해별 건당 평균 2016 +0.96 / 2017 +0.85 / 2018 +0.98 / 2019 +1.14 / 2020 +1.20 / 2021 +0.26 / 2022 +0.84 / 2023 +0.93 / 2024 +1.07 / 2025 +1.45 / 2026 +1.75 (비용 0.23% 뒤)'},
    fn:r=>!!dayCand(r.ticker)},
   /* 2026-10-06 추가(사용자 '1번' · research H0297) — [갭 하락 조용주] 후보 중 어제 막판 1시간에 밀린 종목은 한 번 더 산다(돈 두 배) */
-  {id:'T2',regime:'both',gate:'always',name:'A2 · 갭 하락 조용주 +',mkt:'BOTH',
+  {id:'T2',parent:'T1',regime:'both',gate:'always',name:'A1-1 · 갭 하락 조용주 +',mkt:'BOTH',
    cond:'**[갭 하락 조용주] 후보 그대로** + **어제 14:00 → 종가(막판 1시간)가 -1% 이하로 밀린 종목** — 어제 1분봉으로 본다. [갭 하락 조용주]와 별도로 한 번 더 산다(건당 50만원 · 같은 종목이면 두 규칙에 각각 50만원)',
    desc:'**2026-10-06 1분봉 실측(research H0297)** — [갭 하락 조용주] 후보 1,991건을 어제 막판 1시간 등락으로 나누면: -2%↓ 111건 건당 +3.32% · 승률 81% / -2~-1% 234건 +2.30% · 73% / -1~0% +1.30% / 0~+1% +0.63% / +1%↑ +1.16%. -1%↓ 만 고르면 **학습(2022-12~24) 139건 +3.05% · 승률 79% · 검증(2025~) 206건 +2.34% · 73%**, 해마다 플러스. 어제 많이 빠진 효과가 아니다(어제 등락 3분위 어디서나 막판 약세 쪽이 +0.8~1.1%p). 신호는 하루 약 0.4종목(이틀에 한 번 꼴).',
    rule:{hold:1,stop:null,trail:null,target:null},ruleText:'오늘 <em>시가 단일가 매수</em> · 같은 날 <em>종가 단일가 매도</em>',
    stats:{n:345,perMonth:8,monthsActive:40,spanMonths:45,medPerActive:1,topMonth:'-',topN:0,win:75,pf:3.5,avg:2.62,
      years:'**2022-12~2026-08 1분봉** 345건 건당 +2.62% · 승률 75% — 학습(22-12~24) 139건 +3.05% · 79% / 검증(25~) 206건 +2.34% · 73% · 해별 건당 평균(막판 -1%↓) 2023 +1.9 / 2024 +4.0 / 2025 +3.0 / 2026 +2.1 (비용 0.23% 뒤)'},
-   fn:r=>{const c=dayCand(r.ticker);return !!(c&&c.t2)}}
+   fn:r=>{const c=dayCand(r.ticker);return !!(c&&c.t2)}},
+  /* 2026-10-11 추가(사용자 '추천대로' · research H0313) — [갭 하락 조용주] 후보 중 그 종목의 짝 미장 종목이 밤사이 빠진 것(전이표 예상 갭 -0.5%↓)은 한 번 더 산다.
+     T2 와 둘 다 걸리면 덤은 한 번만(T2) — 겹치면 효과가 더해지지 않는다(2025~ 둘 다 30건 +0.59%). */
+  {id:'T3',parent:'T1',regime:'both',gate:'always',name:'A1-2 · 미장 따라 밀린 갭 하락',mkt:'BOTH',
+   cond:'**[갭 하락 조용주] 후보 그대로** + **그 종목의 짝 미장 종목으로 본 오늘 예상 갭이 -0.5% 이하** — 짝 = 지난 2년 시가 갭과 상관이 가장 큰 미장 종목·ETF(해마다 다시 고름), 예상 갭 = 기울기 × 짝의 밤사이 등락. [갭 하락 조용주]와 별도로 한 번 더 산다(건당 50만원). **[갭 하락 조용주 +]도 걸리면 그쪽으로 한 번만**',
+   desc:'**2026-10-11 실측(research H0313)** — 미장 악재에 한국 장전이 과하게 반응해 밀린 조용한 작은 종목이 장중에 되돌아온다. [갭 하락 조용주] 2014~ 전체 학습 +1.30% · 64% 에서 짝 미장 예상 갭 -0.5%↓ 만 고르면 **학습(2016~22) 307건 +2.37% · 승률 71% · PF 2.86 · 7/7해 / 검증(2023~) 192건 +2.05% · 71% · PF 3.50 · 4/4해**, 나머지는 +0.86/+1.10%. 갭 크기별 모든 구간에서 나머지보다 낫다. 문턱 -0.5 가 가장 고르다(-1 이하는 건수만 준다). [갭 하락 조용주 +]와는 22~33% 겹치고 따로 효과가 있다.',
+   rule:{hold:1,stop:null,trail:null,target:null},ruleText:'오늘 <em>시가 단일가 매수</em> · 같은 날 <em>종가 단일가 매도</em>',
+   stats:{n:192,perMonth:5,monthsActive:38,spanMonths:45,medPerActive:1,topMonth:'-',topN:0,win:71,pf:3.5,avg:2.05,
+     years:'**검증 2023~** 192건 건당 +2.05% · 중앙 +1.97% · 승률 70.8% · PF 3.50 · 월 약 5건 · **학습 2016~22** 307건 +2.37% · 71.3% · PF 2.86 — 해별 건당 평균 2016 +5.5 / 2017 +2.4 / 2018 +2.2 / 2019 +1.3 / 2020 +2.9 / 2021 +2.2 / 2022 +1.2 / 2023 +2.2 / 2024 +3.1 / 2025 +1.7 / 2026 +1.7 (비용 0.23% 뒤)'},
+   fn:r=>{const c=dayCand(r.ticker);return !!(c&&c.t3&&!c.t2)}}
 ];
 let TMODE=(()=>{try{return localStorage.getItem('tmode')==='scalp'?'scalp':'swing'}catch(e){return 'swing'}})();
 function useRules(L){FILTERS.length=0;L.forEach(f=>FILTERS.push(f))}
@@ -781,13 +790,22 @@ function loadROrder(){
 function saveROrder(){try{localStorage.setItem('rorder',JSON.stringify(RORDER))}catch(e){};pushRemote()}
 /* 시장별로 저장된 순서대로 정렬. 순서에 없는(새로 생긴) 규칙은 뒤에 붙는다. */
 function ordered(mkt){
-  const base=FILTERS.filter(f=>f.mkt===mkt);
+  const all=FILTERS.filter(f=>f.mkt===mkt);
+  /* 2026-10-11 덧붙은 규칙(parent 가 있는 것 — T2·T3)은 순서에 따로 끼지 않고 **부모 바로 아래**에 붙는다.
+     부모를 끌어 옮기면 같이 움직이고, 번호도 부모 번호를 따라간다(A1-1 · A1-2 → 부모가 A5 가 되면 A5-1 · A5-2). */
+  const base=all.filter(f=>!f.parent);
   const ord=(loadROrder()||{})[mkt];
-  if(!Array.isArray(ord)||!ord.length)return base;
-  const by={};base.forEach(f=>by[f.id]=f);
-  const out=[],seen=new Set();
-  ord.forEach(id=>{if(by[id]&&!seen.has(id)){out.push(by[id]);seen.add(id)}});
-  base.forEach(f=>{if(!seen.has(f.id))out.push(f)});
+  let top=base;
+  if(Array.isArray(ord)&&ord.length){
+    const by={};base.forEach(f=>by[f.id]=f);
+    const o=[],seen=new Set();
+    ord.forEach(id=>{if(by[id]&&!seen.has(id)){o.push(by[id]);seen.add(id)}});
+    base.forEach(f=>{if(!seen.has(f.id))o.push(f)});
+    top=o;
+  }
+  const out=[];
+  top.forEach(f=>{out.push(f);all.forEach(c=>{if(c.parent===f.id)out.push(c)})});
+  all.forEach(c=>{if(c.parent&&!top.some(f=>f.id===c.parent))out.push(c)});   /* 부모가 없으면 맨 뒤 */
   return out;
 }
 /* 공통(BOTH) 규칙은 A1·A2… 로 코스피·코스닥 뒤에 붙는다 */
@@ -815,8 +833,10 @@ function dispNameTxt(n){const [b,x]=splitSfx(n);return x?b+' ('+x+')':b}
 function codeOf(id){
   const nid=normId(id);
   for(const mkt of ['KOSPI','KOSDAQ','BOTH','US']){
-    const i=ordered(mkt).findIndex(f=>f.id===nid);
-    if(i>=0)return ({KOSPI:'P',KOSDAQ:'D',BOTH:'A',US:'N'}[mkt])+(i+1);
+    const L=ordered(mkt), f=L.find(x=>x.id===nid);
+    if(!f)continue;
+    if(f.parent){const kids=L.filter(x=>x.parent===f.parent);return codeOf(f.parent)+'-'+(kids.indexOf(f)+1)}
+    return ({KOSPI:'P',KOSDAQ:'D',BOTH:'A',US:'N'}[mkt])+(L.filter(x=>!x.parent).indexOf(f)+1);
   }
   return nid;
 }
@@ -997,7 +1017,7 @@ function renderTabs(){
       const n=view.rows.filter(r=>f.fn(r)&&!heldBy(r.ticker,f.id)).length;   /* 목록과 같은 기준 */
       return nrow(f.id,cls(f)+'rg-'+(f.regime||'down')+(n?' has':''),f.name.split(' · ')[1],n,
         `<span class="bar"></span><span class="rid">${codeOf(f.id)}</span>`,
-        ` draggable="true" data-rule="${f.mkt}"`)}).join('');
+        f.parent?` data-rule="${f.mkt}" data-child="1"`:` draggable="true" data-rule="${f.mkt}"`)}).join('');
   /* 스윙 / 데이 전환 — 모바일은 '규칙·조회 목록' 줄 오른쪽에 작게, PC 는 레일 맨 위(2026-10-03 요청) */
   const tmode=`<span class="tmode"><button type="button" data-m="swing" class="${TMODE==='swing'?'on':''}">스윙</button>`
     + `<button type="button" data-m="scalp" class="${TMODE==='scalp'?'on':''}">데이</button></span>`;
@@ -1031,8 +1051,10 @@ function renderTabs(){
     /* src 를 dst 자리로 옮긴다. 마우스·터치가 같은 함수를 쓴다. */
     const move=dst=>{
       if(!src||src===dst)return false;
-      const a=fOf(src),b=fOf(dst); if(!a||!b||a.mkt!==b.mkt)return false;   /* 시장이 다르면 무시 */
-      const ids=ordered(a.mkt).map(f=>f.id);
+      let a=fOf(src),b=fOf(dst); if(!a||!b||a.mkt!==b.mkt)return false;   /* 시장이 다르면 무시 */
+      if(a.parent)return false;                                         /* 덧붙은 규칙은 부모를 따라간다 */
+      if(b.parent){dst=b.parent;b=fOf(dst);if(!b||dst===src)return false}
+      const ids=ordered(a.mkt).filter(f=>!f.parent).map(f=>f.id);
       const i=ids.indexOf(src),j=ids.indexOf(dst);
       if(i<0||j<0)return false;
       ids.splice(i,1); ids.splice(j,0,src);
@@ -1049,7 +1071,7 @@ function renderTabs(){
       /* 모바일 — 터치에서는 dragstart 가 아예 발생하지 않는다.
          길게 눌러 잡고(350ms) 위아래로 끌어 놓는 방식으로 따로 처리한다. */
       el.addEventListener('pointerdown',e=>{
-        if(e.pointerType==='mouse')return;
+        if(e.pointerType==='mouse'||el.dataset.child)return;
         const x0=e.clientX,y0=e.clientY; let held=false,over=null;
         const grab=setTimeout(()=>{held=true;src=el.dataset.f;RDRAG_AT=0;
           el.classList.add('rgrab');
@@ -1156,8 +1178,9 @@ function showTable(on){const t=$('#tblcard'),c=$('#cards');
   if(t)t.style.display=on?'':'none'; if(c)c.style.display=on?'none':'flex'}
 const pctTxt=v=>v==null?'—':(v>0?'+':'')+v.toFixed(1)+'%';
 function whyCells(r,f){
-  if(f.id==='T1'||f.id==='T2'){const c=dayCand(r.ticker);if(!c)return '';
-    return (f.id==='T2'?[['어제 막판 1시간',c.lh!=null?((c.lh>0?'+':'')+c.lh.toFixed(1)+'%'):'-','var(--dn)','14:00→종가 · -1% 이하']]:[]).concat([['예상 갭',(c.gap>0?'+':'')+c.gap.toFixed(1)+'%','var(--dn)','하위 10% 선 '+(DAYST.cut??'-')+'%'],['어제 거래량',c.vm.toFixed(2)+'배','var(--dn)','20일 평균 대비 · 하위 30%'],['시장 대비',c.rel!=null?((c.rel>0?'+':'')+c.rel.toFixed(1)+'%p'):'-','var(--dn)','시장 갭 '+(DAYST.mgap!=null?DAYST.mgap+'%':'-')],['5일선',c.d5!=null?((c.d5>0?'+':'')+c.d5.toFixed(1)+'%'):'-',c.d5low?'var(--dn)':'var(--mut)',c.d5low?'아래(기대 큼)':'예상가 '+(c.src||'-')]])
+  if(f.id==='T1'||f.id==='T2'||f.id==='T3'){const c=dayCand(r.ticker);if(!c)return '';
+    return (f.id==='T2'?[['어제 막판 1시간',c.lh!=null?((c.lh>0?'+':'')+c.lh.toFixed(1)+'%'):'-','var(--dn)','14:00→종가 · -1% 이하']]
+      :f.id==='T3'?[['짝 미장 예상 갭',c.up!=null?((c.up>0?'+':'')+c.up.toFixed(1)+'%'):'-','var(--dn)','밤사이 짝 미장으로 본 갭 · -0.5% 이하']]:[]).concat([['예상 갭',(c.gap>0?'+':'')+c.gap.toFixed(1)+'%','var(--dn)','하위 10% 선 '+(DAYST.cut??'-')+'%'],['어제 거래량',c.vm.toFixed(2)+'배','var(--dn)','20일 평균 대비 · 하위 30%'],['시장 대비',c.rel!=null?((c.rel>0?'+':'')+c.rel.toFixed(1)+'%p'):'-','var(--dn)','시장 갭 '+(DAYST.mgap!=null?DAYST.mgap+'%':'-')],['5일선',c.d5!=null?((c.d5>0?'+':'')+c.d5.toFixed(1)+'%'):'-',c.d5low?'var(--dn)':'var(--mut)',c.d5low?'아래(기대 큼)':'예상가 '+(c.src||'-')]])
       .map(([l,v,col,sub])=>`<div><div class="l">${l}</div><div class="v" style="color:${col}">${v}</div><div class="s">${sub}</div></div>`).join('')}
   /* 규칙마다 '왜 걸렸나'를 조건별 실제값 + 기준값으로 보여준다 */
   const kospiDown=!(raw.kospi&&raw.kospi.up60);

@@ -31,8 +31,11 @@ DAY_PER = 500_000                                 # 2026-10-04 사용자: 데이
 DAY_MAX = 10                                      # 하루 최대 종목 수(후보 순서 = 시장 대비 더 빠진 순)
 COST = 0.23                                     # 토스 실제 왕복: 수수료 0.015×2 + 거래세 0.20 (index.html DEFFEE)
 RULE = "갭 하락 조용주"
-RNAME = {"T1": "갭 하락 조용주", "T2": "갭 하락 조용주 +"}
+RNAME = {"T1": "갭 하락 조용주", "T2": "갭 하락 조용주 +", "T3": "미장 따라 밀린 갭 하락"}
 T2_CUT = -1.0                                     # 2026-10-06 H0297: 어제 14:00→종가 이 값 이하면 T2(한 번 더 산다)
+#  2026-10-11 T3(사용자 '추천대로' · research H0313): 그 종목의 짝 미장 종목으로 본 예상 갭(전이표 tr_pred)이 이 값 이하면
+#  T3 로 한 번 더 산다 — 학습 307건 +2.37%·71% / 검증 192건 +2.05%·71%. T2 와 둘 다면 덤은 한 번만(T2) — 겹치면 효과가 안 더해진다.
+T3_CUT = -0.5
 
 
 def log(*a):
@@ -116,6 +119,31 @@ def yday_lasth(syms, prev):
         return {s: v for s, v in ex.map(one, syms) if v is not None}
 
 
+def us_pred(today):
+    """그 종목 짝 미장 종목으로 본 오늘 예상 갭(%) {티커: 값} — 공장 전이표(research/factory/transfer.py).
+    공장 아침 작업(07:50)이 남긴 data/factory/transfer/<오늘>.json 이 있으면 읽고, 없으면 여기서 계산한다
+    (미장 일봉 최근 10개만 받아 붙임 · 짝·기울기 표는 transfer_fit.json). 실패하면 {} — T3 만 안 걸리고 T1·T2 는 그대로."""
+    f = BASE / "data" / "factory" / "transfer" / ("%s.json" % today)
+    j = None
+    try:
+        j = json.loads(f.read_text(encoding="utf-8"))
+    except Exception:
+        try:
+            sys.path.insert(0, str(BASE / "research" / "factory"))
+            import transfer as TRF
+            j = TRF.morning(today)
+        except Exception as ex:
+            log("짝 미장 예상 갭 못 구함(T3 쉼):", repr(ex)[:200])
+            return {}
+    out = {}
+    for t, v in ((j or {}).get("pred") or {}).items():
+        try:
+            if v and v[3] is not None: out[t] = float(v[3])
+        except Exception:
+            pass
+    return out
+
+
 def morning():
     today, it, prev = today_session()
     if not today:
@@ -137,6 +165,9 @@ def morning():
     # 2026-10-06 T2(H0297): 어제 막판 1시간(14:00→종가) — 후보가 될 수 있는 조용한 작은 종목만 어제 1분봉을 받아 둔다(~70종목·10초)
     lh = yday_lasth([k for k in pre if k in tiny], prev)
     log("어제 막판 1시간 받음 %d/%d · -1%%↓ %d" % (len(lh), len([k for k in pre if k in tiny]), sum(1 for v in lh.values() if v <= T2_CUT)))
+    # 2026-10-11 T3(H0313): 짝 미장으로 본 예상 갭 — 08:52 전에 계산해 둔다(미장 일봉 56종목·수 초)
+    up = us_pred(today)
+    log("짝 미장 예상 갭 %d종목 · %.1f%%↓ %d" % (len(up), T3_CUT, sum(1 for k in pre if k in tiny and up.get(k, 0) <= T3_CUT)))
     # 08:52 까지 기다렸다 예상 시가 — NXT 장전 체결가(08:50 마감) + 장전 단일가 호가
     at = dt.datetime.now(KST).replace(hour=8, minute=52, second=0, microsecond=0)
     w = (at - dt.datetime.now(KST)).total_seconds()
@@ -179,7 +210,8 @@ def morning():
             nm[x["symbol"]] = x.get("name") or x["symbol"]
     L = [dict(t=s, name=nm.get(s, s), gap=round(gap[s], 2), rel=round(gap[s] - mg, 2), vm=round(R[s]["vm"], 2), d5=round(R[s]["d5"], 2),
               d5low=d5q[s] <= 0.30, exp=exp[s], pc=R[s]["pc"], src=src[s],
-              lh=(round(lh[s], 2) if s in lh else None), t2=(s in lh and lh[s] <= T2_CUT)) for s in cand]
+              lh=(round(lh[s], 2) if s in lh else None), t2=(s in lh and lh[s] <= T2_CUT),
+              up=(round(up[s], 2) if s in up else None), t3=(s in up and up[s] <= T3_CUT)) for s in cand]
     snap = dict(date=today, prev=prev, made=dt.datetime.now(KST).strftime("%H:%M"), rule=RULE, n_uni=len(uni), n_gap=len(gap), mgap=round(mg, 2),
                 cut=round(sorted(gap.values())[max(int(len(gap) * 0.10) - 1, 0)], 2) if gap else None,
                 src_n={"NXT": sum(1 for s in src.values() if s == "NXT"), "호가": sum(1 for s in src.values() if s == "호가")}, cand=L,
@@ -196,12 +228,16 @@ def morning():
             else ("후보 %d종목 — 시가 단일가 매수 → 종가 매도 (실제 주문 없음 · 검증 중)" % len(L)),
             "오늘 시장 갭 %+.1f%%%s" % (mg, " — 다 같이 빠진 날(과거 기대 큼)" if mg <= -1 else "")]
     for x in L[:15]:
-        body.append("· %s%s(%s) 예상 갭 %+.1f%%(시장 대비 %+.1f) · 거래량 %.1f배%s%s [%s]" % (
-            "⭐" if x.get("t2") else "", x["name"], x["t"], x["gap"], x["rel"], x["vm"], " · 5일선 아래" if x["d5low"] else "",
-            (" · 어제 막판 %+.1f%%" % x["lh"]) if x.get("lh") is not None else "", x["src"]))
+        body.append("· %s%s(%s) 예상 갭 %+.1f%%(시장 대비 %+.1f) · 거래량 %.1f배%s%s%s [%s]" % (
+            "⭐" if x.get("t2") else ("🌙" if x.get("t3") else ""), x["name"], x["t"], x["gap"], x["rel"], x["vm"],
+            " · 5일선 아래" if x["d5low"] else "",
+            (" · 어제 막판 %+.1f%%" % x["lh"]) if x.get("lh") is not None else "",
+            (" · 짝 미장 %+.1f%%" % x["up"]) if x.get("up") is not None else "", x["src"]))
     if len(L) > 15: body.append("… 외 %d" % (len(L) - 15))
     n2 = sum(1 for x in L if x.get("t2"))
+    n3 = sum(1 for x in L if x.get("t3") and not x.get("t2"))
     if n2: body.append("⭐ = [갭 하락 조용주 +] 도 걸림(어제 14:00→종가 %.0f%%↓) — %d종목은 한 번 더 산다" % (T2_CUT, n2))
+    if n3: body.append("🌙 = [미장 따라 밀린 갭 하락] 도 걸림(짝 미장으로 본 예상 갭 %.1f%%↓) — %d종목은 한 번 더 산다" % (T3_CUT, n3))
     body.append("코스피 %s → 기준: 더 작은 종목 · 시장보다 %.1f%%p↑ 더 빠짐" % ({True: "상승장(60일선 위)", False: "하락장(60일선 아래)", None: "국면 모름"}[kup], -thr))
     body.append("넓은 조건(예전 T1) %d개 중 통과 %d%s" % (len(base_c), len(L), " — 오늘은 안 산다" if not L else ""))
     body.append("갭 하위 10%% 선 %s%% · 예상가 NXT %d·호가 %d / 유니버스 %d" % (snap["cut"], snap["src_n"]["NXT"], snap["src_n"]["호가"], len(uni)))
@@ -242,6 +278,11 @@ def scalp_update(mutate, why):
     log("⚠ 사이트 기록 실패:", why)
 
 
+def extra_rid(x):
+    """덤 매수 규칙 — T2(어제 막판 약세) 우선, 아니면 T3(짝 미장 하락), 둘 다 아니면 None."""
+    return "T2" if x.get("t2") else ("T3" if x.get("t3") else None)
+
+
 def trade(L, today):
     if (AT.OUT / "STOP").exists():
         telegram("⛔ 데이 실매수 멈춤(data/autotrade/STOP)"); return
@@ -251,7 +292,8 @@ def trade(L, today):
     Lg = _led(); done = {(o["t"], o.get("rid", "T1")) for o in Lg["orders"] if o.get("date") == today and o.get("side") == "BUY"}
     placed, skip = [], []
     # 2026-10-06 T2(사용자 '1번'): 어제 막판 1시간 -1%↓ 인 후보는 T2 로 한 번 더 산다 — 규칙마다 따로 주문·기록
-    orders = [(x, "T1") for x in L] + [(x, "T2") for x in L if x.get("t2")]
+    # 2026-10-11 T3: 짝 미장 예상 갭 -0.5%↓ 도 한 번 더 — 단 T2 와 둘 다면 덤은 한 번만(T2)
+    orders = [(x, "T1") for x in L] + [(x, extra_rid(x)) for x in L if extra_rid(x)]
     # 원화가 없으면 토스가 422 로 하나씩 거절한다(10-06: 매수가능 7,821원에 3건 다 거절) — 미리 보고 이유를 똑바로 알린다
     try: bp = AT.buying_power("KRW")
     except AT.TossErr: bp = None
@@ -409,7 +451,7 @@ def late(today):
     Lg = _led()
     done = {(o["t"], o.get("rid", "T1")) for o in Lg["orders"] if o.get("date") == today and o.get("side") == "BUY" and o.get("oid")}
     placed, skip = [], []
-    for x, rid in [(x, "T1") for x in L[:DAY_MAX]] + [(x, "T2") for x in L[:DAY_MAX] if x.get("t2")]:
+    for x, rid in [(x, "T1") for x in L[:DAY_MAX]] + [(x, extra_rid(x)) for x in L[:DAY_MAX] if extra_rid(x)]:
         if (x["t"], rid) in done: continue
         cid = re.sub(r"[^A-Za-z0-9_-]", "", f"dl{today}{x['t']}" + ("" if rid == "T1" else rid))[:36]
         o = dict(side="BUY", date=today, t=x["t"], name=x["name"], qty=1, cid=cid, rid=rid, late=True, at=AT.now().isoformat())
