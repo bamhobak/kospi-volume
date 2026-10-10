@@ -27,6 +27,9 @@ HIST = C.CACHE / "factory_kr.pkl"
 VER = "f6"                      # 재료 정의 바꾸면 올린다 → 과거 자료 다시 만든다(f2 2026-10-10: 재료 17개·스윙 10/40/60일 추가)
 TR = ("20160101", "20221231"); VA = ("20230101", "20991231"); REF = ("20100101", "20151231")
 DSR_MIN = 0.90
+#  2026-10-11 사용자 "F0161 정도는 많이 나오잖아, 규칙으로 쓸 수 없잖아" — 검증 건당 이 값 미만이거나 중앙값이 0 이하면 검토로 안 올린다
+#  (종가 매수→다음날 시가 0.15~0.27%·중앙 마이너스 류가 검토 5건을 다 채웠음)
+VA_MIN = 0.5
 _U = None
 
 
@@ -393,6 +396,8 @@ def judge(spec, U=None, n_trials=None, mk="KR"):
         if v["t"] < 1: why.append("검증 하루 t %.1f" % v["t"])
         if v["ypos"] * 2 < v["ny"]: why.append("검증 플러스 해 %d/%d" % (v["ypos"], v["ny"]))
         if sw and not (v["ex"] or 0) > 0: why.append("검증: 같은 날 아무 종목보다 %+.2f%%p(못 이김)" % (v["ex"] or 0))
+        if 0 < v["mean"] < VA_MIN: why.append("검증 건당 %+.2f%% — 얇음(%.1f%% 미만)" % (v["mean"], VA_MIN))
+        if (v.get("med") or 0) <= 0: why.append("검증 중앙 %+.2f%% — 절반 넘게 손해" % (v.get("med") or 0))
     if R["dsr"] is None or R["dsr"] < DSR_MIN: why.append("다중검정 %.2f < %.2f(공장 누적 %d개 기준)" % (R["dsr"] or 0, DSR_MIN, n_tr))
     ov = stats(seg(T, tr0, VA_[1]))["t1"]
     if ov >= 50: why.append("T1 과 겹침 %.0f%%" % ov)
