@@ -1815,9 +1815,9 @@ async function renderPositions(){
       if(x==null&&y==null)return 0; if(x==null)return 1; if(y==null)return -1;
       if(typeof x==='string'||typeof y==='string')return sg*String(x).localeCompare(String(y),'ko');
       return sg*(x-y)})}
-  else{   /* 기본 순서 = 매수일 최근 것부터(2026-10-10 요청 — 예전엔 등록순이라 섞여 보였다). 같은 날은 늦게 기록된 것이 위 */
+  else{   /* 기본 순서 = 매수일 오래된 것부터(2026-10-10 요청 — 예전엔 등록순이라 섞여 보였다). 같은 날은 먼저 기록된 것이 위 */
     rows.forEach((r,i)=>r._i=i);
-    rows.sort((a,b)=>String(b.p.date||'').localeCompare(String(a.p.date||''))||(b._i-a._i))}
+    rows.sort((a,b)=>String(a.p.date||'').localeCompare(String(b.p.date||''))||(a._i-b._i))}
   $('#tbl tbody').innerHTML=rows.map(({p,now,hi,days,line,tgt,ret,st,sc,streak,rule,useLive,lvDate,rid0})=>{
     const nowCell=pmon(now,p.code);
     const C={
@@ -1866,9 +1866,9 @@ async function renderPositions(){
   document.querySelectorAll('#tbl thead th[data-k]').forEach(th=>th.onclick=()=>{
     if(Date.now()-RESIZED_AT<400)return;           /* 너비를 끈 직후의 클릭은 무시 */
     const k=th.dataset.k;
+    /* 2026-10-10 요청: 세 번째 '정렬 해제'는 없앤다 — 같은 열은 내림↔오름만 오간다 */
     if(POSSORT.key!==k)POSSORT={key:k,desc:true};
-    else if(POSSORT.desc)POSSORT={key:k,desc:false};
-    else POSSORT={key:null,desc:true};
+    else POSSORT={key:k,desc:!POSSORT.desc};
     render()});
   const open_=rows.filter(r=>!r.p.sell);const avg=open_.length?open_.reduce((a,r)=>a+(r.ret||0),0)/open_.length:0;
   const closed=rows.filter(r=>r.p.sell);const realized=closed.reduce((a,r)=>a+pr(r.p),0);
