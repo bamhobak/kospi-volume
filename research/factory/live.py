@@ -78,7 +78,7 @@ def update():
     return A
 
 
-def fill_missing(days=62, rate=8.0):
+def fill_missing(days=62, rate=8.0, rank_min=0.25):
     """최근 거래일에 있는데 일봉 기록이 days 일보다 짧은 종목(1분봉 과거 채우기 상위 1,000 밖)을 1분봉으로 메운다.
     안 메우면 그 종목들(유니버스의 약 1/4)은 20·60일 재료가 몇 주 동안 빈칸이다(2026-10-08 점검기가 잡음)."""
     from concurrent.futures import ThreadPoolExecutor
@@ -88,7 +88,7 @@ def fill_missing(days=62, rate=8.0):
     have = A[A.date.isin(cal)].groupby("ticker").date.apply(set)
     last = cal[-1]
     R = A[A.date.isin(cal[-5:])].assign(amt=lambda x: x.close * x.volume).groupby("ticker").amt.mean()
-    tick = sorted(R[R.rank(pct=True) >= 0.45].index.intersection(A[A.date == last].ticker.unique()))   # 유니버스(상위 40%)에 들 만한 종목만
+    tick = sorted(R[R.rank(pct=True) >= rank_min].index.intersection(A[A.date == last].ticker.unique()))   # 유니버스(상위 40%)에 들 만한 종목만(10-10: 0.45 로는 135종목이 빠져 0.25 로)
     todo = [(t, d) for t in tick for d in cal if d not in have.get(t, set())]
     C.log("빈 일봉 메우기: %d종목 · %d종목-일" % (len({t for t, _ in todo}), len(todo)))
     rows, t0 = [], time.time()
