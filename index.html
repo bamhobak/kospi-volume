@@ -99,7 +99,7 @@ header{min-height:52px;padding:6px 18px;flex-wrap:wrap;gap:8px 16px;align-conten
 .mktstate i{width:6px;height:6px;border-radius:999px;background:var(--org);display:inline-block}
 .mktstate b{color:var(--txt)}
 #mktstate{display:none !important}   /* 2026-10-10 요청: 머리줄 국면 칩은 감추고, 왼쪽 레일 '완료'와 '규칙' 사이(.railstate)에 PC 에서만 보인다 — 미장 표 묵음 경보(#usstate)는 그대로 */
-.railstate{display:flex;align-items:center;gap:7px;margin:2px 0 10px;padding:4px 2px;background:none;border:0;color:var(--mut);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.railstate{display:flex;align-items:center;gap:7px;margin:2px 0 8px;padding:5px 8px;background:none;border:0;color:var(--mut);font-size:12px;line-height:1.6;min-height:24px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}   /* 왼쪽은 아래 규칙 머리(.rail .k 8px)와 맞춘다 · 글자 아래 잘림 막으려 줄 높이 */
 .railstate:empty{display:none}
 .railstate i{width:6px;height:6px;border-radius:999px;display:inline-block;flex:none}
 @media(max-width:900px){.railstate{display:none !important}}
