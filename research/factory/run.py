@@ -126,6 +126,29 @@ def night():
     C.log("밤 끝 — 판정 %d · 검토 대기 새로 %d · %.1f분" % (len(done), len(rv), (time.time() - t0) / 60))
 
 
+def harvest_only():
+    """AI 수집만 다시(2026-10-11 사용자: 새벽 수집에서 못 읽은 것 다시) — 수집 → 깔때기 → 후보 페이지 → 검토 대기면 텔레그램."""
+    import lab, harvest, card, board
+    t0 = time.time()
+    L = lab.load()
+    specs, hrep = harvest.run()
+    for sp in specs: lab.add(sp, L)
+    done = lab.process(L); lab.save(L)
+    rv = [x for x in done if x.get("status") == "review"]
+    try: board.publish()
+    except Exception as ex: C.log("후보 페이지 실패:", repr(ex)[:300])
+    rep = ["# 규칙 공장 수집 다시 · %s" % time.strftime("%Y-%m-%d %H:%M"), ""] + (hrep or ["새 기법 없음"]) + ["", "## 깔때기 — 판정 %d개" % len(done), "",
+           "| id | 출처 | 명세 | 결과 | 학습 | 검증 | 이유 |", "|---|---|---|---|---|---|---|"]
+    for x in done:
+        r = x.get("res") or {}
+        rep.append("| %s | %s | %s | %s | %s | %s | %s |" % (x["id"], x.get("origin"), (x.get("desc") or "")[:90], lab.STAGE.get(x.get("stage"), x.get("stage")), lab.fmt_s(r.get("tr")), lab.fmt_s(r.get("va")), (x.get("why") or "통과 → 검토 대기")[:80]))
+    f = C.REP / ("%s_harvest%s.md" % (time.strftime("%Y%m%d"), time.strftime("_%H%M")))
+    f.write_text("\n".join(rep) + "\n", encoding="utf-8")
+    card.notify(rv)
+    C.log("수집 다시 끝 — 명세 %d · 판정 %d · 검토 대기 %d · %.1f분" % (len(specs), len(done), len(rv), (time.time() - t0) / 60))
+    print(f)
+
+
 def status():
     import lab, collections
     L = lab.load()
@@ -152,6 +175,7 @@ if __name__ == "__main__":
         elif cmd == "close": close()
         elif cmd == "evening": evening()
         elif cmd == "night": night()
+        elif cmd == "harvest": harvest_only()
         elif cmd == "check": __import__("health").run()
         elif cmd == "usage": print("\n".join(__import__("harvest").usage_report()))
         elif cmd == "status": status()
