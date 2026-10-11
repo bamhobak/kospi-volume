@@ -25,7 +25,25 @@ PRICE = {"claude-haiku-5-5": (0.10, 0.50, 0.125, 0.01), "claude-sonnet-5-5": (2.
 QUERIES = ["단타 매매법", "데이트레이딩 기법", "종가베팅 매매법", "시초가 매매 기법", "스캘핑 주식 기법", "단타 승률 높은 방법",
            "갭 매매 기법", "눌림목 단타", "상한가 따라잡기", "거래량 급증 매매"]
 MAX_EXTRACT = 10           # 하룻밤 번역(비싼 쪽) 상한 — 2026-10-10 수집처 넓히며 6→10(한 달 약 $15~20)
-MAX_SCREEN = 120                 # 2026-10-11 80→120: 출처 14곳을 번갈아 읽으려고(거르기 개당 $0.0004)
+# 하룻밤 읽기 몫 — 2026-10-12 사용자 "출처별로": 전체 몫(80→120)이 사실상 유튜브 자막 막힘(429) 때문이었는데
+# 잘 열리는 다른 출처까지 묶어 출처당 6개꼴이었다 → 유튜브만 언어 합계로 묶고 나머지는 출처마다 안전판만.
+YT_MAX = 30                 # 유튜브 자막(한·영·일·중 합계) — 하룻밤 이 이상 몰아 받으면 429
+SRC_MAX = 40                # 그 밖 출처 하나당(새 글은 거의 다 읽힌다 — 폭주 막는 안전판)
+
+
+def pick(allc):
+    """번갈아 섞인 후보에서 출처별 몫만큼 고른다(유튜브는 언어 합계 YT_MAX)."""
+    n, yt, out = {}, 0, []
+    for it in allc:
+        s = it["src"]
+        if s.startswith("유튜브"):
+            if yt >= YT_MAX: continue
+            yt += 1
+        elif n.get(s, 0) >= SRC_MAX:
+            continue
+        n[s] = n.get(s, 0) + 1
+        out.append(it)
+    return out
 
 
 # ── 크레딧 ──────────────────────────────────────────────────────────
@@ -236,7 +254,7 @@ def candidates(seen):
         for v in L:
             if i < len(v) and v[i]["key"] not in keys:
                 keys.add(v[i]["key"]); out.append(v[i])
-    C.log("후보: " + " · ".join("%s %d" % (k, len(v)) for k, v in zip(per, L)))
+    C.log("후보: " + " · ".join("%s %d" % (k, len(v)) for k, v in zip(by, L)))
     return out
 
 
@@ -245,7 +263,7 @@ def run(max_extract=MAX_EXTRACT):
     import lab, sources as S
     seen = C.jload(SEEN, {})
     allc = candidates(seen)
-    cand = allc[:MAX_SCREEN]
+    cand = pick(allc)
     specs, rep, nx = [], [], 0
     xsys = extract_sys()
     retry = C.jload(RETRY, {})
