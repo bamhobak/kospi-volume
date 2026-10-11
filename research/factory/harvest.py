@@ -138,12 +138,17 @@ def yt_text(vid, lang="ko"):
     pace.wait("youtube")
     d = Path(tempfile.mkdtemp(prefix="hv_"))
     try:
-        langs = [lang] + ([lang + "-orig"] if lang != "ko" else [])
-        opts = {"quiet": True, "no_warnings": True, "noprogress": True, "skip_download": True, "writeautomaticsub": True, "writesubtitles": True,
-                "subtitleslangs": langs, "subtitlesformat": "vtt", "outtmpl": str(d / "%(id)s")}
-        with yt_dlp.YoutubeDL(opts) as y:
-            y.download(["https://www.youtube.com/watch?v=" + vid])
-        fs = sorted(glob.glob(str(d / "*.vtt")), key=lambda f: ("-orig" not in f, f))
+        # 2026-10-12: 영어 영상에 'en'·'en-orig' 둘 다 달라 했더니 'en'(유튜브 번역 자막 길) 쪽만 429 — 막힘 기록 전부 'en'.
+        #   원본 자막(-orig)만 먼저 받고, 원본이 없을 때만 번역 자막을 한 번 더 부른다. 한국어는 원래 'ko' 하나.
+        tries = [["ko"]] if lang == "ko" else [[lang + "-orig"], [lang]]
+        fs = []
+        for langs in tries:
+            opts = {"quiet": True, "no_warnings": True, "noprogress": True, "skip_download": True, "writeautomaticsub": True, "writesubtitles": True,
+                    "subtitleslangs": langs, "subtitlesformat": "vtt", "outtmpl": str(d / "%(id)s")}
+            with yt_dlp.YoutubeDL(opts) as y:
+                y.download(["https://www.youtube.com/watch?v=" + vid])
+            fs = sorted(glob.glob(str(d / "*.vtt")), key=lambda f: ("-orig" not in f, f))
+            if fs: break
         pace.ok("youtube")
         return vtt_text(fs[0]) if fs else ""
     except Exception as ex:

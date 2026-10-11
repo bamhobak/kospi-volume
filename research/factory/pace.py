@@ -4,7 +4,7 @@
 사이트(host)마다 요청 간격(gap 초)을 따로 들고 있다 — data/factory/pace.json 에 남겨 다음 밤에도 이어 쓴다.
   막힌 낌새(429 · 403 · 'Just a moment' · captcha · unusual traffic · Sign in to confirm)  → 그 사이트 간격 2배(최대 120초)
   같은 밤에 3번 걸리면 → 그 사이트는 12시간 쉰다(blocked_until) — 무리하게 계속 두드리지 않는다
-  막힘 없이 20번 성공할 때마다 → 간격을 10% 줄인다(기본값 아래로는 안 내려감)
+  막힘 없이 5번 성공할 때마다 → 간격을 20% 줄인다(기본값 아래로는 안 내려감 · 10-12 전엔 20번마다 10%)
 기록은 data/factory/pace_log.jsonl(날짜·사이트·사건) — 후보 페이지 '수집 기록'과 점검기가 본다.
 """
 import json, time, threading
@@ -66,11 +66,14 @@ def wait(h):
     if w > 0: time.sleep(w)
 
 
+OK_STEP, OK_MULT = 5, 0.8     # 2026-10-12: 20번마다 10% 는 너무 느렸다(유튜브 120초 → 8초에 몇 주, 하룻밤 30개에 1시간) → 5번마다 20%(이틀 밤쯤)
+
+
 def ok(h):
     with _lock:
         s = st(h); s["ok"] += 1
-        if s["ok"] >= 20:
-            s["ok"] = 0; s["gap"] = max(DEFAULT.get(h, 2.0), round(s["gap"] * 0.9, 2)); _save()
+        if s["ok"] >= OK_STEP:
+            s["ok"] = 0; s["gap"] = max(DEFAULT.get(h, 2.0), round(s["gap"] * OK_MULT, 2)); _save()
 
 
 def is_block(text):
