@@ -217,7 +217,7 @@ def _note(u):
     return (html.unescape(ti.group(1)) if ti else u), body
 
 
-REDDIT_SUBS = ["Daytrading", "swingtrading", "algotrading", "StockMarket"]
+REDDIT_SUBS = ["Daytrading", "swingtrading", "algotrading", "StockMarket", "RealDayTrading", "Trading"]   # 10-11 RealDayTrading·Trading 추가
 
 
 def reddit(n=25):
@@ -229,7 +229,10 @@ def reddit(n=25):
     out = []
     for sub in REDDIT_SUBS:
         try:
-            t = _get("https://old.reddit.com/r/%s/top.json?t=week&limit=%d" % (sub, n), cookies={"reddit_session": v})
+            # 2026-10-11 저녁: 크롬 흉내가 'blocked by network security'(쿠키는 유효) → 사파리 흉내는 통과. 사파리 먼저, 막히면 크롬
+            u = "https://old.reddit.com/r/%s/top.json?t=week&limit=%d" % (sub, n)
+            try: t = _get(u, imp="safari", strict=False, cookies={"reddit_session": v})
+            except Blocked: t = _get(u, imp="chrome", cookies={"reddit_session": v})
             j = json.loads(t)
         except Blocked as ex:
             C.log("레딧 속도 조절로 멈춤", sub, str(ex)[:80]); break
@@ -244,9 +247,93 @@ def reddit(n=25):
     return out
 
 
+def quantconnect(pages=3):
+    """QuantConnect 포럼(2026-10-11 사용자 '추천쪽만') — 알고리즘 매매 플랫폼, 전략을 코드와 같이 올려 조건이 명확하다.
+    목록은 화면이 JS 로 그려서 사이트 내부 API(community/discussion/list·read, 로그인 없이 됨)로 읽는다. 인기순 26쪽 —
+    본 글은 seen 으로 건너뛰니 밤마다 앞쪽 3쪽 + 아직 안 본 쪽을 하나씩 더 넘긴다."""
+    import pace
+    out = []
+    S = C.jload(C.DATA / "qc_page.json", {"next": 4})
+    pg = list(range(1, pages + 1)) + [S["next"]]
+    for p in pg:
+        h = "quantconnect"
+        if pace.blocked(h): break
+        pace.wait(h)
+        from curl_cffi import requests as cr
+        r = cr.post("https://www.quantconnect.com/api/v2/community/discussion/list/", json={"page": p}, impersonate="chrome", timeout=25)
+        if r.status_code in (403, 429, 503): pace.hit(h, "HTTP %d" % r.status_code); break
+        pace.ok(h)
+        d = (r.json() or {}).get("discussionsData") or {}
+        for x in d.get("discussions") or []:
+            did = x.get("id")
+            out.append(dict(key="qc_forum:%s" % did, src="QuantConnect 포럼(영어)", url="https://www.quantconnect.com/forum/discussion/%s/" % did,
+                            title=html.unescape(x.get("title") or ""), text=None, _fetch=lambda did=did: _qc_read(did)))
+        if p == S["next"]: S["next"] = p + 1 if p < (d.get("pages") or 26) else 4
+    C.jsave(C.DATA / "qc_page.json", S)
+    return out
+
+
+def _qc_read(did):
+    import pace
+    from curl_cffi import requests as cr
+    if pace.blocked("quantconnect"): raise Blocked("quantconnect 쉬는 중")
+    pace.wait("quantconnect")
+    r = cr.post("https://www.quantconnect.com/api/v2/community/discussion/read/", json={"discussionId": int(did)}, impersonate="chrome", timeout=25)
+    if r.status_code in (403, 429, 503): pace.hit("quantconnect", "HTTP %d" % r.status_code); raise Blocked("quantconnect HTTP %d" % r.status_code)
+    pace.ok("quantconnect")
+    x = (r.json() or {}).get("discussion") or {}
+    return html.unescape(x.get("title") or ""), clean(x.get("content") or "")
+
+
+def elitetrader(n=15):
+    """Elite Trader '전략 개발' 게시판(미국 오래된 트레이더 포럼) — 최근 글 첫 쪽 → 글의 첫 게시물."""
+    t = _get("https://www.elitetrader.com/et/forums/strategy-development.48/")
+    out = []
+    for path in list(dict.fromkeys(re.findall(r'href="(/et/threads/[^"/]+\.(\d+)/)"', t)))[:n]:
+        u = "https://www.elitetrader.com" + path[0]
+        out.append(dict(key="et:" + path[1], src="Elite Trader(영어)", url=u, title=None, text=None, _fetch=lambda u=u: _et_post(u)))
+    return out
+
+
+def _et_post(u):
+    t = _get(u)
+    ti = re.search(r'<meta property="og:title" content="([^"]*)"', t)
+    m = re.search(r'<div class="bbWrapper">(.*?)</div>\s*(?:<div class="js-selectToQuote|</article|<div class="message-lastEdit)', t, re.S) or re.search(r'<div class="bbWrapper">(.*?)</article>', t, re.S)
+    return (html.unescape(ti.group(1)) if ti else u), (clean(m.group(1)) if m else "")
+
+
+ARXIV_CATS = ("q-fin.TR", "q-fin.PM", "q-fin.ST")      # 매매·시장 미시구조 / 포트폴리오 / 통계 금융
+
+
+def arxiv(n=12):
+    """arXiv 금융 논문(공식 API) — 최신 제출순. 본문은 HTML 판(있으면) 앞부분, 없으면 요약."""
+    q = "+OR+".join("cat:" + c for c in ARXIV_CATS)
+    t = _get("http://export.arxiv.org/api/query?search_query=%s&max_results=%d&sortBy=submittedDate&sortOrder=descending" % (q, n))
+    out = []
+    for e in re.findall(r"<entry>(.*?)</entry>", t, re.S):
+        aid = re.search(r"<id>http://arxiv.org/abs/([^<]+)</id>", e)
+        if not aid: continue
+        aid = aid.group(1); base = re.sub(r"v\d+$", "", aid)
+        ti = clean(re.search(r"<title>(.*?)</title>", e, re.S).group(1))
+        ab = clean((re.search(r"<summary>(.*?)</summary>", e, re.S) or [None, ""])[1] or "")
+        out.append(dict(key="arxiv:" + base, src="arXiv 금융 논문(영어)", url="https://arxiv.org/abs/" + aid, title=ti, text=None,
+                        _fetch=lambda aid=aid, ti=ti, ab=ab: (ti, _arxiv_body(aid, ab))))
+    return out
+
+
+def _arxiv_body(aid, ab):
+    try:
+        t = _get("https://arxiv.org/html/" + aid)
+        body = clean(" ".join(re.findall(r"<p[^>]*>(.*?)</p>", t, re.S)))
+        if len(body) > len(ab): return ("요약: " + ab + "\n\n본문: " + body)[:20000]
+    except Exception:
+        pass
+    return ab
+
+
 def overseas():
     out = []
-    for fn in (tradingview, quantocracy, note_jp, reddit):
+    for fn in (tradingview, quantocracy, note_jp, reddit, quantconnect, elitetrader, arxiv):
         try: out += fn()
         except Exception as ex: C.log("해외 수집 실패", fn.__name__, str(ex)[:120])
     return out

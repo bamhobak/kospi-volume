@@ -13,7 +13,8 @@ import common as C
 STATE = C.DATA / "pace.json"
 LOG = C.DATA / "pace_log.jsonl"
 DEFAULT = {"youtube": 8.0, "youtube_search": 4.0, "reddit": 5.0, "naver": 2.0, "tradingview": 3.0, "quantocracy": 2.0,
-           "note": 3.0, "board": 2.0, "web": 2.0}
+           "note": 3.0, "board": 2.0, "web": 2.0,
+           "quantconnect": 3.0, "elitetrader": 3.0, "arxiv": 3.0}          # 10-11 추가 — arXiv 는 요청 간격 3초 권장
 MAXGAP, HITS_TO_PAUSE, PAUSE_H = 120.0, 3, 12
 SIGNS = ("429", "Too Many Requests", "Just a moment", "captcha", "CAPTCHA", "unusual traffic", "Sign in to confirm", "403", "rate limit", "ratelimit")
 _lock = threading.Lock()
@@ -37,7 +38,8 @@ def host_of(u):
     u = u.lower()
     for k, keys in (("youtube", ("youtube.com", "youtu.be", "googlevideo")), ("reddit", ("reddit.com",)), ("naver", ("naver.com",)),
                     ("tradingview", ("tradingview.com",)), ("quantocracy", ("quantocracy.com",)), ("note", ("note.com",)),
-                    ("board", ("clien.net", "ppomppu.co.kr", "dcinside.com"))):
+                    ("board", ("clien.net", "ppomppu.co.kr", "dcinside.com")),
+                    ("quantconnect", ("quantconnect.com",)), ("elitetrader", ("elitetrader.com",)), ("arxiv", ("arxiv.org",))):
         if any(x in u for x in keys): return k
     # 2026-10-11: 그 밖의 블로그를 'web' 한 칸으로 묶었더니 서로 다른 블로그 3곳의 403 으로 'web' 전체가 12시간 쉬었다 → 도메인마다 따로
     import urllib.parse
