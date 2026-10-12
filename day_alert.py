@@ -363,10 +363,15 @@ def trade(L, today):
     if not placed:
         if skip: telegram("⚠ 데이 매수 0건 — " + " · ".join("%s(%s)" % s_ for s_ in skip[:6]))
         return
+    AT.sleep_until(S["start"], "데이 시가 단일가")
+    open_guard(placed, today)                              # 시가가 찍히자마자 '시가 > 지정가' 주문을 바로 취소(10-12 장중 체결 3건)
     AT.sleep_until(S["start"] + dt.timedelta(seconds=60), "데이 시가 체결 확인")
-    cancel_left(placed)
+    cancel_left(placed)                                    # 남은 것 마지막 정리
     AT.wait_fills(placed)
     got = [o for o in placed if o["fq"] > 0 and o["ap"] > 0]
+    for o in got:                                          # 그래도 장중에 사진 것 — 시가보다 싸게(=지정가에) 체결됐다
+        op_ = (o.get("open") or 0)
+        if op_ and o.get("lim") and op_ > o["lim"]: o["intraday"] = True
     for i, o in enumerate(got):
         o["pos"] = {"id": int(time.time() * 1000) + i, "code": o["t"], "name": o["name"], "date": today, "price": o["ap"],
                     "qty": int(o["fq"]), "filters": [o.get("rid", "T1")], "auto": True, "day": True, "oid": o["oid"]}
@@ -374,13 +379,53 @@ def trade(L, today):
     if got:
         scalp_update(lambda P: (P.extend(dict(o["pos"]) for o in got) or True), "데이 매수 %d건" % len(got))
     lines = ["🌅 <b>데이 매수</b> %s/%s 시가" % (today[4:6], today[6:])]
-    lines += ["✅ [%s] %s %d주 @ %s원 = %s원" % (RNAME.get(o.get("rid", "T1"), ""), o["name"], int(o["fq"]), f"{o['ap']:,.0f}", f"{o['fq'] * o['ap']:,.0f}") for o in got]
+    lines += ["✅ [%s] %s %d주 @ %s원 = %s원%s" % (RNAME.get(o.get("rid", "T1"), ""), o["name"], int(o["fq"]), f"{o['ap']:,.0f}", f"{o['fq'] * o['ap']:,.0f}",
+                                                 (" ⚠ 장중 체결(시가 %s > 지정가 — 취소 전에 사짐)" % f"{o['open']:,.0f}") if o.get("intraday") else "") for o in got]
     lines += [("⏭ [%s] %s 시가가 지정가 %s원 위 — 안 삼(취소)" % (RNAME.get(o.get("rid", "T1"), ""), o["name"], f"{o['lim']:,}"))
               if o.get("canceled") else ("❌ %s 미체결(%s)" % (o["name"], o.get("status"))) for o in placed if o not in got]
     if skip: lines.append("못 산 것: " + " · ".join("%s(%s)" % s_ for s_ in skip[:6]))
     telegram("\n".join(lines))
     if not got: return
     close_sell(got, Lg, S, today)
+
+
+def open_guard(placed, today, until_s=40):
+    """2026-10-12 첫 실전: 토스 OPG 지정가는 시가에 안 사지면 **장중까지 살아 있어** 09:00~09:01 사이 3종목이 지정가에 장중 체결됐다
+    (나이스정보통신·진양화학·셀비온 — 시가가 지정가보다 10~30원 위). → 09:00 부터 1초마다 그 종목 1분봉 첫 봉(=시가 단일가)을 보고
+    시가 > 지정가면 바로 취소한다. 시가 단일가에서 이미 체결된 주문은 취소가 '이미 체결'로 거절될 뿐이라 손해 없음."""
+    if AT.DRY or not placed: return
+    from concurrent.futures import ThreadPoolExecutor
+    left = {o["oid"]: o for o in placed if o.get("oid")}
+    t_end = time.time() + until_s
+
+    def first_open(sym):
+        c = (M.get("/api/v1/candles", symbol=sym, interval="1m", count=3) or {}).get("candles") or []
+        c = [x for x in c if x["timestamp"][:10].replace("-", "") == today and x["timestamp"][11:16] >= "09:00"]
+        return float(min(c, key=lambda x: x["timestamp"])["openPrice"]) if c else None
+
+    def one(o):
+        try:
+            st = (AT.detail(o["oid"]) or {}).get("status")
+            if st in AT.FINAL or st == "PARTIALLY_FILLED": return o["oid"], "done"
+            op_ = first_open(o["t"])
+            if op_ is None: return o["oid"], "wait"
+            o["open"] = op_
+            if op_ <= o["lim"]: return o["oid"], "done"           # 시가 단일가에서 사질 값 — 체결 반영만 기다린다
+            try:
+                AT.call("POST", "/api/v1/orders/%s/cancel" % o["oid"], acct=True, body={})
+                o["canceled"] = True; log("시가 %s > 지정가 %s — 바로 취소:" % (op_, o["lim"]), o["t"], o.get("rid"))
+            except AT.TossErr as ex:
+                log("즉시 취소 거절(%s):" % ex.code, o["t"])
+            return o["oid"], "done"
+        except Exception as ex:
+            log("시가 확인 실패:", o["t"], repr(ex)[:120]); return o["oid"], "wait"
+
+    while left and time.time() < t_end:
+        with ThreadPoolExecutor(min(8, len(left))) as ex:
+            for oid, st in ex.map(one, list(left.values())):
+                if st == "done": left.pop(oid, None)
+        if left: time.sleep(1.0)
+    if left: log("시가 확인 못 한 주문 %d — 09:01 정리에서 취소" % len(left))
 
 
 def cancel_left(placed):
