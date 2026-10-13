@@ -895,10 +895,6 @@ const boldMd=t=>String(t).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>');
 const condOf=f=>boldMd(String(f.cond||f.desc||'')).replace(/(^|[^A-Za-z0-9])([PDA][0-9])(?![0-9A-Za-z])/g,(m,pre,c)=>pre+codeOf(c));
 const descOf=f=>boldMd(String(f.desc||'')).replace(/(^|[^A-Za-z0-9])([PDA][0-9])(?![0-9A-Za-z])/g,(m,pre,c)=>pre+codeOf(c));
 const fOf=id=>FILTERS.find(x=>x.id===normId(id))||RETIRED[normId(id)]||null;
-/* 보유 표 승률·PF(2026-10-13 요청) — 스윙·데이 어느 탭에서 봐도 그 종목을 산 규칙의 통계를 찾는다 */
-const ruleStats=id=>{if(!id)return null;const k=normId(id);
-  const f=FILTERS.find(x=>x.id===k)||SWING_FILTERS.find(x=>x.id===k)||SCALP_FILTERS.find(x=>x.id===k)||RETIRED[k];
-  return (f&&f.stats)||null};
 /* 규칙별 신호 연속 일수 — notify_new.py 가 매일 하루씩 누적해 __filters__ 에 넣는다.
    그날의 지표를 다시 만들 수 없어 소급 계산이 안 되므로 서버 누적값을 그대로 쓴다. */
 let STK=null;
@@ -1724,6 +1720,8 @@ async function renderPositions(){
       +`<span><span class="k">동일</span><span class="${sg(m.avg)}">${m.avg==null?'—':(m.avg>0?'+':'')+m.avg.toFixed(2)+'%'}</span></span>`
       +`<span><span class="k">수익률</span><span class="${sg(m.ret)}">${m.inv?(m.ret>0?'+':'')+m.ret.toFixed(2)+'%':'—'}</span></span>`
       +`<span><span class="k">평가손익</span><span class="${sg(m.pnl)}">${m.inv?amt(m.pnl,1):'—'}</span></span>`
+      +`<span title="지금 판다면(비용 뒤) 수익인 종목 비율"><span class="k">승률</span><span>${m.win==null?'—':m.win.toFixed(0)+'% <span class="k">('+m.nwin+'/'+m.navg+')</span>'}</span></span>`
+      +`<span title="지금 기준 PF — 수익 중인 종목 수익률 합 ÷ 손실 중인 종목 손실률 합(1 보다 크면 번 쪽이 큼)"><span class="k">PF</span><span class="${m.pf==null?'':m.pf>=1?'pos':'neg'}">${m.pf==null?'—':m.pf===Infinity?'∞':m.pf.toFixed(2)}</span></span>`
       /* 현재가를 아직 못 받은 건이 있으면 **말해 준다** — 일부만 반영된 합계를 전부인 척
          보여주면 안 된다. 미장 표가 도착하면 사라진다. */
       +(m.miss?`<span class="k" style="color:var(--up)">${USROWS?m.miss+'건 시세없음':'미장 '+m.miss+'건 받는 중…'}</span>`:'')
@@ -1753,9 +1751,7 @@ async function renderPositions(){
     ?[['name','종목','l'],['rule','규칙','l'],['bdate','매수일','l'],['bprice','매수가'],
       ['qty','수량'],['bamt','매수금액'],['sdate2','매도일|기록한 실제 매도일','l'],['sprice','매도가'],
       ['dret','수익률'],['dpnl','손익'],['act','작업','l']]
-    :[['name','종목','l'],['rule','규칙','l'],
-      ['win','승률|그 종목을 산 규칙의 기대 승률 — 검증기간(2023~) 실측, 규칙 카드에 나오는 값과 같다'],['pf','PF|그 규칙의 Profit Factor — 이익 거래 합 ÷ 손실 거래 합(검증기간). 1.0 이면 본전'],
-      ['bdate','매수일','l'],['bprice','매수가'],
+    :[['name','종목','l'],['rule','규칙','l'],['bdate','매수일','l'],['bprice','매수가'],
       ['qty','수량'],['bamt','매수금액'],['now','현재가'],['chgpct','전일비'],['ret','수익률'],['pnl','평가손익'],
       ['days','보유일'],['sdate','매도일|규칙상 매도일 — 매수일을 1일째로 세어 보유기간이 되는 거래일. 아직 오지 않은 날은 주말·공휴일을 빼서 추정한 값이라 휴장일에 따라 하루 이틀 밀릴 수 있습니다','l'],['hi','고점|매수 후 최고가 — 매수가와 매수일 이후 일별 종가, 오늘 실시간 고가 중 최댓값'],
       ['line','손절/익절선'],['streak','신호 유지'],['state','상태','l'],['act','작업','l']];
@@ -1831,8 +1827,7 @@ async function renderPositions(){
        환율을 못 받았으면(fx=0) 예전처럼 숫자를 그대로 쓴다. */
     const fx=usdkrw(), us=isUSCode(p.code);
     const amt=(v)=>v==null?null:((us&&fx)?v*fx:v);
-    const rs_=ruleStats((p.filters||[])[0]);
-    const V={name:pname(p), rule:(p.filters||[])[0]||'', bdate:p.date, win:rs_?rs_.win:null, pf:rs_?rs_.pf:null,
+    const V={name:pname(p), rule:(p.filters||[])[0]||'', bdate:p.date,
       bprice:amt(p.price), qty:p.qty||0, bamt:amt((p.qty||0)*p.price), detail:null, act:null};
     if(DONE)return Object.assign(V,{sdate2:p.sellDate||'', sprice:amt(p.sell),
       dret:p.sell?(p.sell/p.price-1)*100:null,
@@ -1856,8 +1851,6 @@ async function renderPositions(){
     const C={
       name:`<td class="l name">${dispName(pname(p))} <span class="code cpy" data-cp="${p.code}">${p.code}</span>${DONE?'':warnBadge(p.code)}</td>`,
       rule:`<td class="l">${(p.filters||[]).map(f=>{const ff=fOf(f);return `<span class="tag ${ff?mkCls(ff.mkt):''}">${fcode(f)}</span>`}).join('')||'<span class="code">-</span>'}</td>`,
-      win:(()=>{const t=ruleStats((p.filters||[])[0]);return t&&t.win!=null?`<td>${t.win}%</td>`:'<td><span class="code">-</span></td>'})(),
-      pf:(()=>{const t=ruleStats((p.filters||[])[0]);return t&&t.pf!=null?`<td>${t.pf}</td>`:'<td><span class="code">-</span></td>'})(),
       bdate:`<td class="l">${md(p.date)}</td>`,
       bprice:`<td>${pmon(p.price,p.code)}</td>`,
       qty:`<td>${p.qty?fmt(p.qty)+'주':''}</td>`,
@@ -2245,8 +2238,12 @@ function sumMoney(list,asIs){
     if(!now){miss++;return}
     inv+=costBuy(p)*p.qty*fx;
     pnl+=(sellNow(now,p.code)-costBuy(p))*p.qty*fx});
+  /* 지금 기준 승률·PF(2026-10-13 요청) — 보유 종목을 지금 판다면(비용 뒤) 수익인 비율 · 수익률 합 ÷ 손실률 합(완료 탭 PF 와 같은 식) */
+  const gain=rets.filter(x=>x>0).reduce((a,x)=>a+x,0), loss=-rets.filter(x=>x<0).reduce((a,x)=>a+x,0);
   return {inv,pnl,ret:inv?pnl/inv*100:0,noFX,miss,
-          avg:rets.length?rets.reduce((x,y)=>x+y,0)/rets.length:null, navg:rets.length};
+          avg:rets.length?rets.reduce((x,y)=>x+y,0)/rets.length:null, navg:rets.length,
+          win:rets.length?rets.filter(x=>x>0).length/rets.length*100:null, nwin:rets.filter(x=>x>0).length,
+          pf:loss>0?gain/loss:(gain>0?Infinity:null)};
 }
 /* 자료 시각 갱신. 보유·완료 요약은 각자 탭 안으로 옮겼고, 시각은 레일 바닥으로 갔다
    (2026-09-12 요청). 헤더의 #status 는 이제 비어 있다.
