@@ -9,7 +9,7 @@
   크레딧 기록 data/factory/llm_usage.jsonl — 호출마다 토큰·달러. `run.py usage` 로 이달 사용·한 달 예상.
   한도        .env FACTORY_LLM_MONTHLY(기본 $40) 를 넘기면 그달은 더 안 부른다(크레딧 다 써도 과금은 안 되지만 다른 앱 몫을 남긴다).
 """
-import json, os, re, time, glob, shutil, tempfile, urllib.parse
+import json, os, re, sys, time, glob, shutil, tempfile, urllib.parse
 from pathlib import Path
 
 import common as C
@@ -24,7 +24,7 @@ PRICE = {"claude-haiku-5-5": (0.10, 0.50, 0.125, 0.01), "claude-sonnet-5-5": (2.
          "claude-haiku-4-5-20251001": (1.0, 5.0, 1.25, 0.10), "claude-opus-5-5": (4.0, 20.0, 5.0, 0.20)}
 QUERIES = ["단타 매매법", "데이트레이딩 기법", "종가베팅 매매법", "시초가 매매 기법", "스캘핑 주식 기법", "단타 승률 높은 방법",
            "갭 매매 기법", "눌림목 단타", "상한가 따라잡기", "거래량 급증 매매"]
-MAX_EXTRACT = 25           # 하룻밤 번역(비싼 쪽) 상한 — 10-10 6→10 · 10-14 사용자 "번역 한도 올려" 10→25(건당 약 $0.033 → 한 달 약 $27, 한도 $40 에 닿으면 자동 멈춤)
+MAX_EXTRACT = 25           # 하룻밤 번역 상한 — 10-10 6→10 · 10-14 10→25 · 10-14~ 번역은 구독 방식(ask_sub, claude -p — API 크레딧 안 씀, 건당 10초대)
 # 하룻밤 읽기 몫 — 2026-10-12 사용자 "출처별로": 전체 몫(80→120)이 사실상 유튜브 자막 막힘(429) 때문이었는데
 # 잘 열리는 다른 출처까지 묶어 출처당 6개꼴이었다 → 유튜브만 언어 합계로 묶고 나머지는 출처마다 안전판만.
 YT_MAX = 30                 # 유튜브 자막(한·영·일·중 합계) — 하룻밤 이 이상 몰아 받으면 429
@@ -211,6 +211,37 @@ def _json(s):
     return json.loads(m.group(0)) if m else None
 
 
+# ── 번역은 구독 방식(2026-10-14 사용자 "번역만 구독 방식으로") ─────────────────────────────
+#   API 크레딧 대신 이 PC 에 로그인된 Claude Code(claude -p)를 부른다 — 블로그봇 '클로드' 옵션과 같은 claude_relay.run_claude.
+#   구조화 출력이 없으니 JSON 만 내게 하고, 못 읽으면 한 번 더. 실패해도 API 로 넘어가지 않는다(그 글은 다음 밤에 다시).
+#   거르기(Haiku, 하룻밤 수백 번)는 계속 API 크레딧.
+RELAY_DIR = Path("G:/vscode/bamhobakblogbot")
+SUB_FAILS = [0]
+
+
+def ask_sub(system, user, task="번역(구독)", timeout=600):
+    if str(RELAY_DIR) not in sys.path: sys.path.insert(0, str(RELAY_DIR))
+    import claude_relay as CR
+    prompt = system + "\n\n---\n\n" + user + "\n\n---\n위 지시대로 **JSON 하나만** 출력한다(앞뒤 설명·코드블록 표시 없이)."
+    t0 = time.time()
+    for k in range(2):
+        ok, out = CR.run_claude(prompt, model="sonnet", timeout=timeout, effort="low")
+        if not ok:
+            raise RuntimeError("구독 호출 실패: %s" % str(out)[:200])
+        try:
+            j = _json(out)
+            if j is not None:
+                with open(USAGE, "a", encoding="utf-8") as f:           # 돈은 안 들지만 몇 번·얼마나 걸렸는지는 남긴다
+                    f.write(json.dumps({"ts": time.strftime("%Y-%m-%d %H:%M:%S"), "model": "구독(claude -p)", "task": task,
+                                        "in": len(prompt), "out": len(out), "cw": 0, "cr": 0, "usd": 0.0,
+                                        "sec": round(time.time() - t0, 1)}, ensure_ascii=False) + "\n")
+                return j
+        except Exception:
+            pass
+        prompt += "\n\n(앞 답은 JSON 으로 읽히지 않았다 — JSON 하나만 다시)"
+    raise RuntimeError("구독 응답을 JSON 으로 못 읽음")
+
+
 QUERIES_SWING = ["스윙 매매법", "주식 스윙 기법", "눌림목 스윙 매매", "신고가 매매 기법", "박스권 돌파 매매", "추세추종 매매법"]
 # 2026-10-10 사용자: "유튜브도 한글 말고 영어나 각국 언어로" — (검색어, 자막 언어)
 QUERIES_FOREIGN = [("day trading strategy stocks", "en"), ("swing trading strategy backtest", "en"), ("gap and go strategy", "en"),
@@ -301,9 +332,15 @@ def run(max_extract=MAX_EXTRACT):
         nx += 1; st_["xl"] += 1
         (HV / ("%s.txt" % re.sub(r"[^\w.-]", "_", it["key"]))).write_text("%s\n%s\n%s\n\n%s" % (it["src"], title, it.get("url", ""), txt), encoding="utf-8")
         try:
-            j = _json(ask(EXTRACT_MODEL, xsys, "출처: %s\n제목: %s\n본문:\n%s" % (it["src"], title, txt[:30000]), "번역", 12000)) or {}
+            j = ask_sub(xsys, "출처: %s\n제목: %s\n본문:\n%s" % (it["src"], title, txt[:30000])) or {}   # 10-14~ 구독 방식(claude -p)
+            SUB_FAILS[0] = 0
         except Exception as ex:
-            C.log("번역 실패", it["key"], str(ex)[:150]); continue
+            C.log("번역 실패(다음 밤에 다시)", it["key"], str(ex)[:150]); st_["xl"] -= 1
+            SUB_FAILS[0] += 1
+            if SUB_FAILS[0] >= 3:                                     # 로그인 풀림·한도 등 — 오늘 밤 번역은 멈춘다(API 로 넘어가지 않음)
+                C.log("구독 번역 3번 연속 실패 — 오늘 밤 번역 멈춤"); rep.append("⚠ 구독 번역 3번 연속 실패 — 남은 글은 다음 밤에")
+                nx = max_extract
+            continue
         seen[it["key"]] = "번역: %s" % (j.get("summary") or "")[:80]
         with open(NEEDS, "a", encoding="utf-8") as fh:
             for n in (j.get("needs") or [])[:8]:
