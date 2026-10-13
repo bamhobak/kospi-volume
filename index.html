@@ -4,8 +4,12 @@
 <meta name="theme-color" content="#0a0b0e">
 <link rel="icon" type="image/svg+xml" href="icon.svg"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="manifest" href="manifest.json" crossorigin="use-credentials"><!-- crossorigin="use-credentials" 가 없으면 브라우저가 매니페스트를 **쿠키 없이** 받는다. Cloudflare Access 뒤에서는 그러면 302 로 로그인 화면이 와서 매니페스트가 깨지고 "앱 설치" 가 안 뜬다(바로가기 추가만 된다 · 2026-09-11). -->
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- 2026-10-13 '너무 느리다': 글꼴 CSS·차트 라이브러리가 화면과 자료 받기를 막고 있었다(빠른 회선에서도 0.6초) — 둘 다 첫 화면에 필요 없어 막지 않게 받는다 -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap"></noscript>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer id="chartjs"></script>
+<script>/* 차트는 상세 창에서만 쓴다 — 아직 안 왔으면 올 때까지 기다린다 */
+window.chartReady=()=>window.Chart?Promise.resolve():new Promise(r=>{const s=document.getElementById('chartjs');if(s)s.addEventListener('load',()=>r(),{once:true});else r()});</script>
 <script src="sb.js"></script>
 <style>
 :root{--dim:#5b626d;--faint:#41474f;--bg:#0a0b0e;--panel:#101217;--panel2:#171a21;--line:#272b34;--txt:#eef1f6;--mut:#858c99;/* 강조색은 손익색과 절대 겹치지 않게 분리한다 — 예전엔 --acc 와 --dn 이 둘 다 민트(5eead4)였다 */--acc:#a78bfa;--up:#f87171;--dn:#60a5fa;--ind:#fbbf24;--org:#34d399;--bth:#4ade80;/* 공통(A) 규칙 초록 */--usc:#fb923c;/* 미장(N) 규칙 주황 — D 계열 amber 와 구분 */--frg:#e879f9}
@@ -1977,26 +1981,33 @@ function goHome(){
   const qb=$('#q');if(qb)qb.value='';query='';          /* 검색어도 함께 푼다 */
   cur=homeTab();rowLimit=100;showInfo=false;doneRule=null;render();
   window.scrollTo(0,0)}
+/* 자료 파일 받기 — 2026-10-13: 예전엔 주소에 ?v=현재시각 을 붙여 **매번 처음부터**(국장 표 압축 1MB·이 회선 4초) 받았다.
+   이제 브라우저 캐시에 두고 매번 서버에 '바뀌었나'만 묻는다(cache:'no-cache' = 조건부 요청 → 안 바뀌면 304·0바이트·0.07초).
+   바뀌었으면 새로 받으므로 옛 화면을 볼 일은 없다(2026-09-11 옛 화면 사고를 막던 목적은 그대로 지킨다). */
+const fresh=u=>fetch(u,{cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error(u+' '+r.status);return r.json()});
 async function load(){
   if(DETAIL){                       /* 새 창 상세 모드: 헤더·목록 숨기고 종목 하나만 */
     document.body.classList.add('detail');
-    raw=await (await fetch('data/table.json?v='+Date.now())).json();
+    raw=await fresh('data/table.json');
     /* 미국 종목이면 미장 표와 달력도 받아야 한다 — table.json 에는 미장이 없어서
        예전엔 새 창을 열어도 빈 화면이었다(2026-09-11). */
     if(isUSCode(DETAIL)){
-      try{raw.uscal=await (await fetch('data/uscal.json?v='+Date.now())).json()}catch(e){raw.uscal=null}
+      try{raw.uscal=await fresh('data/uscal.json')}catch(e){raw.uscal=null}
       prep(); await loadUS(true);
     }else prep();
     const r=raw.rows.find(x=>x.t===DETAIL);
     document.title=(r?dispNameTxt(r.n)+' · ':'')+'상세 · 밤호박 종목 선별기';
     await showStock(DETAIL); return;
   }
-  await pullRemote();raw=await (await fetch('data/table.json?v='+Date.now())).json();
-  try{DAYST=await rpc('kospi_state_get',{p_pin:'__day__'})}catch(e){DAYST=null}   /* 데이 후보(장전 08:52) */
-  /* 미장 거래일 달력 + 정렬용 환율(4KB). 미장 표(3.6MB)는 배경으로 늦게 오므로
-     보유일 계산이 첫 화면에서 어긋나지 않게 이 작은 파일을 먼저 받는다. */
-  try{raw.uscal=await (await fetch('data/uscal.json?v='+Date.now())).json()}catch(e){raw.uscal=null}
-  try{WARN=((await (await fetch('data/warn.json?v='+Date.now())).json())||{}).w||{}}catch(e){WARN={}}
+  /* 2026-10-13 '너무 느리다': 다섯 가지를 **한꺼번에** 받는다(전엔 하나씩 기다렸다).
+     미장 거래일 달력(uscal, 4KB)은 미장 표(배경으로 늦게 옴)보다 먼저 있어야 보유일 계산이 첫 화면에서 안 어긋난다. */
+  const [rmt,tb,ds,uc,wn]=await Promise.allSettled([pullRemote(),fresh('data/table.json'),
+    rpc('kospi_state_get',{p_pin:'__day__'}),fresh('data/uscal.json'),fresh('data/warn.json')]);
+  if(tb.status!=='fulfilled')throw tb.reason;
+  raw=tb.value;
+  DAYST=ds.status==='fulfilled'?ds.value:null;                  /* 데이 후보(장전 08:52) */
+  raw.uscal=uc.status==='fulfilled'?uc.value:null;
+  WARN=wn.status==='fulfilled'?((wn.value||{}).w||{}):{};
   prep();
   /* 첫 화면: 매수 대기가 비어 있으면 보유 종목 탭으로 연다 — 빈 목록보다 내 종목이 쓸모 있다.
      (매수 대기 = 아직 그 규칙으로 사지 않은 규칙에 걸린 종목)
@@ -2570,6 +2581,7 @@ function showUS(code){
   $('#close').onclick=()=>$('#side').classList.remove('open');
   const bb=$('#buyhere'); if(bb)bb.onclick=()=>addPosition(code,r.name,r.close);
   bindCopy();
+  if(!window.Chart){chartReady().then(()=>{if(window.Chart)showUS(code)});return}   /* 차트 라이브러리가 아직 — 오면 다시 그린다 */
   charts.forEach(c=>c.destroy());charts=[];
   const v=(r.vols||[]).map(x=>x||0);
   if(v.length){
@@ -2616,6 +2628,7 @@ async function showStock(code){
   {const bb=$('#buyhere');
    if(bb)bb.onclick=()=>{const row=view.rows.find(x=>x.ticker===d.ticker);
      addPosition(d.ticker,d.name,row?row.close:(L?L.close:0))};}
+  if(!window.Chart)await chartReady();                    /* 차트 라이브러리를 막지 않고 받으므로(10-13) 아직이면 기다린다 */
   charts.forEach(c=>c.destroy());charts=[];
   const grid={color:'#272b34'},tick={color:'#858c99',font:{size:10}};
   const base={responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.dataset.label==='종가'?c.raw.toLocaleString():kor(c.raw,1)}`}}},scales:{x:{grid:{display:false},ticks:{...tick,maxTicksLimit:8}}}};
