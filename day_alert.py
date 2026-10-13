@@ -42,7 +42,10 @@ T3_CUT = -0.5
 #  섞인다(3일 실측 오차 평균절대 0.7%p — 예상 ≤-2 로 고른 것 중 실제도 ≤-2 는 45%). 시장가 대신 지정가 = 어제 종가 × (1 + 예상 시장 갭 + LIMIT_THR)
 #  로 내 '실제로 시장보다 1%p↑ 빠져 열린' 것만 시가에 산다. 시뮬(검증, 덤 포함) 연 1,236만 → 1,305만원(150만원씩)·승률 +4~6%p·거래 30%↓.
 #  시가에 안 사지면 09:01 에 취소 — 장중에 지정가 닿은 몫은 문턱 -1~-2.5 모두 건당 -0.1~-0.2%(학습·검증)라 사지 않는다.
-LIMIT_THR = -0.75                                 # 2026-10-11 사용자 "문턱 0.75로" — -0.5~-1 은 시뮬 합계 1,305~1,329만으로 평평(-0.7 1,323·-0.8 1,314)
+LIMIT_THR = -1.5                                  # 2026-10-13 사용자 "넓히는 쪽으로" — 후보는 넓게(CAND_*), 체결은 시장 대비 -1.5%p 로 엄격하게 (10-11 -1 → -0.75 → 10-13 -1.5)
+#  그물은 넓게·체결은 엄격(research/t1_widen.py): 예상가가 얕게 빗나가 후보에 못 들던 진짜 T1 을 95% 잡는다. 실제 시가 기준 과거 실측(갭 하위 20%·시장 대비 -1.5):
+#  학습 연 794건 +0.88%·62% / 검증 983건 +0.94%·61%(지금 T1 417건 +1.28%) — 새로 더해지는 -1.5~-2 몫도 2010~2026 17년 모두 플러스(+0.5~0.6%).
+CAND_Q, CAND_REL = 0.20, -1.5                      # 후보 = 예상 갭 유니버스 하위 20% · 예상 시장 대비 -1.5%p 이하(상승·하락장 공통) — 전엔 하위 10%·-2(하락장 -1.5)
 
 
 def kr_tick(p):
@@ -224,7 +227,8 @@ def morning():
     except Exception as ex:
         log("코스피 지수 못 받음:", ex)
     thr = -1.5 if kup is False else -2.0
-    cand = sorted([s for s in base_c if s in tiny and gap[s] - mg <= thr], key=lambda s: gap[s] - mg)
+    # thr(연구 T1 기준)은 리뷰의 '실제 시가로 골랐다면' 목표선에만 쓴다 — 매수 후보는 넓은 그물(CAND_Q·CAND_REL) + 지정가(LIMIT_THR)
+    cand = sorted([s for s in pre if s in tiny and s in gq and gq[s] <= CAND_Q and gap[s] - mg <= CAND_REL], key=lambda s: gap[s] - mg)
     nm = {}
     for i in range(0, len(cand), 100):
         for x in M.get("/api/v1/stocks", symbols=",".join(cand[i:i + 100])) or []:
@@ -260,8 +264,9 @@ def morning():
     n3 = sum(1 for x in L if x.get("t3"))
     if n2: body.append("⭐ = [갭 하락 조용주 +] 도 걸림(어제 14:00→종가 %.0f%%↓) — %d종목은 한 번 더 산다" % (T2_CUT, n2))
     if n3: body.append("🌙 = [갭 하락 조용주 ++] 도 걸림(짝 미장으로 본 예상 갭 %.1f%%↓) — %d종목은 한 번 더 산다(⭐🌙 둘 다면 두 번 더)" % (T3_CUT, n3))
-    body.append("코스피 %s → 기준: 더 작은 종목 · 시장보다 %.1f%%p↑ 더 빠짐" % ({True: "상승장(60일선 위)", False: "하락장(60일선 아래)", None: "국면 모름"}[kup], -thr))
-    body.append("넓은 조건(예전 T1) %d개 중 통과 %d%s" % (len(base_c), len(L), " — 오늘은 안 산다" if not L else ""))
+    body.append("후보 = 조용한 작은 종목 중 예상 갭 하위 %d%% · 시장보다 %g%%p↑ 더 빠질 것 → 실제로 %g%%p↑ 빠져 열린 것만 체결 (코스피 %s)" % (
+        CAND_Q * 100, -CAND_REL, -LIMIT_THR, {True: "상승장", False: "하락장", None: "국면 모름"}[kup]))
+    body.append("갭 하위 10%% 조용한 종목 %d개 · 후보 %d%s" % (len(base_c), len(L), " — 오늘은 안 산다" if not L else ""))
     body.append("갭 하위 10%% 선 %s%% · 예상가 NXT %d·호가 %d / 유니버스 %d" % (snap["cut"], snap["src_n"]["NXT"], snap["src_n"]["호가"], len(uni)))
     telegram("\n".join([head] + body))
     try: M.BUSY.unlink()                                       # 고르는 건 끝났다 — 1분봉 과거 채우기를 다시 돌게 둔다
