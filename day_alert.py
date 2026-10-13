@@ -385,6 +385,8 @@ def trade(L, today):
     _led_save(Lg)
     if got:
         scalp_update(lambda P: (P.extend(dict(o["pos"]) for o in got) or True), "데이 매수 %d건" % len(got))
+    try: mark_snap(today, placed, got)
+    except Exception as ex: log("후보 시가 표시 실패:", repr(ex)[:200])
     lines = ["🌅 <b>데이 매수</b> %s/%s 시가" % (today[4:6], today[6:])]
     lines += ["✅ [%s] %s %d주 @ %s원 = %s원%s" % (RNAME.get(o.get("rid", "T1"), ""), o["name"], int(o["fq"]), f"{o['ap']:,.0f}", f"{o['fq'] * o['ap']:,.0f}",
                                                  (" ⚠ 장중 체결(시가 %s > 지정가 — 취소 전에 사짐)" % f"{o['open']:,.0f}") if o.get("intraday") else "") for o in got]
@@ -394,6 +396,33 @@ def trade(L, today):
     telegram("\n".join(lines))
     if not got: return
     close_sell(got, Lg, S, today)
+
+
+def mark_snap(today, placed, got):
+    """2026-10-13 사용자: 시가가 지정가보다 높아 안 산 후보는 그날 사도 의미 없다 → 사이트에서 숨긴다.
+    후보마다 실제 시가(open)를 적고 시가 > 지정가면 skip=True → __day__ 다시 올림(사이트 dayCand 가 skip 은 뺀다).
+    주문을 못 낸 후보(원화 부족)는 1분봉 첫 봉으로 시가를 따로 본다."""
+    f = OUT / ("snap_%s.json" % today)
+    snap = json.loads(f.read_text(encoding="utf-8"))
+    op = {o["t"]: o["open"] for o in placed if o.get("open")}
+    bought = {o["t"] for o in got}
+    for x in snap.get("cand") or []:
+        t = x["t"]
+        if t in bought:
+            x["bought"] = True; continue
+        if t not in op:
+            try:
+                c = (M.get("/api/v1/candles", symbol=t, interval="1m", count=400) or {}).get("candles") or []
+                c = [y for y in c if y["timestamp"][:10].replace("-", "") == today and "09:00" <= y["timestamp"][11:16] < "15:31"]
+                if c: op[t] = float(min(c, key=lambda y: y["timestamp"])["openPrice"])
+            except Exception:
+                pass
+        if t in op:
+            x["open"] = op[t]
+            if x.get("lim") and op[t] > x["lim"]: x["skip"] = True
+    f.write_text(json.dumps(snap, ensure_ascii=False), encoding="utf-8")
+    supa_set("__day__", {k: v for k, v in snap.items() if k != "all"})
+    log("후보 시가 표시: 산 것 %d · 시가>지정가(숨김) %d" % (len(bought), sum(1 for x in snap.get("cand") or [] if x.get("skip"))))
 
 
 def open_guard(placed, today, until_s=40):
