@@ -2011,6 +2011,8 @@ async function loadUSLite(){
     const z=new Array((raw.dates||[]).length).fill(0);
     const rows=d.rows.map(r=>Object.assign({fr:null,i:z,o:z,f:z,streak:0,per:null,pbr:null,pcr:null,dy:null},r));
     raw.us=d.us||null; raw.usUpdated=d.updated||''; raw.usAsof=d.asof||((d.dates||[]).slice(-1)[0])||''; raw.usTotal=d.total||null;
+    /* 한글 이름표(us_kr.json)는 미장 전체를 받을 때만 온다 — 작은 표 행의 한글 이름(n, 영어는 ne)으로 채워 보유 표 이름이 영어로 안 나오게(10-14 신고) */
+    USKR=USKR||{}; d.rows.forEach(r=>{if(r.ne&&r.n&&!USKR[r.t])USKR[r.t]=r.n});
     raw.rows=raw.rows.filter(r=>r.mk!=='US').concat(rows); raw.usLite=true; prep();
   }catch(e){return loadUS(true)}}                       /* 작은 표가 없으면 전처럼 전체 */
 async function load(){
