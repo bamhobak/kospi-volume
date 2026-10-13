@@ -268,6 +268,36 @@ hits = {str(fid): {r["t"] for r in rows if ok(fn, r, fid)} for fid, name, fn in 
 if BROKEN:
     print(f"⚠ 판정 중 예외 {len(BROKEN)}건(해당 종목만 제외):", ", ".join(BROKEN[:10]))
 
+# ── --lite: 사이트 첫 화면용 작은 표(2026-10-13 사용자 "켤 때마다 전체 표를 받을 필요가 있어? 내 종목만 보면 되잖아") ──
+#   켤 때는 규칙에 걸린 종목 + 보유 종목만 받는다(국장 표 3.4MB·미장 4.7MB → 수십 KB). 전체 표는 '코스피·코스닥·미장 전체'를
+#   누를 때만 받는다. 규칙 판정은 위와 **같은 코드**라 화면의 매수 대기와 어긋나지 않는다.
+#   미장 순위값(거래대금 상위 40% usliq·거래 주식 수 백분위 usvq)은 전체로 매겨야 해서 여기서 계산해 ql·qv 로 넣는다.
+#   알림·상태 저장은 하지 않는다(배포 전에 돈다 — 진짜 알림은 배포 뒤 notify 단계).
+if "--lite" in sys.argv:
+    keep = set().union(*hits.values()) | {p["code"] for p in POSI}
+    kr = [r for r in T["rows"] if r["t"] in keep]
+    out = {k: v for k, v in T.items() if k != "rows"}
+    out.update(rows=kr, lite=True, counts={m: sum(1 for r in T["rows"] if (r.get("mk") or "KOSPI") == m) for m in ("KOSPI", "KOSDAQ")})
+    (BASE / "site" / "data" / "table_lite.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    n_us = 0
+    if usrows:
+        try: krn = json.loads((BASE / "assets" / "us_kr.json").read_text(encoding="utf-8"))
+        except Exception: krn = {}
+        us = []
+        for r in usrows:
+            if r["t"] not in keep: continue
+            x = {k: v for k, v in r.items() if k not in ("usliq", "usvq")}
+            x["ql"], x["qv"] = bool(r.get("usliq")), r.get("usvq")
+            if krn.get(r["t"]): x["ne"], x["n"] = r.get("n"), krn[r["t"]]
+            us.append(x)
+        uo = {k: v for k, v in TU.items() if k != "rows"}
+        uo.update(rows=us, lite=True, total=len(usrows))
+        (BASE / "site" / "data" / "table_us_lite.json").write_text(json.dumps(uo, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        n_us = len(us)
+    print("첫 화면용 작은 표: 국장 %d/%d · 미장 %d/%d 종목 (규칙 걸림 %d · 보유 %d)" % (
+        len(kr), len(T["rows"]), n_us, len(usrows), len(set().union(*hits.values())), len(POSI)))
+    sys.exit(0)
+
 prev_state = rpc("kospi_state_get", {"p_pin": "__filters__"}) or {}
 prev = prev_state.get("filters", {})
 prev_date = prev_state.get("date", "")
