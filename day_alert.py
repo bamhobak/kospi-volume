@@ -398,6 +398,23 @@ def trade(L, today):
     close_sell(got, Lg, S, today)
 
 
+def krx_open(sym, today, late=False):
+    """KRX 시가 단일가 = 토스 1분봉에서 '09:01' 봉(봉 끝 시각 표기 — 09:00:00~59, 시가 단일가 체결이 여기 든다) 중 거래량 있는 첫 봉의 시가.
+    ⚠ 2026-10-13: '09:00' 봉은 장전 마지막 값으로 채운 거래량 0 빈 봉인데 그걸 시가로 읽어 에이럭스·나노팀·이랜시스·레몬헬스케어
+      (실제 시가가 다 지정가 아래)를 잘못 취소했다. 봉이 아직 없으면 시세의 마지막 체결이 09:00:00~05 이면 그 값(=시가 단일가)."""
+    if late:                                              # 장 끝난 뒤 — 그날 정규장 봉을 처음부터(최근 200봉만으론 09:01 까지 못 닿는다)
+        rows = sorted((r for r in M.fetch_day("KR", sym, today) if r[6] > 0), key=lambda r: r[1])
+        return float(rows[0][2]) if rows else None
+    c = (M.get("/api/v1/candles", symbol=sym, interval="1m", count=3) or {}).get("candles") or []
+    c = [x for x in c if x["timestamp"][:10].replace("-", "") == today and "09:01" <= x["timestamp"][11:16] <= "15:31"
+         and float(x.get("volume") or 0) > 0]
+    if c: return float(min(c, key=lambda x: x["timestamp"])["openPrice"])
+    for x in M.get("/api/v1/prices", symbols=sym) or []:
+        ts = x.get("timestamp") or ""
+        if ts[:10].replace("-", "") == today and "09:00:00" <= ts[11:19] <= "09:00:05": return float(x["lastPrice"])
+    return None
+
+
 def mark_snap(today, placed, got):
     """2026-10-13 사용자: 시가가 지정가보다 높아 안 산 후보는 그날 사도 의미 없다 → 사이트에서 숨긴다.
     후보마다 실제 시가(open)를 적고 시가 > 지정가면 skip=True → __day__ 다시 올림(사이트 dayCand 가 skip 은 뺀다).
@@ -412,9 +429,8 @@ def mark_snap(today, placed, got):
             x["bought"] = True; continue
         if t not in op:
             try:
-                c = (M.get("/api/v1/candles", symbol=t, interval="1m", count=400) or {}).get("candles") or []
-                c = [y for y in c if y["timestamp"][:10].replace("-", "") == today and "09:00" <= y["timestamp"][11:16] < "15:31"]
-                if c: op[t] = float(min(c, key=lambda y: y["timestamp"])["openPrice"])
+                v = krx_open(t, today, late=True)
+                if v: op[t] = v
             except Exception:
                 pass
         if t in op:
@@ -435,9 +451,7 @@ def open_guard(placed, today, until_s=40):
     t_end = time.time() + until_s
 
     def first_open(sym):
-        c = (M.get("/api/v1/candles", symbol=sym, interval="1m", count=3) or {}).get("candles") or []
-        c = [x for x in c if x["timestamp"][:10].replace("-", "") == today and x["timestamp"][11:16] >= "09:00"]
-        return float(min(c, key=lambda x: x["timestamp"])["openPrice"]) if c else None
+        return krx_open(sym, today)
 
     def one(o):
         try:
@@ -626,14 +640,31 @@ def review():
         log("오늘 아침 기록 없음 — 건너뜀"); return
     snap = json.loads(f.read_text(encoding="utf-8"))
     syms = list(snap["all"].keys())
-    act, prevc = {}, {}                                    # 오늘 (시가, 종가) · 어제 종가
+    act, prevc = {}, {}                                    # 오늘 KRX (시가 단일가, 종가 단일가) · 어제 종가(아침 계산과 같은 토스 종가)
+    # 2026-10-13: 전엔 오늘 시가·종가도 토스 일봉에서 받았다 → NXT 종목은 시가 = NXT 장전 08:00 첫 체결, 종가 = 16시대 NXT 장후 가격이라
+    #   후보 성적·'실제 시가로 골랐다면'·예상 시가 오차(NXT 2.54%p)가 다 틀렸다. KRX 값은 1분봉(16:11 저장 전 종목 파일)에서:
+    #   첫 봉(09:01 끝) 시가 = 시가 단일가, 마지막 봉(15:31 끝) 종가 = 종가 단일가.
+    mf = BASE / "data" / "m1" / "KR" / "day" / ("%s.parquet" % today)
+    if mf.exists():
+        import pandas as pd
+        D = pd.read_parquet(mf, columns=["t", "ts", "o", "c"]).sort_values(["t", "ts"])
+        g = D.groupby("t")
+        act = {t: (float(o), float(c)) for t, o, c in zip(g.o.first().index, g.o.first().values, g.c.last().values)}
     for s in syms:
         c = (M.get("/api/v1/candles", symbol=s, interval="1d", count=3) or {}).get("candles") or []
         c = sorted(c, key=lambda x: x["timestamp"])
         t = [x for x in c if x["timestamp"][:10].replace("-", "") == today]
         b = [x for x in c if x["timestamp"][:10].replace("-", "") < today]
-        if t: act[s] = (float(t[0]["openPrice"]), float(t[0]["closePrice"]))
+        if t and s not in act and not mf.exists(): act[s] = (float(t[0]["openPrice"]), float(t[0]["closePrice"]))   # 1분봉 파일이 없을 때만(통합 봉)
         if b: prevc[s] = float(b[-1]["closePrice"])
+    for x in snap["cand"]:                                 # 파일에 없는 후보는 그 종목만 1분봉을 받는다
+        if x["t"] not in act:
+            try:
+                rows = M.fetch_day("KR", x["t"], today)
+                if rows: rows = sorted(rows, key=lambda r: r[1]); act[x["t"]] = (rows[0][2], rows[-1][5])
+            except Exception:
+                pass
+    log("리뷰 시가·종가: KRX 1분봉 %s · %d종목" % ("파일" if mf.exists() else "없음(토스 일봉으로)", len(act)))
     # 예상 시가가 맞았나 — 예상 갭 vs 실제 갭(같은 어제 종가 기준) · 실제 갭으로 다시 고르면 후보가 얼마나 겹치나
     real_gap = {s: (act[s][0] / prevc[s] - 1) * 100 for s in syms if s in act and s in prevc}
     errs = {"NXT": [], "호가": []}
