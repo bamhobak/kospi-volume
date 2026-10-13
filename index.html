@@ -720,6 +720,8 @@ let DAYST=null;
 const kstToday=()=>{const d=new Date(Date.now()+9*3600e3);return d.toISOString().slice(0,10).replace(/-/g,'')};
 /* 2026-10-13: 시가가 지정가보다 높아 안 산 후보(skip)는 그날 사도 의미 없어 숨긴다 — day_alert 가 09:01 에 표시 */
 const dayCand=t=>(DAYST&&DAYST.date===kstToday()&&(DAYST.cand||[]).find(x=>x.t===t&&!x.skip))||null;
+/* 2026-10-13: 시가가 지나면(day_alert 09:01 closed) 그 규칙으로 실제로 산 종목만 남긴다 — 안 산 후보는 이유 무관하게 지금 사도 의미 없다 */
+const dayWait=(t,rid)=>{const c=dayCand(t);if(!c)return false;return !DAYST.closed||(c.rules||[]).includes(rid)};
 const SCALP_FILTERS=[
   {id:'T1',regime:'both',gate:'always',name:'A1 · 갭 하락 조용주',mkt:'BOTH',
    cond:'국장 · 20일 평균 거래대금 상위 40% 중 **아래 1/3(작은 쪽)** · **오늘 갭(시가÷어제 종가)이 그중 하위 10%** · **시장(유니버스 갭 중앙)보다 더 빠짐 — 코스피 상승장(전날 60일선 위) 2%p↑ · 하락장 1.5%p↑** · **어제 거래량이 그 전 20일 평균 대비 하위 30%(조용했던 종목)** — 후보는 장전 08:52 에 골라 시가 단일가에 **지정가**로 산다. **2026-10-13~ 그물은 넓게·체결은 엄격**: 후보 = 예상 갭 하위 20% · 예상 시장 대비 -1.5%p 이하, 지정가 = 어제 종가 × (1 + 예상 시장 갭 − 1.5%p) — 실제로 시장보다 1.5%p↑ 더 빠져 열릴 때만 체결, 시가가 지정가 위면 바로 취소하고 목록에서 숨김(실제 시가 기준 과거 실측 검증 연 983건 건당 +0.94% · 승률 61%) · 건당 50만원 · 하루 최대 20)',
@@ -727,7 +729,7 @@ const SCALP_FILTERS=[
    rule:{hold:1,stop:null,trail:null,target:null},ruleText:'오늘 <em>시가 단일가 매수</em> · 같은 날 <em>종가 단일가 매도</em>',
    stats:{n:2188,perMonth:51,monthsActive:45,spanMonths:45,medPerActive:2,topMonth:'-',topN:0,win:65,pf:2.28,avg:1.35,
      years:'**검증 2023~** 2,188건 건당 평균 +1.35% · 중앙 +1.19% · 승률 64.5% · PF 2.28 · 하루 약 2.4종목(신호 난 날 72%) · **학습 2016~22** 4,203건 +0.92% · 승률 61.8% · PF 1.80 · 참고 2005~15 +1.20% · 61.5% — 해별 건당 평균 2016 +0.96 / 2017 +0.85 / 2018 +0.98 / 2019 +1.14 / 2020 +1.20 / 2021 +0.26 / 2022 +0.84 / 2023 +0.93 / 2024 +1.07 / 2025 +1.45 / 2026 +1.75 (비용 0.23% 뒤)'},
-   fn:r=>!!dayCand(r.ticker)},
+   fn:r=>dayWait(r.ticker,'T1')},
   /* 2026-10-06 추가(사용자 '1번' · research H0297) — [갭 하락 조용주] 후보 중 어제 막판 1시간에 밀린 종목은 한 번 더 산다(돈 두 배) */
   {id:'T2',parent:'T1',regime:'both',gate:'always',name:'A1-1 · 갭 하락 조용주 +',mkt:'BOTH',
    cond:'**[갭 하락 조용주] 후보 그대로** + **어제 14:00 → 종가(막판 1시간)가 -1% 이하로 밀린 종목** — 어제 1분봉으로 본다. [갭 하락 조용주]와 별도로 한 번 더 산다(건당 50만원 · 같은 종목이면 두 규칙에 각각 50만원)',
@@ -735,7 +737,7 @@ const SCALP_FILTERS=[
    rule:{hold:1,stop:null,trail:null,target:null},ruleText:'오늘 <em>시가 단일가 매수</em> · 같은 날 <em>종가 단일가 매도</em>',
    stats:{n:345,perMonth:8,monthsActive:40,spanMonths:45,medPerActive:1,topMonth:'-',topN:0,win:75,pf:3.5,avg:2.62,
      years:'**2022-12~2026-08 1분봉** 345건 건당 +2.62% · 승률 75% — 학습(22-12~24) 139건 +3.05% · 79% / 검증(25~) 206건 +2.34% · 73% · 해별 건당 평균(막판 -1%↓) 2023 +1.9 / 2024 +4.0 / 2025 +3.0 / 2026 +2.1 (비용 0.23% 뒤)'},
-   fn:r=>{const c=dayCand(r.ticker);return !!(c&&c.t2)}},
+   fn:r=>{const c=dayCand(r.ticker);return !!(c&&c.t2)&&dayWait(r.ticker,'T2')}},
   /* 2026-10-11 추가(사용자 '추천대로' · research H0313) — [갭 하락 조용주] 후보 중 그 종목의 짝 미장 종목이 밤사이 빠진 것(전이표 예상 갭 -0.5%↓)은 한 번 더 산다.
      T2 와 둘 다 걸리면 덤은 한 번만(T2) — 겹치면 효과가 더해지지 않는다(2025~ 둘 다 30건 +0.59%). */
   {id:'T3',parent:'T1',regime:'both',gate:'always',name:'A1-2 · 갭 하락 조용주 ++',mkt:'BOTH',
@@ -744,7 +746,7 @@ const SCALP_FILTERS=[
    rule:{hold:1,stop:null,trail:null,target:null},ruleText:'오늘 <em>시가 단일가 매수</em> · 같은 날 <em>종가 단일가 매도</em>',
    stats:{n:192,perMonth:5,monthsActive:38,spanMonths:45,medPerActive:1,topMonth:'-',topN:0,win:71,pf:3.5,avg:2.05,
      years:'**검증 2023~** 192건 건당 +2.05% · 중앙 +1.97% · 승률 70.8% · PF 3.50 · 월 약 5건 · **학습 2016~22** 307건 +2.37% · 71.3% · PF 2.86 — 해별 건당 평균 2016 +5.5 / 2017 +2.4 / 2018 +2.2 / 2019 +1.3 / 2020 +2.9 / 2021 +2.2 / 2022 +1.2 / 2023 +2.2 / 2024 +3.1 / 2025 +1.7 / 2026 +1.7 (비용 0.23% 뒤)'},
-   fn:r=>{const c=dayCand(r.ticker);return !!(c&&c.t3)}}
+   fn:r=>{const c=dayCand(r.ticker);return !!(c&&c.t3)&&dayWait(r.ticker,'T3')}}
 ];
 let TMODE=(()=>{try{return localStorage.getItem('tmode')==='scalp'?'scalp':'swing'}catch(e){return 'swing'}})();
 function useRules(L){FILTERS.length=0;L.forEach(f=>FILTERS.push(f))}

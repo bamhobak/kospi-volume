@@ -428,7 +428,9 @@ def mark_snap(today, placed, got):
     snap = json.loads(f.read_text(encoding="utf-8"))
     op = {o["t"]: o["open"] for o in placed if o.get("open")}
     bought = {o["t"] for o in got}
+    snap["closed"] = True                                  # 시가가 지났다 — 사이트는 안 산 후보(이유 무관)를 매수 대기에서 뺀다(10-13 사용자)
     for x in snap.get("cand") or []:
+        x["rules"] = sorted({o.get("rid", "T1") for o in got if o["t"] == x["t"]})   # 실제로 산 규칙
         t = x["t"]
         if t in bought:
             x["bought"] = True; continue
