@@ -333,11 +333,11 @@ def trade(L, today):
         q = math.floor(DAY_PER / px)
         if q < 1 and px <= DAY_PER * 2: q = 1
         if q < 1:
-            skip.append((x["name"], "1주가 너무 비쌈")); continue
+            skip.append((x["name"] + ("" if rid == "T1" else "[%s]" % RNAME.get(rid, rid)), "1주가 너무 비쌈")); continue
         # 2026-10-06 사용자: 돈이 모자라면 1주씩만 산다(규칙이 제대로 도는지 보는 게 먼저)
         if bp is not None and q * px > bp:
             if px > bp:
-                skip.append((x["name"], "매수가능 부족")); continue
+                skip.append((x["name"] + ("" if rid == "T1" else "[%s]" % RNAME.get(rid, rid)), "매수가능 부족")); continue
             log("매수가능 부족 — 1주만:", x["t"], "%d→1주" % q); q = 1
         cid = re.sub(r"[^A-Za-z0-9_-]", "", f"db{today}{x['t']}" + ("" if rid == "T1" else rid))[:36]
         o = dict(side="BUY", date=today, t=x["t"], name=x["name"], qty=q, cid=cid, rid=rid, lim=lim, at=AT.now().isoformat())
@@ -353,7 +353,7 @@ def trade(L, today):
                 o["oid"] = AT.place(body)
         except AT.TossErr as ex:
             o["oid"] = None; o["err"] = ex.code or str(ex)[:100]
-            skip.append((x["name"], "주문 거부 " + str(o["err"])))
+            skip.append((x["name"] + ("" if rid == "T1" else "[%s]" % RNAME.get(rid, rid)), "주문 거부 " + str(o["err"])))
             Lg["orders"].append(o); _led_save(Lg)
             if ex.code == "insufficient-buying-power" and bp is not None: bp = min(bp, px * 0.999)   # 이보다 비싼 건 건너뛴다
             continue                                          # 시가 단일가를 놓치면 사지 않는다(09:05 만 늦어도 효과가 사라진다)
@@ -367,7 +367,14 @@ def trade(L, today):
     open_guard(placed, today)                              # 시가가 찍히자마자 '시가 > 지정가' 주문을 바로 취소(10-12 장중 체결 3건)
     AT.sleep_until(S["start"] + dt.timedelta(seconds=60), "데이 시가 체결 확인")
     cancel_left(placed)                                    # 남은 것 마지막 정리
-    AT.wait_fills(placed)
+    AT.wait_fills([o for o in placed if not o.get("canceled")])
+    for o in placed:                                       # 취소한 주문은 한 번만 본다(PENDING 으로 남아 2분씩 기다려 10-13 알림이 09:16 에 왔다)
+        if not o.get("canceled"): continue
+        try:
+            ex_ = ((AT.detail(o["oid"]) or {}).get("execution") or {})
+            o["fq"] = float(ex_.get("filledQuantity") or 0); o["ap"] = float(ex_.get("averageFilledPrice") or 0); o["status"] = "CANCELED"
+        except Exception:
+            o["fq"], o["ap"], o["status"] = 0.0, 0.0, "CANCELED"
     got = [o for o in placed if o["fq"] > 0 and o["ap"] > 0]
     for o in got:                                          # 그래도 장중에 사진 것 — 시가보다 싸게(=지정가에) 체결됐다
         op_ = (o.get("open") or 0)
@@ -434,7 +441,8 @@ def cancel_left(placed):
     if AT.DRY: return
     bad = []
     for o in placed:
-        try:
+        if o.get("canceled"): continue                      # open_guard 가 이미 취소함 — 토스 조회는 취소된 장전 주문을 계속 PENDING 으로 보여 주고
+        try:                                                 # 다시 취소하면 cancel-restricted(10-13 확인: 장중 저가가 지정가 아래 수백 분인데 안 사짐)
             st = (AT.detail(o["oid"]) or {}).get("status")
         except Exception as ex:
             st = None; log("주문 조회 실패(취소 판단):", o["t"], repr(ex)[:150])
