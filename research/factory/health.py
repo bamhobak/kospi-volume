@@ -224,9 +224,15 @@ def _rec(bad, ok, day, part, min_tags, last_tag):
     X = pd.read_parquet(f, columns=["tag", "ticker"])
     per = X.drop_duplicates().groupby("tag").ticker.nunique()
     if len(per) < min_tags: bad("⚠", "%s %s 호가 녹화 %d번(%d번↑ 정상)" % (day, nm, len(per), min_tags))
-    if per.min() < 800: bad("⚠", "%s %s 호가 한 번에 %d종목뿐(1,000 안팎 정상)" % (day, nm, per.min()))
+    # 2026-10-13: 장전 08:50 전 회차는 NXT 장전 호가만 보인다(토스) → NXT 거래 종목(약 480)만 잡히는 게 정상, 08:50 뒤(KRX 단일가) 회차는 1,000 안팎
+    early = per[per.index < "085000"] if part == "am" else per.iloc[:0]
+    full = per[per.index >= "085000"] if part == "am" else per
+    if len(early) and early.min() < 400: bad("⚠", "%s %s 08:50 전 호가 한 번에 %d종목뿐(NXT 종목 약 480 정상)" % (day, nm, early.min()))
+    if len(full) and full.min() < 800: bad("⚠", "%s %s 호가 한 번에 %d종목뿐(1,000 안팎 정상)" % (day, nm, full.min()))
+    if not len(full): bad("⚠", "%s %s 08:50 뒤(KRX 단일가) 호가 녹화 없음" % (day, nm))
     if per.index.max() < last_tag: bad("⚠", "%s %s 마지막 녹화 %s(%s 이후여야)" % (day, nm, per.index.max(), last_tag))
-    if len(per) >= min_tags and per.min() >= 800: ok.append("%s 녹화 %d번·%d종목" % (nm, len(per), per.min()))
+    if len(per) >= min_tags and len(full) and full.min() >= 800 and (not len(early) or early.min() >= 400):
+        ok.append("%s 녹화 %d번·%d종목%s" % (nm, len(per), full.min(), ("(08:50 전 NXT %d)" % early.min()) if len(early) else ""))
 
 
 def _quality(bad, ok, day, A):
