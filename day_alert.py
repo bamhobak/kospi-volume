@@ -750,6 +750,7 @@ def review():
         L.append(DX.brief())
     except Exception as ex:
         log("실행 방법 실측 실패:", repr(ex)[:200])
+        L.append("⚠ 실행 방법 실측 실패: %s" % str(ex)[:120])      # 조용히 죽지 않게(매일 그림자 테스트 — 사용자 10-14)
     telegram("\n".join(L))
     log("리뷰:", L[1], "|", L[2], "|", L[3])
 
