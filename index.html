@@ -2649,7 +2649,7 @@ async function showStock(code){
   if(!d){console.warn('상세 자료를 못 받았습니다',code);return}
   const n=20;const rows=d.rows.slice(-n).map(x=>({date:d.dates[x[0]],close:x[1],change:x[2],volume:x[3],indiv:x[4],organ:x[5],frgn:x[6],fr:x[7]}));
   if(!rows.length)return;const L=rows[rows.length-1],labels=rows.map(r=>md(r.date));const sum=k=>rows.reduce((a,r)=>a+(r[k]||0),0);
-  $('#side').innerHTML=`<div style="display:flex;align-items:flex-start"><div><h2>${dispName(d.name)} <span class="cpy" data-cp="${d.ticker}" style="color:var(--mut);font-size:13px">${d.ticker}</span></h2><div class="sub">종가 <b style="color:var(--txt)">${fmt(L.close)}</b> ${chg(L.close,L.change)} · ${md(L.date)} 기준 · 외국인 보유 ${L.fr}%</div>
+  $('#side').innerHTML=`<div style="display:flex;align-items:flex-start"><div><h2>${dispName(d.name)} <span class="cpy" data-cp="${d.ticker}" style="color:var(--mut);font-size:13px">${d.ticker}</span></h2><div class="sub">종가 <b style="color:var(--txt)">${fmt(L.close)}</b> ${chg(L.close,L.change)} · ${md(L.date)} 기준${(()=>{const cp=d.cap??((view.rows.find(x=>x.ticker===d.ticker)||{}).cap);return cp?' · 시총 '+(cp>=1e4?(cp/1e4).toFixed(cp>=1e5?0:1).replace(/\.0$/,'')+'조':Math.round(cp).toLocaleString()+'억'):''})()} · 외국인 보유 ${L.fr}%</div>
   ${(()=>{const row=raw.rows.find(x=>x.t===d.ticker);if(!row)return '';const TR=raw.themeRet||{};
     const tags=(row.th||[]).map(g=>`<span class="thtag ${(TR[g]||0)>0?'up':''}">${g}${TR[g]!=null?` <b>${TR[g]>0?'+':''}${TR[g]}%</b>`:''}</span>`).join('');
     return (row.up||tags)?`<div class="themes">${row.up?`<span class="thtag sector">${row.up}</span>`:''}${tags}</div>`:''})()}</div><div style="display:flex;gap:6px;flex:none;align-items:flex-start">${(()=>{const hp=heldPos(d.ticker);

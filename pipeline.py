@@ -638,7 +638,7 @@ def build_site():
                       "dbt": DBT.get(s["ticker"]),
                       "pbrd": (lambda v: round(last[1] * v[0] / v[1], 3) if (v and v[1] and last[1]) else None)(PB.get(s["ticker"])),
                       "th": sorted(TH.get(s["ticker"], []), key=lambda g: -TRET.get(g, 0))[:6]})
-        json.dump({"ticker": s["ticker"], "name": s["name"], "dates": dates, "rows": s["rows"]},
+        json.dump({"ticker": s["ticker"], "name": s["name"], "dates": dates, "rows": s["rows"], "cap": s.get("cap")},   # cap(억원) — 상세 창 시총(10-14 요청)
                   open(SITE / "data" / "stock" / f"{s['ticker']}.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     fill_sr60(table, UP, R60)
     fill_valuation(table)
