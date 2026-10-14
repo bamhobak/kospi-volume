@@ -369,6 +369,9 @@ def trade(L, today):
     if not placed:
         if skip: telegram("⚠ 데이 매수 0건 — " + " · ".join("%s(%s)" % s_ for s_ in skip[:6]))
         return
+    AT.sleep_until(S["start"] - dt.timedelta(seconds=30), "후보 호가 스냅샷(시가 직전)")
+    try: book_snap(today, "am", [x["t"] for x in L])
+    except Exception as ex: log("시가 직전 호가 스냅샷 실패:", repr(ex)[:200])
     AT.sleep_until(S["start"], "데이 시가 단일가")
     open_guard(placed, today)                              # 시가가 찍히자마자 '시가 > 지정가' 주문을 바로 취소(10-12 장중 체결 3건)
     AT.sleep_until(S["start"] + dt.timedelta(seconds=60), "데이 시가 체결 확인")
@@ -581,6 +584,39 @@ def close_sell(got, Lg, S, today):
     telegram("\n".join(lines))
 
 
+def book_snap(today, part, syms):
+    """실행 방법 실측(day_exec.py)용 — 우리 후보 종목 호가 10단계를 단일가 직전(08:59:30 · 15:29:30)에 찍어 둔다.
+    녹화기는 08:56:15·15:27:20 이 마지막이라 그 뒤 몇 분 사이 호가 변화를 놓친다(2026-10-14)."""
+    import pandas as pd
+    rows = []
+    for s_ in syms:
+        try:
+            r = M.get("/api/v1/orderbook", symbol=s_) or {}
+            for side, key in (("A", "asks"), ("B", "bids")):
+                for i, x in enumerate(r.get(key) or []):
+                    rows.append((AT.now().strftime("%H%M%S"), s_, side, i, float(x["price"]), float(x["volume"])))
+        except Exception:
+            pass
+    if rows:
+        pd.DataFrame(rows, columns=["tag", "ticker", "side", "lvl", "price", "vol"]).to_parquet(OUT / ("book_%s_%s.parquet" % (today, part)), index=False)
+    log("후보 호가 스냅샷 %s %d종목" % (part, len({r[1] for r in rows})))
+
+
+def close_job(today):
+    """15:24 예약 — 지킴이(close_watch) 뒤 15:29:30 에 후보 호가를 찍는다(종가 단일가 직전)."""
+    try: close_watch(today)
+    finally:
+        try:
+            f = OUT / ("snap_%s.json" % today)
+            S = AT.session("KR")
+            if f.exists() and S and S["date"] == today:
+                syms = [x["t"] for x in json.loads(f.read_text(encoding="utf-8")).get("cand") or []]
+                AT.sleep_until(S["end"] - dt.timedelta(seconds=30), "후보 호가 스냅샷(종가 직전)")
+                book_snap(today, "pm", syms)
+        except Exception as ex:
+            log("종가 직전 호가 스냅샷 실패:", repr(ex)[:200])
+
+
 def close_watch(today):
     """15:24 예약 — 아침 프로세스가 죽었어도(10-06 DNS 실패로 사망) 오늘 산 데이 종목을 종가 단일가에 판다.
     원장에 오늘 체결된 매수 중 **매도 주문(oid)이 아직 없는 것**만. 아침 프로세스가 이미 냈으면 아무것도 안 한다
@@ -708,6 +744,12 @@ def review():
          "아침 후보 %d종목 시가→종가 평균 <b>%+.2f%%</b>(비용 뒤) · 오른 종목 %d/%d" % (len(rets), avg(rets), sum(r > 0 for r in rets), len(rets)),
          "실제 시가로 골랐다면 %d종목 평균 %+.2f%% · 아침 후보와 겹침 %d" % (len(real_rets), avg(real_rets), len(mine & real_cand)),
          "예상 시가 오차(갭 %%p): NXT %.2f(%d종목) · 호가 %.2f(%d종목)" % (mae(errs["NXT"]), len(errs["NXT"]), mae(errs["호가"]), len(errs["호가"]))]
+    try:                                                  # 실행 방법 실측(금액별 매수·매도 방법 — day_exec.py, 10-14)
+        import day_exec as DX
+        DX.run(today, quiet=True); DX.summary()
+        L.append(DX.brief())
+    except Exception as ex:
+        log("실행 방법 실측 실패:", repr(ex)[:200])
     telegram("\n".join(L))
     log("리뷰:", L[1], "|", L[2], "|", L[3])
 
@@ -726,7 +768,7 @@ if __name__ == "__main__":
         elif a[:1] == ["late"]:
             late(AT.now().strftime("%Y%m%d"))
         elif a[:1] == ["close"]:
-            close_watch(AT.now().strftime("%Y%m%d"))
+            close_job(AT.now().strftime("%Y%m%d"))
         else: log("사용법: python day_alert.py morning | review | late | close")
     except Exception as ex:
         log("실패:", repr(ex)[:500])
