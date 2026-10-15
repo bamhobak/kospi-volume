@@ -38,6 +38,8 @@ if sys.stdout is not None:
 PER = {"KR": 1_500_000, "US": 1_000_000}      # 규칙 하나당(원) — 2026-10-03 사용자: 국장 150만·미장 100만
 SEED = {"KR": 50_000_000, "US": 50_000_000}   # 시장별 시드(원) — 자동매매가 들고 있는 매수금(미장은 그때 환율) + 오늘 살 것 ≤ 시드
 MAXDAY = {"KR": 5, "US": 5}   # 하루 최대 매수 건수
+# 2026-10-15 사용자 "스윙도 일단 1주씩": 테스트 동안 신호마다 1주만(PER 금액 무시). 돈 제대로 넣을 때 None 으로 되돌린다.
+SWING_QTY = 1
 KST = dt.timezone(dt.timedelta(hours=9))
 DRY = "--dry" in sys.argv
 WAIT0 = "--wait0" in sys.argv
@@ -478,11 +480,14 @@ def buy(mk):
         if info[1] not in (None, "ACTIVE") or info[2]:
             skip.append((rid, t, info[0], "거래 정지·비활성")); continue
         one = px[t] * (fx if mk == "US" else 1)                       # 1주 원화 값
-        q = math.floor(PER[mk] / one)
-        if q < 1 and one <= PER[mk] * 2:                             # 2026-10-03 사용자: 한 건 금액의 2배까지는 1주 산다
-            q = 1
-        if q < 1:
-            skip.append((rid, t, info[0], "1주가 %s원 초과" % won(PER[mk] * 2))); continue
+        if SWING_QTY:
+            q = SWING_QTY                                             # 테스트: 금액 상관없이 정해진 주수
+        else:
+            q = math.floor(PER[mk] / one)
+            if q < 1 and one <= PER[mk] * 2:                         # 2026-10-03 사용자: 한 건 금액의 2배까지는 1주 산다
+                q = 1
+            if q < 1:
+                skip.append((rid, t, info[0], "1주가 %s원 초과" % won(PER[mk] * 2))); continue
         if cash is not None and q * px[t] > cash:
             if px[t] > cash:
                 skip.append((rid, t, info[0], "매수가능 부족(1주도 못 삼)")); continue
