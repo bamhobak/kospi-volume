@@ -141,6 +141,10 @@ def yt_text(vid, lang="ko"):
         # 2026-10-12: 영어 영상에 'en'·'en-orig' 둘 다 달라 했더니 'en'(유튜브 번역 자막 길) 쪽만 429 — 막힘 기록 전부 'en'.
         #   원본 자막(-orig)만 먼저 받고, 원본이 없을 때만 번역 자막을 한 번 더 부른다. 한국어는 원래 'ko' 하나.
         tries = [["ko"]] if lang == "ko" else [[lang + "-orig"], [lang]]
+        # 2026-10-15: 대만 영상 자막 코드는 'zh-TW'(수동) — 'zh-Hant'·'zh-Hant-orig' 만 달라고 해서 두 밤 연속 본문 0건이었다.
+        #   수동 zh-TW/zh-Hant/zh-HK 먼저, 없으면 중국어 자동 원본(zh-orig 등)만 — 번역 자막 길(tlang)은 429 위험이라 안 부른다.
+        if lang.startswith("zh"):
+            tries = [["zh-TW", "zh-Hant", "zh-HK"], ["zh-orig", "zh-TW-orig", "zh-Hant-orig", "zh-Hans-orig"]]
         fs = []
         for langs in tries:
             opts = {"quiet": True, "no_warnings": True, "noprogress": True, "skip_download": True, "writeautomaticsub": True, "writesubtitles": True,
