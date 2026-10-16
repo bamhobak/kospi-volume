@@ -598,15 +598,18 @@ def sell(mk):
             log("규칙 모름 — 매도 판단 못함:", p["code"], rid); continue
         try: d = held_days(p["code"], str(p["date"]), S["date"])
         except TossErr as ex: log("보유일 계산 실패", p["code"], ex); continue
-        log("보유", p["code"], rid, "%d/%d일" % (d, R[rid][1]))
+        log("보유", p["code"], rid, "%d/%d일" % (d, R[rid][1]) + (" (가상)" if p.get("paper") else ""))
         if d >= R[rid][1]: due.append((p, rid, d))
     if not due:
         log(mk, "오늘 팔 것 없음 (자동 보유 %d)" % len(mine)); return
+    # 2026-10-16 사용자: 돈 없어 못 산 것을 '산 걸로' 넣은 가상 보유(paper)는 토스 주문 없이 그날 종가로 매도 기록만
+    paper = [x for x in due if x[0].get("paper")]
+    due = [x for x in due if not x[0].get("paper")]
     sleep_until(at, "국장 종가 단일가" if mk == "KR" else "미장 LOC 접수")
     Lg = led()
     done_ids = {o["posId"] for o in Lg["orders"] if o.get("side") == "SELL" and o.get("oid") and o.get("date") == S["date"]}
     due = [x for x in due if x[0]["id"] not in done_ids]
-    if not due:          # 두 번째(지킴이) 실행 — 앞 실행이 이미 다 냈다
+    if not due and not paper:          # 두 번째(지킴이) 실행 — 앞 실행이 이미 다 냈다
         log(mk, "매도 주문 이미 다 나감 — 지킴이 할 일 없음"); return
     px = prices(sorted({p["code"] for p, _, _ in due}))
     if DRY: _dry_px.update(px)
@@ -676,7 +679,44 @@ def sell(mk):
             L.append("❌ %s 매도 미체결(%s) — 직접 확인" % (p.get("name"), o.get("status")))
     for p, why in fail:
         L.append("⚠ %s 매도 못 함: %s — 직접 확인" % (p.get("name"), why))
+    if paper:
+        sleep_until(S["end"] + dt.timedelta(seconds=90 if mk == "KR" else 150), "가상 보유 종가 확인")
+        ppx = prices(sorted({p["code"] for p, _, _ in paper}))
+        upd = {p["id"]: ppx[p["code"]] for p, _, _ in paper if ppx.get(p["code"])}
+
+        def pmark(P):
+            ch = False
+            for x in P:
+                if x.get("id") in upd and not x.get("sell"):
+                    x.update(sell=upd[x["id"]], sellDate=S["date"])
+                    if mk == "US": x["sellFx"] = usdkrw()
+                    ch = True
+            return ch
+        if upd and site_update(pmark, "%s 가상 매도 %d건" % (mk, len(upd))):     # 지킴이 두 번째 실행은 이미 팔려 있어 False → 알림 안 겹침
+            for p, rid, d in paper:
+                if p["id"] not in upd: continue
+                r = (upd[p["id"]] / float(p["price"]) - 1) * 100
+                L.append("🧾 [%s] %s %s주 %s → %s (%+.1f%%, %d일) — 가상(돈 없어 못 산 것, 토스 주문 없음)" % (
+                    R[rid][0], p.get("name"), p["qty"], f"{float(p['price']):,.0f}", f"{upd[p['id']]:,.0f}", r, d))
+        if len(L) == 1: return
     telegram("\n".join(L))
+
+
+def paper_buy(mk, code, rid, day):
+    """돈 없어 못 산 스윙 신호를 '그날 시가에 1주 산 걸로' 사이트에 넣는다(토스 주문 없음). 국장만 — 시가 = 1분봉 첫 체결 봉 시가(시가 단일가)."""
+    import collect_m1 as M
+    rows = sorted((r for r in M.fetch_day(mk, code, day) if r[6] > 0), key=lambda r: r[1])
+    if not rows: raise RuntimeError("시가 못 찾음 %s %s" % (code, day))
+    op = rows[0][2]
+    nm = names([code]).get(code, (code,))[0]
+
+    def add(P):
+        if any(p.get("code") == code and str(p.get("date")) == day and p.get("paper") for p in P): return False
+        P.append({"id": int(time.time() * 1000), "code": code, "name": nm, "date": day, "price": op, "qty": SWING_QTY or 1,
+                  "filters": [rid], "auto": True, "paper": True})
+        return True
+    site_update(add, "가상 매수 %s %s [%s] %s원" % (nm, code, rid, f"{op:,.0f}"))
+    log("가상 매수:", nm, code, rid, day, op)
 
 
 # ── 점검 ───────────────────────────────────────────────────────────────
@@ -699,6 +739,8 @@ if __name__ == "__main__":
     try:
         if a[:1] == ["check"]:
             check()
+        elif a[:1] == ["paper"] and len(a) >= 5:          # python autotrade.py paper kr 298040 P6 20261016
+            paper_buy(a[1].upper(), a[2], a[3], a[4])
         elif a[:1] in (["plan"], ["buy"], ["sell"]) and len(a) > 1 and a[1].lower() in ("kr", "us"):
             if MODE != "live" and not DRY:
                 log("AUTOTRADE_MODE=%s — 주문하지 않는다(live 일 때만)" % MODE)
