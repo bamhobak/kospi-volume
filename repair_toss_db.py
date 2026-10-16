@@ -15,7 +15,11 @@ DST = BASE / "data" / "toss_rebuilt.db"
 
 
 def copy_table(src, dst, name, cols):
-    mx = src.execute("SELECT max(rowid) FROM %s" % name).fetchone()[0] or 0
+    try:
+        mx = src.execute("SELECT max(rowid) FROM %s" % name).fetchone()[0] or 0
+    except sqlite3.DatabaseError:
+        # 2026-10-16 두 번째 손상: 표 오른쪽 끝(최근 쓰기)이 깨져 max(rowid) 도 못 읽는다 → 넉넉히 1,200만까지 훑는다(빈 구간은 금방 지나감)
+        mx = 12_000_000
     ins = "INSERT OR IGNORE INTO %s(%s) VALUES(%s)" % (name, ",".join(cols), ",".join("?" * len(cols)))
     got, lost = 0, []
 

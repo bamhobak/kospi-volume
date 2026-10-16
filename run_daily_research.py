@@ -138,6 +138,15 @@ for no, name, cmd in STEPS:
         fail.append(name)
         err = "\n".join((r.stderr or "").strip().splitlines()[-3:])
         say(f"[{no}] {name} 실패 rc={r.returncode} ({(time.time()-t)/60:.1f}분)\n{err[:400]}")
+        # 2026-10-16: toss.db 가 10-11 에 깨졌는데 '4거래일 밀림' 문턱(10-16)까지 아무도 몰랐다 →
+        #   DB 손상은 밀림을 기다리지 말고 그날 바로 알린다(복구 = repair_toss_db.py → --swap → collect_toss.py --days 25).
+        if "malformed" in (r.stderr or "") or "not a database" in (r.stderr or ""):
+            try:
+                sys.path.insert(0, str(BASE)); import research_health as _RH
+                _RH.telegram("🧯 <b>DB 손상</b> — [%d] %s 단계가 'database disk image is malformed' 로 실패\n"
+                             "복구: python repair_toss_db.py → --swap → python collect_toss.py --days 25 (toss.db 기준)" % (no, name))
+            except Exception as e:
+                say("손상 알림 실패: %r" % (e,))
 say(f"=== 끝 ({(time.time()-t0)/60:.1f}분) · 실패 {len(fail)}건 " + (", ".join(fail) if fail else "없음") + " ===")
 
 # 결과 요약
