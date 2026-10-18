@@ -102,7 +102,7 @@ def run(day, quiet=False):
         print("1분봉 파일 없음 — 건너뜀:", day); return []
     g = B.groupby("t")
     op, cl = g.o.first(), g.c.last()
-    cand = [x for x in snap.get("cand") or [] if x.get("lim") and x["t"] in op.index and op[x["t"]] <= x["lim"]]
+    cand = [x for x in snap.get("cand") or [] if x.get("t1", True) and x.get("lim") and x["t"] in op.index and op[x["t"]] <= x["lim"]]   # T4(미장 폭락) 후보는 빼고 [갭 하락 조용주]만
     T = [x["t"] for x in cand]
     am, am_src = _book(day, "am", T)
     pm, pm_src = _book(day, "pm", T)

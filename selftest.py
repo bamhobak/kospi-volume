@@ -162,6 +162,7 @@ if SITE:  # 화면에 적힌 보유기간·손절이 알림의 규칙표와 같�
         h = SITE["meta"]["hold"].get(rid)
         s_ = SITE["meta"]["stop"].get(rid)
         tr = (SITE["meta"].get("trail") or {}).get(rid)
+        if rid.startswith("IX"): continue          # 2026-10-18 [지수 덮개]: 보유일 청산이 아니라 띠로 판다(autotrade ovl_*) — 청산 알림 대상 아님
         if rid not in ER: ng(f"[{NAME.get(rid,rid)}] 이 알림 규칙표에 없다 — 청산 알림이 안 간다"); bad += 1; continue
         eh = int(ER[rid][1])
         es = None if ER[rid][0] == "null" else float(ER[rid][0]) * 100

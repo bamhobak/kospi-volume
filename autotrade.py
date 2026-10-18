@@ -40,6 +40,10 @@ SEED = {"KR": 50_000_000, "US": 50_000_000}   # 시장별 시드(원) — 자동
 MAXDAY = {"KR": 5, "US": 5}   # 하루 최대 매수 건수
 # 2026-10-15 사용자 "스윙도 일단 1주씩": 테스트 동안 신호마다 1주만(PER 금액 무시). 돈 제대로 넣을 때 None 으로 되돌린다.
 SWING_QTY = 1
+# 2026-10-18 [지수 덮개] IX1(사용자 '둘 다 적용' · research H0360): 코스피200 종가가 60일선 +3% 위로 마감 → 다음날 시가에 KODEX 200 매수,
+#   60일선 -3% 아래로 마감 → 다음날 시가에 매도(띠 안에서는 그대로). 금액 = 시드에서 자동 보유를 뺀 남은 돈의 30%(테스트 동안은 SWING_QTY 주).
+#   계좌(2005~): 연 +15.4% → +18.2% · 낙폭 -12.4% → -14.3% · 수익 난 해 21/22 그대로. 스윙 매도(보유일)는 이 포지션을 건드리지 않는다(overlay=True).
+OVL_ID, OVL_SYM, OVL_NAME, OVL_MA, OVL_BAND, OVL_W = "IX1", "069500", "KODEX 200", 60, 3.0, 0.30
 KST = dt.timezone(dt.timedelta(hours=9))
 DRY = "--dry" in sys.argv
 WAIT0 = "--wait0" in sys.argv
@@ -419,6 +423,98 @@ def candidates(mk, F, ST, R, rank, today_keys):
     return sorted(C)
 
 
+def ovl_state():
+    """코스피200 ±3% 띠 상태 — (들어가 있어야 하나, 마지막 종가일, 종가, 60일선). 띠는 이력에 따라 달라서 처음부터 다시 돌린다."""
+    import index_cal as IC
+    k = IC.naver_closes("KPI200", 700)
+    ds = sorted(k); c = [k[d] for d in ds]
+    if len(c) < OVL_MA + 20: raise RuntimeError("코스피200 종가 부족 %d" % len(c))
+    inpos = False; ma = None
+    for i in range(OVL_MA - 1, len(c)):
+        ma = sum(c[i - OVL_MA + 1:i + 1]) / OVL_MA
+        if not inpos and c[i] > ma * (1 + OVL_BAND / 100): inpos = True
+        elif inpos and c[i] < ma * (1 - OVL_BAND / 100): inpos = False
+    return inpos, ds[-1], c[-1], ma
+
+
+def ovl_plan(S, ST):
+    """오늘 아침 할 일 — None / ("BUY", 주수) / ("SELL", 포지션). 판정은 어제(직전 거래일) 종가까지."""
+    inpos, d, c, ma = ovl_state()
+    if S.get("prev") and d < S["prev"]:
+        log("지수 덮개: 코스피200 종가가 묵음(%s < %s) — 오늘은 안 건드림" % (d, S["prev"])); return None, (inpos, d, c, ma)
+    held = [p for p in (ST.get("positions") or []) if p.get("overlay") and not p.get("sell")]
+    log("지수 덮개: 코스피200 %s 종가 %.2f · 60일선 %.2f(%+.1f%%) → %s · 보유 %d" % (d, c, ma, (c / ma - 1) * 100, "들어감" if inpos else "나옴", len(held)))
+    if inpos and not held:
+        return ("BUY", None), (inpos, d, c, ma)
+    if not inpos and held:
+        return ("SELL", held[0]), (inpos, d, c, ma)
+    return None, (inpos, d, c, ma)
+
+
+def ovl_place(plan, S, ST):
+    """덮개 주문(시가 단일가 시장가) — 원장에 남기고 주문 dict 를 돌려준다. 체결 확인·사이트 기록은 ovl_record."""
+    act, x = plan
+    cid = re.sub(r"[^A-Za-z0-9_-]", "", f"ov{S['date']}{act[0]}")[:36]
+    if act == "BUY":
+        px = prices([OVL_SYM]).get(OVL_SYM)
+        if not px: log("지수 덮개: 현재가 없음 — 안 삼"); return None
+        tied = sum(float(p.get("price") or 0) * float(p.get("qty") or 0) for p in (ST.get("positions") or [])
+                   if p.get("auto") and not p.get("sell") and mk_of(p.get("code")) == "KR")
+        q = SWING_QTY or math.floor(OVL_W * max(SEED["KR"] - tied, 0) / px)
+        if q < 1: log("지수 덮개: 살 돈 없음"); return None
+    else:
+        q = x["qty"]
+    body = {"clientOrderId": cid, "symbol": OVL_SYM, "side": act, "orderType": "MARKET", "quantity": str(q), "timeInForce": "OPG"}
+    o = dict(side=act, mk="KR", date=S["date"], rid=OVL_ID, t=OVL_SYM, name=OVL_NAME, qty=q, cid=cid, at=now().isoformat(), overlay=True)
+    if act == "SELL": o["posId"] = x["id"]
+    Lg = led()
+    if any(z.get("cid") == cid and z.get("oid") for z in Lg["orders"]):
+        log("지수 덮개: 오늘 주문 이미 나감"); return None
+    try:
+        o["oid"] = place(body)
+    except TossErr as ex:
+        o["oid"] = None; o["err"] = ex.code or str(ex)[:120]
+        telegram("⚠ <b>[지수 덮개]</b> %s 주문 거부: %s" % ("매수" if act == "BUY" else "매도", o["err"]))
+    Lg["orders"].append(o); led_save(Lg)
+    log("지수 덮개 주문:", act, q, "주", o.get("oid"))
+    return o if o.get("oid") else None
+
+
+def ovl_record(o, S, info):
+    if not o: return
+    wait_fills([o])
+    Lg = led()
+    for z in Lg["orders"]:
+        if z.get("cid") == o["cid"]: z.update({k: o[k] for k in ("fq", "ap", "status") if k in o})
+    inpos, d, c, ma = info
+    why = "코스피200 %s 종가 %s · 60일선 %s(%+.1f%%)" % (d[4:], f"{c:,.2f}", f"{ma:,.2f}", (c / ma - 1) * 100)
+    if not (o.get("fq", 0) > 0 and o.get("ap", 0) > 0):
+        led_save(Lg); telegram("❌ <b>[지수 덮개]</b> %s 미체결(%s) — %s" % ("매수" if o["side"] == "BUY" else "매도", o.get("status"), why)); return
+    if o["side"] == "BUY":
+        pos = {"id": int(time.time() * 1000), "code": OVL_SYM, "name": OVL_NAME, "date": S["date"], "price": o["ap"], "qty": int(o["fq"]),
+               "filters": [OVL_ID], "auto": True, "overlay": True, "oid": o["oid"]}
+        for z in Lg["orders"]:
+            if z.get("cid") == o["cid"]: z["pos"] = pos                  # heal() 이 사이트에서 빠지면 되살린다
+        led_save(Lg)
+        site_update(lambda P: (P.append(dict(pos)) or True), "지수 덮개 매수")
+        telegram("📈 <b>[지수 덮개] 매수</b> %s %d주 @ %s원 = %s\n%s → 60일선 +3%% 위라 들어감(상승장에만 지수를 든다)" % (
+            OVL_NAME, int(o["fq"]), f"{o['ap']:,.0f}", won(o["fq"] * o["ap"]), why))
+    else:
+        sold = {"sell": o["ap"], "sellDate": S["date"]}
+        for z in Lg["orders"]:
+            if z.get("cid") == o["cid"]: z["sold"] = sold
+        led_save(Lg)
+
+        def mark(P):
+            for x in P:
+                if x.get("id") == o["posId"] and not x.get("sell"): x.update(sold); return True
+            return False
+        site_update(mark, "지수 덮개 매도")
+        bp_ = next((float(p["price"]) for p in (site_state().get("positions") or []) if p.get("id") == o["posId"]), None)
+        r = (o["ap"] / bp_ - 1) * 100 if bp_ else float("nan")
+        telegram("📉 <b>[지수 덮개] 매도</b> %s %d주 @ %s원 (%+.1f%%)\n%s → 60일선 -3%% 아래라 나옴" % (OVL_NAME, int(o["fq"]), f"{o['ap']:,.0f}", r, why))
+
+
 def buy(mk):
     if not guard(): return
     S = session(mk)
@@ -437,6 +533,18 @@ def buy(mk):
         else:
             log("미장 개장 %s 근처 아님 — 건너뜀" % S["start"].strftime("%m/%d %H:%M")); return
     heal()
+    ovp = ovi = None                                                  # [지수 덮개] — 국장 아침마다 판정(스윙 신호와 무관)
+    if mk == "KR":
+        try: ovp, ovi = ovl_plan(S, site_state())
+        except Exception as ex:
+            log("지수 덮개 판정 실패:", repr(ex)[:200]); telegram("⚠ <b>[지수 덮개]</b> 판정 실패: %s" % str(ex)[:150])
+
+    def ovl_alone():
+        if not ovp: return
+        sleep_until(at, "국장 장전 시가 단일가(지수 덮개)")
+        o = ovl_place(ovp, S, site_state())
+        if o:
+            sleep_until(S["start"] + dt.timedelta(seconds=90), "지수 덮개 체결 확인"); ovl_record(o, S, ovi)
     F = filters_state()
     have = F.get("date") if mk == "KR" else F.get("usasof")
     stale = None
@@ -446,7 +554,8 @@ def buy(mk):
         stale = "신호가 묵었다 — 신호 %s · 직전 거래일 %s" % (have, S["prev"])
     if stale:
         log(mk, "매수 안 함:", stale)
-        telegram("⚠ <b>자동매매 %s 매수 안 함</b>\n%s (수집 실패?) — 묵은 신호로는 사지 않는다" % ("국장" if mk == "KR" else "미장", stale)); return
+        telegram("⚠ <b>자동매매 %s 매수 안 함</b>\n%s (수집 실패?) — 묵은 신호로는 사지 않는다" % ("국장" if mk == "KR" else "미장", stale))
+        ovl_alone(); return
     R = rules()
     rank = {rid: i + 1 for i, rid in enumerate(sorted([r for r in R if (r[0] == "N") == (mk == "US")], key=lambda r: -R[r][2]))}
     Lg = led()
@@ -454,7 +563,7 @@ def buy(mk):
     ST = site_state()
     C = candidates(mk, F, ST, R, rank, today_keys)
     if not C:
-        log(mk, "살 것 없음 · 신호일", have); return
+        log(mk, "살 것 없음 · 신호일", have); ovl_alone(); return
     syms = sorted({c[3] for c in C})
     nm = names(syms)
     fx = usdkrw() if mk == "US" else None
@@ -534,9 +643,16 @@ def buy(mk):
         if cash is not None: cash -= q * px[t]
         log("매수 주문:", mk, rid, t, q, "주")
         time.sleep(0.3)
-    if placed:
+    ov_o = None
+    if ovp:
+        try: ov_o = ovl_place(ovp, S, ST)
+        except Exception as ex: log("지수 덮개 주문 실패:", repr(ex)[:200])
+    if placed or ov_o:
         sleep_until((S["start"] + dt.timedelta(seconds=90)) if mk == "KR" else now() + dt.timedelta(seconds=15), "체결 확인")
     wait_fills(placed)
+    if ov_o:
+        try: ovl_record(ov_o, S, ovi)
+        except Exception as ex: log("지수 덮개 기록 실패:", repr(ex)[:200])
     filled = []
     for o in placed:
         if o["fq"] > 0 and o["ap"] > 0:
@@ -590,7 +706,7 @@ def sell(mk):
     heal()
     R = rules()
     ST = site_state()
-    mine = [p for p in (ST.get("positions") or []) if p.get("auto") and not p.get("sell") and mk_of(p.get("code")) == mk]
+    mine = [p for p in (ST.get("positions") or []) if p.get("auto") and not p.get("sell") and not p.get("overlay") and mk_of(p.get("code")) == mk]   # 지수 덮개는 띠로 판다(ovl_*)
     due = []
     for p in mine:
         rid = (p.get("filters") or [None])[0]

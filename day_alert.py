@@ -32,7 +32,12 @@ DAY_QTY = 1                                       # 2026-10-14 사용자: 당분
 DAY_MAX = 20                                      # 하루 최대 종목 수(후보 순서 = 시장 대비 더 빠진 순) · 10-13 사용자 10→20: 지정가라 안 사지는 자리를 아래 후보가 채우게 전부 주문
 COST = 0.23                                     # 토스 실제 왕복: 수수료 0.015×2 + 거래세 0.20 (index.html DEFFEE)
 RULE = "갭 하락 조용주"
-RNAME = {"T1": "갭 하락 조용주", "T2": "갭 하락 조용주 +", "T3": "갭 하락 조용주 ++"}
+RNAME = {"T1": "갭 하락 조용주", "T2": "갭 하락 조용주 +", "T3": "갭 하락 조용주 ++", "T4": "미장 폭락 과잉 갭"}
+# 2026-10-18 T4(사용자 '둘 다 적용' · research H0352): 나스닥 전날 -2.5%↓ 인 날만 — 작은 종목(유니버스 아래 1/3) 중
+#   예상 갭 -2%↓ & 짝 미장으로 본 예상 갭보다 더 빠진 정도(덜 반영 = 갭 − 짝 예상)가 유니버스 하위 10% → 시가 단일가 지정가(어제 종가 -2%) → 종가.
+#   2016~22 1,285건 건당 +1.75% · 승률 69% · PF 2.99 / 2023~ 296건 +2.44% · 74% · PF 5.32 · 연 약 9일 · 그날 15종목쯤. [갭 하락 조용주]와 겹치면 한 번만 산다.
+U_NAS, U_GAP, U_RQ, U_MAX = -2.5, -2.0, 0.10, 20
+W_NAS, W_GAP = -1.5, -3.0                          # 넓은 판(나스닥 -1.5%↓ · 갭 -3%↓) — 사지 않고 기록만(저녁 결과에 비교)
 T2_CUT = -1.0                                     # 2026-10-06 H0297: 어제 14:00→종가 이 값 이하면 T2(한 번 더 산다)
 #  2026-10-11 T3(사용자 '추천대로' · research H0313): 그 종목의 짝 미장 종목으로 본 예상 갭(전이표 tr_pred)이 이 값 이하면
 #  T3 로 한 번 더 산다 — 학습 307건 +2.37%·71% / 검증 192건 +2.05%·71%.
@@ -169,6 +174,30 @@ def us_pred(today):
     return out
 
 
+def nasdaq_last(today):
+    """오늘 아침 전에 끝난 나스닥 종합지수 하루 등락(%) — FDR(야후) IXIC, 못 받으면 전이표 미장 일봉의 QQQ. 실패하면 None(T4 쉼)."""
+    try:
+        import FinanceDataReader as fdr
+        X = fdr.DataReader("IXIC", (dt.datetime.now(KST) - dt.timedelta(days=15)).strftime("%Y-%m-%d"))
+        X = X[(X.Close > 0) & (X.index.strftime("%Y%m%d") < today)]
+        if len(X) >= 2: return float((X.Close.iloc[-1] / X.Close.iloc[-2] - 1) * 100), "IXIC " + X.index[-1].strftime("%m/%d")
+    except Exception as ex:
+        log("나스닥 못 받음(IXIC):", repr(ex)[:150])
+    try:
+        import pandas as pd
+        A = pd.read_parquet(BASE / "data" / "factory" / "us_daily.parquet")
+        q = A[(A.sym == "QQQ") & (A.date < today)].sort_values("date")
+        if len(q) >= 2: return float((q.close.iloc[-1] / q.close.iloc[-2] - 1) * 100), "QQQ " + q.date.iloc[-1][4:]
+    except Exception as ex:
+        log("나스닥 못 받음(QQQ):", repr(ex)[:150])
+    return None, None
+
+
+def floor_tick(p):
+    t = kr_tick(p)
+    return int(math.floor(p / t) * t)
+
+
 def morning():
     today, it, prev = today_session()
     if not today:
@@ -237,11 +266,34 @@ def morning():
     L = [dict(t=s, name=nm.get(s, s), gap=round(gap[s], 2), rel=round(gap[s] - mg, 2), vm=round(R[s]["vm"], 2), d5=round(R[s]["d5"], 2),
               d5low=d5q[s] <= 0.30, exp=exp[s], pc=R[s]["pc"], src=src[s], lim=limit_price(R[s]["pc"], mg),
               lh=(round(lh[s], 2) if s in lh else None), t2=(s in lh and lh[s] <= T2_CUT),
-              up=(round(up[s], 2) if s in up else None), t3=(s in up and up[s] <= T3_CUT)) for s in cand]
+              up=(round(up[s], 2) if s in up else None), t3=(s in up and up[s] <= T3_CUT), t1=True) for s in cand]
+    # ── T4 [미장 폭락 과잉 갭] ──
+    nas, nas_src = nasdaq_last(today)
+    res = {s: gap[s] - up[s] for s in uni if s in gap and s in up}          # 덜 반영 = 예상 갭 − 짝 미장으로 본 예상 갭
+    rq = pct_rank(res) if res else {}
+    pick = lambda nc, gc: sorted([s for s in tiny if s in rq and rq[s] <= U_RQ and gap[s] <= gc], key=lambda s: gap[s]) if (nas is not None and nas <= nc) else []
+    u_sel, u_wide = pick(U_NAS, U_GAP), pick(W_NAS, W_GAP)
+    have = {x["t"]: x for x in L}
+    U = []
+    for s in u_sel[:U_MAX]:
+        if s in have:
+            have[s]["u1"] = True; continue                                   # [갭 하락 조용주]와 겹치면 한 번만 산다
+        U.append(dict(t=s, name=s, gap=round(gap[s], 2), rel=round(gap[s] - mg, 2), vm=round(R[s]["vm"], 2), d5=round(R[s]["d5"], 2), d5low=False,
+                      exp=exp[s], pc=R[s]["pc"], src=src[s], lim=floor_tick(R[s]["pc"] * (1 + U_GAP / 100)),
+                      up=round(up[s], 2), res=round(res[s], 2), t1=False, u1=True))
+    if U:
+        for i in range(0, len(U), 100):
+            for x in M.get("/api/v1/stocks", symbols=",".join(u["t"] for u in U[i:i + 100])) or []:
+                for u in U:
+                    if u["t"] == x["symbol"]: u["name"] = x.get("name") or u["name"]
+    log("T4 나스닥 %s(%s) · 덜 반영 %d종목 · 고른 것 %d(겹침 %d) · 넓은 판 기록 %d" % (
+        "%+.2f%%" % nas if nas is not None else "모름", nas_src, len(res), len(u_sel), len(u_sel) - len(U), len(u_wide)))
     snap = dict(date=today, prev=prev, made=dt.datetime.now(KST).strftime("%H:%M"), rule=RULE, n_uni=len(uni), n_gap=len(gap), mgap=round(mg, 2),
                 cut=round(sorted(gap.values())[max(int(len(gap) * 0.10) - 1, 0)], 2) if gap else None,
-                src_n={"NXT": sum(1 for s in src.values() if s == "NXT"), "호가": sum(1 for s in src.values() if s == "호가")}, cand=L,
-                n_base=len(base_c), kup=kup, thr=thr, all={s: dict(gap=round(gap[s], 3), src=src[s], pre=s in pre, tiny=s in tiny) for s in gap})
+                src_n={"NXT": sum(1 for s in src.values() if s == "NXT"), "호가": sum(1 for s in src.values() if s == "호가")}, cand=L + U,
+                n_base=len(base_c), kup=kup, thr=thr, nas=(round(nas, 2) if nas is not None else None), nas_src=nas_src,
+                u_sel=u_sel, u_wide=u_wide,
+                all={s: dict(gap=round(gap[s], 3), src=src[s], pre=s in pre, tiny=s in tiny) for s in gap})
     (OUT / ("snap_%s.json" % today)).write_text(json.dumps(snap, ensure_ascii=False), encoding="utf-8")
     try:
         supa_set("__day__", {k: v for k, v in snap.items() if k != "all"})
@@ -267,13 +319,19 @@ def morning():
     if n3: body.append("🌙 = [갭 하락 조용주 ++] 도 걸림(짝 미장으로 본 예상 갭 %.1f%%↓) — %d종목은 한 번 더 산다(⭐🌙 둘 다면 두 번 더)" % (T3_CUT, n3))
     body.append("후보 = 조용한 작은 종목 중 예상 갭 하위 %d%% · 시장보다 %g%%p↑ 더 빠질 것 → 실제로 %g%%p↑ 빠져 열린 것만 체결 (코스피 %s)" % (
         CAND_Q * 100, -CAND_REL, -LIMIT_THR, {True: "상승장", False: "하락장", None: "국면 모름"}[kup]))
+    if nas is not None and nas <= W_NAS:
+        body.append("🇺🇸 <b>[%s]</b> 나스닥 %+.1f%%(%s) — %s" % (RNAME["T4"], nas, nas_src,
+                    ("%d종목(겹침 %d는 한 번만) 어제 종가 -2%% 지정가 매수 → 종가" % (len(u_sel), len(u_sel) - len(U))) if nas <= U_NAS
+                    else "-2.5%% 안 돼 오늘은 안 삼(넓은 판 %d종목은 기록만)" % len(u_wide)))
+        for x in U[:10]:
+            body.append("· 🇺🇸 %s(%s) 예상 갭 %+.1f%% · 짝 예상 %+.1f%% · 더 빠짐 %+.1f%%p · 지정가 %s원" % (x["name"], x["t"], x["gap"], x["up"], x["res"], f"{x['lim']:,}"))
     body.append("갭 하위 10%% 조용한 종목 %d개 · 후보 %d%s" % (len(base_c), len(L), " — 오늘은 안 산다" if not L else ""))
     body.append("갭 하위 10%% 선 %s%% · 예상가 NXT %d·호가 %d / 유니버스 %d" % (snap["cut"], snap["src_n"]["NXT"], snap["src_n"]["호가"], len(uni)))
     telegram("\n".join([head] + body))
     try: M.BUSY.unlink()                                       # 고르는 건 끝났다 — 1분봉 과거 채우기를 다시 돌게 둔다
     except Exception: pass
-    if live and L:
-        trade(L[:DAY_MAX], today)
+    if live and (L or U):
+        trade(L[:DAY_MAX] + U, today)
 
 
 # ── 실매수(2026-10-04) — 시가 단일가(OPG) 매수 → 같은 날 종가 단일가 매도 · 사이트 데이 보유(positions_scalp)에 기록 ──
@@ -312,7 +370,8 @@ def extras(x):
 
 
 def order_list(L):
-    return [(x, "T1") for x in L] + [(x, r) for x in L for r in extras(x)]
+    # 2026-10-18: T4 전용 후보(t1=False)는 T4 로 한 번만 — 덤(T2·T3)은 [갭 하락 조용주] 후보에만
+    return [(x, "T1" if x.get("t1", True) else "T4") for x in L] + [(x, r) for x in L if x.get("t1", True) for r in extras(x)]
 
 
 def trade(L, today):
@@ -719,12 +778,24 @@ def review():
     rmg = sorted(real_gap.values())[len(real_gap) // 2] if real_gap else 0.0
     real_cand = {s for s in real_gap if rq[s] <= 0.10 and snap["all"].get(s, {}).get("pre") and snap["all"].get(s, {}).get("tiny")
                  and real_gap[s] - rmg <= snap.get("thr", -2.0)}
-    mine = {x["t"] for x in snap["cand"]}
-    rets = []
+    mine = {x["t"] for x in snap["cand"] if x.get("t1", True)}
+    rets, urets = [], []
     for x in snap["cand"]:
         if x["t"] in act:
-            o, c = act[x["t"]]; r = (c / o - 1) * 100 - COST; rets.append(r)
+            o, c = act[x["t"]]; r = (c / o - 1) * 100 - COST
+            (rets if x.get("t1", True) else urets).append(r)
             x["open"], x["close"], x["ret"] = o, c, round(r, 3)
+    # T4 고른 것 전체(겹침 포함)·넓은 판 — 실제 시가→종가(시가가 지정가 -2% 위면 '안 사짐' 으로 따로 셈)
+    def tset(ts, cut):
+        rr, nf = [], 0
+        for s in ts or []:
+            if s not in act or s not in prevc: continue
+            o, c = act[s]
+            if (o / prevc[s] - 1) * 100 > cut: nf += 1; continue
+            rr.append((c / o - 1) * 100 - COST)
+        return rr, nf
+    u_r, u_nf = tset(snap.get("u_sel"), U_GAP)
+    w_r, w_nf = tset(snap.get("u_wide"), W_GAP)
     real_rets = [(act[s][1] / act[s][0] - 1) * 100 - COST for s in real_cand if s in act]
     avg = lambda L: sum(L) / len(L) if L else float("nan")
     mae = lambda L: sum(abs(v) for v in L) / len(L) if L else float("nan")
@@ -744,6 +815,14 @@ def review():
          "아침 후보 %d종목 시가→종가 평균 <b>%+.2f%%</b>(비용 뒤) · 오른 종목 %d/%d" % (len(rets), avg(rets), sum(r > 0 for r in rets), len(rets)),
          "실제 시가로 골랐다면 %d종목 평균 %+.2f%% · 아침 후보와 겹침 %d" % (len(real_rets), avg(real_rets), len(mine & real_cand)),
          "예상 시가 오차(갭 %%p): NXT %.2f(%d종목) · 호가 %.2f(%d종목)" % (mae(errs["NXT"]), len(errs["NXT"]), mae(errs["호가"]), len(errs["호가"]))]
+    if snap.get("u_sel") or snap.get("u_wide"):
+        L.append("🇺🇸 [%s] 나스닥 %s%% — 고른 %d종목 중 시가 -2%%↓로 열린 %d종목 평균 <b>%+.2f%%</b>(안 사짐 %d) · 넓은 판(기록만) %d종목 평균 %+.2f%%(안 사짐 %d)" % (
+            RNAME["T4"], snap.get("nas"), len(snap.get("u_sel") or []), len(u_r), avg(u_r), u_nf, len(w_r), avg(w_r), w_nf))
+        uf = OUT / "t4_log.csv"; new_u = not uf.exists()
+        with open(uf, "a", newline="", encoding="utf-8-sig") as fh:
+            w = csv.writer(fh)
+            if new_u: w.writerow(["날짜", "나스닥", "고른 수", "체결 가능 수", "평균(비용 뒤)", "넓은 판 수", "넓은 판 체결 가능", "넓은 판 평균"])
+            w.writerow([today, snap.get("nas"), len(snap.get("u_sel") or []), len(u_r), round(avg(u_r), 3), len(snap.get("u_wide") or []), len(w_r), round(avg(w_r), 3)])
     try:                                                  # 실행 방법 실측(금액별 매수·매도 방법 — day_exec.py, 10-14)
         import day_exec as DX
         DX.run(today, quiet=True); DX.summary()

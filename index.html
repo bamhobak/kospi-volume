@@ -711,6 +711,16 @@ const FILTERS=[
         &&r.ow20!=null&&r.ow20>=0&&r.srDown===true
         &&(r.amt20!=null?r.amt20:0)>=5&&r.close!=null&&r.close>=1000
         &&r.dilu!==true&&r.disc!==true},
+  /* 2026-10-18 추가(사용자 '둘 다 적용' · research H0360) — 종목을 고르는 규칙이 아니라 계좌 노출 장치. 매매는 autotrade.py(ovl_*)가
+     코스피200 종가로 판정해 KODEX 200(069500)을 사고판다 → 표에서 고를 종목이 없어 fn 은 늘 false(매수 대기에 안 뜬다). */
+  {id:'IX1',regime:'up',gate:'always',name:'IX1 · 지수 덮개',mkt:'KOSPI',
+   cond:'**코스피200 종가가 60일선보다 3% 넘게 위**로 마감 → 다음날 시가에 **KODEX 200(069500)** 매수 · **60일선보다 3% 넘게 아래**로 마감 → 다음날 시가에 매도 (그 사이 띠 안에서는 그대로) · 금액 = 시드에서 자동 보유를 뺀 **남은 돈의 30%**(테스트 동안은 1주)',
+   desc:'**2026-10-18 실측(research H0360)** — 계좌가 규칙 종목에 쓰지 않고 놀리는 현금이 평균 74%라, 상승장에만 그 일부를 지수에 태워 "오를 때 적당히" 받는다. 60일선 그대로 쓰면 연 8번 사고팔고 승률 38%(헛매매가 많음)라 **±3% 띠**로 바꿨다: 연 1.5번 · 승률 47% · 건당 +8.3% · 평균 98거래일 보유 · 최대 연속 손실 3번 · 최악의 해 -10%. 타이밍 자체는 연 +9.7%로 지수 보유(+9.6%)와 비슷하고, 값은 하락장을 피하는 데 있다(2008 지수 -38% · 2022 -26%). **계좌(9규칙, 2005~)**: 지금 21.0배 · 연 +15.4% · 낙폭 -12.4% → 덮개 30% **34.7배 · 연 +18.2% · 낙폭 -14.3%** · 수익 난 해 21/22 그대로 · 최악의 해 -1.3%. 50%면 연 +20.0% · 낙폭 -15.7%. 배당 빼고 잰 값.',
+   alloc:{pct:0},
+   rule:{hold:98,stop:null,trail:null,target:null}, ruleText:'코스피200 <em>60일선 +3% 위 마감 → 다음날 시가 매수</em> · <em>-3% 아래 마감 → 다음날 시가 매도</em>',
+   stats:{n:34, perMonth:0.1, monthsActive:34, spanMonths:270, medPerActive:1, topMonth:'-', topN:0, win:47, pf:4.6, avg:8.26,
+     years:'**코스피200 2004~2026** 매매 34번(연 1.5번) · 승률 47% · 건당 +8.26% · 이긴 건 +23.3% · 진 건 -5.1% · 평균 98거래일 보유 · 타이밍만 연 +9.7%(지수 보유 +9.6%) · 계좌 덮개 30%: 연 +15.4% → +18.2% · 낙폭 -12.4% → -14.3% (다음날 시가 체결 · 왕복 0.1%)'},
+   fn:r=>false},
 ];
 /* 중장기 / 단타 분리(2026-10-03 요청) — 규칙·매수 대기·보유·완료를 따로 관리한다.
    단타 규칙은 아직 없다(1분봉을 모으는 중 · collect_m1.py). 규칙이 생기면 여기에 넣는다.
@@ -733,7 +743,7 @@ const SCALP_FILTERS=[
    rule:{hold:1,stop:null,trail:null,target:null},ruleText:'오늘 <em>시가 단일가 매수</em> · 같은 날 <em>종가 단일가 매도</em>',
    stats:{n:2188,perMonth:51,monthsActive:45,spanMonths:45,medPerActive:2,topMonth:'-',topN:0,win:65,pf:2.28,avg:1.35,
      years:'**검증 2023~** 2,188건 건당 평균 +1.35% · 중앙 +1.19% · 승률 64.5% · PF 2.28 · 하루 약 2.4종목(신호 난 날 72%) · **학습 2016~22** 4,203건 +0.92% · 승률 61.8% · PF 1.80 · 참고 2005~15 +1.20% · 61.5% — 해별 건당 평균 2016 +0.96 / 2017 +0.85 / 2018 +0.98 / 2019 +1.14 / 2020 +1.20 / 2021 +0.26 / 2022 +0.84 / 2023 +0.93 / 2024 +1.07 / 2025 +1.45 / 2026 +1.75 (비용 0.23% 뒤)'},
-   fn:r=>dayWait(r.ticker,'T1')},
+   fn:r=>{const c=dayCand(r.ticker);return !!(c&&c.t1!==false)&&dayWait(r.ticker,'T1')}},
   /* 2026-10-06 추가(사용자 '1번' · research H0297) — [갭 하락 조용주] 후보 중 어제 막판 1시간에 밀린 종목은 한 번 더 산다(돈 두 배) */
   {id:'T2',parent:'T1',regime:'both',gate:'always',name:'A1-1 · 갭 하락 조용주 +',mkt:'BOTH',
    cond:'**[갭 하락 조용주] 후보 그대로** + **어제 14:00 → 종가(막판 1시간)가 -1% 이하로 밀린 종목** — 어제 1분봉으로 본다. [갭 하락 조용주]와 별도로 한 번 더 산다(건당 50만원 · 같은 종목이면 두 규칙에 각각 50만원)',
@@ -750,7 +760,16 @@ const SCALP_FILTERS=[
    rule:{hold:1,stop:null,trail:null,target:null},ruleText:'오늘 <em>시가 단일가 매수</em> · 같은 날 <em>종가 단일가 매도</em>',
    stats:{n:192,perMonth:5,monthsActive:38,spanMonths:45,medPerActive:1,topMonth:'-',topN:0,win:71,pf:3.5,avg:2.05,
      years:'**검증 2023~** 192건 건당 +2.05% · 중앙 +1.97% · 승률 70.8% · PF 3.50 · 월 약 5건 · **학습 2016~22** 307건 +2.37% · 71.3% · PF 2.86 — 해별 건당 평균 2016 +5.5 / 2017 +2.4 / 2018 +2.2 / 2019 +1.3 / 2020 +2.9 / 2021 +2.2 / 2022 +1.2 / 2023 +2.2 / 2024 +3.1 / 2025 +1.7 / 2026 +1.7 (비용 0.23% 뒤)'},
-   fn:r=>{const c=dayCand(r.ticker);return !!(c&&c.t3)&&dayWait(r.ticker,'T3')}}
+   fn:r=>{const c=dayCand(r.ticker);return !!(c&&c.t3)&&dayWait(r.ticker,'T3')}},
+  /* 2026-10-18 추가(사용자 '둘 다 적용' · research H0352) — 나스닥이 전날 크게 빠진 날, 짝 미장으로 본 예상보다 더 빠져 열리는 작은 종목.
+     [갭 하락 조용주] 후보와 겹치면 그쪽으로 한 번만 산다(c.u1 이 붙지만 rules 에는 T1 만). */
+  {id:'T4',regime:'both',gate:'always',name:'A2 · 미장 폭락 과잉 갭',mkt:'BOTH',
+   cond:'**나스닥 종합지수가 전날 -2.5% 이하**로 끝난 날만 · 국장 20일 평균 거래대금 상위 40% 중 **아래 1/3(작은 쪽)** · **예상 갭 -2% 이하** · **덜 반영 = 예상 갭 − 짝 미장으로 본 예상 갭** 이 유니버스 **하위 10%**(미장 악재보다 더 과하게 빠짐) — 장전 08:52 에 골라 시가 단일가에 **어제 종가 -2% 지정가**(실제로 -2% 이상 빠져 열릴 때만 체결) → 같은 날 종가 매도 · 하루 최대 20 · [갭 하락 조용주]와 겹치면 한 번만',
+   desc:'**2026-10-18 실측(research H0352)** — 미장 급락 다음 날 한국 장전이 짝 미장보다 과하게 반응해 밀린 작은 종목이 장중에 되돌아온다. 나스닥 문턱 × 갭 깊이 × 덜 반영 문턱 50칸 격자에서 날짜는 늘고 성적은 덜 떨어지는 자리(-2.5% · -2%)를 골랐다: **연 약 9일 · 그날 15종목쯤**. 갭이 깊을수록 좋다(-8%↓ +5.0 · -5~-8 +3.6 · -3~-5 +1.9 · -3~0 +0.8). 같은 날 덜 반영 조건 없이 갭만 빠진 작은 종목은 +0.9%라 이 조건이 핵심. [갭 하락 조용주]와 겹침 7%. 전이표가 2016~ 라 그 전 구간은 못 쟀다. 넓은 판(나스닥 -1.5%↓ · 갭 -3%↓, 연 21일·건당 +2.0/+1.7%)은 사지 않고 저녁 결과에 함께 기록.',
+   rule:{hold:1,stop:null,trail:null,target:null},ruleText:'오늘 <em>시가 단일가 지정가 매수(어제 종가 -2%)</em> · 같은 날 <em>종가 단일가 매도</em>',
+   stats:{n:296,perMonth:5,monthsActive:48,spanMonths:130,medPerActive:15,topMonth:'-',topN:0,win:74,pf:5.32,avg:2.44,
+     years:'**검증 2023~** 296건(20일) 건당 +2.44% · 중앙 +1.83% · 승률 74.0% · PF 5.32 · **학습 2016~22** 1,285건(80일) +1.75% · 중앙 +1.47% · 69.3% · PF 2.99 — 해별 건당 평균 2016 +3.1 / 2017 +1.4 / 2018 +1.3 / 2019 +1.5 / 2020 +2.6 / 2021 +0.9 / 2022 +1.3 / 2023 -1.5 / 2024 +4.4 / 2025 +1.3 / 2026 +3.1 · 날 단위 승률 72% · 최악의 날 -11% (비용 0.23% 뒤)'},
+   fn:r=>{const c=dayCand(r.ticker);return !!(c&&c.u1&&c.t1===false)&&dayWait(r.ticker,'T4')}}
 ];
 let TMODE=(()=>{try{return localStorage.getItem('tmode')==='scalp'?'scalp':'swing'}catch(e){return 'swing'}})();
 function useRules(L){FILTERS.length=0;L.forEach(f=>FILTERS.push(f))}
@@ -1187,6 +1206,11 @@ function showTable(on){const t=$('#tblcard'),c=$('#cards');
   if(t)t.style.display=on?'':'none'; if(c)c.style.display=on?'none':'flex'}
 const pctTxt=v=>v==null?'—':(v>0?'+':'')+v.toFixed(1)+'%';
 function whyCells(r,f){
+  if(f.id==='T4'){const c=dayCand(r.ticker);if(!c)return '';
+    const sg=v=>v==null?'-':((v>0?'+':'')+v.toFixed(1));
+    return [['나스닥 전날',sg(DAYST.nas)+'%','var(--dn)','-2.5% 이하일 때만'],['예상 갭',sg(c.gap)+'%','var(--dn)','-2% 이하 · 지정가 어제 종가 -2%'],
+      ['짝 미장 예상 갭',sg(c.up)+'%','var(--mut)','밤사이 짝 미장으로 본 갭'],['더 빠진 정도',sg(c.res)+'%p','var(--dn)','예상 갭 − 짝 예상 · 유니버스 하위 10%']]
+      .map(([l,v,col,sub])=>`<div><div class="l">${l}</div><div class="v" style="color:${col}">${v}</div><div class="s">${sub}</div></div>`).join('')}
   if(f.id==='T1'||f.id==='T2'||f.id==='T3'){const c=dayCand(r.ticker);if(!c)return '';
     return (f.id==='T2'?[['어제 막판 1시간',c.lh!=null?((c.lh>0?'+':'')+c.lh.toFixed(1)+'%'):'-','var(--dn)','14:00→종가 · -1% 이하']]
       :f.id==='T3'?[['짝 미장 예상 갭',c.up!=null?((c.up>0?'+':'')+c.up.toFixed(1)+'%'):'-','var(--dn)','밤사이 짝 미장으로 본 갭 · -0.5% 이하']]:[]).concat([['예상 갭',(c.gap>0?'+':'')+c.gap.toFixed(1)+'%','var(--dn)','하위 10% 선 '+(DAYST.cut??'-')+'%'],['어제 거래량',c.vm.toFixed(2)+'배','var(--dn)','20일 평균 대비 · 하위 30%'],['시장 대비',c.rel!=null?((c.rel>0?'+':'')+c.rel.toFixed(1)+'%p'):'-','var(--dn)','시장 갭 '+(DAYST.mgap!=null?DAYST.mgap+'%':'-')],['5일선',c.d5!=null?((c.d5>0?'+':'')+c.d5.toFixed(1)+'%'):'-',c.d5low?'var(--dn)':'var(--mut)',c.d5low?'아래(기대 큼)':'예상가 '+(c.src||'-')]])
