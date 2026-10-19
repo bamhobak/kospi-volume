@@ -34,6 +34,7 @@ DAY_MULT_MAX = 5.0                                # 배율 상한 — 10-19 처�
 DEEP_REL, DEEP_MULT = -10.0, 5.0                  # 시장 대비 -10%p 넘게: 10-19 2.5배였다가 같은 날 사용자 5배로 되돌림 — 대신 그중 악재 공시 있는 것만 안 산다(DEEP_BAD)
 # 10-19 사용자(research H0363): -10%p 넘게 빠진 후보 중 어제·오늘 악재 공시(DART)가 있는 것만 안 산다 — 2016~ 악재 30건 -0.62% vs 없음 60건 +2.00%
 BAD_RE = r"횡령|배임|감사의견|의견거절|한정|상장폐지|상장적격성|매매거래정지|거래정지|불성실공시|회생|파산|부도|소송|유상증자|전환사채|신주인수권|관리종목|투자주의환기|최대주주변경|조회공시"
+NOBUY_GAP = -28.0                                 # 10-19 사용자: 예상 시가 갭이 이 이하(하한가 근처)면 처음부터 안 산다 — 사자마자 손절에 걸림
 STOP_PCT = -29.0                                  # 10-19 사용자: 데이로 산 종목이 장중 전일 종가 대비 -29% 에 닿으면 바로 시장가 매도(하한가 묶임 피하기)
 DAY_MAX = 50                                      # 하루 최대 종목 수(후보 순서 = 시장 대비 더 빠진 순) · 10-13 10→20 · 10-19 사용자 20→50: 시가가 한 번에 정해져 안 사진 자리를 아래 후보가 못 채운다 → 후보를 넉넉히 다 주문(안 사지면 돈 안 듦)
 COST = 0.23                                     # 토스 실제 왕복: 수수료 0.015×2 + 거래세 0.20 (index.html DEFFEE)
@@ -319,6 +320,11 @@ def morning():
             for x in M.get("/api/v1/stocks", symbols=",".join(u["t"] for u in U[i:i + 100])) or []:
                 for u in U:
                     if u["t"] == x["symbol"]: u["name"] = x.get("name") or u["name"]
+    # 예상 시가가 하한가 근처(-28% 이하)면 안 산다 — 사자마자 -29% 손절에 걸려 비용만 낸다(10-19 사용자)
+    near = [(x["name"], x["gap"]) for x in L + U if x.get("gap") is not None and x["gap"] <= NOBUY_GAP]
+    if near:
+        L = [x for x in L if x["gap"] > NOBUY_GAP]; U = [x for x in U if x["gap"] > NOBUY_GAP]
+        log("하한가 근처라 뺌:", near)
     # 시장 대비 -10%p 넘게 빠진 후보 중 어제·오늘 악재 공시가 있는 것만 뺀다(10-19 사용자 · H0363)
     deep = [x["t"] for x in L + U if x.get("rel") is not None and x["rel"] <= DEEP_REL]
     bn = bad_news(set(deep), prev, today) if deep else {}
@@ -368,6 +374,8 @@ def morning():
                     else "-2.5%% 안 돼 오늘은 안 삼(넓은 판 %d종목은 기록만)" % len(u_wide)))
         for x in U[:10]:
             body.append("· 🇺🇸 %s(%s) 예상 갭 %+.1f%% · 짝 예상 %+.1f%% · 더 빠짐 %+.1f%%p · 지정가 %s원" % (x["name"], x["t"], x["gap"], x["up"], x["res"], f"{x['lim']:,}"))
+    if near:
+        body.append("⛔ 예상 시가가 하한가 근처(%g%% 이하)라 안 삼: " % NOBUY_GAP + " · ".join("%s(%+.1f%%)" % z for z in near[:5]))
     if dropped:
         body.append("⛔ 시장 대비 -10%%p 넘게 빠졌는데 악재 공시가 있어 안 삼: " + " · ".join("%s(%s)" % (n_, r_[:20]) for n_, r_ in dropped[:5]))
     body.append("갭 하위 10%% 조용한 종목 %d개 · 후보 %d%s" % (len(base_c), len(L), " — 오늘은 안 산다" if not L else ""))
