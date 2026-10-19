@@ -256,6 +256,10 @@ def morning():
     w = (at - dt.datetime.now(KST)).total_seconds()
     if w > 0:
         log("08:52 까지 기다림 %.0f초" % w); time.sleep(w)
+    if env().get("DAY_MODE", "notify") == "live":               # 어제까지 못 판 데이 종목(하한가 묶임 등) — 오늘 시가에 판다(10-19 사용자)
+        try: carry_sell(today)
+        except Exception as ex:
+            log("넘어온 데이 종목 매도 실패:", repr(ex)[:200]); telegram("⚠ 어제 못 판 데이 종목 처리 실패: %s" % str(ex)[:150])
     nxt = {}
     for i in range(0, len(uni), 200):
         for x in M.get("/api/v1/prices", symbols=",".join(uni[i:i + 200])) or []:
@@ -634,55 +638,132 @@ def cancel_left(placed):
         telegram("🚨 데이 지정가 미체결 취소 못 함 — %s · 장중에 사질 수 있으니 토스에서 직접 취소" % ", ".join(bad))
 
 
+def _sell_mark(pid, ap, today, why, stop=False):
+    def mark(P):
+        for p_ in P:
+            if p_.get("id") == pid and not p_.get("sell"):
+                p_["sell"] = ap; p_["sellDate"] = today
+                if stop: p_["stop"] = True
+                return True
+        return False
+    scalp_update(mark, why)
+
+
+def _stop_done(so, o, today):
+    _sell_mark(o["pos"]["id"], so["ap"], today, "데이 -29% 손절", stop=True)
+    r = (so["ap"] / o["ap"] - 1) * 100 - COST
+    telegram("🧯 <b>데이 -29%% 손절</b> [%s] %s %d주 %s → %s원 %+.2f%% — 전일 종가 %s원의 %.0f%% 에 닿아 팜(하한가 묶임 피하기)" % (
+        RNAME.get(o.get("rid", "T1"), ""), o["name"], int(so["fq"]), f"{o['ap']:,.0f}", f"{so['ap']:,.0f}", r, f"{float(o['pc']):,.0f}", 100 + STOP_PCT))
+
+
+def _poll(so):
+    """주문 한 번 조회 — 체결 수량·가격·상태를 so 에 적는다."""
+    try:
+        d = AT.detail(so["oid"], so["t"], so["qty"]) or {}
+        ex_ = d.get("execution") or {}
+        so["status"] = d.get("status"); so["fq"] = float(ex_.get("filledQuantity") or 0); so["ap"] = float(ex_.get("averageFilledPrice") or 0)
+    except Exception as ex:
+        log("주문 조회 실패:", so.get("t"), repr(ex)[:100])
+    return so
+
+
 def stop_watch(got, Lg, S, today):
-    """10-19 사용자: 데이로 산 종목이 장중 전일 종가 대비 STOP_PCT(-29%)에 닿으면 바로 시장가 매도 — 하한가(-30%)에 묶여 종가에 못 파는 걸 피한다.
-    종가 단일가 30초 전까지 15초마다 시세를 본다. 판 주문 목록을 돌려준다(종가 매도에서 뺀다)."""
+    """10-19 사용자: 데이로 산 종목이 장중 전일 종가 대비 STOP_PCT(-29%) 이하면 바로 시장가 매도 — 하한가(-30%)에 묶여 종가에 못 파는 걸 피한다.
+    종가 단일가 30초 전까지 15초마다 시세를 본다(-29% 를 건너뛰고 하한가로 가도 '이하'라 다음 확인에 걸린다).
+    하한가에 묶여 바로 안 팔리면 주문은 그대로 두고(살 사람이 나오면 팔린다) 매 확인마다 체결을 다시 본다 — 팔리는 순간 사이트에 기록.
+    반환 (손절 주문 낸 매수 목록, 아직 안 팔린 손절 [(so, o)]) — 둘 다 종가 매도에서 뺀다."""
     until = S["close_auction"] + dt.timedelta(seconds=30)
     left = [o for o in got if o.get("pc")]
-    done = []
-    while left and AT.now() < until:
-        try: px = AT.prices(sorted({o["t"] for o in left}))
-        except Exception as ex:
-            log("손절 감시 시세 실패:", repr(ex)[:120]); px = {}
-        hit = [o for o in left if px.get(o["t"]) and px[o["t"]] <= float(o["pc"]) * (1 + STOP_PCT / 100)]
-        for o in hit:
-            left.remove(o)
-            so = dict(side="SELL", date=today, t=o["t"], name=o["name"], qty=int(o["fq"]), posId=o["pos"]["id"], cid=("dx" + o["cid"][2:])[:36], stop=True)
-            try:
-                so["oid"] = AT.place({"clientOrderId": so["cid"], "symbol": o["t"], "side": "SELL", "orderType": "MARKET", "quantity": str(int(o["fq"]))})
+    done, pend = [], []
+    while (left or pend) and AT.now() < until:
+        if left:
+            try: px = AT.prices(sorted({o["t"] for o in left}))
             except Exception as ex:
-                so["err"] = getattr(ex, "code", None) or str(ex)[:100]
-            Lg["orders"].append(so); _led_save(Lg)
-            if not so.get("oid"):
-                telegram("🚨 <b>데이 -29%% 손절 주문 실패</b> %s — %s · 토스에서 직접 확인" % (o["name"], so.get("err"))); continue
-            try: AT.wait_fills([so])
-            except Exception as ex: log("손절 체결 확인 실패:", repr(ex)[:120]); so.setdefault("fq", 0); so.setdefault("ap", 0)
-            _led_save(Lg); done.append(o)
-            if so.get("fq", 0) > 0 and so.get("ap", 0) > 0:
-                pid, ap = o["pos"]["id"], so["ap"]
+                log("손절 감시 시세 실패:", repr(ex)[:120]); px = {}
+            for o in [o for o in left if px.get(o["t"]) and px[o["t"]] <= float(o["pc"]) * (1 + STOP_PCT / 100)]:
+                left.remove(o)
+                so = dict(side="SELL", date=today, t=o["t"], name=o["name"], qty=int(o["fq"]), posId=o["pos"]["id"], cid=("dx" + o["cid"][2:])[:36], stop=True)
+                try:
+                    so["oid"] = AT.place({"clientOrderId": so["cid"], "symbol": o["t"], "side": "SELL", "orderType": "MARKET", "quantity": str(int(o["fq"]))})
+                except Exception as ex:
+                    so["err"] = getattr(ex, "code", None) or str(ex)[:100]
+                Lg["orders"].append(so); _led_save(Lg)
+                if not so.get("oid"):
+                    telegram("🚨 <b>데이 -29%% 손절 주문 실패</b> %s — %s · 토스에서 직접 확인" % (o["name"], so.get("err"))); continue
+                done.append(o); time.sleep(3); _poll(so); _led_save(Lg)
+                if so.get("fq", 0) >= so["qty"] and so.get("ap", 0) > 0: _stop_done(so, o, today)
+                else:
+                    pend.append((so, o))
+                    telegram("⏳ <b>데이 -29%% 손절 주문 냄</b> %s %d주 — 하한가 근처라 바로 안 팔림. 주문은 걸어 두고 팔리는 대로 기록" % (o["name"], so["qty"]))
+        for so, o in list(pend):
+            _poll(so)
+            if so.get("fq", 0) >= so["qty"] and so.get("ap", 0) > 0:
+                _led_save(Lg); _stop_done(so, o, today); pend.remove((so, o))
+            elif so.get("status") in ("CANCELED", "REJECTED"):
+                pend.remove((so, o)); telegram("🚨 데이 -29%% 손절 주문 %s(%s) — 내일 아침 시가에 다시 판다" % (o["name"], so.get("status")))
+        if left or pend: time.sleep(15)
+    if done: log("손절 주문 낸 것:", [o["name"] for o in done], "· 아직 안 팔린 것", [o["name"] for _, o in pend])
+    return done, pend
 
-                def mark(P, pid=pid, ap=ap):
-                    for p_ in P:
-                        if p_.get("id") == pid and not p_.get("sell"):
-                            p_["sell"] = ap; p_["sellDate"] = today; p_["stop"] = True; return True
-                    return False
-                scalp_update(mark, "데이 -29% 손절")
-                r = (ap / o["ap"] - 1) * 100 - COST
-                telegram("🧯 <b>데이 -29%% 손절</b> [%s] %s %d주 %s → %s원 %+.2f%% — 전일 종가 %s원의 %.0f%% 에 닿아 바로 팜(하한가 묶임 피하기)" % (
-                    RNAME.get(o.get("rid", "T1"), ""), o["name"], int(so["fq"]), f"{o['ap']:,.0f}", f"{ap:,.0f}", r, f"{float(o['pc']):,.0f}", 100 + STOP_PCT))
-            else:
-                telegram("🚨 <b>데이 -29%% 손절 미체결</b> %s(%s) — 하한가에 묶였을 수 있음 · 토스에서 직접 확인" % (o["name"], so.get("status")))
-        if left: time.sleep(15)
-    if done: log("손절로 판 것:", [o["name"] for o in done])
-    return done
+
+def carry_sell(today):
+    """10-19 사용자: 전날까지 안 팔린 데이 종목(하한가 묶여 손절·종가 매도가 안 된 것)을 오늘 시가 단일가에 시장가로 판다.
+    원장에서 최근 10일 체결된 데이 매수 중 매도 체결 합이 모자란 것 · 사이트에서 이미 판 것(sell)은 뺀다. 팔릴 때까지 매일 다시."""
+    Lg = _led()
+    lo = (dt.datetime.strptime(today, "%Y%m%d") - dt.timedelta(days=14)).strftime("%Y%m%d")
+    buys = [o for o in Lg["orders"] if o.get("side") == "BUY" and o.get("pos") and (o.get("fq") or 0) > 0 and lo <= o.get("date", "") < today]
+    if not buys: return []
+    sold = {}
+    for o in Lg["orders"]:
+        if o.get("side") == "SELL" and o.get("posId"): sold[o["posId"]] = sold.get(o["posId"], 0) + float(o.get("fq") or 0)
+    try: site_sold = {p.get("id") for p in (AT.site_state().get("positions_scalp") or []) if p.get("sell")}
+    except Exception: site_sold = set()
+    out = []
+    for o in buys:
+        pid = o["pos"]["id"]
+        rem = int(float(o["fq"]) - sold.get(pid, 0))
+        if rem < 1 or pid in site_sold: continue
+        try: have = AT.sellable(o["t"]) if not AT.DRY else rem
+        except Exception: have = None
+        q = rem if have is None else int(min(rem, have))
+        if q < 1: log("넘어온 데이 종목 매도가능 0 — 손으로 판 듯:", o["t"]); continue
+        so = dict(side="SELL", date=today, t=o["t"], name=o["name"], qty=q, posId=pid, cid=("dc%s%s" % (today[2:], pid))[:36], carry=True)
+        try:
+            so["oid"] = AT.place({"clientOrderId": so["cid"], "symbol": o["t"], "side": "SELL", "orderType": "MARKET", "quantity": str(q), "timeInForce": "OPG"})
+        except Exception as ex:
+            so["err"] = getattr(ex, "code", None) or str(ex)[:100]
+        Lg["orders"].append(so); _led_save(Lg)
+        if so.get("oid"): out.append((so, o))
+        else: telegram("🚨 넘어온 데이 종목 %s 시가 매도 주문 실패(%s) — 토스에서 직접 확인" % (o["name"], so.get("err")))
+    if out:
+        telegram("🔁 <b>어제 못 판 데이 종목</b> %d개 오늘 시가에 시장가 매도: %s" % (len(out), ", ".join("%s %d주" % (o["name"], so["qty"]) for so, o in out)))
+
+        def check():
+            S = AT.session("KR")
+            AT.sleep_until(S["start"] + dt.timedelta(seconds=90), "넘어온 데이 종목 체결 확인")
+            L2 = _led()
+            for so, o in out:
+                _poll(so)
+                for z in L2["orders"]:
+                    if z.get("cid") == so["cid"]: z.update({k: so[k] for k in ("fq", "ap", "status") if k in so})
+                if so.get("fq", 0) > 0 and so.get("ap", 0) > 0:
+                    _sell_mark(o["pos"]["id"], so["ap"], today, "어제 못 판 데이 종목 매도")
+                    r = (so["ap"] / o["ap"] - 1) * 100 - COST
+                    telegram("🔁 %s %d주 팔림 %s → %s원 %+.2f%%(산 날 %s)" % (o["name"], int(so["fq"]), f"{o['ap']:,.0f}", f"{so['ap']:,.0f}", r, o["date"][4:]))
+                else:
+                    telegram("🔒 %s 오늘 시가에도 안 팔림(%s) — 내일 다시" % (o["name"], so.get("status")))
+            _led_save(L2)
+        import threading
+        threading.Thread(target=check, daemon=False).start()
+    return out
 
 
 def close_sell(got, Lg, S, today):
     """같은 날 종가 단일가(15:20~15:30)에 판다 — got = 체결된 매수 주문(o['pos'] 기록 포함)."""
     try:
-        stopped = stop_watch(got, Lg, S, today)                # 장중 -29% 손절(10-19 사용자) — 그동안 종가까지 기다리는 역할도 한다
+        stopped, spend = stop_watch(got, Lg, S, today)         # 장중 -29% 손절(10-19 사용자) — 그동안 종가까지 기다리는 역할도 한다
     except Exception as ex:
-        log("손절 감시 실패:", repr(ex)[:200]); telegram("⚠ 데이 -29% 손절 감시가 죽었다: %s — 종가 매도는 그대로" % str(ex)[:120]); stopped = []
+        log("손절 감시 실패:", repr(ex)[:200]); telegram("⚠ 데이 -29% 손절 감시가 죽었다: %s — 종가 매도는 그대로" % str(ex)[:120]); stopped, spend = [], []
     got = [o for o in got if o not in stopped]
     AT.sleep_until(S["close_auction"] + dt.timedelta(seconds=60), "데이 종가 매도")
     # 2026-10-06: 15:21 DNS 실패 한 번에 프로세스가 죽어 3주가 안 팔렸다 → 못 낸 주문은 15:29 까지 20초마다 다시 낸다.
@@ -744,8 +825,12 @@ def close_sell(got, Lg, S, today):
         lines.append("합계 %s원 · 평균 %+.2f%% · 오른 종목 %d/%d (수수료·세금 뒤)" % (f"{tot:+,.0f}", sum(rs) / len(rs), sum(r > 0 for r in rs), len(rs)))
     fin_ids = {o["pos"]["id"] for _, o in fin}
     left = [o["name"] for o in got if o["pos"]["id"] not in fin_ids]
-    if left: lines.append("⚠ 못 판 것: " + ", ".join(left) + " — 직접 확인")
-    telegram("\n".join(lines))
+    if left: lines.append("⚠ 못 판 것: " + ", ".join(left) + " — 내일 아침 시가에 다시 판다(carry_sell)")
+    for so, o in spend:                                    # 하한가에 묶였던 손절 — 장 끝난 뒤 마지막으로 본다
+        _poll(so); _led_save(Lg)
+        if so.get("fq", 0) >= so["qty"] and so.get("ap", 0) > 0: _stop_done(so, o, today)
+        else: lines.append("🔒 %s -29%% 손절 주문이 오늘 안 팔림(하한가 묶임) — 내일 아침 시가에 다시 판다" % o["name"])
+    if got or spend: telegram("\n".join(lines))
 
 
 def book_snap(today, part, syms):
