@@ -30,7 +30,7 @@ KST = M.KST
 DAY_PER = 500_000                                 # 2026-10-04 사용자: 데이는 건당 50만원으로 실매수 시작(.env DAY_MODE=live)
 DAY_QTY = 1                                       # 2026-10-14 사용자: 당분간 테스트라 데이는 **종목당 1주씩만**(돈 제대로 넣으면 다시 말해 준다 → None 이면 DAY_PER 금액만큼)
 DAY_BASE = None                                   # 2026-10-19 사용자: 실전 기준금액(배율 1배일 때 한 종목 금액)은 나중에 실제로 돌릴 때 정한다 — 그 전엔 DAY_PER
-DAY_MULT_MAX = 10.0                               # 배율 상한(시장 대비 -10%p 이하면 10배 · 테스트 10주)
+DAY_MULT_MAX = 5.0                                # 배율 상한 — 10-19 처음 10 → 같은 날 사용자 5: -5%p 넘게는 건당 수익이 +2% 안팎에서 멈추고 -10%p↓는 오히려 나쁨(t1 -10%p 표)
 DAY_MAX = 50                                      # 하루 최대 종목 수(후보 순서 = 시장 대비 더 빠진 순) · 10-13 10→20 · 10-19 사용자 20→50: 시가가 한 번에 정해져 안 사진 자리를 아래 후보가 못 채운다 → 후보를 넉넉히 다 주문(안 사지면 돈 안 듦)
 COST = 0.23                                     # 토스 실제 왕복: 수수료 0.015×2 + 거래세 0.20 (index.html DEFFEE)
 RULE = "갭 하락 조용주"
@@ -305,7 +305,7 @@ def morning():
     live = env().get("DAY_MODE", "notify") == "live"
     head = "🌅 <b>데이 [%s] %s</b> %s/%s 08:52" % (RULE, "실매수" if live else "알림만", today[4:6], today[6:])
     body = [("후보 %d종목 — 위에서 %d종목 %s씩 시가 단일가 지정가 매수(시장보다 %g%%p↑ 빠져 열릴 때만 · 못 사면 09:01 취소) → 오늘 종가 매도" % (
-                len(L), min(len(L), DAY_MAX), ("1~10주(시장 대비 깊이만큼)" if DAY_QTY else "기준금액 × 깊이 배율"), -LIMIT_THR)) if live
+                len(L), min(len(L), DAY_MAX), ("1~5주(시장 대비 깊이만큼)" if DAY_QTY else "기준금액 × 깊이 배율"), -LIMIT_THR)) if live
             else ("후보 %d종목 — 시가 단일가 매수 → 종가 매도 (실제 주문 없음 · 검증 중)" % len(L)),
             "오늘 시장 갭 %+.1f%%%s" % (mg, " — 다 같이 빠진 날(과거 기대 큼)" if mg <= -1 else "")]
     for x in L[:15]:
@@ -368,7 +368,7 @@ def scalp_update(mutate, why):
 
 def day_mult(x):
     """2026-10-19 사용자: 시장보다 더 빠진 만큼 더 산다 — 배율 = 08:52 예상 '시장 대비'(%p)의 크기 그대로(-1.5 → 1.5배 · -2.2 → 2.2배 · -5 → 5배),
-    최소 1배 · 최대 DAY_MULT_MAX(10)배. 테스트 동안은 주수 = 배율의 정수 부분(1~10주). research t1_weight_1019.py: 큰 금액이면 깊은 종목은
+    최소 1배 · 최대 DAY_MULT_MAX(5)배. 테스트 동안은 주수 = 배율의 정수 부분(1~5주). research t1_weight_1019.py: 큰 금액이면 깊은 종목은
     시가에 덜 사지고 비싸게 사져 효과가 줄어든다 — 실전 기준금액은 종목당 상한과 함께 정할 것."""
     try: r = float(x.get("rel"))
     except (TypeError, ValueError): return 1.0
@@ -407,7 +407,7 @@ def trade(L, today):
         lim = int(x.get("lim") or limit_price(x["pc"], 0.0))
         px = float(lim)                                       # 지정가 = 최대로 낼 값 → 주수·매수가능도 이걸로
         mult = day_mult(x)
-        if DAY_QTY:                                        # 테스트: 1주 × 배율의 정수 부분(1~10주)
+        if DAY_QTY:                                        # 테스트: 1주 × 배율의 정수 부분(1~5주)
             q = max(DAY_QTY, min(int(DAY_MULT_MAX), int(mult)))
         else:                                              # 실전: 기준금액 × 배율
             base = DAY_BASE or DAY_PER
