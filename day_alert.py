@@ -47,6 +47,7 @@ RNAME = {"T1": "갭 하락 조용주", "T2": "갭 하락 조용주 +", "T3": "�
 #   예상 갭 -2%↓ & 짝 미장으로 본 예상 갭보다 더 빠진 정도(덜 반영 = 갭 − 짝 예상)가 유니버스 하위 10% → 시가 단일가 지정가(어제 종가 -2%) → 종가.
 #   2016~22 1,285건 건당 +1.75% · 승률 69% · PF 2.99 / 2023~ 296건 +2.44% · 74% · PF 5.32 · 연 약 9일 · 그날 15종목쯤. [갭 하락 조용주]와 겹치면 한 번만 산다.
 U_NAS, U_GAP, U_RQ, U_MAX = -2.5, -2.0, 0.10, None   # U_MAX None = 제한 없음(10-21 사용자, 원래 20)
+U_LIQ = 1 / 2                                     # T4 크기 문턱 — 유니버스 거래대금 아래 1/2(10-21 사용자, 원래 1/3 · research/t1_uni2_1021.py: 새로 걸린 몫 학습 +1.43%·검증 +2.39%)
 W_NAS, W_GAP = -1.5, -3.0                          # 넓은 판(나스닥 -1.5%↓ · 갭 -3%↓) — 사지 않고 기록만(저녁 결과에 비교)
 T2_CUT = -1.0                                     # 2026-10-06 H0297: 어제 14:00→종가 이 값 이하면 T2(한 번 더 산다)
 #  2026-10-11 T3(사용자 '추천대로' · research H0313): 그 종목의 짝 미장 종목으로 본 예상 갭(전이표 tr_pred)이 이 값 이하면
@@ -312,7 +313,8 @@ def morning():
     nas, nas_src = nasdaq_last(today)
     res = {s: gap[s] - up[s] for s in uni if s in gap and s in up}          # 덜 반영 = 예상 갭 − 짝 미장으로 본 예상 갭
     rq = pct_rank(res) if res else {}
-    pick = lambda nc, gc: sorted([s for s in tiny if s in rq and rq[s] <= U_RQ and gap[s] <= gc], key=lambda s: gap[s]) if (nas is not None and nas <= nc) else []
+    t4set = {k for k in uni if uliq[k] <= U_LIQ}
+    pick = lambda nc, gc: sorted([s for s in t4set if s in rq and rq[s] <= U_RQ and gap[s] <= gc], key=lambda s: gap[s]) if (nas is not None and nas <= nc) else []
     u_sel, u_wide = pick(U_NAS, U_GAP), pick(W_NAS, W_GAP)
     have = {x["t"]: x for x in L}
     U = []
