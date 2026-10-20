@@ -24,20 +24,23 @@ if fe < 0: fe = H.find("function passes(", fs)
 blk = H[fs:fe]
 rules = re.findall(r"\{id:'([^']+)'.*?name:'([^']*)'.*?fn:(.*?)(?=\n  \{id:'|\n\];)", blk, re.S)
 
-# 3) table.json 이 실제로 담고 있는 키
-tj = BASE / "site" / "data" / "table.json"
-have = set()
-if tj.exists():
+# 3) table.json(국장) · table_us.json(미장) 이 실제로 담고 있는 키 — 미장 규칙은 미장 표와 대조
+def keys(f):
+    tj = BASE / "site" / "data" / f
+    if not tj.exists(): return set()
     T = json.loads(tj.read_text(encoding="utf-8"))
-    if T.get("rows"): have = set(T["rows"][0].keys())
+    return set().union(*(r.keys() for r in T["rows"][:200])) if T.get("rows") else set()
+have_kr, have_us = keys("table.json"), keys("table_us.json")
 
 SAFE = {"mk", "pref", "ticker", "name", "close", "change", "th", "vols", "avg", "total",
-        "ratio", "indiv", "organ", "frgn", "last", "chpct", "fwp", "fw", "v5"}
-print(f"prep() 제공 필드 {len(prep_fields)}개 · table.json 키 {len(have)}개\n")
+        "ratio", "indiv", "organ", "frgn", "last", "chpct", "fwp", "fw", "v5",
+        "usliq", "usvq"}  # usliq·usvq 는 markUS() 가 화면에서 계산
+print(f"prep() 제공 필드 {len(prep_fields)}개 · table.json 키 {len(have_kr)}개 · table_us.json 키 {len(have_us)}개\n")
 print(f"  {'규칙':<22} {'참조 필드':<52} {'문제'}")
 bad = 0
 for rid, nm, fn in rules:
     used = sorted(set(re.findall(r"\br\.([A-Za-z_]\w*)", fn)))
+    have = have_us if "r.mk==='US'" in fn else have_kr
     miss_prep = [u for u in used if u not in prep_fields and u not in SAFE]
     miss_json = [u for u in used if have and u not in have and u not in SAFE
                  and u not in ("r16", "rw1", "fwp", "streak", "dilu")]

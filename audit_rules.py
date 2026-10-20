@@ -56,7 +56,7 @@ for rid, fn in RULES_JS.items():
     mp = [u for u in used if u not in prep_fields and u not in SAFE]
     mj = [u for u in used if have and u not in have and u not in SAFE]
     if mp or mj:
-        bad(f"  ❌ [{NAME[rid]}] " + (f"prep 누락 {mp} " if mp else "") + (f"table.json 누락 {mj}" if mj else ""))
+        bad(f"  ❌ [{NAME.get(rid, rid)}] " + (f"prep 누락 {mp} " if mp else "") + (f"table.json 누락 {mj}" if mj else ""))
 # 필드가 있어도 값이 전부 비어 있으면 규칙이 조용히 0건이 된다.
 # 2026-09-02 DART 한도 고갈로 bb·ins60·dilu 가 통째로 비어 두 규칙이 멈춘 적이 있다.
 if have:
@@ -158,7 +158,7 @@ for rid in RULES_JS:
             if only_js or only_ot: d.append(f"값 다름 site={sorted(only_js)} {src}={sorted(only_ot)}")
             if miss: d.append(f"{src} 에 없는 조건 {sorted(miss)}")
             if extra: d.append(f"{src} 에만 있는 조건 {sorted(extra)}")
-            bad2(f"  ❌ [{NAME[rid]}] " + " / ".join(d))
+            bad2(f"  ❌ [{NAME.get(rid, rid)}] " + " / ".join(d))
 # 시장 범위(코스피/코스닥/공통)가 세 곳에서 같은가 — 문턱값 비교로는 안 잡힌다
 def scope(txt, py):
     kp = ("KOSPI" in txt); kq = ("KOSDAQ" in txt)
@@ -171,13 +171,13 @@ for rid in RULES_JS:
          else "코스닥" if re.match(r"\s*KQ", _pf) else None) if rid in PF_R else None
     got = {x for x in (a, b, c) if x}
     if len(got) > 1:
-        bad2(f"  ❌ [{NAME[rid]}] 시장 범위 불일치 — site={a} / notify={b} / portfolio={c}")
+        bad2(f"  ❌ [{NAME.get(rid, rid)}] 시장 범위 불일치 — site={a} / notify={b} / portfolio={c}")
     # 메타데이터(mkt)와 실제 판정이 어긋나는가
     mm = re.search(rf"\{{id:'{rid}'[^}}]*?mkt:'([^']+)'", BLK)
     if mm:
         meta = {"KOSPI": "코스피", "KOSDAQ": "코스닥", "BOTH": "공통"}.get(mm.group(1), mm.group(1))
         if a == "공통" and meta != "공통":
-            bad2(f"  ❌ [{NAME[rid]}] 화면 분류는 {meta} 인데 판정 함수는 시장을 가리지 않음(공통)")
+            bad2(f"  ❌ [{NAME.get(rid, rid)}] 화면 분류는 {meta} 인데 판정 함수는 시장을 가리지 않음(공통)")
 print("  " + ("✅ 9규칙 조건·시장범위 일치" if ok2 else "")
       + "  (별칭·단위·표기 차이는 ALIAS/SCALE/_flatten 이 흡수한다 — python test_audit_parser.py 로 파서 자체를 검증한다)")
 
@@ -278,7 +278,7 @@ for K in (KP, KQ, BOTH):
         want = "BOTH" if rid == "P5" else ("KOSDAQ" if rid.startswith("D") else "KOSPI")
         if tag != want: continue
         got = measure(K, hold, stop, cond)
-        if got is None: print(f"  [{NAME[rid]}] 측정 불가(보유기간 컬럼 없음 또는 표본 부족)"); continue
+        if got is None: print(f"  [{NAME.get(rid, rid)}] 측정 불가(보유기간 컬럼 없음 또는 표본 부족)"); continue
         s = STATS[rid]; diffs = []
         for k, tol in (("n", .35), ("perMonth", .35), ("win", .18), ("pf", .60), ("avg", .60)):
             a, b = s[k], got[k]
@@ -287,9 +287,9 @@ for K in (KP, KQ, BOTH):
             if rel > tol: diffs.append((k, a, b))
         if diffs:
             for k, a, b in diffs:
-                bad(f"  ❌[{NAME[rid]}]{'':<{max(0,13-len(NAME[rid]))}} {k:<9} {a:>9} {b:>9}  차이 큼")
+                bad(f"  ❌[{NAME.get(rid, rid)}]{'':<{max(0,13-len(NAME.get(rid, rid)))}} {k:<9} {a:>9} {b:>9}  차이 큼")
         else:
-            print(f"  ✅[{NAME[rid]}]{'':<{max(0,13-len(NAME[rid]))}} {'n/승률/평균':<9} "
+            print(f"  ✅[{NAME.get(rid, rid)}]{'':<{max(0,13-len(NAME.get(rid, rid)))}} {'n/승률/평균':<9} "
                   f"{s['n']}/{s['win']:.0f}%/{s['avg']:+.1f}".rjust(9)
                   + f"{got['n']}/{got['win']:.0f}%/{got['avg']:+.1f}".rjust(11) + "  맞음")
 print(f"\n{'✅ 감사 통과' if ok_all else '❌ 위 항목을 확인하세요'}")
