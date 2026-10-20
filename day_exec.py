@@ -22,7 +22,7 @@ BASE = Path(__file__).parent
 DAY = BASE / "data" / "day"
 REC = BASE / "data" / "factory" / "auction"
 OUT = DAY / "exec_lab.jsonl"
-SIZES = [50, 100, 200, 300, 500]          # 만원
+SIZES = [50, 100, 150, 200, 300, 500]     # 만원 · 150 은 10-21 사용자 추가(지난 날도 다시 돌려 채움)
 COST = 0.23
 sys.path.insert(0, str(BASE / "research" / "factory"))
 
