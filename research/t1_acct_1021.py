@@ -28,7 +28,7 @@ def main():
     yrs = {nm: H[(H.date >= lo) & (H.date <= hi)].date.nunique() / 250 for nm, lo, hi in PERS}
     W = H[(H.rgap <= -1.5) & (H.q_gap <= 0.40) & (H.q_vm <= 0.30)]
     R = {}
-    for nm, c in (("1/3", 1 / 3), ("3/7", 3 / 7)):
+    for nm, c in (("1/3", 1 / 3), ("3/7", 3 / 7), ("4/9", 4 / 9)):
         S = W[W.liq <= c].copy()
         S["amt"] = 50e4 * (-S.rgap).clip(1, 5) * (S.a20 / S.groupby("date").a20.transform("median")).clip(0.3, 3)
         p = S.amt / S.a20 * 100
@@ -40,7 +40,7 @@ def main():
     print("칸 = 1년 손익(만원) · 계좌 대비 연 수익률 · 산 건수 비율(후보 중)\n")
     print("| 계좌(투자금) | 문턱 | %s |" % " | ".join(p[0] for p in PERS)); print("|---" * 5 + "|")
     for A in ACCTS:
-        for nm in ("1/3", "3/7"):
+        for nm in ("1/3", "3/7", "4/9"):
             S = R[nm]
             k = S if A is None else S[S.cum <= A * 1e4]
             cells = []
@@ -53,7 +53,7 @@ def main():
     print("\n## 돈 모자란 날 금액을 같은 비율로 줄여 전부 사기\n")
     print("| 계좌(투자금) | 문턱 | %s |" % " | ".join(p[0] for p in PERS)); print("|---" * 5 + "|")
     for A in ACCTS[:-1]:
-        for nm in ("1/3", "3/7"):
+        for nm in ("1/3", "3/7", "4/9"):
             S = R[nm]
             sc = np.minimum(1.0, A * 1e4 / S.tot.values)
             amt = S.amt.values * sc; pp = amt / S.a20.values * 100
