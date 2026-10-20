@@ -29,7 +29,10 @@ import autotrade as AT          # 주문·체결 확인·장 시각·사이트 �
 KST = M.KST
 DAY_PER = 500_000                                 # 2026-10-04 사용자: 데이는 건당 50만원으로 실매수 시작(.env DAY_MODE=live)
 DAY_QTY = 1                                       # 2026-10-14 사용자: 당분간 테스트라 데이는 **종목당 1주씩만**(돈 제대로 넣으면 다시 말해 준다 → None 이면 DAY_PER 금액만큼)
-DAY_BASE = None                                   # 2026-10-19 사용자: 실전 기준금액(배율 1배일 때 한 종목 금액)은 나중에 실제로 돌릴 때 정한다 — 그 전엔 DAY_PER
+DAY_BASE = 500_000                                # 실전 기준금액(배율 1배일 때 한 종목 금액) · 10-19 '나중에' → 10-21 사용자 50만(research/t1_grid_1021.py: 70만↑는 체결 손해로 1년 손익이 준다)
+#   금액 = 기준 × 깊이 배율(1.5~5) × 거래대금 배율 — 테스트(DAY_QTY) 동안은 주수만 1~5주, 이 금액은 DAY_QTY=None 일 때 쓴다
+LIQ_LO, LIQ_HI = 0.3, 3.0                         # 10-21 사용자: 거래대금 배율 = 20일 평균 거래대금 ÷ 그날 후보 중앙값(0.3~3배) — 거래 많은 종목에 더 넣어 체결률을 고르게
+#   (research/t1_size_liq_1021.py: 같은 돈에서 1년 손익 +4~8% · 시총·전날 거래대금 기준은 오히려 나쁨)
 DAY_MULT_MAX = 5.0                                # 배율 상한 — 10-19 처음 10 → 같은 날 사용자 5: -5%p 넘게는 건당 수익이 +2% 안팎에서 멈추고 -10%p↓는 오히려 나쁨(t1 -10%p 표)
 DEEP_REL, DEEP_MULT = -10.0, 5.0                  # 시장 대비 -10%p 넘게: 10-19 2.5배였다가 같은 날 사용자 5배로 되돌림 — 대신 그중 악재 공시 있는 것만 안 산다(DEEP_BAD)
 # 10-19 사용자(research H0363): -10%p 넘게 빠진 후보 중 어제·오늘 악재 공시(DART)가 있는 것만 안 산다 — 2016~ 악재 30건 -0.62% vs 없음 60건 +2.00%
@@ -58,7 +61,7 @@ T3_CUT = -0.5
 LIMIT_THR = -1.5                                  # 2026-10-13 사용자 "넓히는 쪽으로" — 후보는 넓게(CAND_*), 체결은 시장 대비 -1.5%p 로 엄격하게 (10-11 -1 → -0.75 → 10-13 -1.5)
 #  그물은 넓게·체결은 엄격(research/t1_widen.py): 예상가가 얕게 빗나가 후보에 못 들던 진짜 T1 을 95% 잡는다. 실제 시가 기준 과거 실측(갭 하위 20%·시장 대비 -1.5):
 #  학습 연 794건 +0.88%·62% / 검증 983건 +0.94%·61%(지금 T1 417건 +1.28%) — 새로 더해지는 -1.5~-2 몫도 2010~2026 17년 모두 플러스(+0.5~0.6%).
-CAND_Q, CAND_REL = 0.20, -1.5                      # 후보 = 예상 갭 유니버스 하위 20% · 예상 시장 대비 -1.5%p 이하(상승·하락장 공통) — 전엔 하위 10%·-2(하락장 -1.5)
+CAND_Q, CAND_REL = 0.40, -1.5                      # 10-21 사용자 20→40%(research/t1_loosen_1021.py: 새로 걸린 몫 연 48건 +0.66% — 시장 대비 -1.5 가 이미 거의 다 거른다) · 후보 = 예상 갭 유니버스 하위 40% · 예상 시장 대비 -1.5%p 이하(상승·하락장 공통) — 전엔 하위 10%·-2(하락장 -1.5)
 
 
 def kr_tick(p):
@@ -300,7 +303,11 @@ def morning():
     L = [dict(t=s, name=nm.get(s, s), gap=round(gap[s], 2), rel=round(gap[s] - mg, 2), vm=round(R[s]["vm"], 2), d5=round(R[s]["d5"], 2),
               d5low=d5q[s] <= 0.30, exp=exp[s], pc=R[s]["pc"], src=src[s], lim=limit_price(R[s]["pc"], mg),
               lh=(round(lh[s], 2) if s in lh else None), t2=(s in lh and lh[s] <= T2_CUT),
-              up=(round(up[s], 2) if s in up else None), t3=(s in up and up[s] <= T3_CUT), t1=True) for s in cand]
+              up=(round(up[s], 2) if s in up else None), t3=(s in up and up[s] <= T3_CUT), t1=True,
+              a20=round(R[s]["amt20"] / 1e8, 2)) for s in cand]
+    if L:                                                                  # 거래대금 배율(10-21) — 그날 후보 중앙 대비
+        md = sorted(x["a20"] for x in L)[len(L) // 2] or 1.0
+        for x in L: x["lm"] = round(min(LIQ_HI, max(LIQ_LO, x["a20"] / md)), 2)
     # ── T4 [미장 폭락 과잉 갭] ──
     nas, nas_src = nasdaq_last(today)
     res = {s: gap[s] - up[s] for s in uni if s in gap and s in up}          # 덜 반영 = 예상 갭 − 짝 미장으로 본 예상 갭
@@ -461,9 +468,9 @@ def trade(L, today):
         mult = day_mult(x)
         if DAY_QTY:                                        # 테스트: 1주 × 배율의 정수 부분(1~5주)
             q = max(DAY_QTY, min(int(DAY_MULT_MAX), int(mult)))
-        else:                                              # 실전: 기준금액 × 배율
+        else:                                              # 실전: 기준금액 × 깊이 배율 × 거래대금 배율(T4 전용 후보는 1)
             base = DAY_BASE or DAY_PER
-            q = math.floor(base * mult / px)
+            q = math.floor(base * mult * float(x.get("lm") or 1.0) / px)
             if q < 1 and px <= base * 2: q = 1
         x.setdefault("mult", round(mult, 2))
         if q < 1:
