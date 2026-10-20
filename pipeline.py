@@ -473,6 +473,7 @@ def build_site():
         _src_why = f"실패 {e!r}"[:60]
         print(f"::warning::배포본 버전을 못 읽었다: {e!r}"[:160])
     _n = int(_prev.get("n", 0)) if isinstance(_prev, dict) else 0
+    _n = max(_n, 133)                            # 2026-10-21 손배포가 묵은 ver.json(n=60)을 올려 셈이 1.1.32 → 1.0.61 로 되돌아간 걸 복구
     if not (isinstance(_prev, dict) and _prev.get("h") == _h):
         _n += 1                                  # 화면이 바뀐 날에만 올린다
     VER = f"1.{_n // 100}.{_n % 100:02d}"

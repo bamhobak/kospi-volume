@@ -76,6 +76,20 @@ for name in GUARDED:
     else:
         print(f"  · {name}: 내 것 {mine} ≥ 배포본 {theirs} — 올린다")
 
+# 2026-10-21 사고: 로컬 site/ 가 10-13 빌드로 묵어 있는데 손배포 → 옛 화면이 올라가고 ver.json(n=60)이 배포본(n=132)을
+# 덮어 버전 셈이 1.1.32 → 1.0.60 으로 되돌아갔다. 화면 고친 건 git push(CI 빌드)로 내보내고, 여기선 로컬 빌드가 최신일 때만 올린다.
+print("\n── 배포 전 점검: 로컬 빌드가 묵지 않았나 ──")
+_site_html, _root_html = BASE / "site" / "index.html", BASE / "index.html"
+if _site_html.exists() and _site_html.stat().st_mtime < _root_html.stat().st_mtime:
+    sys.exit("  ❌ site/index.html 이 index.html 보다 오래됐다 — 로컬 빌드가 묵었다. git push 로 CI 배포를 쓰거나 pipeline.py 로 먼저 빌드할 것")
+_raw, _ = fetch("ver.json")
+if _raw:
+    _theirs = json.loads(_raw.decode()).get("n", 0)
+    _mine = json.loads((BASE / "site" / "data" / "ver.json").read_text(encoding="utf-8")).get("n", 0)
+    if _mine < _theirs:
+        sys.exit(f"  ❌ 내 ver.json n={_mine} < 배포본 n={_theirs} — 묵은 빌드다. 올리면 버전 셈이 되돌아간다(git push 로 CI 배포)")
+    print(f"  · 빌드 시각·버전 셈 정상 (n {_mine} ≥ {_theirs})")
+
 print("\n── wrangler ──")
 cmd = "npx --yes wrangler@4 pages deploy site --project-name kospi-volume --branch main --commit-dirty=true"
 if subprocess.run(cmd, shell=True, cwd=str(BASE)).returncode:
