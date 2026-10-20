@@ -79,7 +79,7 @@ def fit(E):
 def main():
     E = liq_of_exec()
     ab, cfill = fit(E)
-    impact = lambda p: ab[0] + ab[1] * np.sqrt(p)
+    impact = lambda p: np.maximum(0.0, ab[0] + ab[1] * np.sqrt(p))   # 손해는 0 아래로 안 내려간다
     fill = lambda p: 1 / (1 + cfill * p)
 
     import lab, feats as FT

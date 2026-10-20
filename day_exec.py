@@ -114,7 +114,8 @@ def run(day, quiet=False):
         bb = B[(B.t == t) & (B.hm >= "1501") & (B.hm <= "1520")]
         bt = B[B.t == t]
         v_open = float(bt.v.iloc[0]) if len(bt) and bt.hm.iloc[0] == "0901" else 0.0          # 09:01 봉 = 시가 단일가 + 첫 1분
-        v_close = float(bt.v.iloc[-1]) if len(bt) and bt.hm.iloc[-1] == "1531" else 0.0       # 15:31 봉 = 종가 단일가 체결량(정확)
+        v_close = float(bt.v.iloc[-1]) if len(bt) and bt.hm.iloc[-1] in ("1530", "1531") else 0.0   # 종가 단일가 체결 봉 = 체결량(정확)
+        # 10-21 고침: 토스 1분봉은 종가 단일가 봉을 15:30 으로 찍는다 — 전엔 1531 만 찾아 94% 가 0 → 체결 물량을 무시해 매도 손해가 부풀었다
         for amt in SIZES:
             q = int(amt * 1e4 // o)
             if q < 1: continue

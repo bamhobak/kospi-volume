@@ -21,7 +21,7 @@ PERS = (("옛날 2005~15", "20050101", "20151231"), ("학습 2016~22", "20160101
 def main():
     with contextlib.redirect_stdout(io.StringIO()):
         ab, cf = SL.fit(SL.liq_of_exec())
-    impact = lambda p: ab[0] + ab[1] * np.sqrt(p)
+    impact = lambda p: np.maximum(0.0, ab[0] + ab[1] * np.sqrt(p))   # 손해는 0 아래로 안 내려간다
     fill = lambda p: 1 / (1 + cf * p)
     H = lab.hist()[["date", "ticker", "oc", "rgap", "q_gap", "q_vm", "liq", "amt20"]].dropna(subset=["oc", "rgap", "q_gap", "liq", "amt20"]).copy()
     H["oc"] = H.oc - FT.COST; H["q_vm"] = H.q_vm.fillna(1.0); H["a20"] = H.amt20 * 1e8
