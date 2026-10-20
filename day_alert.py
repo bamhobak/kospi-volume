@@ -62,6 +62,7 @@ T3_CUT = -0.5
 LIMIT_THR = -1.5                                  # 2026-10-13 사용자 "넓히는 쪽으로" — 후보는 넓게(CAND_*), 체결은 시장 대비 -1.5%p 로 엄격하게 (10-11 -1 → -0.75 → 10-13 -1.5)
 #  그물은 넓게·체결은 엄격(research/t1_widen.py): 예상가가 얕게 빗나가 후보에 못 들던 진짜 T1 을 95% 잡는다. 실제 시가 기준 과거 실측(갭 하위 20%·시장 대비 -1.5):
 #  학습 연 794건 +0.88%·62% / 검증 983건 +0.94%·61%(지금 T1 417건 +1.28%) — 새로 더해지는 -1.5~-2 몫도 2010~2026 17년 모두 플러스(+0.5~0.6%).
+T1_LIQ = 4 / 9                                    # 10-21 사용자: 본체 크기 문턱 유니버스 거래대금 아래 1/3 → 4/9 · 덤(T2·T3)은 1/3 안에서만(research/t1_extra_1021.py: 5천 계좌 1년 손익 학습 +15%·검증 +10%)
 CAND_Q, CAND_REL = 0.40, -1.5                      # 10-21 사용자 20→40%(research/t1_loosen_1021.py: 새로 걸린 몫 연 48건 +0.66% — 시장 대비 -1.5 가 이미 거의 다 거른다) · 후보 = 예상 갭 유니버스 하위 40% · 예상 시장 대비 -1.5%p 이하(상승·하락장 공통) — 전엔 하위 10%·-2(하락장 -1.5)
 
 
@@ -248,7 +249,8 @@ def morning():
     pre = [k for k in small if vmq[k] <= 0.30]                 # ①③ 은 장 전에 확정 — 갭만 남는다
     # 2026-10-04 좁힘(사용자 '2번' · research H0291): 중소형 중 **더 작은 쪽(유니버스 거래대금 아래 1/3)** + 시장보다 2%p 이상 더 빠짐
     #   승률 55% → 학습 63.5% · 검증 63.9% · 건당 +1.19/+1.41% · 하루 1.4~1.8종목(신호 없는 날 약 40%)
-    tiny = {k for k in uni if uliq[k] <= 1 / 3}
+    tiny = {k for k in uni if uliq[k] <= 1 / 3}                # 덤(T2·T3)은 이 안에서만
+    t1u = {k for k in uni if uliq[k] <= T1_LIQ}                # [갭 하락 조용주] 본체(10-21~ 4/9)
     log("유니버스 %d · 중소형 %d · 조용(거래량 하위30%%) %d" % (len(uni), len(small), len(pre)))
     # 2026-10-06 T2(H0297): 어제 막판 1시간(14:00→종가) — 후보가 될 수 있는 조용한 작은 종목만 어제 1분봉을 받아 둔다(~70종목·10초)
     lh = yday_lasth([k for k in pre if k in tiny], prev)
@@ -296,15 +298,15 @@ def morning():
         log("코스피 지수 못 받음:", ex)
     thr = -1.5 if kup is False else -2.0
     # thr(연구 T1 기준)은 리뷰의 '실제 시가로 골랐다면' 목표선에만 쓴다 — 매수 후보는 넓은 그물(CAND_Q·CAND_REL) + 지정가(LIMIT_THR)
-    cand = sorted([s for s in pre if s in tiny and s in gq and gq[s] <= CAND_Q and gap[s] - mg <= CAND_REL], key=lambda s: gap[s] - mg)
+    cand = sorted([s for s in pre if s in t1u and s in gq and gq[s] <= CAND_Q and gap[s] - mg <= CAND_REL], key=lambda s: gap[s] - mg)
     nm = {}
     for i in range(0, len(cand), 100):
         for x in M.get("/api/v1/stocks", symbols=",".join(cand[i:i + 100])) or []:
             nm[x["symbol"]] = x.get("name") or x["symbol"]
     L = [dict(t=s, name=nm.get(s, s), gap=round(gap[s], 2), rel=round(gap[s] - mg, 2), vm=round(R[s]["vm"], 2), d5=round(R[s]["d5"], 2),
               d5low=d5q[s] <= 0.30, exp=exp[s], pc=R[s]["pc"], src=src[s], lim=limit_price(R[s]["pc"], mg),
-              lh=(round(lh[s], 2) if s in lh else None), t2=(s in lh and lh[s] <= T2_CUT),
-              up=(round(up[s], 2) if s in up else None), t3=(s in up and up[s] <= T3_CUT), t1=True,
+              lh=(round(lh[s], 2) if s in lh else None), t2=(s in tiny and s in lh and lh[s] <= T2_CUT),
+              up=(round(up[s], 2) if s in up else None), t3=(s in tiny and s in up and up[s] <= T3_CUT), t1=True,
               a20=round(R[s]["amt20"] / 1e8, 2)) for s in cand]
     if L:                                                                  # 거래대금 배율(10-21) — 그날 후보 중앙 대비
         md = sorted(x["a20"] for x in L)[len(L) // 2] or 1.0
@@ -351,7 +353,7 @@ def morning():
                 src_n={"NXT": sum(1 for s in src.values() if s == "NXT"), "호가": sum(1 for s in src.values() if s == "호가")}, cand=L + U,
                 n_base=len(base_c), kup=kup, thr=thr, nas=(round(nas, 2) if nas is not None else None), nas_src=nas_src,
                 u_sel=u_sel, u_wide=u_wide,
-                all={s: dict(gap=round(gap[s], 3), src=src[s], pre=s in pre, tiny=s in tiny) for s in gap})
+                all={s: dict(gap=round(gap[s], 3), src=src[s], pre=s in pre, tiny=s in tiny, t1u=s in t1u) for s in gap})
     (OUT / ("snap_%s.json" % today)).write_text(json.dumps(snap, ensure_ascii=False), encoding="utf-8")
     try:
         supa_set("__day__", {k: v for k, v in snap.items() if k != "all"})
