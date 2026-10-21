@@ -19,14 +19,16 @@ import t1_size_liq_1021 as SL
 import lab, feats as FT, common as C
 import m1_event as ME
 
+import os
 CAPTURE = 0.89
-PASS_GAIN = {1: 0.05, 2: 0.16, 3: 0.24}
+IMP_SCALE = float(os.environ.get("IMP_SCALE", "1"))         # 체결 밀림 모형 배수(1 = 실측 모형 · 0.5 = 절반 · 0 = 밀림 없음)
+PASS_GAIN = {1: 0.13, 2: 0.24, 3: 0.33} if os.environ.get("PASS_OPT") else {1: 0.05, 2: 0.16, 3: 0.24}
 
 
 def main():
     with contextlib.redirect_stdout(io.StringIO()):
         ab, cf = SL.fit(SL.liq_of_exec())
-    imp = lambda p: np.maximum(0.0, ab[0] + ab[1] * np.sqrt(p)); fill = lambda p: 1 / (1 + cf * p)
+    imp = lambda p: IMP_SCALE * np.maximum(0.0, ab[0] + ab[1] * np.sqrt(p)); fill = lambda p: 1 / (1 + IMP_SCALE * cf * p)
     H = lab.hist()[["ticker", "date", "oc", "gap", "rgap", "q_gap", "q_vm", "liq", "amt20", "tr_pred", "q_tr_res"]].dropna(subset=["oc", "rgap", "q_gap", "liq", "amt20"])
     H = H[H.date >= "20160101"].copy(); H["oc"] -= FT.COST; H["a20"] = H.amt20 * 1e8
     # 본체
