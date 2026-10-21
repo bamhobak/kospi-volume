@@ -694,6 +694,20 @@ def _poll(so):
     return so
 
 
+def pm_book(syms, today):
+    """10-21 사용자: 장중 걸어 팔기 방식(최우선 매도 − 1칸 vs 체결가 + 2호가 vs 종가)을 실제 호가로 다시 재려고 —
+    14:30~15:19 2분마다 데이 보유 종목 호가 5단계를 data/day/pmbook_날짜.jsonl 에 쌓는다(테스트 모드에서도)."""
+    f = OUT / ("pmbook_%s.jsonl" % today); at = AT.now().strftime("%H%M%S"); n = 0
+    with open(f, "a", encoding="utf-8") as w:
+        for s in syms:
+            try: ob = M.get("/api/v1/orderbook", symbol=s) or {}
+            except Exception: continue
+            lv = lambda k: [[float(x.get("price") or 0), float(x.get("quantity") or x.get("volume") or 0)] for x in (ob.get(k) or [])[:5]]
+            w.write(json.dumps({"at": at, "t": s, "a": lv("asks"), "b": lv("bids")}) + "\n"); n += 1
+            time.sleep(0.12)
+    return n
+
+
 def pass_on():
     return PASS_ON and not DAY_QTY and not AT.DRY
 
@@ -762,7 +776,7 @@ def stop_watch(got, Lg, S, today):
     use = pass_on()                                              # 장중 걸어 팔기(실전 금액일 때만)
     p_start = AT.now().replace(hour=int(PASS_START[:2]), minute=int(PASS_START[2:]), second=0, microsecond=0)
     p_end = S["close_auction"] - dt.timedelta(seconds=40)
-    pas, p_last, p_done = {}, 0.0, False
+    pas, p_last, p_done, b_last = {}, 0.0, False, 0.0
     while (left or pend) and AT.now() < until:
         if left:
             try: px = AT.prices(sorted({o["t"] for o in left}))
@@ -793,6 +807,10 @@ def stop_watch(got, Lg, S, today):
                 _led_save(Lg); _stop_done(so, o, today); pend.remove((so, o))
             elif so.get("status") in ("CANCELED", "REJECTED"):
                 pend.remove((so, o)); telegram("🚨 데이 -29%% 손절 주문 %s(%s) — 내일 아침 시가에 다시 판다" % (o["name"], so.get("status")))
+        if left and p_start <= AT.now() < p_end and time.time() - b_last >= PASS_EVERY:   # 실제 호가 기록(모든 모드)
+            b_last = time.time()
+            try: pm_book(sorted({o["t"] for o in left}), today)
+            except Exception as ex: log("장중 호가 기록 실패:", repr(ex)[:120])
         if use and left and not p_done and p_start <= AT.now() < p_end and time.time() - p_last >= PASS_EVERY:
             p_last = time.time()
             for o in list(left):
