@@ -78,17 +78,24 @@ for name in GUARDED:
 
 # 2026-10-21 사고: 로컬 site/ 가 10-13 빌드로 묵어 있는데 손배포 → 옛 화면이 올라가고 ver.json(n=60)이 배포본(n=132)을
 # 덮어 버전 셈이 1.1.32 → 1.0.60 으로 되돌아갔다. 화면 고친 건 git push(CI 빌드)로 내보내고, 여기선 로컬 빌드가 최신일 때만 올린다.
+# 10-21 CI 사고: Actions 는 빌드 뒤 데이터 커밋에서 git pull 을 해 index.html 이 빌드보다 새것이 되는 게 정상이다 — 거기서 멈추면
+# 그날 데이터 배포가 통째로 빠진다(09:12 예약 실패). 그래서 **내 PC 에서만 멈추고** Actions 에선 경고만(다음 푸시 빌드가 화면을 맞춘다).
+IN_CI = os.environ.get("GITHUB_ACTIONS") == "true"
+def _stale(msg):
+    if IN_CI: print("  ⚠ " + msg + " (Actions — 데이터는 올리고 화면은 다음 빌드가 맞춤)")
+    else: sys.exit("  ❌ " + msg)
 print("\n── 배포 전 점검: 로컬 빌드가 묵지 않았나 ──")
 _site_html, _root_html = BASE / "site" / "index.html", BASE / "index.html"
 if _site_html.exists() and _site_html.stat().st_mtime < _root_html.stat().st_mtime:
-    sys.exit("  ❌ site/index.html 이 index.html 보다 오래됐다 — 로컬 빌드가 묵었다. git push 로 CI 배포를 쓰거나 pipeline.py 로 먼저 빌드할 것")
+    _stale("site/index.html 이 index.html 보다 오래됐다 — 빌드가 묵었다. git push 로 CI 배포를 쓰거나 pipeline.py 로 먼저 빌드할 것")
 _raw, _ = fetch("ver.json")
 if _raw:
     _theirs = json.loads(_raw.decode()).get("n", 0)
     _mine = json.loads((BASE / "site" / "data" / "ver.json").read_text(encoding="utf-8")).get("n", 0)
     if _mine < _theirs:
-        sys.exit(f"  ❌ 내 ver.json n={_mine} < 배포본 n={_theirs} — 묵은 빌드다. 올리면 버전 셈이 되돌아간다(git push 로 CI 배포)")
-    print(f"  · 빌드 시각·버전 셈 정상 (n {_mine} ≥ {_theirs})")
+        _stale(f"내 ver.json n={_mine} < 배포본 n={_theirs} — 묵은 빌드다. 올리면 버전 셈이 되돌아간다(git push 로 CI 배포)")
+    else:
+        print(f"  · 빌드 시각·버전 셈 정상 (n {_mine} ≥ {_theirs})")
 
 print("\n── wrangler ──")
 cmd = "npx --yes wrangler@4 pages deploy site --project-name kospi-volume --branch main --commit-dirty=true"
