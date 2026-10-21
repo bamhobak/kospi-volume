@@ -38,7 +38,12 @@ DEEP_REL, DEEP_MULT = -10.0, 5.0                  # 시장 대비 -10%p 넘게: 
 # 10-19 사용자(research H0363): -10%p 넘게 빠진 후보 중 어제·오늘 악재 공시(DART)가 있는 것만 안 산다 — 2016~ 악재 30건 -0.62% vs 없음 60건 +2.00%
 BAD_RE = r"횡령|배임|감사의견|의견거절|한정|상장폐지|상장적격성|매매거래정지|거래정지|불성실공시|회생|파산|부도|소송|유상증자|전환사채|신주인수권|관리종목|투자주의환기|최대주주변경|조회공시"
 NOBUY_GAP = -27.5                                 # 10-19 사용자: 예상 시가 갭이 이 이하(하한가 근처)면 처음부터 안 산다 — 사자마자 손절에 걸림(처음 -28 → 같은 날 -27.5)
-STOP_PCT = -29.0                                  # 10-19 사용자: 데이로 산 종목이 장중 전일 종가 대비 -29% 에 닿으면 바로 시장가 매도(하한가 묶임 피하기)
+# 10-21 사용자: 장중 걸어 팔기 — 14:30 부터 '지금 체결가 + PASS_K 호가'에 지정가 매도를 걸고 PASS_EVERY 초마다 따라 고친다(누가 더 낮게 걸면 같이 내려감).
+#   팔린 몫은 그 값에, 15:19:20 까지 안 팔린 몫만 종가 단일가 시장가. **실전 금액(DAY_QTY=None)일 때만 켜진다** — 1~5주 테스트에선 종가 밀림이
+#   거의 0 이라 오히려 막판 상승을 놓쳐 손해(research/t1_passive_sell_1021.py). 실전 금액이면 건당 +0.06~0.14%p · 덤 붙은 종목 +0.15~0.31%p
+#   (t1_passive_sell2_1021.py, 2023~ 4,957건). +1·+2·+3호가 차이는 작아 +2 로.
+PASS_ON, PASS_START, PASS_K, PASS_EVERY = True, "1430", 2, 120
+STOP_PCT = -29.0                                 # 10-19 사용자: 데이로 산 종목이 장중 전일 종가 대비 -29% 에 닿으면 바로 시장가 매도(하한가 묶임 피하기)
 DAY_MAX = None                                    # 하루 최대 종목 수 — None = 제한 없음(후보 전부 주문) · 10-13 10→20 · 10-19 20→50 · 10-21 사용자 제한 없앰: 실행 실측(종목당 100만 체결 89%)상 종목 수를 막을 이유가 없다
 COST = 0.23                                     # 토스 실제 왕복: 수수료 0.015×2 + 거래세 0.20 (index.html DEFFEE)
 RULE = "갭 하락 조용주"
@@ -688,6 +693,50 @@ def _poll(so):
     return so
 
 
+def pass_on():
+    return PASS_ON and not DAY_QTY and not AT.DRY
+
+
+def _pass_settle(st, Lg):
+    """걸어 둔 장중 매도 하나를 취소하고 최종 체결을 st 누계에 더한다(취소가 '이미 체결'로 거절돼도 체결만 반영)."""
+    so = st.get("so")
+    if not so: return
+    try: AT.call("POST", "/api/v1/orders/%s/cancel" % so["oid"], acct=True, body={})
+    except Exception as ex: log("장중 매도 취소 거절/실패:", so["t"], getattr(ex, "code", None) or repr(ex)[:80])
+    time.sleep(0.3); _poll(so)
+    if so.get("fq", 0) > 0 and so.get("ap", 0) > 0:
+        st["q"] += so["fq"]; st["val"] += so["fq"] * so["ap"]
+    st["so"] = None; _led_save(Lg)
+
+
+def pass_step(o, px, st, Lg, today):
+    """o 하나의 장중 매도를 지금 체결가 + PASS_K 호가로 맞춘다. st = {'q': 장중 판 수량, 'val': 판 금액, 'so': 걸린 주문, 'n': 번호}."""
+    so = st.get("so")
+    if so:
+        _poll(so)
+        if so.get("status") in AT.FINAL:                       # 다 팔렸거나 취소됨 — 누계에 넣고 새로 건다
+            if so.get("fq", 0) > 0 and so.get("ap", 0) > 0: st["q"] += so["fq"]; st["val"] += so["fq"] * so["ap"]
+            st["so"] = so = None; _led_save(Lg)
+    rem = int(o["fq"]) - int(st["q"]) - int((so or {}).get("fq") or 0)
+    if rem < 1 or not px: return
+    lim = int(px)
+    for _ in range(PASS_K): lim += kr_tick(lim)
+    if so and int(so["lim"]) == lim: return                     # 값이 그대로면 둔다(호출 아끼기)
+    if so:
+        _pass_settle(st, Lg)
+        rem = int(o["fq"]) - int(st["q"])
+        if rem < 1: return
+    st["n"] = st.get("n", 0) + 1
+    so = dict(side="SELL", date=today, t=o["t"], name=o["name"], qty=rem, lim=lim, posId=o["pos"]["id"], passive=True,
+              cid=("dp%d" % st["n"] + o["cid"][2:])[:36])
+    try:
+        so["oid"] = AT.place({"clientOrderId": so["cid"], "symbol": o["t"], "side": "SELL", "orderType": "LIMIT", "price": str(lim), "quantity": str(rem)})
+        st["so"] = so
+    except Exception as ex:
+        so["err"] = getattr(ex, "code", None) or str(ex)[:100]; log("장중 매도 주문 실패:", o["t"], so["err"])
+    Lg["orders"].append(so); _led_save(Lg)
+
+
 def stop_watch(got, Lg, S, today):
     """10-19 사용자: 데이로 산 종목이 장중 전일 종가 대비 STOP_PCT(-29%) 이하면 바로 시장가 매도 — 하한가(-30%)에 묶여 종가에 못 파는 걸 피한다.
     종가 단일가 30초 전까지 15초마다 시세를 본다(-29% 를 건너뛰고 하한가로 가도 '이하'라 다음 확인에 걸린다).
@@ -696,6 +745,10 @@ def stop_watch(got, Lg, S, today):
     until = S["close_auction"] + dt.timedelta(seconds=30)
     left = [o for o in got if o.get("pc")]
     done, pend = [], []
+    use = pass_on()                                              # 장중 걸어 팔기(실전 금액일 때만)
+    p_start = AT.now().replace(hour=int(PASS_START[:2]), minute=int(PASS_START[2:]), second=0, microsecond=0)
+    p_end = S["close_auction"] - dt.timedelta(seconds=40)
+    pas, p_last, p_done = {}, 0.0, False
     while (left or pend) and AT.now() < until:
         if left:
             try: px = AT.prices(sorted({o["t"] for o in left}))
@@ -703,9 +756,13 @@ def stop_watch(got, Lg, S, today):
                 log("손절 감시 시세 실패:", repr(ex)[:120]); px = {}
             for o in [o for o in left if px.get(o["t"]) and px[o["t"]] <= float(o["pc"]) * (1 + STOP_PCT / 100)]:
                 left.remove(o)
-                so = dict(side="SELL", date=today, t=o["t"], name=o["name"], qty=int(o["fq"]), posId=o["pos"]["id"], cid=("dx" + o["cid"][2:])[:36], stop=True)
+                st_ = pas.get(o["pos"]["id"])
+                if st_: _pass_settle(st_, Lg)                    # 걸어 둔 장중 매도부터 치우고 남은 몫만 손절
+                qx = int(o["fq"]) - int(st_["q"] if st_ else 0)
+                if qx < 1: continue
+                so = dict(side="SELL", date=today, t=o["t"], name=o["name"], qty=qx, posId=o["pos"]["id"], cid=("dx" + o["cid"][2:])[:36], stop=True)
                 try:
-                    so["oid"] = AT.place({"clientOrderId": so["cid"], "symbol": o["t"], "side": "SELL", "orderType": "MARKET", "quantity": str(int(o["fq"]))})
+                    so["oid"] = AT.place({"clientOrderId": so["cid"], "symbol": o["t"], "side": "SELL", "orderType": "MARKET", "quantity": str(qx)})
                 except Exception as ex:
                     so["err"] = getattr(ex, "code", None) or str(ex)[:100]
                 Lg["orders"].append(so); _led_save(Lg)
@@ -722,7 +779,25 @@ def stop_watch(got, Lg, S, today):
                 _led_save(Lg); _stop_done(so, o, today); pend.remove((so, o))
             elif so.get("status") in ("CANCELED", "REJECTED"):
                 pend.remove((so, o)); telegram("🚨 데이 -29%% 손절 주문 %s(%s) — 내일 아침 시가에 다시 판다" % (o["name"], so.get("status")))
+        if use and left and not p_done and p_start <= AT.now() < p_end and time.time() - p_last >= PASS_EVERY:
+            p_last = time.time()
+            for o in list(left):
+                st_ = pas.setdefault(o["pos"]["id"], {"q": 0.0, "val": 0.0, "so": None})
+                try: pass_step(o, px.get(o["t"]), st_, Lg, today)
+                except Exception as ex: log("장중 매도 단계 실패:", o["t"], repr(ex)[:120])
+                if st_["q"] >= int(o["fq"]): left.remove(o)      # 장중에 다 팔림 — 손절 감시도 끝
+                time.sleep(0.2)
+        if use and pas and not p_done and AT.now() >= p_end:     # 15:19:20 — 남은 장중 매도를 거두고 나머지는 종가로
+            for st_ in pas.values(): _pass_settle(st_, Lg)
+            p_done = True
         if left or pend: time.sleep(15)
+    for st_ in pas.values(): _pass_settle(st_, Lg)
+    for o in got:
+        st_ = pas.get(o["pos"]["id"])
+        if st_ and st_["q"] > 0: o["pas_q"], o["pas_val"] = st_["q"], st_["val"]
+    if pas:
+        n_ = sum(1 for o in got if o.get("pas_q")); q_ = sum(o.get("pas_q", 0) for o in got); t_ = sum(float(o["fq"]) for o in got)
+        log("장중 매도: %d종목에서 %.0f/%.0f주 팔림" % (n_, q_, t_))
     if done: log("손절 주문 낸 것:", [o["name"] for o in done], "· 아직 안 팔린 것", [o["name"] for _, o in pend])
     return done, pend
 
@@ -786,6 +861,8 @@ def close_sell(got, Lg, S, today):
     except Exception as ex:
         log("손절 감시 실패:", repr(ex)[:200]); telegram("⚠ 데이 -29% 손절 감시가 죽었다: %s — 종가 매도는 그대로" % str(ex)[:120]); stopped, spend = [], []
     got = [o for o in got if o not in stopped]
+    full = [o for o in got if o.get("pas_q", 0) >= float(o["fq"])]        # 장중 걸어 팔기로 다 팔린 것 — 종가 주문 없음
+    got_all, got = got, [o for o in got if o not in full]
     AT.sleep_until(S["close_auction"] + dt.timedelta(seconds=60), "데이 종가 매도")
     # 2026-10-06: 15:21 DNS 실패 한 번에 프로세스가 죽어 3주가 안 팔렸다 → 못 낸 주문은 15:29 까지 20초마다 다시 낸다.
     #   (네트워크 한 번의 실패는 AT.call 이 5분까지 다시 한다 · 그래도 남으면 여기서 또 · 끝내 못 팔면 알림)
@@ -798,7 +875,8 @@ def close_sell(got, Lg, S, today):
                 have = AT.sellable(o["t"]) if not AT.DRY else o["fq"]
             except Exception:
                 have = None
-            q = int(o["fq"]) if have is None else int(min(o["fq"], have))
+            need = int(float(o["fq"]) - o.get("pas_q", 0))                   # 장중에 판 몫은 빼고
+            q = need if have is None else int(min(need, have))
             if q < 1:
                 log("매도가능 0 — 이미 팔렸거나 주문이 들어가 있음:", o["t"]); continue
             so = dict(side="SELL", date=today, t=o["t"], name=o["name"], qty=q, posId=o["pos"]["id"], cid=("ds" + o["cid"][2:])[:36])
@@ -825,6 +903,10 @@ def close_sell(got, Lg, S, today):
         for so, _ in sold: so.setdefault("fq", 0); so.setdefault("ap", 0)
     fin = [(so, o) for so, o in sold if so["fq"] > 0 and so["ap"] > 0]
     _led_save(Lg)
+    # 장중 걸어 판 몫과 합친 평균 매도가 — 사이트·알림은 이 값으로(종가 주문 없이 장중에 다 팔린 것도 넣는다)
+    fin = [(dict(so, fq=so["fq"] + o.get("pas_q", 0), ap=(so["fq"] * so["ap"] + o.get("pas_val", 0)) / (so["fq"] + o.get("pas_q", 0))), o) for so, o in fin]
+    fin += [(dict(fq=o["pas_q"], ap=o["pas_val"] / o["pas_q"]), o) for o in full]
+    got = got_all
     if fin:
         ids = {o["pos"]["id"]: so["ap"] for so, o in fin}
 
@@ -897,9 +979,22 @@ def close_watch(today):
     if not (S["close_auction"] <= AT.now() < S["end"] - dt.timedelta(minutes=1)):
         log("종가 단일가 시간 아님 — 건너뜀"); return
     Lg = _led()
-    sold_pos = {o.get("posId") for o in Lg["orders"] if o.get("side") == "SELL" and o.get("date") == today and o.get("oid")}
+    sold_pos = {o.get("posId") for o in Lg["orders"] if o.get("side") == "SELL" and o.get("date") == today and o.get("oid") and not o.get("passive")}
     got = [o for o in Lg["orders"] if o.get("side") == "BUY" and o.get("date") == today and o.get("pos")
            and (o.get("fq") or 0) > 0 and o["pos"]["id"] not in sold_pos]
+    # 장중 걸어 팔기 주문(10-21~): 아침 프로세스가 죽어 남아 있으면 취소하고, 팔린 몫은 빼고 나머지만 종가에
+    pq = {}
+    for so in [z for z in Lg["orders"] if z.get("passive") and z.get("date") == today and z.get("oid")]:
+        _poll(so)
+        if so.get("status") not in AT.FINAL:
+            try: AT.call("POST", "/api/v1/orders/%s/cancel" % so["oid"], acct=True, body={})
+            except Exception as ex: log("지킴이: 장중 매도 취소 실패:", so["t"], repr(ex)[:80])
+            time.sleep(0.3); _poll(so)
+        if so.get("fq", 0) > 0 and so.get("ap", 0) > 0:
+            a_ = pq.setdefault(so["posId"], [0.0, 0.0]); a_[0] += so["fq"]; a_[1] += so["fq"] * so["ap"]
+    for o in got:
+        if o["pos"]["id"] in pq: o["pas_q"], o["pas_val"] = pq[o["pos"]["id"]]
+    _led_save(Lg)
     if not got:
         log("지킴이: 오늘 팔 데이 종목 없음(또는 이미 주문됨)"); return
     log("지킴이: 매도 주문 없는 데이 %d종목 — 지금 판다" % len(got))
