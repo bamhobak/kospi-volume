@@ -42,6 +42,7 @@ NOBUY_GAP = -27.5                                 # 10-19 사용자: 예상 시�
 #   팔린 몫은 그 값에, 15:19:20 까지 안 팔린 몫만 종가 단일가 시장가. **실전 금액(DAY_QTY=None)일 때만 켜진다** — 1~5주 테스트에선 종가 밀림이
 #   거의 0 이라 오히려 막판 상승을 놓쳐 손해(research/t1_passive_sell_1021.py). 실전 금액이면 건당 +0.06~0.14%p · 덤 붙은 종목 +0.15~0.31%p
 #   (t1_passive_sell2_1021.py, 2023~ 4,957건). +1·+2·+3호가 차이는 작아 +2 로.
+#   10-21 같은 날 사용자: 값은 **최우선 매도 호가 한 칸 아래**(그 줄 맨 앞, 최우선 매수 + 1칸이 바닥) — 간격 넓은 얇은 종목에서 더 비싸게. PASS_K 는 호가를 못 받을 때만.
 PASS_ON, PASS_START, PASS_K, PASS_EVERY = True, "1430", 2, 120
 STOP_PCT = -29.0                                 # 10-19 사용자: 데이로 산 종목이 장중 전일 종가 대비 -29% 에 닿으면 바로 시장가 매도(하한가 묶임 피하기)
 DAY_MAX = None                                    # 하루 최대 종목 수 — None = 제한 없음(후보 전부 주문) · 10-13 10→20 · 10-19 20→50 · 10-21 사용자 제한 없앰: 실행 실측(종목당 100만 체결 89%)상 종목 수를 막을 이유가 없다
@@ -719,8 +720,21 @@ def pass_step(o, px, st, Lg, today):
             st["so"] = so = None; _led_save(Lg)
     rem = int(o["fq"]) - int(st["q"]) - int((so or {}).get("fq") or 0)
     if rem < 1 or not px: return
-    lim = int(px)
-    for _ in range(PASS_K): lim += kr_tick(lim)
+    # 10-21 사용자: 값 = **최우선 매도 호가 한 칸 아래**(그 줄 맨 앞에 선다) — 단 최우선 매수 호가 + 1칸 밑으로는 안 간다(매수 호가에 바로 팔아 버리지 않게).
+    #   호가를 못 받으면 예전 방식(체결가 + PASS_K 호가).
+    lim = None
+    try:
+        ob = M.get("/api/v1/orderbook", symbol=o["t"]) or {}
+        ask = float((ob.get("asks") or [{}])[0].get("price") or 0); bid = float((ob.get("bids") or [{}])[0].get("price") or 0)
+        if so and ask and int(ask) == int(so["lim"]): ask = 0                # 최우선 매도가 바로 내 주문이면 그대로 둔다
+        if ask and bid:
+            lim = max(int(bid) + kr_tick(bid), int(ask) - kr_tick(ask - 1))
+        elif so: return
+    except Exception as ex:
+        log("장중 매도 호가 조회 실패:", o["t"], repr(ex)[:80])
+    if lim is None:
+        lim = int(px)
+        for _ in range(PASS_K): lim += kr_tick(lim)
     if so and int(so["lim"]) == lim: return                     # 값이 그대로면 둔다(호출 아끼기)
     if so:
         _pass_settle(st, Lg)
