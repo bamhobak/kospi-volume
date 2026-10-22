@@ -216,20 +216,19 @@ def _json(s):
 
 
 # ── 번역은 구독 방식(2026-10-14 사용자 "번역만 구독 방식으로") ─────────────────────────────
-#   API 크레딧 대신 이 PC 에 로그인된 Claude Code(claude -p)를 부른다 — 블로그봇 '클로드' 옵션과 같은 claude_relay.run_claude.
+#   API 크레딧 대신 이 PC 에 로그인된 Claude Code(claude -p)를 부른다 — claude_sub.run(공장 전용).
+#   (10-23: 전엔 블로그봇 폴더의 claude_relay 를 경로째 빌려 써서 블로그봇에 묶여 있었다 — 사용자 지적으로 끊음)
 #   구조화 출력이 없으니 JSON 만 내게 하고, 못 읽으면 한 번 더. 실패해도 API 로 넘어가지 않는다(그 글은 다음 밤에 다시).
 #   거르기(Haiku, 하룻밤 수백 번)는 계속 API 크레딧.
-RELAY_DIR = Path("G:/vscode/bamhobakblogbot")
 SUB_FAILS = [0]
 
 
 def ask_sub(system, user, task="번역(구독)", timeout=600):
-    if str(RELAY_DIR) not in sys.path: sys.path.insert(0, str(RELAY_DIR))
-    import claude_relay as CR
+    import claude_sub as CS
     prompt = system + "\n\n---\n\n" + user + "\n\n---\n위 지시대로 **JSON 하나만** 출력한다(앞뒤 설명·코드블록 표시 없이)."
     t0 = time.time()
     for k in range(2):
-        ok, out = CR.run_claude(prompt, model="sonnet", timeout=timeout, effort="low")
+        ok, out = CS.run(prompt, model="sonnet", timeout=timeout, effort="low")
         if not ok:
             raise RuntimeError("구독 호출 실패: %s" % str(out)[:200])
         try:
