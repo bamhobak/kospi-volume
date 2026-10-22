@@ -1221,6 +1221,9 @@ let showInfo=false;let showWhy=false;let rowLimit=100;let rowTotal=0;let query='
 /* 완료 탭 기간 필터(2026-10-22 요청) — 매수일·매도일 중 고른 날짜가 그 기간에 든 건만. 이 기기에만 기억한다. */
 let DPER=(()=>{try{const v=JSON.parse(localStorage.getItem('doneper')||'null');if(v&&typeof v==='object')return{b:v.b==='buy'?'buy':'sell',f:v.f||'',t:v.t||''}}catch(e){}return{b:'sell',f:'',t:''}})();
 const DPER_SAVE=()=>{try{localStorage.setItem('doneper',JSON.stringify(DPER))}catch(e){}};
+let PPER=(()=>{try{const v=JSON.parse(localStorage.getItem('posper')||'null');if(v&&typeof v==='object')return{b:'buy',f:v.f||'',t:v.t||''}}catch(e){}return{b:'buy',f:'',t:''}})();   /* 보유 탭 기간(매수일 기준) */
+const PPER_SAVE=()=>{try{localStorage.setItem('posper',JSON.stringify(PPER))}catch(e){}};
+let PPEROPEN=false;
 let DPEROPEN=false;  /* 기간 설정 펼침 — 평소엔 접어 두고 요약 줄 오른쪽 [기간] 버튼으로 연다(10-22 요청) */
 let IDXH=null;       /* data/idx.json — 코스피·코스닥·나스닥 일별 종가(기간 지수 등락용). null=안 받음 · false=받는 중 · {}=없음 */   /* 조회 표 렌더 상한 — 2천행 DOM 파싱이 브라우저를 멈춘다 */
 function showTable(on){const t=$('#tblcard'),c=$('#cards');
@@ -1662,6 +1665,52 @@ function dayPct(code){
   if(v&&v.change!=null&&v.close!=null){const b=v.close-v.change; if(b)return v.change/b*100}
   return null;
 }
+/* ── 기간 설정(완료·보유 탭 공용, 2026-10-22 요청) ─────────────────────────────
+   P = 상태 {b:'buy'|'sell', f:'YYYY-MM-DD', t:'YYYY-MM-DD'} · 빈 칸이면 처음부터/끝까지.
+   지수 등락: 전체 → 코스피·코스닥·나스닥 · 국장(국장 규칙) → 코스피·코스닥 · 미장(미장 규칙) → 나스닥.
+   기간 = 고른 시작~끝(비면 보이는 건들의 첫 날~마지막 날, 보유 탭은 끝 = 오늘) · 등락 = 시작 전 마지막 종가 → 끝 날 마지막 종가 */
+const PER_IXN={KOSPI:'코스피',KOSDAQ:'코스닥',NASDAQ:'나스닥'};
+const perMd=s=>s?s.slice(4,6)+'/'+s.slice(6,8):'';
+const perYmd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+function perIx(selK,selF){
+  return selK==='전체'?['KOSPI','KOSDAQ','NASDAQ']:selK==='국장'?['KOSPI','KOSDAQ']:selK==='미장'?['NASDAQ']
+    :selF&&selF.mkt==='US'?['NASDAQ']:selF&&selF.mkt==='KOSPI'?['KOSPI']:selF&&selF.mkt==='KOSDAQ'?['KOSDAQ']:['KOSPI','KOSDAQ']}
+function perIdxPct(sym,fromD,toD){
+  const h=IDXH&&IDXH[sym];if(!h||!fromD||!toD)return null;
+  const ks=Object.keys(h).sort();let b=null,e=null;
+  for(const k of ks){if(k<fromD)b=h[k];if(k<=toD)e=h[k]}
+  if(b==null){const k0=ks.find(k=>k>=fromD&&k<=toD);b=k0?h[k0]:null}      /* 자료 첫날보다 앞이면 기간 안 첫 종가부터 */
+  return b&&e?(e/b-1)*100:null}
+function perParts(P,o){
+  if(IDXH===null){IDXH=false;fresh('data/idx.json').then(d=>{IDXH=d||{};if(cur==='done'||cur==='pos')render()}).catch(()=>{IDXH={}})}
+  const pf=P.f.replace(/-/g,''),pt=P.t.replace(/-/g,'');
+  const ds=(o.list||[]).map(o.dOf).filter(Boolean).sort();
+  const fromD=pf||ds[0]||'', toD=pt||(o.toNow?perYmd(new Date()).replace(/-/g,''):ds[ds.length-1])||'';
+  const bl=o.basis?(P.b==='buy'?'매수':'매도'):'매수';
+  const on=!!(P.f||P.t);
+  const btn=`<button class="dperbtn ${on?'on':''} ${o.open?'open':''}" id="dperbtn">${on?bl+' '+(P.f?perMd(pf):'처음')+'~'+(P.t?perMd(pt):'끝'):'기간'} ${o.open?'▴':'▾'}</button>`;
+  if(!o.open)return{btn,box:''};
+  const ctl=`<div class="dper">`
+    +(o.basis?`<span class="dseg"><button data-pb="buy" class="${P.b==='buy'?'on':''}">매수일</button><button data-pb="sell" class="${P.b==='sell'?'on':''}">매도일</button></span>`:`<span class="k">매수일</span>`)
+    +`<input type="date" id="dpf" value="${P.f}" aria-label="시작일"><span class="k">~</span><input type="date" id="dpt" value="${P.t}" aria-label="끝일">`
+    +`<span class="dq"><button data-pq="7">7일</button><button data-pq="30">30일</button><button data-pq="m0">이번 달</button><button data-pq="m1">지난 달</button>`
+    +`<button data-pq="x" class="${on?'':'on'}">전체 기간</button></span></div>`;
+  const idx=!fromD?'':`<div class="didx"><span class="k">${bl}일 기준 ${perMd(fromD)} ~ ${perMd(toD)} 지수</span>`
+    +perIx(o.selK,o.selF).map(s=>{const v=perIdxPct(s,fromD,toD);return `<span>${PER_IXN[s]} <span class="${v==null?'':v>0?'pos':v<0?'neg':''}">${v==null?(IDXH===false?'…':'—'):(v>0?'+':'')+v.toFixed(2)+'%'}</span></span>`}).join('')+`</div>`;
+  return{btn,box:`<div class="dperbox">${ctl}${idx}</div>`}}
+function perWire(P,save,toggle){
+  const bt=$('#dperbtn');if(bt)bt.onclick=toggle;
+  document.querySelectorAll('[data-pb]').forEach(el=>el.onclick=()=>{P.b=el.dataset.pb;save();render()});
+  const f=$('#dpf'),t=$('#dpt');
+  if(f)f.onchange=()=>{P.f=f.value;save();render()};
+  if(t)t.onchange=()=>{P.t=t.value;save();render()};
+  document.querySelectorAll('[data-pq]').forEach(el=>el.onclick=()=>{
+    const q=el.dataset.pq,n=new Date();
+    if(q==='x'){P.f='';P.t=''}
+    else if(q==='m0'){P.f=perYmd(new Date(n.getFullYear(),n.getMonth(),1));P.t=perYmd(n)}
+    else if(q==='m1'){P.f=perYmd(new Date(n.getFullYear(),n.getMonth()-1,1));P.t=perYmd(new Date(n.getFullYear(),n.getMonth(),0))}
+    else{const d=new Date(n);d.setDate(d.getDate()-(+q-1));P.f=perYmd(d);P.t=perYmd(n)}
+    save();render()})}
 async function renderPositions(){
   const DONE=cur==='done';
   /* 시세를 **요약보다 먼저** 맞춘다(2026-10-03 신고). 예전엔 위 요약(매수금액·수익률)을 지금 시세로 그린 뒤
@@ -1676,7 +1725,6 @@ async function renderPositions(){
   if(DONE){
     const pf=DPER.f.replace(/-/g,''), pt=DPER.t.replace(/-/g,'');
     if(pf||pt)ps=ps.filter(p=>{const d=dOf(p);return d&&(!pf||d>=pf)&&(!pt||d<=pt)});
-    if(IDXH===null){IDXH=false;fresh('data/idx.json').then(d=>{IDXH=d||{};if(cur==='done')render()}).catch(()=>{IDXH={}})}
     /* 수익률·수익금 모두 **비용 차감 후**다. 백테스트 숫자도 비용을 뺀 값이라 그래야 나란히 놓인다.
        수익금은 수익률에서 그대로 환산해 둘이 어긋나지 않게 한다. */
     const all=ps,
@@ -1729,51 +1777,20 @@ async function renderPositions(){
     const chips=[chip('전체',all,doneRule===null)].concat(mkChips(all,(k,l)=>chip(k,l,doneRule===k)),
       keys.map(k=>chip(k,by[k],doneRule===k))).join('');
     const selK=doneRule&&by[doneRule]?doneRule:'전체';
-    /* 기간 줄 — 매수일/매도일 · 시작~끝 · 빠른 선택. 빈 칸이면 처음부터/끝까지 */
-    const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-    const perHtml=`<div class="dper"><span class="dseg">`
-      +`<button data-pb="buy" class="${DPER.b==='buy'?'on':''}">매수일</button><button data-pb="sell" class="${DPER.b==='sell'?'on':''}">매도일</button></span>`
-      +`<input type="date" id="dpf" value="${DPER.f}" aria-label="시작일"><span class="k">~</span><input type="date" id="dpt" value="${DPER.t}" aria-label="끝일">`
-      +`<span class="dq"><button data-pq="7">7일</button><button data-pq="30">30일</button><button data-pq="m0">이번 달</button><button data-pq="m1">지난 달</button>`
-      +`<button data-pq="x" class="${DPER.f||DPER.t?'':'on'}">전체 기간</button></span></div>`;
-    /* 그 기간의 지수 등락 — 전체: 셋 · 국장(국장 규칙): 코스피·코스닥 · 미장(미장 규칙): 나스닥.
-       기간 = 고른 시작~끝(비면 보이는 건들의 첫 날~마지막 날) · 등락 = 시작 전 마지막 종가 → 끝 날(또는 그 전) 마지막 종가 */
+    /* 기간 설정·지수 등락 — 완료·보유 탭 공용(perParts/perWire). 요약 줄 맨 오른쪽 [기간] 버튼으로 펼친다 */
     const selL=selK==='전체'?all:by[selK]||[];
     const selF=(selK==='전체'||MKG.includes(selK))?null:fOf(selK);
-    const ix=selK==='전체'?['KOSPI','KOSDAQ','NASDAQ']:selK==='국장'?['KOSPI','KOSDAQ']:selK==='미장'?['NASDAQ']
-      :selF&&selF.mkt==='US'?['NASDAQ']:selF&&selF.mkt==='KOSPI'?['KOSPI']:selF&&selF.mkt==='KOSDAQ'?['KOSDAQ']:['KOSPI','KOSDAQ'];
-    const ds=selL.map(dOf).filter(Boolean).sort();
-    const fromD=pf||ds[0]||'', toD=pt||ds[ds.length-1]||'';
-    const idxPct=sym=>{const h=IDXH&&IDXH[sym];if(!h||!fromD||!toD)return null;
-      const ks=Object.keys(h).sort();let b=null,e=null;
-      for(const k of ks){if(k<fromD)b=h[k];if(k<=toD)e=h[k]}
-      if(b==null){const k0=ks.find(k=>k>=fromD&&k<=toD);b=k0?h[k0]:null}      /* 자료 첫날보다 앞이면 기간 안 첫 종가부터 */
-      return b&&e?(e/b-1)*100:null};
-    const IXN={KOSPI:'코스피',KOSDAQ:'코스닥',NASDAQ:'나스닥'};
-    const md=s=>s?s.slice(4,6)+'/'+s.slice(6,8):'';
-    const idxHtml=!fromD?'':`<div class="didx"><span class="k">${DPER.b==='buy'?'매수일':'매도일'} 기준 ${md(fromD)} ~ ${md(toD)} 지수</span>`
-      +ix.map(s=>{const v=idxPct(s);return `<span>${IXN[s]} <span class="${v==null?'':v>0?'pos':v<0?'neg':''}">${v==null?(IDXH===false?'…':'—'):(v>0?'+':'')+v.toFixed(2)+'%'}</span></span>`}).join('')+`</div>`;
-    /* 요약 줄 맨 오른쪽 [기간] 버튼 — 누르면 그 아래에 기간 설정·지수 등락이 펼쳐진다. 기간이 걸려 있으면 버튼에 그 기간을 적어 둔다 */
-    const perOn=!!(DPER.f||DPER.t);
-    const perBtn=`<button class="dperbtn ${perOn?'on':''} ${DPEROPEN?'open':''}" id="dperbtn">${perOn?(DPER.b==='buy'?'매수 ':'매도 ')+(DPER.f?md(pf):'처음')+'~'+(DPER.t?md(pt):'끝'):'기간'} ${DPEROPEN?'▴':'▾'}</button>`;
-    const statRow=(all.length?stat(selK,selL):'<div class="dstat"><span class="k">이 기간에 끝난 건이 없습니다</span></div>').replace(/<\/div>$/,perBtn+'</div>');
-    $('#fdesc').innerHTML=`<div class="dsum">${chips}</div>${statRow}${DPEROPEN?`<div class="dperbox">${perHtml}${idxHtml}</div>`:''}`;
-    $('#dperbtn').onclick=()=>{DPEROPEN=!DPEROPEN;render()};
+    const pp=perParts(DPER,{open:DPEROPEN,basis:true,list:selL,dOf,selK,selF});
+    const statRow=(all.length?stat(selK,selL):'<div class="dstat"><span class="k">이 기간에 끝난 건이 없습니다</span></div>').replace(/<\/div>$/,pp.btn+'</div>');
+    $('#fdesc').innerHTML=`<div class="dsum">${chips}</div>${statRow}${pp.box}`;
+    perWire(DPER,DPER_SAVE,()=>{DPEROPEN=!DPEROPEN;render()});
     document.querySelectorAll('.dchip').forEach(el=>el.onclick=()=>{
       doneRule=el.dataset.r==='전체'?null:el.dataset.r;render()});
-    document.querySelectorAll('[data-pb]').forEach(el=>el.onclick=()=>{DPER.b=el.dataset.pb;DPER_SAVE();render()});
-    const dpf=$('#dpf'),dpt=$('#dpt');
-    if(dpf)dpf.onchange=()=>{DPER.f=dpf.value;DPER_SAVE();render()};
-    if(dpt)dpt.onchange=()=>{DPER.t=dpt.value;DPER_SAVE();render()};
-    document.querySelectorAll('[data-pq]').forEach(el=>el.onclick=()=>{
-      const q=el.dataset.pq,n=new Date();
-      if(q==='x'){DPER.f='';DPER.t=''}
-      else if(q==='m0'){DPER.f=ymd(new Date(n.getFullYear(),n.getMonth(),1));DPER.t=ymd(n)}
-      else if(q==='m1'){DPER.f=ymd(new Date(n.getFullYear(),n.getMonth()-1,1));DPER.t=ymd(new Date(n.getFullYear(),n.getMonth(),0))}
-      else{const d=new Date(n);d.setDate(d.getDate()-(+q-1));DPER.f=ymd(d);DPER.t=ymd(n)}
-      DPER_SAVE();render()});
     if(doneRule)ps=ps.filter(p=>MKG.includes(doneRule)?inMk(doneRule,p):rid(p)===doneRule);
   }else{
+    const dOfP=p=>String(p.date||'').replace(/-/g,'');
+    {const f_=PPER.f.replace(/-/g,''),t_=PPER.t.replace(/-/g,'');
+     if(f_||t_)ps=ps.filter(p=>{const d=dOfP(p);return d&&(!f_||d>=f_)&&(!t_||d<=t_)})}
     /* 보유 탭에도 규칙 칩을 둔다(2026-09-12 사용자 요청). 규칙이 14개라 표에 섞여 있으면
        '이 규칙으로 뭘 들고 있나 · 자리가 남았나 · 지금 벌고 있나' 를 한눈에 못 본다.
        고르면 **표를 그 규칙만으로 바꾼다** — 오른쪽에 따로 띄우면 좁은 화면에서 둘 다 못 읽는다. */
@@ -1821,14 +1838,18 @@ async function renderPositions(){
          보여주면 안 된다. 미장 표가 도착하면 사라진다. */
       +(m.miss?`<span class="k" style="color:var(--up)">${USROWS?m.miss+'건 시세없음':'미장 '+m.miss+'건 받는 중…'}</span>`:'')
       +`</div>`};
-    const stat=statHtml();
-    STATPAINT=()=>{const el=document.querySelector('#pchips .dstat');if(el&&cur==='pos')el.outerHTML=statHtml()};
+    const ppP=()=>perParts(PPER,{open:PPEROPEN,basis:false,list:sel||[],dOf:dOfP,selK:posRule&&by[posRule]?posRule:'전체',selF,toNow:true});
+    const statB=()=>statHtml().replace(/<\/div>$/,ppP().btn+'</div>');
+    const togP=()=>{PPEROPEN=!PPEROPEN;render()};
+    const stat=statB();
+    STATPAINT=()=>{const el=document.querySelector('#pchips .dstat');if(el&&cur==='pos'){el.outerHTML=statB();const bt=$('#dperbtn');if(bt)bt.onclick=togP}};
     const box=$('#pchips');
     if(box){
-      box.style.display=all.length?'':'none';
+      box.style.display=(all.length||PPER.f||PPER.t)?'':'none';
       box.innerHTML=`<div class="dsum">`
         +[chip('전체',all,posRule===null)].concat(mkChips(all,(k,l)=>chip(k,l,posRule===k)),keys.map(k=>chip(k,by[k],posRule===k))).join('')
-        +`</div>`+stat;
+        +`</div>`+stat+ppP().box;
+      perWire(PPER,PPER_SAVE,togP);
       box.querySelectorAll('.dchip').forEach(el=>el.onclick=()=>{
         posRule=el.dataset.pr==='전체'?null:el.dataset.pr;render()});
     }
