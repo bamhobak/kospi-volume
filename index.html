@@ -223,7 +223,11 @@ header{flex:none}
 .k{color:var(--dim);font-size:10px;font-weight:700;letter-spacing:.08em}
 .dsum{display:flex;gap:8px;flex-wrap:wrap;padding-bottom:2px}
 /* 완료 탭 기간 줄(2026-10-22) — 매수일/매도일 · 날짜 두 칸 · 빠른 선택 */
-.dper{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-bottom:8px;font-size:12px}
+.dper{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-bottom:4px;font-size:12px}
+.dperbtn{margin-left:auto;background:var(--panel2);border:1px solid var(--line);color:var(--mut);padding:5px 10px;font-size:12px;cursor:pointer;font-family:'JetBrains Mono',monospace;white-space:nowrap}
+.dperbtn:hover,.dperbtn.open{color:var(--txt);border-color:var(--acc)}
+.dperbtn.on{color:var(--txt);border-color:var(--acc);background:#1c1730}
+.dperbox{margin-top:8px;padding:10px 10px 6px;border:1px solid var(--line);background:var(--panel)}
 .dper input[type=date]{flex:0 0 auto;min-width:0;width:140px;padding:6px 8px;font-size:12px;font-family:'JetBrains Mono',monospace;color-scheme:dark}
 .dseg,.dq{display:inline-flex;gap:0}
 .dseg button,.dq button{background:var(--panel2);border:1px solid var(--line);color:var(--mut);padding:6px 10px;font-size:12px;cursor:pointer;font-family:inherit}
@@ -1217,6 +1221,7 @@ let showInfo=false;let showWhy=false;let rowLimit=100;let rowTotal=0;let query='
 /* 완료 탭 기간 필터(2026-10-22 요청) — 매수일·매도일 중 고른 날짜가 그 기간에 든 건만. 이 기기에만 기억한다. */
 let DPER=(()=>{try{const v=JSON.parse(localStorage.getItem('doneper')||'null');if(v&&typeof v==='object')return{b:v.b==='buy'?'buy':'sell',f:v.f||'',t:v.t||''}}catch(e){}return{b:'sell',f:'',t:''}})();
 const DPER_SAVE=()=>{try{localStorage.setItem('doneper',JSON.stringify(DPER))}catch(e){}};
+let DPEROPEN=false;  /* 기간 설정 펼침 — 평소엔 접어 두고 요약 줄 오른쪽 [기간] 버튼으로 연다(10-22 요청) */
 let IDXH=null;       /* data/idx.json — 코스피·코스닥·나스닥 일별 종가(기간 지수 등락용). null=안 받음 · false=받는 중 · {}=없음 */   /* 조회 표 렌더 상한 — 2천행 DOM 파싱이 브라우저를 멈춘다 */
 function showTable(on){const t=$('#tblcard'),c=$('#cards');
   if(t)t.style.display=on?'':'none'; if(c)c.style.display=on?'none':'flex'}
@@ -1748,7 +1753,12 @@ async function renderPositions(){
     const md=s=>s?s.slice(4,6)+'/'+s.slice(6,8):'';
     const idxHtml=!fromD?'':`<div class="didx"><span class="k">${DPER.b==='buy'?'매수일':'매도일'} 기준 ${md(fromD)} ~ ${md(toD)} 지수</span>`
       +ix.map(s=>{const v=idxPct(s);return `<span>${IXN[s]} <span class="${v==null?'':v>0?'pos':v<0?'neg':''}">${v==null?(IDXH===false?'…':'—'):(v>0?'+':'')+v.toFixed(2)+'%'}</span></span>`}).join('')+`</div>`;
-    $('#fdesc').innerHTML=`${perHtml}<div class="dsum">${chips}</div>${all.length?stat(selK,selL):'<div class="dstat"><span class="k">이 기간에 끝난 건이 없습니다</span></div>'}${idxHtml}`;
+    /* 요약 줄 맨 오른쪽 [기간] 버튼 — 누르면 그 아래에 기간 설정·지수 등락이 펼쳐진다. 기간이 걸려 있으면 버튼에 그 기간을 적어 둔다 */
+    const perOn=!!(DPER.f||DPER.t);
+    const perBtn=`<button class="dperbtn ${perOn?'on':''} ${DPEROPEN?'open':''}" id="dperbtn">${perOn?(DPER.b==='buy'?'매수 ':'매도 ')+(DPER.f?md(pf):'처음')+'~'+(DPER.t?md(pt):'끝'):'기간'} ${DPEROPEN?'▴':'▾'}</button>`;
+    const statRow=(all.length?stat(selK,selL):'<div class="dstat"><span class="k">이 기간에 끝난 건이 없습니다</span></div>').replace(/<\/div>$/,perBtn+'</div>');
+    $('#fdesc').innerHTML=`<div class="dsum">${chips}</div>${statRow}${DPEROPEN?`<div class="dperbox">${perHtml}${idxHtml}</div>`:''}`;
+    $('#dperbtn').onclick=()=>{DPEROPEN=!DPEROPEN;render()};
     document.querySelectorAll('.dchip').forEach(el=>el.onclick=()=>{
       doneRule=el.dataset.r==='전체'?null:el.dataset.r;render()});
     document.querySelectorAll('[data-pb]').forEach(el=>el.onclick=()=>{DPER.b=el.dataset.pb;DPER_SAVE();render()});
