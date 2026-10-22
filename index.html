@@ -222,6 +222,17 @@ header{flex:none}
 .sig .warn{display:flex;align-items:center;gap:9px;color:var(--dim);font-size:11px;line-height:1.5}
 .k{color:var(--dim);font-size:10px;font-weight:700;letter-spacing:.08em}
 .dsum{display:flex;gap:8px;flex-wrap:wrap;padding-bottom:2px}
+/* 완료 탭 기간 줄(2026-10-22) — 매수일/매도일 · 날짜 두 칸 · 빠른 선택 */
+.dper{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-bottom:8px;font-size:12px}
+.dper input[type=date]{flex:0 0 auto;min-width:0;width:140px;padding:6px 8px;font-size:12px;font-family:'JetBrains Mono',monospace;color-scheme:dark}
+.dseg,.dq{display:inline-flex;gap:0}
+.dseg button,.dq button{background:var(--panel2);border:1px solid var(--line);color:var(--mut);padding:6px 10px;font-size:12px;cursor:pointer;font-family:inherit}
+.dseg button+button,.dq button+button{border-left:none}
+.dseg button.on,.dq button.on{color:var(--txt);border-color:var(--acc);background:#1c1730}
+.dseg button:hover,.dq button:hover{color:var(--txt)}
+.didx{display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding:6px 2px 2px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.didx .k{margin-right:2px}
+@media(max-width:760px){.dper input[type=date]{width:112px;padding:6px 4px;font-size:11px}.dseg button{padding:6px 8px}.dq button{padding:6px 8px}}
 /* 보유 탭의 규칙 칩은 #fdesc 바깥에 따로 있다 — 설명의 접기/펴기 배선을 건드리지 않으려고
    같은 자리에 끼워 넣지 않았다. 좌우 여백만 설명·표와 맞춘다. */
 #pchips{padding:10px 18px 0}
@@ -1201,7 +1212,11 @@ function renderTabs(){
   const hb=$('#home');if(hb&&!hb.dataset.b){hb.dataset.b='1';hb.onclick=goHome}
   [$('#infobtn'),$('#infobtn2')].forEach(ib=>{if(ib)ib.onclick=()=>{showInfo=!showInfo;showWhy=false;renderTabs()}});
   {const wb=$('#whybtn'); if(wb)wb.onclick=()=>{showWhy=!showWhy;renderTabs()}}}
-let showInfo=false;let showWhy=false;let rowLimit=100;let rowTotal=0;let query='';   /* 조회 표: 100개씩 무한 스크롤 */let doneRule=null;   /* 완료 탭 규칙 필터 */   /* 조회 표 렌더 상한 — 2천행 DOM 파싱이 브라우저를 멈춘다 */
+let showInfo=false;let showWhy=false;let rowLimit=100;let rowTotal=0;let query='';   /* 조회 표: 100개씩 무한 스크롤 */let doneRule=null;   /* 완료 탭 규칙 필터 */
+/* 완료 탭 기간 필터(2026-10-22 요청) — 매수일·매도일 중 고른 날짜가 그 기간에 든 건만. 이 기기에만 기억한다. */
+let DPER=(()=>{try{const v=JSON.parse(localStorage.getItem('doneper')||'null');if(v&&typeof v==='object')return{b:v.b==='buy'?'buy':'sell',f:v.f||'',t:v.t||''}}catch(e){}return{b:'sell',f:'',t:''}})();
+const DPER_SAVE=()=>{try{localStorage.setItem('doneper',JSON.stringify(DPER))}catch(e){}};
+let IDXH=null;       /* data/idx.json — 코스피·코스닥·나스닥 일별 종가(기간 지수 등락용). null=안 받음 · false=받는 중 · {}=없음 */   /* 조회 표 렌더 상한 — 2천행 DOM 파싱이 브라우저를 멈춘다 */
 function showTable(on){const t=$('#tblcard'),c=$('#cards');
   if(t)t.style.display=on?'':'none'; if(c)c.style.display=on?'none':'flex'}
 const pctTxt=v=>v==null?'—':(v>0?'+':'')+v.toFixed(1)+'%';
@@ -1651,7 +1666,11 @@ async function renderPositions(){
   const MKG=['국장','미장'], inMk=(k,p)=>(k==='미장')===isUSCode(p.code);
   const mkChips=(all,mk)=>MKG.filter(k=>all.some(p=>inMk(k,p))).map(k=>mk(k,all.filter(p=>inMk(k,p))));
   let ps=positions().filter(p=>DONE?p.sell:!p.sell);     // 보유 탭은 미매도, 완료 탭은 매도된 것만
+  const dOf=p=>String((DPER.b==='buy'?p.date:p.sellDate)||'').replace(/-/g,'');
   if(DONE){
+    const pf=DPER.f.replace(/-/g,''), pt=DPER.t.replace(/-/g,'');
+    if(pf||pt)ps=ps.filter(p=>{const d=dOf(p);return d&&(!pf||d>=pf)&&(!pt||d<=pt)});
+    if(IDXH===null){IDXH=false;fresh('data/idx.json').then(d=>{IDXH=d||{};if(cur==='done')render()}).catch(()=>{IDXH={}})}
     /* 수익률·수익금 모두 **비용 차감 후**다. 백테스트 숫자도 비용을 뺀 값이라 그래야 나란히 놓인다.
        수익금은 수익률에서 그대로 환산해 둘이 어긋나지 않게 한다. */
     const all=ps,
@@ -1704,9 +1723,44 @@ async function renderPositions(){
     const chips=[chip('전체',all,doneRule===null)].concat(mkChips(all,(k,l)=>chip(k,l,doneRule===k)),
       keys.map(k=>chip(k,by[k],doneRule===k))).join('');
     const selK=doneRule&&by[doneRule]?doneRule:'전체';
-    $('#fdesc').innerHTML=`<div class="dsum">${chips}</div>${stat(selK,selK==='전체'?all:by[selK])}`;
+    /* 기간 줄 — 매수일/매도일 · 시작~끝 · 빠른 선택. 빈 칸이면 처음부터/끝까지 */
+    const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    const perHtml=`<div class="dper"><span class="dseg">`
+      +`<button data-pb="buy" class="${DPER.b==='buy'?'on':''}">매수일</button><button data-pb="sell" class="${DPER.b==='sell'?'on':''}">매도일</button></span>`
+      +`<input type="date" id="dpf" value="${DPER.f}" aria-label="시작일"><span class="k">~</span><input type="date" id="dpt" value="${DPER.t}" aria-label="끝일">`
+      +`<span class="dq"><button data-pq="7">7일</button><button data-pq="30">30일</button><button data-pq="m0">이번 달</button><button data-pq="m1">지난 달</button>`
+      +`<button data-pq="x" class="${DPER.f||DPER.t?'':'on'}">전체 기간</button></span></div>`;
+    /* 그 기간의 지수 등락 — 전체: 셋 · 국장(국장 규칙): 코스피·코스닥 · 미장(미장 규칙): 나스닥.
+       기간 = 고른 시작~끝(비면 보이는 건들의 첫 날~마지막 날) · 등락 = 시작 전 마지막 종가 → 끝 날(또는 그 전) 마지막 종가 */
+    const selL=selK==='전체'?all:by[selK]||[];
+    const selF=(selK==='전체'||MKG.includes(selK))?null:fOf(selK);
+    const ix=selK==='전체'?['KOSPI','KOSDAQ','NASDAQ']:selK==='국장'?['KOSPI','KOSDAQ']:selK==='미장'?['NASDAQ']
+      :selF&&selF.mkt==='US'?['NASDAQ']:selF&&selF.mkt==='KOSPI'?['KOSPI']:selF&&selF.mkt==='KOSDAQ'?['KOSDAQ']:['KOSPI','KOSDAQ'];
+    const ds=selL.map(dOf).filter(Boolean).sort();
+    const fromD=pf||ds[0]||'', toD=pt||ds[ds.length-1]||'';
+    const idxPct=sym=>{const h=IDXH&&IDXH[sym];if(!h||!fromD||!toD)return null;
+      const ks=Object.keys(h).sort();let b=null,e=null;
+      for(const k of ks){if(k<fromD)b=h[k];if(k<=toD)e=h[k]}
+      if(b==null){const k0=ks.find(k=>k>=fromD&&k<=toD);b=k0?h[k0]:null}      /* 자료 첫날보다 앞이면 기간 안 첫 종가부터 */
+      return b&&e?(e/b-1)*100:null};
+    const IXN={KOSPI:'코스피',KOSDAQ:'코스닥',NASDAQ:'나스닥'};
+    const md=s=>s?s.slice(4,6)+'/'+s.slice(6,8):'';
+    const idxHtml=!fromD?'':`<div class="didx"><span class="k">${DPER.b==='buy'?'매수일':'매도일'} 기준 ${md(fromD)} ~ ${md(toD)} 지수</span>`
+      +ix.map(s=>{const v=idxPct(s);return `<span>${IXN[s]} <span class="${v==null?'':v>0?'pos':v<0?'neg':''}">${v==null?(IDXH===false?'…':'—'):(v>0?'+':'')+v.toFixed(2)+'%'}</span></span>`}).join('')+`</div>`;
+    $('#fdesc').innerHTML=`${perHtml}<div class="dsum">${chips}</div>${all.length?stat(selK,selL):'<div class="dstat"><span class="k">이 기간에 끝난 건이 없습니다</span></div>'}${idxHtml}`;
     document.querySelectorAll('.dchip').forEach(el=>el.onclick=()=>{
       doneRule=el.dataset.r==='전체'?null:el.dataset.r;render()});
+    document.querySelectorAll('[data-pb]').forEach(el=>el.onclick=()=>{DPER.b=el.dataset.pb;DPER_SAVE();render()});
+    const dpf=$('#dpf'),dpt=$('#dpt');
+    if(dpf)dpf.onchange=()=>{DPER.f=dpf.value;DPER_SAVE();render()};
+    if(dpt)dpt.onchange=()=>{DPER.t=dpt.value;DPER_SAVE();render()};
+    document.querySelectorAll('[data-pq]').forEach(el=>el.onclick=()=>{
+      const q=el.dataset.pq,n=new Date();
+      if(q==='x'){DPER.f='';DPER.t=''}
+      else if(q==='m0'){DPER.f=ymd(new Date(n.getFullYear(),n.getMonth(),1));DPER.t=ymd(n)}
+      else if(q==='m1'){DPER.f=ymd(new Date(n.getFullYear(),n.getMonth()-1,1));DPER.t=ymd(new Date(n.getFullYear(),n.getMonth(),0))}
+      else{const d=new Date(n);d.setDate(d.getDate()-(+q-1));DPER.f=ymd(d);DPER.t=ymd(n)}
+      DPER_SAVE();render()});
     if(doneRule)ps=ps.filter(p=>MKG.includes(doneRule)?inMk(doneRule,p):rid(p)===doneRule);
   }else{
     /* 보유 탭에도 규칙 칩을 둔다(2026-09-12 사용자 요청). 규칙이 14개라 표에 섞여 있으면

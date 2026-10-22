@@ -646,6 +646,47 @@ def build_site():
     json.dump({"dates": tdates, "rows": table, "kospi": kospi_state(), "themeRet": TRET, "upjongRS": RS, "upjongRet60": R60, "shortN": len(SF), "diluN": len(DILU), "sectorSnap": SNAP, "updated": collect.datetime.now().strftime("%Y-%m-%d %H:%M")},
               open(SITE / "data" / "table.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     print(f"site: {len(table)}종목, {tdates[0]}~{tdates[-1]}, table.json {round((SITE/'data'/'table.json').stat().st_size/1024)}KB")
+    write_idx()
+
+
+def write_idx():
+    """완료 탭 '기간별 지수 등락'(2026-10-22 사용자) — 코스피·코스닥·나스닥 일별 종가 약 1년반 → site/data/idx.json {지수: {YYYYMMDD: 종가}}.
+       코스피·코스닥 = 네이버(index_cal.naver_closes) · 나스닥 = 야후 종가 배열(meta 의 전일종가는 틀린다 — reference_yahoo_prevclose),
+       야후가 안 되면 FDR IXIC. 하나가 실패해도 나머지는 쓴다."""
+    out = {}
+    try:
+        from index_cal import naver_closes
+        for k in ("KOSPI", "KOSDAQ"):
+            v = naver_closes(k, back=550)
+            if v: out[k] = {d: round(float(c), 2) for d, c in sorted(v.items())}
+    except Exception as e:
+        print("지수 기록(코스피·코스닥) 실패:", e)
+    try:
+        import requests, datetime as _dt
+        r = requests.get("https://query1.finance.yahoo.com/v8/finance/chart/%5EIXIC?range=2y&interval=1d",
+                         headers={"User-Agent": "Mozilla/5.0"}, timeout=20).json()
+        res = r["chart"]["result"][0]
+        nas = {}
+        for t, c in zip(res["timestamp"], res["indicators"]["quote"][0]["close"]):
+            if c: nas[(_dt.datetime.utcfromtimestamp(t) - _dt.timedelta(hours=5)).strftime("%Y%m%d")] = round(float(c), 2)
+        m = res.get("meta") or {}                                   # 마지막 봉 종가가 비어 오는 날이 있다(10-22 확인) → 그 날만 최근 체결가로
+        if m.get("regularMarketTime") and m.get("regularMarketPrice"):
+            d_ = (_dt.datetime.utcfromtimestamp(m["regularMarketTime"]) - _dt.timedelta(hours=5)).strftime("%Y%m%d")
+            nas.setdefault(d_, round(float(m["regularMarketPrice"]), 2))
+        if nas: out["NASDAQ"] = nas
+    except Exception as e:
+        print("나스닥(야후) 실패 — FDR 로:", e)
+    if "NASDAQ" not in out:
+        try:
+            import FinanceDataReader as fdr
+            k = fdr.DataReader("IXIC", (collect.datetime.now() - collect.timedelta(days=550)).strftime("%Y-%m-%d"))
+            k = k[k["Close"] > 0]
+            out["NASDAQ"] = {d.strftime("%Y%m%d"): round(float(c), 2) for d, c in zip(k.index, k["Close"])}
+        except Exception as e:
+            print("나스닥(FDR) 실패:", e)
+    if out:
+        json.dump(out, open(SITE / "data" / "idx.json", "w", encoding="utf-8"), separators=(",", ":"))
+        print("idx.json: " + " · ".join("%s %d일(~%s)" % (k, len(v), max(v)) for k, v in out.items()))
 
 if __name__ == "__main__":
     restore_db()
