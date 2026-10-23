@@ -24,6 +24,9 @@ CAPTURE = 0.89
 IMP_SCALE = float(os.environ.get("IMP_SCALE", "1"))         # 체결 밀림 모형 배수(1 = 실측 모형 · 0.5 = 절반 · 0 = 밀림 없음)
 PASS_GAIN = {1: 0.13, 2: 0.24, 3: 0.33} if os.environ.get("PASS_OPT") else {1: 0.05, 2: 0.16, 3: 0.24}
 MA_N = int(os.environ.get("MA_N", "0")); MA_MULT = float(os.environ.get("MA_MULT", "1")); MA_IDX = os.environ.get("MA_IDX", "KS11")   # 10-24 이평 아래 날 더 싣기
+MA_SIDE = os.environ.get("MA_SIDE", "below")                                                  # above 면 위인 날에 MA_MULT(덜 사기)
+D_MAX = float(os.environ.get("D_MAX", "5")); D_POW = float(os.environ.get("D_POW", "1"))     # 10-24 깊이 배율 = clip(|rgap|,1,D_MAX)^D_POW
+depth = lambda r: (-r).clip(1, D_MAX) ** D_POW
 
 
 def main():
@@ -50,19 +53,19 @@ def main():
             if len(b14): lh[i] = (b.c.iloc[-1] / b14.c.iloc[-1] - 1) * 100
     small = W.liq <= 1 / 3
     W["k"] = 1 + ((lh <= -1.0).values & small.values).astype(int) + ((W.tr_pred <= -0.5).fillna(False) & small).astype(int)
-    W["unit"] = 50e4 * (-W.rgap).clip(1, 5) * (W.a20 / W.groupby("date").a20.transform("median")).clip(0.3, 3)
+    W["unit"] = 50e4 * depth(W.rgap) * (W.a20 / W.groupby("date").a20.transform("median")).clip(0.3, 3)
     W["amt"] = W.unit * W.k; W["rule"] = "T1"
     if MA_N:                                                    # 10-24: 지수가 어제 N일선 아래인 날 본체 금액 × MA_MULT
         Xi = fdr.DataReader(MA_IDX, "2015-01-01"); Xi = Xi[Xi.Close > 0]
         bl = dict(zip(Xi.index.strftime("%Y%m%d"), (Xi.Close < Xi.Close.rolling(MA_N).mean()).shift(1)))
-        W.loc[W.date.map(bl) == True, "amt"] *= MA_MULT
+        W.loc[W.date.map(bl) == (MA_SIDE == "below"), "amt"] *= MA_MULT
     # T4
     X = fdr.DataReader("IXIC", "2015-06-01"); X = X[X.Close > 0]
     us = X.Close.pct_change() * 100; us.index = us.index.strftime("%Y%m%d"); ud = us.index.values
     H["us"] = H.date.map({d: (us.iloc[np.searchsorted(ud, d) - 1] if np.searchsorted(ud, d) > 0 else np.nan) for d in H.date.unique()})
     U = H[(H.us <= -2.5) & (H.gap <= -2.0) & (H.q_tr_res <= 0.10) & (H.liq <= 1 / 2)].copy()
     U = U[~U.set_index(["ticker", "date"]).index.isin(W.set_index(["ticker", "date"]).index)]          # 겹치면 한 번만
-    U["k"] = 1; U["amt"] = 50e4 * (-U.rgap).clip(1, 5); U["rule"] = "T4"
+    U["k"] = 1; U["amt"] = 50e4 * depth(U.rgap); U["rule"] = "T4"
     A = pd.concat([W[["date", "ticker", "oc", "rgap", "a20", "k", "amt", "rule"]], U[["date", "ticker", "oc", "rgap", "a20", "k", "amt", "rule"]]], ignore_index=True)
     A["pri"] = np.where(A.rule == "T1", 0, 1)
     A = A.sort_values(["date", "pri", "rgap"])
