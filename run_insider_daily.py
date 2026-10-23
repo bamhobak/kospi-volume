@@ -9,7 +9,7 @@ r"""DART 내부자 공시 수집 — 예약 작업(BamhobakInsiderDaily)이 매�
 
 기록은 예전 .cmd 와 같은 형식으로 insider_task.log 에 이어 쓴다(시작·종료·종료코드).
 
-    예약 작업 명령:  pythonw.exe -u G:\vscode\kospi-volume\run_insider_daily.py
+    예약 작업 명령:  pythonw.exe -u C:\vscode\kospi-volume\run_insider_daily.py   (10-24 서버컴으로 옮김 — 예전 이 PC 는 G:)
 """
 import subprocess, sys, time
 from pathlib import Path

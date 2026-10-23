@@ -6,7 +6,7 @@ SITE_URL = os.environ.get("SITE_URL", "https://kospi-volume.pages.dev").rstrip("
 import io, sys, threading, http.server, functools, socketserver
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 from playwright.sync_api import sync_playwright
-ROOT = r"G:\vscode\kospi-volume"
+ROOT = str(__import__("pathlib").Path(__file__).resolve().parent)   # 10-24: G: 하드코딩 → 이 파일이 있는 폴더(서버는 C:\vscode)
 POS = [
  {"id":1788413199196,"qty":7,"code":"329180","date":"20260903","name":"HD현대중공업","price":419500,"filters":["P4"]},
  {"id":1788736735935,"qty":57,"code":"007810","date":"20260907","name":"코리아써키트","price":52600,"filters":["P4"]}]

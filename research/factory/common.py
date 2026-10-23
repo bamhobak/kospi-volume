@@ -47,7 +47,7 @@ def log(*a):
 
 def env():
     e = {}
-    for f in (BASE / ".env", BASE / ".env.reddit", BASE.parent / ".claude_api.env"):     # 클로드 API 키는 G:\vscode\.claude_api.env(공용·깃 밖) · 레딧 쿠키는 .env.reddit
+    for f in (BASE / ".env", BASE / ".env.reddit", BASE.parent / ".claude_api.env"):     # 클로드 API 키는 kospi-volume 바로 위 폴더의 .claude_api.env(서버 C:\vscode · 이 PC 였던 G:\vscode · 공용·깃 밖) · 레딧 쿠키는 .env.reddit
         if f.exists():
             for ln in f.read_text(encoding="utf-8").splitlines():
                 if "=" in ln and not ln.strip().startswith("#"):
