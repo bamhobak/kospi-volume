@@ -3,6 +3,7 @@
 '아래'를 두 가지로 본다(둘 다 장 시작 전에 아는 값 = 어제 종가 기준):
   ① 시장 — 코스피·코스닥 지수 어제 종가가 그 지수 N일선 아래인 날은 쉰다(코스피만 · 코스닥만 · 둘 중 하나라도)
   ② 종목 — 그 후보의 어제 종가가 자기 N일선 아래면 그 종목만 안 산다
+반대(10-24 사용자 "반대도 실험") — '위'면 쉼/안 삼. 자료 없는 날(초기·상장 직후)은 양쪽 다 '함'으로 둔다.
 그물 = 10-21 확정(유니버스 아래 4/9 · 갭 하위 40% · 어제 거래량 하위 30% · 실제 시장 대비 -1.5%p) · 시가→종가 · 비용 0.23 뒤 · 밀림 전.
 잣대: 남는 거래의 연 건수·건당·승률·날 바구니(같은 날 몰림 보정)·연 합계 + **빼 버린 몫의 건당**(플러스면 빼서 손해).
     python research/day_ma_1024.py
@@ -57,6 +58,7 @@ def main():
         return out
 
     T = lambda s: s.fillna(False).astype(bool)
+    U = lambda s: s.eq(False)                                             # 위(자료 없으면 False = 함)
     rows = [("지금(다 함)", pd.Series(False, index=W.index))]
     for n in MAS:
         rows.append(("코스피 %d일선 아래면 쉼" % n, T(W["kp%d" % n])))
@@ -66,9 +68,21 @@ def main():
         rows.append(("코스피·코스닥 하나라도 %d일선 아래면 쉼" % n, T(W["kp%d" % n]) | T(W["kq%d" % n])))
     for n in MAS:
         rows.append(("종목이 자기 %d일선 아래면 안 삼" % n, T(W["sb%d" % n])))
+    rows.append(("— 반대 —", None))
+    for n in MAS:
+        rows.append(("코스피 %d일선 위면 쉼" % n, U(W["kp%d" % n])))
+    for n in MAS:
+        rows.append(("코스닥 %d일선 위면 쉼" % n, U(W["kq%d" % n])))
+    for n in MAS:
+        rows.append(("코스피·코스닥 하나라도 %d일선 위면 쉼" % n, U(W["kp%d" % n]) | U(W["kq%d" % n])))
+    for n in MAS:
+        rows.append(("코스피·코스닥 둘 다 %d일선 위면 쉼" % n, U(W["kp%d" % n]) & U(W["kq%d" % n])))
+    for n in MAS:
+        rows.append(("종목이 자기 %d일선 위면 안 삼" % n, U(W["sb%d" % n])))
     print("칸 = (남은 거래) 연 건수 · 건당 · 승률 · 날 바구니 · 연 합계(건당 %%의 1년 합) | 뺀 몫 연 건수·건당 (비용 0.23 뒤, 밀림 전)\n")
     print("| 판 | %s |" % " | ".join(p[0] for p in PERS)); print("|---" * 4 + "|")
     for nm, d in rows:
+        if d is None: print("| %s | | | |" % nm); continue
         print("| %s | %s |" % (nm, " | ".join(cells(W, d))), flush=True)
     # 종목 이평 아래 비율(참고)
     print("\n참고: 후보가 자기 20·40·60일선 아래인 비율 %.0f%% · %.0f%% · %.0f%%" % tuple(T(W["sb%d" % n]).mean() * 100 for n in MAS))
