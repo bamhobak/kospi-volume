@@ -23,6 +23,7 @@ import os
 CAPTURE = 0.89
 IMP_SCALE = float(os.environ.get("IMP_SCALE", "1"))         # 체결 밀림 모형 배수(1 = 실측 모형 · 0.5 = 절반 · 0 = 밀림 없음)
 PASS_GAIN = {1: 0.13, 2: 0.24, 3: 0.33} if os.environ.get("PASS_OPT") else {1: 0.05, 2: 0.16, 3: 0.24}
+MA_N = int(os.environ.get("MA_N", "0")); MA_MULT = float(os.environ.get("MA_MULT", "1")); MA_IDX = os.environ.get("MA_IDX", "KS11")   # 10-24 이평 아래 날 더 싣기
 
 
 def main():
@@ -51,6 +52,10 @@ def main():
     W["k"] = 1 + ((lh <= -1.0).values & small.values).astype(int) + ((W.tr_pred <= -0.5).fillna(False) & small).astype(int)
     W["unit"] = 50e4 * (-W.rgap).clip(1, 5) * (W.a20 / W.groupby("date").a20.transform("median")).clip(0.3, 3)
     W["amt"] = W.unit * W.k; W["rule"] = "T1"
+    if MA_N:                                                    # 10-24: 지수가 어제 N일선 아래인 날 본체 금액 × MA_MULT
+        Xi = fdr.DataReader(MA_IDX, "2015-01-01"); Xi = Xi[Xi.Close > 0]
+        bl = dict(zip(Xi.index.strftime("%Y%m%d"), (Xi.Close < Xi.Close.rolling(MA_N).mean()).shift(1)))
+        W.loc[W.date.map(bl) == True, "amt"] *= MA_MULT
     # T4
     X = fdr.DataReader("IXIC", "2015-06-01"); X = X[X.Close > 0]
     us = X.Close.pct_change() * 100; us.index = us.index.strftime("%Y%m%d"); ud = us.index.values
