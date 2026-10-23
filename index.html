@@ -1218,11 +1218,14 @@ function renderTabs(){
   [$('#infobtn'),$('#infobtn2')].forEach(ib=>{if(ib)ib.onclick=()=>{showInfo=!showInfo;showWhy=false;renderTabs()}});
   {const wb=$('#whybtn'); if(wb)wb.onclick=()=>{showWhy=!showWhy;renderTabs()}}}
 let showInfo=false;let showWhy=false;let rowLimit=100;let rowTotal=0;let query='';   /* 조회 표: 100개씩 무한 스크롤 */let doneRule=null;   /* 완료 탭 규칙 필터 */
-/* 완료 탭 기간 필터(2026-10-22 요청) — 매수일·매도일 중 고른 날짜가 그 기간에 든 건만. 이 기기에만 기억한다. */
-let DPER=(()=>{try{const v=JSON.parse(localStorage.getItem('doneper')||'null');if(v&&typeof v==='object')return{b:v.b==='buy'?'buy':'sell',f:v.f||'',t:v.t||''}}catch(e){}return{b:'sell',f:'',t:''}})();
-const DPER_SAVE=()=>{try{localStorage.setItem('doneper',JSON.stringify(DPER))}catch(e){}};
-let PPER=(()=>{try{const v=JSON.parse(localStorage.getItem('posper')||'null');if(v&&typeof v==='object')return{b:'buy',f:v.f||'',t:v.t||''}}catch(e){}return{b:'buy',f:'',t:''}})();   /* 보유 탭 기간(매수일 기준) */
-const PPER_SAVE=()=>{try{localStorage.setItem('posper',JSON.stringify(PPER))}catch(e){}};
+/* 완료 탭 기간 필터(2026-10-22 요청) — 매수일·매도일 중 고른 날짜가 그 기간에 든 건만. */
+/* 기간 설정 — 10-23 사용자: 바꾼 값을 기억하지 않는다. 사이트를 새로 열면 늘 '전체 기간'(완료 탭 매도일 기준) 으로 시작.
+   (10-22 에 이 기기에 기억하게 했던 값은 지운다) */
+let DPER={b:'sell',f:'',t:''};
+const DPER_SAVE=()=>{};
+let PPER={b:'buy',f:'',t:''};   /* 보유 탭 기간(매수일 기준) */
+const PPER_SAVE=()=>{};
+try{localStorage.removeItem('doneper');localStorage.removeItem('posper')}catch(e){}
 let PPEROPEN=false;
 let DPEROPEN=false;  /* 기간 설정 펼침 — 평소엔 접어 두고 요약 줄 오른쪽 [기간] 버튼으로 연다(10-22 요청) */
 let IDXH=null;       /* data/idx.json — 코스피·코스닥·나스닥 일별 종가(기간 지수 등락용). null=안 받음 · false=받는 중 · {}=없음 */   /* 조회 표 렌더 상한 — 2천행 DOM 파싱이 브라우저를 멈춘다 */
