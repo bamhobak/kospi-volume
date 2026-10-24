@@ -117,6 +117,62 @@ def main():
         with open(SEEN, "w", encoding="utf-8", newline="") as fh:
             w = csv.writer(fh); w.writerow(["flr_nm", "ticker"]); w.writerows(sorted(seen))
     print("그림자 기록 %s: 새 신호 %d건 (%s)" % (last, len(new), ", ".join("%s %s" % (n["rule"], n["name"]) for n in new) or "없음"))
+    try:
+        page(last, rows)
+    except Exception as ex:
+        print("그림자 페이지 자료 실패:", repr(ex)[:200])
+
+
+def page(last, rows):
+    """10-25 사용자 "기존 그림자 테스트도 웹페이지(규칙 후보)에서 보이게" → site/data/shadow.json.
+    신호마다 산 값 = 신호일 종가 → 보유 만기가 지났으면 만기일 종가, 아니면 오늘 종가 · 비용 0.23 뒤.
+    가설 목록 = research/hypotheses.jsonl 중 상태 '그림자'·'후보'."""
+    COST = 0.23
+    cache = {}
+
+    def series(t):
+        if t not in cache:
+            try:
+                d = json.loads((BASE / "site" / "data" / "stock" / (t + ".json")).read_text(encoding="utf-8"))
+                cache[t] = (d["dates"], {d["dates"][x[0]]: x[1] for x in d["rows"] if x[1]})
+            except Exception:
+                cache[t] = None
+        return cache[t]
+
+    by = {}
+    for r in read(LOG):
+        try: entry, hold = float(r["close"]), int(r["hold"])
+        except (TypeError, ValueError): continue
+        s = series(r["ticker"]); px, held, done, xd = None, None, False, None
+        if s:
+            ds, cl = s
+            after = [d for d in ds if d > r["date"]]
+            held = len(after)
+            if held >= hold:
+                xd = after[hold - 1]; px = cl.get(xd); done = True
+            else:
+                px = (rows.get(r["ticker"]) or {}).get("c") or (cl.get(ds[-1]) if ds else None)
+        ret = round((px / entry - 1) * 100 - COST, 2) if px and entry else None
+        by.setdefault(r["rule"], []).append({"d": r["date"], "t": r["ticker"], "n": r.get("name", ""), "in": entry, "px": px, "ret": ret,
+                                             "held": held, "hold": hold, "done": done, "xd": xd, "note": (r.get("note") or "").strip()})
+    out = []
+    for rid, (nm, hold) in RULES.items():
+        L = sorted(by.get(rid, []), key=lambda x: x["d"], reverse=True)
+        D = [x["ret"] for x in L if x["done"] and x["ret"] is not None]
+        A = [x["ret"] for x in L if x["ret"] is not None]
+        out.append({"id": rid, "name": nm, "hold": hold, "n": len(L), "done": len(D), "open": len(L) - len(D),
+                    "avg_done": round(sum(D) / len(D), 2) if D else None, "win_done": round(sum(1 for x in D if x > 0) / len(D) * 100) if D else None,
+                    "avg_all": round(sum(A) / len(A), 2) if A else None, "items": L[:80]})
+    hyps = []
+    hp = BASE / "research" / "hypotheses.jsonl"
+    if hp.exists():
+        for ln in open(hp, encoding="utf-8"):
+            try: e = json.loads(ln)
+            except ValueError: continue
+            if e.get("status") in ("그림자", "후보"):
+                hyps.append({"id": e["id"], "st": e["status"], "name": e.get("name", ""), "date": e.get("date", ""), "reason": (e.get("reason") or "")[:160]})
+    (BASE / "site" / "data" / "shadow.json").write_text(json.dumps({"asof": last, "rules": out, "hyps": hyps}, ensure_ascii=False), encoding="utf-8")
+    print("그림자 페이지 자료: " + " · ".join("%s %d건(만기 %d)" % (x["id"], x["n"], x["done"]) for x in out) + " · 가설 %d" % len(hyps))
 
 
 if __name__ == "__main__":
