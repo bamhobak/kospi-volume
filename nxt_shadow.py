@@ -37,6 +37,9 @@ REL, CALM, LIQ, CAP = -2.0, -1.0, 3e7, 10
 # 10-25 사용자 "최대 몇만원까지 살 수 있는지 · 종목당 금액 올리면 · 대형주 위주로" — 대형 따로 기록 + 호가 10단계로 금액별 평균 단가
 BIG_N, BIG_REL, BIG_LIQ = 200, -1.5, 1e8          # 시총 상위 200 · 시장 대비 1.5%p↓ · 19:41~19:50 1억↑
 SIZES = (100, 300, 500, 1000)                      # 만원 — 매도 호가를 타고 올라가며 샀을 때 평균 단가
+# 10-25 사용자 "대형은 많이, 거래 적은 건 적게": 금액 = 19:41~19:50 거래대금 × DYN_K, 상한 DYN_CAPS(만원)
+#   research/nxt_sizing.py — 5%·상한 1천만이 2025 에도 시장충격 뒤 플러스(+1,035만/년) · 상한 3천만은 2026 두 배지만 2025 최고가면 -958만
+DYN_K, DYN_CAPS, DYN_MIN = 0.05, (1000, 3000), 30
 TEST_FLAG = OUT / "first_test_done"
 
 
@@ -177,6 +180,10 @@ def do_pick():
                  "ask": A_[0][0] if A_ else None, "bid": B_[0][0] if B_ else None, "asks": A_, "bids": B_[:3],
                  "cap05": cap_within(A_, 0.5), "cap10": cap_within(A_, 1.0)}
             for sz in SIZES: x["p%d" % sz] = walk(A_, sz * 1e4) if A_ else None
+            for cp in DYN_CAPS:                      # 거래대금 비례 금액(원) · 그만큼 호가 타고 샀을 때 평균 단가
+                amt = min(cp * 1e4, DYN_K * val)
+                x["amt%d" % cp] = round(amt) if amt >= DYN_MIN * 1e4 else 0
+                x["pd%d" % cp] = walk(A_, amt) if (A_ and amt >= DYN_MIN * 1e4) else None
             seen[s] = x; time.sleep(0.12)
         x = seen[s]
         return x if x and x["v10"] >= liq else None
@@ -304,12 +311,14 @@ def do_review():
             def r_(p): return round((o / p - 1) * 100 - COST, 3) if p else ""
             rows.append([pd_, d, grp, x["t"], x["krx"], x["p50"], x["ah"], x["rel"], x.get("v10"), x.get("cap05"), x.get("cap10"), x.get("ask"), x.get("bid"),
                          x.get("bid_fill"), x.get("vwap"), x.get("high"), o, r_(x.get("ask")), r_(x.get("bid")) if x.get("bid_fill") else "",
-                         r_(x.get("vwap")), r_(x.get("high"))] + [r_(x.get("p%d" % sz)) for sz in SIZES])
+                         r_(x.get("vwap")), r_(x.get("high"))] + [r_(x.get("p%d" % sz)) for sz in SIZES]
+                        + sum(([x.get("amt%d" % cp), r_(x.get("pd%d" % cp))] for cp in DYN_CAPS), []))
     f = OUT / "log.csv"; new = not f.exists()
     with open(f, "a", newline="", encoding="utf-8") as w:
         cw = csv.writer(w)
         if new: cw.writerow(["pick_day", "sell_day", "grp", "t", "krx_close", "p1950", "ah", "rel", "v1941_50", "cap05", "cap10", "ask", "bid", "bid_fill",
-                             "vwap", "high", "open1", "r_ask", "r_bid", "r_vwap", "r_high"] + ["r_%d만" % sz for sz in SIZES])
+                             "vwap", "high", "open1", "r_ask", "r_bid", "r_vwap", "r_high"] + ["r_%d만" % sz for sz in SIZES]
+                            + sum((["amt_cap%d만" % cp, "r_cap%d만" % cp] for cp in DYN_CAPS), []))
         cw.writerows(rows)
     snap["reviewed"] = d; jsave(OUT / ("pick_%s.json" % pd_), snap)
     log("review %s → %s: %d종목" % (pd_, d, len(rows)))
