@@ -78,9 +78,18 @@ main{max-width:1100px;padding:24px 24px 60px}
 .tw{border-radius:10px}
 .empty{border-radius:12px}
 h2{font-size:15px;color:var(--txt);margin:28px 0 10px}
+/* 그림자 테스트 중 — NXT 장후(H0366) · 서버 nxt_shadow.py 가 Supabase '__nxt__' 에 단계마다 올린다(10-25 사용자) */
+#nxt{margin-bottom:22px;border:1px solid rgba(245,165,36,.45);border-radius:14px;background:var(--panel);overflow:hidden}
+#nxt .nh{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:14px 18px;border-bottom:1px solid var(--line)}
+#nxt .nh b{font-size:16px}#nxt .tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(245,165,36,.14);color:#F5C26B}
+#nxt .rule{padding:10px 18px;color:var(--mut);font-size:12.5px;line-height:1.6;border-bottom:1px solid var(--line)}
+#nxt .sec{padding:12px 18px}#nxt .sec h3{margin:0 0 8px;font-size:13.5px;color:var(--txt)}
+#nxt .tw{border-radius:10px}#nxt td.r,#nxt th.r{text-align:right}
+#nxt .gp{font-size:11px;padding:1px 7px;border-radius:5px;background:rgba(160,168,182,.14);color:#C9D0DB}#nxt .gp.big{background:rgba(52,211,192,.14);color:#5FE0D0}
 </style></head><body>
 <header><a href="./">← 선별기</a><h1><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F5A524" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7c-4.6 0-8 2.7-8 6.6S7.4 20.5 12 20.5s8-3 8-6.9S16.6 7 12 7z"/><path d="M9.2 7.6c-1.3 2.2-1.3 10.4 0 12.5M14.8 7.6c1.3 2.2 1.3 10.4 0 12.5"/><path d="M12 7V4.2c1.4 0 2.6.6 3.2 1.6"/></svg>규칙 후보</h1><span class="up" id="upd">불러오는 중…</span></header>
 <main>
+  <section id="nxt" style="display:none"></section>
   <div class="strip" id="strip"></div>
   <p class="note">공장이 매일 밤 찾은 규칙 중 <b>학습(2016~22)·잠가 둔 검증(2023~)·다중검정</b>을 통과한 것만 여기 올라온다. 수익은 전부 <b>비용 뒤 건당</b>. 조정 후보 칸을 고를 땐 검증 칸만 좋은 것보다 참고·학습 칸도 같이 좋은 걸로 — 여러 칸을 보고 고르는 것도 운이 섞인다. 채택·조정은 클로드 창에서 "F0035 채택"처럼 말하면 된다.</p>
   <div id="cands"></div>
@@ -148,4 +157,23 @@ async function load(){let D=null;try{D=await rpc('kospi_state_get',{p_pin:'__fac
     (E.length?`<table><tr><th>최근 사건</th><th>사이트</th><th>조치</th><th>이유</th></tr>${E.slice().reverse().map(e=>`<tr><td class="mono">${esc(e.ts)}</td><td>${esc(e.host)}</td><td>${esc(e.event)} → ${e.gap}초</td><td class="l muted">${esc(e.why)}</td></tr>`).join('')}</table>`:'');
 }
 load();
+/* 그림자 테스트 중 — NXT 장후(H0366). 단계(19:50 고름 · 20:02 장후 체결 · 다음 날 시가 채점)마다 서버가 올리고, 이 칸은 1분마다 다시 읽는다 */
+async function loadNxt(){let N=null;try{N=await rpc('kospi_state_get',{p_pin:'__nxt__'})}catch(e){}
+  const box=$('#nxt');if(!N||!N.updated){box.style.display='none';return}
+  const won=v=>v==null?'-':Math.round(v).toLocaleString();
+  const man=v=>v==null||!v?'-':(v>=1e8?(v/1e8).toFixed(1)+'억':Math.round(v/1e4).toLocaleString()+'만');
+  const S=N.snap||{};const rows=[...(S.picks||[]).map(x=>({...x,g:'상위 절반'})),...(S.big||[]).filter(x=>!(S.picks||[]).some(p=>p.t===x.t)).map(x=>({...x,g:'대형'}))];
+  const pick=rows.length?`<div class="tw"><table><tr><th>무리</th><th>종목</th><th class="r">장후</th><th class="r">시장 대비</th><th class="r">배율</th><th class="r">19:41~50 거래대금</th><th class="r">매수 1호가</th><th class="r">매도 1호가</th><th class="r">살 금액</th><th class="r">10분 평균가</th><th class="r">다음 날 시가</th><th class="r">수익(매도1호가)</th><th class="r">수익(비례 금액)</th></tr>`
+    +rows.map(x=>`<tr><td><span class="gp ${x.g==='대형'?'big':''}">${x.g}</span></td><td>${esc(x.n)} <span class="muted mono">${esc(x.t)}</span></td><td class="r mono">${pct(x.ah)}</td><td class="r mono">${x.rel==null?'-':(x.rel>0?'+':'')+(+x.rel).toFixed(2)+'%p'}</td><td class="r mono">${x.m?x.m+'배':'-'}</td><td class="r mono">${man(x.v10)}</td><td class="r mono">${won(x.bid)}</td><td class="r mono">${won(x.ask)}</td><td class="r mono">${man(x.amt)}</td><td class="r mono">${won(x.vw)}</td><td class="r mono">${won(x.o1)}</td><td class="r mono">${pct(x.r)}</td><td class="r mono">${pct(x.rc)}</td></tr>`).join('')+`</table></div>`
+    :`<div class="empty" style="padding:16px">${S.date?(S.calm===false?`${S.date.slice(4,6)}/${S.date.slice(6)} 시장 장후 ${(+S.mkt).toFixed(2)}% — 시장 전체가 빠진 날이라 쉼`:`${S.date.slice(4,6)}/${S.date.slice(6)} 조건에 맞는 종목 없음`):'아직 첫 기록 전 — 평일 19:50 에 고른다'}</div>`;
+  const C=N.cum||{};const cumT=(g,lab)=>(C[g]||[]).length?`<div class="tw" style="margin-bottom:10px"><table><tr><th>${lab} · 매수 방식</th><th class="r">건수</th><th class="r">건당(비용 뒤)</th><th class="r">승률</th><th class="r">합계</th></tr>`
+    +C[g].map(c=>`<tr><td>${esc(c.k)}</td><td class="r mono">${c.n}</td><td class="r mono">${pct(c.avg)}</td><td class="r mono">${c.win}%</td><td class="r mono">${c.tot==null?'-':(c.tot>0?'+':'')+c.tot.toLocaleString()+'만'}</td></tr>`).join('')+`</table></div>`:'';
+  const T=N.test;const test=T&&T.date?`<div class="sec" style="border-top:1px solid var(--line)"><h3>1주 실주문 시험(NXT 장후 지정가)</h3><span class="mono">${esc(T.date)} ${esc(T.t)}</span> · ${T.error?`<span class="neg">거절 — ${esc(T.error).slice(0,160)}</span>`:`${esc(T.status||'-')} · 지정가 ${won(T.limit)}원 · 체결 ${T.filled||0}주 @ ${won(T.avg)}원${T.sell_avg?` → 다음 날 시가 ${won(T.sell_avg)}원 (${pct((T.sell_avg/T.avg-1)*100)}, 비용 전)`:T.sold?' → 시가 매도 주문함':''}`}</div>`:'';
+  box.innerHTML=`<div class="nh"><span class="tag">그림자 테스트 중</span><b>NXT 장후 빠진 종목 → 다음 날 시가</b><span class="mono muted">${esc(N.hid||'')}</span><span class="muted" style="margin-left:auto">${esc(N.stage||'')} · 갱신 ${esc(N.updated)} · 누적 ${N.days||0}일</span></div>`
+    +`<div class="rule">${esc(N.rule||'')}<br>대형 비교 무리: ${esc(N.big_rule||'')} · 돈은 안 든다(기록만)</div>`
+    +`<div class="sec"><h3>${S.date?`${S.date.slice(4,6)}/${S.date.slice(6)} 고른 종목`:'고른 종목'}${S.n_nxt?` <span class="muted" style="font-weight:400">· 장후 거래 ${S.n_nxt}종목 · 시장 장후 ${pct(S.mkt)} · 후보 ${S.n_cand}</span>`:''}</h3>${pick}</div>`
+    +((C.picks||C.big)?`<div class="sec" style="border-top:1px solid var(--line)"><h3>누적 성적</h3>${cumT('picks','상위 절반')}${cumT('big','대형 200')}</div>`:'')
+    +test;
+  box.style.display=''}
+loadNxt();setInterval(loadNxt,60000);
 </script></body></html>

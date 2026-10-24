@@ -210,10 +210,12 @@ def do_pick():
             if x: snap["big"].append(x)
         log("pick: 시장 %.2f%% · 후보 %d · 고름 %d · 대형 %d" % (mkt, len(cand), len(snap["picks"]), len(snap["big"])))
     jsave(OUT / ("pick_%s.json" % d), snap)
+    publish("19:50 고름")
     if snap["picks"] and not TEST_FLAG.exists():
         try: first_test(snap)
         except Exception as ex:
             log("실주문 시험 오류", repr(ex)[:300]); telegram("⚠ NXT 장후 1주 실주문 시험 오류: %s" % repr(ex)[:200])
+        publish("19:50 고름 · 실주문 시험")
 
 
 def first_test(snap):
@@ -275,6 +277,7 @@ def do_fill():
         time.sleep(0.12)
     jsave(OUT / ("pick_%s.json" % d), snap)
     log("fill: %d종목" % len(done))
+    publish("20:02 장후 체결 기록")
 
 
 def last_pick_day():
@@ -330,6 +333,7 @@ def do_review():
         cw.writerows(rows)
     snap["reviewed"] = d; jsave(OUT / ("pick_%s.json" % pd_), snap)
     log("review %s → %s: %d종목" % (pd_, d, len(rows)))
+    publish("다음 날 시가 채점")
     t = jload(OUT / "test_order.json")
     if t and t.get("sold") == d and not t.get("reported"):
         try:
@@ -340,6 +344,60 @@ def do_review():
         except Exception as ex:
             log("시험 매도 확인 실패", repr(ex)[:120])
         jsave(OUT / "test_order.json", t)
+
+
+def publish(stage):
+    """10-25 사용자 "그림자 테스트 중인 것들 규칙 후보 페이지에 실시간으로" — Supabase '__nxt__' 에 요약을 올린다(factory.html 이 읽는다).
+    단계마다(고름·체결 기록·채점·성적표) 다시 쓴다. 실패해도 그림자 기록은 그대로 간다."""
+    try:
+        fs = sorted(OUT.glob("pick_*.json"))
+        snap = jload(fs[-1]) if fs else None
+        S = None
+        if snap:
+            syms = sorted({x["t"] for g in ("picks", "big") for x in (snap.get(g) or [])})
+            nm = {}
+            try: nm = {k: v[0] for k, v in AT.names(syms).items()} if syms else {}
+            except Exception: pass
+            lg = {}
+            f = OUT / "log.csv"
+            if f.exists():
+                for r in csv.DictReader(open(f, encoding="utf-8")):
+                    if r["pick_day"] == snap["date"]: lg[(r["grp"], r["t"])] = r
+            def row(g, x):
+                r = lg.get((g, x["t"])) or {}
+                return {"t": x["t"], "n": nm.get(x["t"], x["t"]), "ah": x.get("ah"), "rel": x.get("rel"), "m": x.get("mult"), "v10": x.get("v10"),
+                        "ask": x.get("ask"), "bid": x.get("bid"), "amt": x.get("amt1000"), "vw": x.get("vwap"), "hi": x.get("high"),
+                        "o1": float(r["open1"]) if r.get("open1") else None, "r": float(r["r_ask"]) if r.get("r_ask") not in (None, "") else None,
+                        "rc": float(r["r_cap1000만"]) if r.get("r_cap1000만") not in (None, "") else None}
+            S = {"date": snap["date"], "mkt": snap.get("mkt"), "calm": snap.get("calm"), "n_nxt": snap.get("n_nxt"), "n_cand": snap.get("n_cand"),
+                 "reviewed": snap.get("reviewed"), "picks": [row("picks", x) for x in snap.get("picks") or []], "big": [row("big", x) for x in snap.get("big") or []]}
+        cum, recent, days = {}, [], []
+        f = OUT / "log.csv"
+        if f.exists():
+            rows = list(csv.DictReader(open(f, encoding="utf-8")))
+            days = sorted({r["pick_day"] for r in rows})
+            fl = lambda v: float(v) if v not in ("", None, "None") else None
+            for g in ("picks", "big"):
+                G = [r for r in rows if r["grp"] == g]
+                cum[g] = []
+                for lab, col, ac in (("매도 1호가", "r_ask", None), ("매수 1호가(체결 때)", "r_bid", None), ("10분 평균가", "r_vwap", None), ("10분 최고가", "r_high", None),
+                                     ("비례 상한 1천만", "r_cap1000만", "amt_cap1000만"), ("비례 상한 3천만", "r_cap3000만", "amt_cap3000만")):
+                    v = [(fl(r[col]), fl(r.get(ac)) if ac else None) for r in G]
+                    v = [(x, a) for x, a in v if x is not None and (a is None or a > 0)]
+                    if not v: continue
+                    cum[g].append({"k": lab, "n": len(v), "avg": round(sum(x for x, _ in v) / len(v), 3), "win": round(sum(1 for x, _ in v if x > 0) / len(v) * 100),
+                                   "tot": round(sum(x / 100 * a for x, a in v) / 1e4) if ac else None})
+            recent = [{"d": r["pick_day"], "g": r["grp"], "t": r["t"], "rel": fl(r["rel"]), "r": fl(r["r_ask"]), "rc": fl(r.get("r_cap1000만"))} for r in rows[-30:]][::-1]
+        t = jload(OUT / "test_order.json") or {}
+        T = {k: t.get(k) for k in ("date", "t", "limit", "status", "filled", "avg", "sold", "sell_avg", "error")} if t else None
+        data = {"updated": dt.datetime.now(KST).strftime("%Y-%m-%d %H:%M"), "stage": stage, "hid": "H0366",
+                "rule": "시총 상위 절반 · 19:50 장후가 시장 평균보다 2%%p↓ · 시장 장후 %.0f%%↓ 날 쉼 · 19:41~19:50 거래대금 %.0f천만↑ · 깊이 배율 1·2·3배 · 금액 = 거래대금 5%%(상한 1천만×배율, 천장 10%%) · 다음 날 KRX 시가 매도" % (CALM, LIQ / 1e7),
+                "big_rule": "시총 상위 %d · 시장 대비 %.1f%%p↓ · %.0f억↑" % (BIG_N, -BIG_REL, BIG_LIQ / 1e8),
+                "snap": S, "cum": cum, "recent": recent, "days": len(days), "test": T}
+        AT.rpc("kospi_state_set", {"p_pin": "__nxt__", "p_data": data})
+        log("페이지 갱신(%s)" % stage)
+    except Exception as ex:
+        log("페이지 갱신 실패", repr(ex)[:200])
 
 
 def do_report(send=True):
@@ -388,6 +446,7 @@ def do_report(send=True):
 if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else ""
     try:
-        {"close": do_close, "pick": do_pick, "fill": do_fill, "sellopen": do_sellopen, "review": do_review, "report": do_report}[mode]()
+        {"close": do_close, "pick": do_pick, "fill": do_fill, "sellopen": do_sellopen, "review": do_review, "report": do_report,
+         "publish": lambda: publish("손으로 갱신")}[mode]()
     except Exception as ex:
         log("오류", mode, repr(ex)[:300]); telegram("⚠ NXT 그림자 %s 오류: %s" % (mode, repr(ex)[:200]))
