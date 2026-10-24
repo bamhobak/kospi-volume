@@ -162,3 +162,4 @@ data/factory/
 
 # 레딧 로그인 쿠키(공장 수집 일꾼) — 비밀
 .env.reddit
+data/nxt/ 
