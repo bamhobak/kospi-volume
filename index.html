@@ -1,19 +1,19 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>밤호박 종목 선별기</title>
-<meta name="theme-color" content="#0a0b0e">
+<meta name="theme-color" content="#0B0D12">
 <link rel="icon" type="image/svg+xml" href="icon.svg"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="manifest" href="manifest.json" crossorigin="use-credentials"><!-- crossorigin="use-credentials" 가 없으면 브라우저가 매니페스트를 **쿠키 없이** 받는다. Cloudflare Access 뒤에서는 그러면 302 로 로그인 화면이 와서 매니페스트가 깨지고 "앱 설치" 가 안 뜬다(바로가기 추가만 된다 · 2026-09-11). -->
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- 2026-10-13 '너무 느리다': 글꼴 CSS·차트 라이브러리가 화면과 자료 받기를 막고 있었다(빠른 회선에서도 0.6초) — 둘 다 첫 화면에 필요 없어 막지 않게 받는다 -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" media="print" onload="this.media='all'">
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap"></noscript>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap"></noscript>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer id="chartjs"></script>
 <script>/* 차트는 상세 창에서만 쓴다 — 아직 안 왔으면 올 때까지 기다린다 */
 window.chartReady=()=>window.Chart?Promise.resolve():new Promise(r=>{const s=document.getElementById('chartjs');if(s)s.addEventListener('load',()=>r(),{once:true});else r()});</script>
 <script src="sb.js"></script>
 <style>
 :root{--dim:#5b626d;--faint:#41474f;--bg:#0a0b0e;--panel:#101217;--panel2:#171a21;--line:#272b34;--txt:#eef1f6;--mut:#858c99;/* 강조색은 손익색과 절대 겹치지 않게 분리한다 — 예전엔 --acc 와 --dn 이 둘 다 민트(5eead4)였다 */--acc:#a78bfa;--up:#f87171;--dn:#60a5fa;--ind:#fbbf24;--org:#34d399;--bth:#4ade80;/* 공통(A) 규칙 초록 */--usc:#fb923c;/* 미장(N) 규칙 주황 — D 계열 amber 와 구분 */--frg:#e879f9}
-*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--txt);font-family:'Noto Sans KR',Pretendard,-apple-system,"Malgun Gothic",sans-serif;font-size:13px;overflow:hidden}
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--txt);font-family:'IBM Plex Sans KR',Pretendard,-apple-system,"Malgun Gothic",sans-serif;font-size:13px;overflow:hidden}
 header{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
 header h1{font-size:16px;margin:0 8px 0 0;font-weight:700;letter-spacing:-.4px;white-space:nowrap;cursor:pointer;user-select:none}
 header h1:active{opacity:.6}header h1 span{color:var(--acc)}
@@ -50,10 +50,10 @@ button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--t
 #status .sgrp:first-child{padding-left:0;border-left:0}
 #status .sgrp i{font-style:normal;color:var(--dim);font-size:10px;font-weight:700;letter-spacing:.06em}
 #status .sgrp b{font-weight:600;color:var(--txt);font-size:12px;
-  font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+  font-family:'IBM Plex Mono','IBM Plex Sans KR',ui-monospace,monospace;font-variant-numeric:tabular-nums}
 #status .sgrp b.pos{color:var(--up)}#status .sgrp b.neg{color:var(--dn)}
 #status .sgrp b.off{color:var(--dim);font-weight:400}
-.mkt{display:inline-flex;align-items:center;gap:6px;padding:0 2px;font-weight:700;font-size:13px;white-space:nowrap;font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.mkt{display:inline-flex;align-items:center;gap:6px;padding:0 2px;font-weight:700;font-size:13px;white-space:nowrap;font-family:'IBM Plex Mono','IBM Plex Sans KR',ui-monospace,monospace;font-variant-numeric:tabular-nums}
 .mkt.up{color:#f87171}.mkt.dn{color:#60a5fa}
 .mkt small{font-weight:400;opacity:.8}
 .chk{display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);border-radius:0;padding:7px 10px;cursor:pointer;white-space:nowrap}
@@ -69,7 +69,7 @@ button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--t
 .s-item{background:var(--panel2);border:1px solid var(--line);border-radius:0;padding:4px 9px;text-align:center;min-width:58px}
 .info-btn{border-color:var(--acc)!important;color:var(--acc)!important}
 .info-card{cursor:pointer;color:var(--acc);font-size:12px;font-weight:700;min-width:44px}.info-card:hover{border-color:var(--acc)}
-.s-item b{display:block;color:var(--acc);font-size:12px;line-height:1.25;font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}.s-item small{color:var(--mut);font-size:9px}
+.s-item b{display:block;color:var(--acc);font-size:12px;line-height:1.25;font-family:'IBM Plex Mono','IBM Plex Sans KR',ui-monospace,monospace;font-variant-numeric:tabular-nums}.s-item small{color:var(--mut);font-size:9px}
 .themes{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
 .thtag{background:var(--panel2);border:1px solid var(--line);border-radius:0;padding:3px 8px;font-size:11px;color:var(--mut)}
 .thtag.sector{border-color:var(--acc);color:var(--acc)}.thtag.up{border-color:#f8717155;color:#f87171}
@@ -135,7 +135,7 @@ header{flex:none}
   padding:8px 10px;font-size:12px;color:var(--mut);border:1px solid var(--line);
   background:var(--panel2);width:100%}
 .railtog:hover{color:var(--txt)}
-.railtog .n{margin-left:auto;font-family:'JetBrains Mono',monospace;color:var(--dim);font-size:11px}
+.railtog .n{margin-left:auto;font-family:'IBM Plex Mono','IBM Plex Sans KR',monospace;color:var(--dim);font-size:11px}
 .descmore{cursor:pointer;color:var(--acc);white-space:nowrap}
 .descmore:hover{text-decoration:underline}
 .rail .k{color:var(--dim);font-size:10px;font-weight:700;letter-spacing:.08em;padding:0 8px 4px}
@@ -148,7 +148,7 @@ header{flex:none}
           border:1px solid transparent;color:var(--mut);white-space:nowrap;font-weight:600}
 .rail .it:hover{background:var(--panel2)}
 .rail .it.on{background:var(--panel2);border-color:var(--acc);color:var(--txt)}
-.rail .it .n{margin-left:auto;font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;color:var(--dim)}
+.rail .it .n{margin-left:auto;font-family:'IBM Plex Mono','IBM Plex Sans KR',monospace;font-variant-numeric:tabular-nums;color:var(--dim)}
 .rail .it.on .n{color:var(--acc);font-weight:700}
 .rail .it .bar{width:5px;height:15px;flex:none;background:var(--acc);opacity:.14}
 .rail .it.on .bar{opacity:1}
@@ -157,7 +157,7 @@ header{flex:none}
 .rail .it.us .bar{background:var(--usc)}.rail .it.us.on{border-color:var(--usc)}.rail .it.us.on .n{color:var(--usc)}
 .rail .it.pos.on{border-color:var(--up)}.rail .it.pos.on .n{color:var(--up)}
 .rail .it.done.on{border-color:var(--org)}.rail .it.done.on .n{color:var(--org)}
-.rail .it .rid{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:11px;width:20px;color:var(--acc)}
+.rail .it .rid{font-family:'IBM Plex Mono','IBM Plex Sans KR',monospace;font-weight:700;font-size:11px;width:20px;color:var(--acc)}
 /* 발현 장세는 왼쪽 세로 막대 색으로 — 상승장 붉은색, 하락장 파란색, 양쪽 노란색.
    글자는 회색 그대로 두어 목록이 균질하게 읽힌다.
    시장 구분(코스피/코스닥)은 규칙 코드 색이 계속 담당한다(.it.kq .rid). */
@@ -192,7 +192,7 @@ header{flex:none}
 .sig{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--acc);
      padding:19px 21px;display:flex;flex-direction:column;gap:17px}
 .sig.kq{border-left-color:var(--ind)}.sig.bo{border-left-color:var(--bth)}.sig.us{border-left-color:var(--usc)}
-.sig{cursor:pointer}.sig:hover{background:#14171d}.sig.sel{background:#1c1730}
+.sig{cursor:pointer}.sig:hover{background:#14171d}.sig.sel{background:var(--selbg)}
 /* 종목코드 — 누르면 복사된다(증권사 앱에 붙여넣기용). 눌리는 것이라는 표시를 준다. */
 .cpy{cursor:pointer;border-radius:5px;padding:1px 4px;margin:-1px -4px;transition:background .12s}
 .cpy:hover{background:var(--panel2);color:var(--txt)!important}
@@ -215,7 +215,7 @@ header{flex:none}
 .sig .why{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px}
 .sig .why div{background:var(--panel2);padding:11px 12px}
 .sig .why .l{color:var(--dim);font-size:10px;margin-bottom:5px}
-.sig .why .v{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-size:16px;font-weight:700}
+.sig .why .v{font-family:'IBM Plex Mono','IBM Plex Sans KR',monospace;font-variant-numeric:tabular-nums;font-size:16px;font-weight:700}
 .sig .why .s{color:var(--faint);font-size:10px;margin-top:3px}
 .sig .plan{display:flex;align-items:center;background:var(--panel2);padding:14px 18px;gap:16px}
 .sig .plan .st{flex-grow:1}.sig .plan .st b{display:block;font-weight:600;margin-top:4px}
@@ -224,18 +224,18 @@ header{flex:none}
 .dsum{display:flex;gap:8px;flex-wrap:wrap;padding-bottom:2px}
 /* 완료 탭 기간 줄(2026-10-22) — 매수일/매도일 · 날짜 두 칸 · 빠른 선택 */
 .dper{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-bottom:4px;font-size:12px}
-.dperbtn{margin-left:auto;background:var(--panel2);border:1px solid var(--line);color:var(--mut);padding:5px 10px;font-size:12px;cursor:pointer;font-family:'JetBrains Mono',monospace;white-space:nowrap}
+.dperbtn{margin-left:auto;background:var(--panel2);border:1px solid var(--line);color:var(--mut);padding:5px 10px;font-size:12px;cursor:pointer;font-family:'IBM Plex Mono','IBM Plex Sans KR',monospace;white-space:nowrap}
 .dperbtn:hover,.dperbtn.open{color:var(--txt);border-color:var(--acc)}
-.dperbtn.on{color:var(--txt);border-color:var(--acc);background:#1c1730}
+.dperbtn.on{color:var(--txt);border-color:var(--acc);background:var(--selbg)}
 .dperbox{margin-top:8px;padding:10px 10px 6px;border:1px solid var(--line);background:var(--panel)}
-.dper input[type=date]{flex:0 0 auto;min-width:0;width:140px;padding:6px 8px;font-size:12px;font-family:'JetBrains Mono',monospace;color-scheme:dark}
+.dper input[type=date]{flex:0 0 auto;min-width:0;width:140px;padding:6px 8px;font-size:12px;font-family:'IBM Plex Mono','IBM Plex Sans KR',monospace;color-scheme:dark}
 .dseg,.dq{display:inline-flex;gap:0}
 .dseg button,.dq button{background:var(--panel2);border:1px solid var(--line);color:var(--mut);padding:6px 10px;font-size:12px;cursor:pointer;font-family:inherit}
 .dseg button,.dq button{position:relative}
 .dseg button+button,.dq button+button{margin-left:-1px}     /* 왼쪽 테두리를 지우면 고른 버튼의 보라 테두리도 왼쪽이 빠진다(10-22 신고) → 1px 겹치고 고른 것을 위로 */
-.dseg button.on,.dq button.on{color:var(--txt);border-color:var(--acc);background:#1c1730;z-index:1}
+.dseg button.on,.dq button.on{color:var(--txt);border-color:var(--acc);background:var(--selbg);z-index:1}
 .dseg button:hover,.dq button:hover{color:var(--txt)}
-.didx{display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding:6px 2px 2px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.didx{display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding:6px 2px 2px;font-family:'IBM Plex Mono','IBM Plex Sans KR',monospace;font-size:12px}
 .didx .k{margin-right:2px}
 @media(max-width:760px){.dper input[type=date]{width:112px;padding:6px 4px;font-size:11px}.dseg button{padding:6px 8px}.dq button{padding:6px 8px}}
 /* 보유 탭의 규칙 칩은 #fdesc 바깥에 따로 있다 — 설명의 접기/펴기 배선을 건드리지 않으려고
@@ -245,29 +245,29 @@ header{flex:none}
 .dchip{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;background:var(--panel2);
        border:1px solid var(--line);cursor:pointer;font-size:12px;white-space:nowrap}
 .dchip:hover{border-color:var(--acc)}
-.dchip.on{border-color:var(--acc);background:#1c1730}
+.dchip.on{border-color:var(--acc);background:var(--selbg)}
 .dchip.kq.on{border-color:var(--ind);background:#2a2008}
 .dchip.bo.on{border-color:var(--bth);background:#0d2417}
 .dchip.us.on{border-color:var(--usc);background:#2b1a08}
-.dchip b{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--acc)}
+.dchip b{font-family:'IBM Plex Mono','IBM Plex Sans KR',monospace;font-weight:700;color:var(--acc)}
 .dchip.kq b{color:var(--ind)}
 .dchip.grp b{color:var(--bth)}
 .dchip.grp:hover,.dchip.grp.on{border-color:var(--bth)}
 .dchip.grp.on{background:#0d2417}
 .dchip .c{color:var(--dim)}
-.dstat{display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding:6px 2px 2px;font-family:'JetBrains Mono',monospace;font-size:13px}
+.dstat{display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding:6px 2px 2px;font-family:'IBM Plex Mono','IBM Plex Sans KR',monospace;font-size:13px}
 .dstat .k{color:var(--dim);font-family:inherit;margin-right:4px}
 .dstat b{color:var(--acc)}.dstat b.kq{color:var(--ind)}.dstat b.bo{color:var(--bth)}.dstat b.us{color:var(--usc)}
-.dchip span{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+.dchip span{font-family:'IBM Plex Mono','IBM Plex Sans KR',monospace;font-variant-numeric:tabular-nums}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:0;overflow:hidden;display:flex;flex-direction:column;min-height:0}
 .tblwrap{overflow:auto;flex:1;-webkit-overflow-scrolling:touch}
 table{border-collapse:separate;border-spacing:0;width:100%;white-space:nowrap}
 th{position:sticky;top:0;z-index:2;background:var(--panel2);color:var(--mut);font-weight:600;padding:10px 9px;text-align:center;cursor:pointer;user-select:none;border-bottom:1px solid var(--line);font-size:12px}
 td.l{text-align:left}th.on{color:var(--acc)}
 th:first-child,td:first-child{position:sticky;left:0;z-index:1;background:var(--panel)}th:first-child{z-index:3;background:var(--panel2)}
-td{padding:8px 9px;border-bottom:1px solid #272b3480;text-align:right;font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums;font-size:12.5px}
-td.l,td.name{font-family:'Noto Sans KR',Pretendard,sans-serif;font-size:13px}
-tr:hover td{background:#ffffff08}tr.sel td{background:#1c1730}
+td{padding:8px 9px;border-bottom:1px solid #272b3480;text-align:right;font-family:'IBM Plex Mono','IBM Plex Sans KR',ui-monospace,monospace;font-variant-numeric:tabular-nums;font-size:12.5px}
+td.l,td.name{font-family:'IBM Plex Sans KR',Pretendard,sans-serif;font-size:13px}
+tr:hover td{background:#ffffff08}tr.sel td{background:var(--selbg)}
 /* 고정된 첫 칸(종목명)은 반투명 배경이면 옆으로 밀린 칸의 글자가 비친다 — 누른 줄(hover)에서도 불투명하게(2026-10-02 사용자 신고) */
 tr:hover td:first-child{background:linear-gradient(#ffffff08,#ffffff08),var(--panel)}
 td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400}
@@ -445,9 +445,150 @@ button.prim{background:var(--acc);border:1px solid var(--acc);color:#0a0b0e;font
 .warnb{color:#ffb020;font-weight:800;margin-left:4px;cursor:help}
 .pri{color:#ffd23f;font-weight:700;font-size:12px;margin-left:6px;white-space:nowrap}
 .tag.pri{border:1px solid rgba(255,210,63,.45);background:rgba(255,210,63,.1)}
+/* ════ 2026-10-24 디자인 개편 (사용자 "전체 다 적용" — 캔버스 'kospi 사이트 전체 컨셉') ════
+   기능·배치와 예전 요청(실시간은 점 하나 · 폰에서 제목 숨김 · 국면 칩은 레일 등)은 그대로 두고 겉모습만 덮어쓴다.
+   강조 = 호박 주황 · 오르면 빨강 / 내리면 파랑 · 미장 청록 · 코스닥 연보라 · 글꼴 IBM Plex · 모서리 둥글게.
+   되돌리려면 이 칸을 지우고 글꼴 이름(IBM Plex ↔ Noto Sans KR·JetBrains Mono)과 --selbg 를 되돌리면 된다. */
+:root{--bg:#0B0D12;--panel:#12151C;--panel2:#181C25;--line:#242A35;--txt:#E8ECF2;--mut:#A0A8B6;--dim:#7A8394;--faint:#5E6676;
+  --acc:#F5A524;--acc2:#F5C26B;--up:#FF6166;--dn:#5B9BFF;--ind:#B79CFF;--usc:#34D3C0;
+  --selbg:#241F1C;/* 고른 줄·칩 — 불투명이어야 고정 첫 칸에 옆 글자가 안 비친다(10-02 신고) */--hi:#1B2030}
+body{font-size:13.5px}
+button{border-radius:8px;color:#1A1206}
+button.ghost{border-radius:8px}
+input:not([type=checkbox]),select{border-radius:8px}
+#q{border-radius:8px;padding:8px 12px}
+header{background:var(--bg)}
+@media(min-width:901px){header h1{display:flex;align-items:center;gap:8px}}   /* 폰은 제목을 감춘 그대로(10-10 요청) */
+header h1{color:var(--acc)}
+header h1 span{color:var(--txt);font-weight:600}
+header h1 svg{flex:none}
+.fac-link{border-radius:8px;color:var(--txt);padding:8px 14px;font-size:12.5px;font-weight:500}
+.fac-link:hover{border-color:var(--acc);color:var(--acc2)}
+.mktstate,.railstate{border-radius:6px}
+.tag{border-radius:5px;color:#12131a}
+.tag.pri{color:var(--acc2);border-color:rgba(245,165,36,.45);background:rgba(245,165,36,.10)}
+.pri{color:var(--acc2)}
+.tag.hold{background:rgba(183,156,255,.12);color:var(--ind);border:1px solid rgba(183,156,255,.4)}
+.mkt.up{color:var(--up)}.mkt.dn{color:var(--dn)}
+/* 왼쪽 레일 */
+.rail{background:var(--bg)}
+@media(min-width:901px){.rail{width:248px;padding:16px 12px;gap:16px}
+  .rail .it{padding:10px 12px;font-size:13.5px}
+  .tmodepc .tmode button{padding:9px 0;font-size:13px}}
+.tmode{border-radius:10px;padding:3px;gap:3px;background:var(--panel)}
+.tmode button{border-radius:7px}
+.tmode button+button{border-left:0}
+.tmode button.on{background:var(--acc);color:#1A1206}
+.railtog{border-radius:8px}
+.rail .k{font-size:11.5px;color:var(--mut);letter-spacing:.02em}
+.rail .k.ksub{display:flex;align-items:center;gap:7px;padding:8px 10px 4px;font-weight:600;letter-spacing:.02em}
+.rail .k.ksub i{width:6px;height:6px;border-radius:50%;background:var(--acc);flex:none}
+.rail .k.ksub.us i{background:var(--usc)}
+.rail .it{border:0;border-radius:8px;font-weight:500;color:#8F98A8}
+.rail .it:hover{background:var(--panel)}
+.rail .it.on,.rail .it.kq.on,.rail .it.bo.on,.rail .it.us.on,.rail .it.pos.on,.rail .it.done.on{background:var(--hi);color:#fff;border:0}
+.rail .it .n{color:var(--faint)}
+.rail .it.on .n,.rail .it.pos.on .n,.rail .it.done.on .n,.rail .it.kq.on .n,.rail .it.us.on .n,.rail .it.bo.on .n{color:var(--acc)}
+.rail .it.has{color:var(--txt)}
+.rail .it.has .n,.rail .it.has.kq .n,.rail .it.has.bo .n,.rail .it.has.us .n{color:var(--acc2);opacity:1}
+/* 규칙 코드는 발현 장세 색 배지(상승장 붉은기 · 하락장 푸른기 · 양쪽 회색) — 세로 막대 대신 */
+.rail .it[data-rule] .bar{display:none}
+.rail .it[data-rule] .rid{width:auto;min-width:28px;padding:2px 6px;border-radius:5px;text-align:center;font-size:11.5px;background:rgba(160,168,182,.14);color:#C9D0DB}
+.rail .it.rg-up[data-rule] .rid{background:rgba(255,97,102,.14);color:#FF9A9D}
+.rail .it.rg-down[data-rule] .rid{background:rgba(91,155,255,.14);color:#9CC2FF}
+/* 조회 줄(코스피·코스닥·미장 전체)은 막대 대신 점 */
+.rail .it:not([data-rule]) .bar{width:6px;height:6px;border-radius:50%;opacity:1;background:var(--acc)}
+.rail .it.kq:not([data-rule]) .bar{background:var(--ind)}
+.rail .it.us:not([data-rule]) .bar{background:var(--usc)}
+.rail .it.rdrag{box-shadow:inset 0 2px 0 var(--acc)}
+/* 본문 */
+@media(min-width:901px){.fdesc{padding:16px 24px 0}.wrap{padding:16px 24px 20px;gap:16px}.rule{margin:16px 24px 0}#pchips{padding:12px 24px 0}}
+.fdesc{font-size:12.5px}
+.rule{padding:14px 16px;border:1px solid var(--line);background:var(--panel);border-radius:12px}
+.rule b{color:var(--acc2)}
+.whymore{border-radius:6px}
+/* 규칙 숫자 칸 — 이름표를 단다 */
+.stats{gap:10px}
+.s-item{min-width:104px;padding:11px 14px;text-align:left;border-radius:10px;background:var(--panel)}
+.s-item b{font-size:18px;color:var(--txt);font-weight:600}
+.s-item small{display:block;font-size:11px;color:var(--mut);margin-top:3px}
+.info-card{display:inline-flex;align-items:center;justify-content:center;color:var(--acc2);font-size:15px}
+/* 매수 대기 카드 — 넓은 화면은 두 줄로 */
+.cards{gap:14px}
+@media(min-width:901px){#cards{flex-direction:row;flex-wrap:wrap;align-content:flex-start}
+  #cards>.sig{flex:1 1 520px;min-width:0}
+  #cards>:not(.sig){flex:1 1 100%}
+  .sig .why{grid-template-columns:repeat(auto-fill,minmax(118px,1fr))}}
+.sig,.sig.kq,.sig.bo,.sig.us{border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+@media(min-width:901px){.sig{padding:18px 20px;gap:14px}.sig .nm{font-size:18px}}
+.sig:hover{background:#151922}
+.sig.sel{background:var(--selbg);border-color:rgba(245,165,36,.45)}
+.sig .why div{border-radius:8px}
+.sig .plan{border-radius:10px}
+.sig .plan button{font-weight:700}
+.dtiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.dtile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:5px;min-width:0}
+.dtile .l{font-size:12px;color:var(--mut)}
+.dtile .v{font-family:'IBM Plex Mono','IBM Plex Sans KR',monospace;font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dtile .s{font-size:11.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cgh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px}
+.cgh i{width:8px;height:8px;border-radius:50%;background:var(--acc);flex:none}
+.cgh.us i{background:var(--usc)}
+.cgh b{font-size:16px;font-weight:600}
+.cgh span{font-family:'IBM Plex Mono','IBM Plex Sans KR',monospace;color:var(--mut);font-size:13px}
+.cgh small{color:var(--dim);font-size:12px}
+@media(max-width:900px){.dtiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.dtile{padding:10px 12px}.dtile .v{font-size:17px}}
+/* 데이 하루 흐름 */
+.dflow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;list-style:none;margin:0;padding:0}
+.dflow li{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.dflow li b{font-family:'IBM Plex Mono','IBM Plex Sans KR',monospace;font-size:15px;display:flex;align-items:center;gap:7px}
+.dflow li b i{width:8px;height:8px;border-radius:50%;background:#3A4150}
+.dflow li span{font-size:12.5px;font-weight:600}
+.dflow li small{font-size:11.5px;color:var(--mut);line-height:1.45}
+.dflow li.done b{color:var(--mut)}.dflow li.done b i{background:var(--dim)}
+.dflow li.now{border-color:var(--acc);background:rgba(245,165,36,.06)}
+.dflow li.now b{color:var(--acc2)}.dflow li.now b i{background:var(--acc)}
+@media(max-width:900px){.dflow{grid-template-columns:repeat(2,minmax(0,1fr))}.dflow li{padding:9px 10px}}
+/* 보유일 진행 막대 */
+.hbar{display:inline-block;width:46px;height:5px;border-radius:3px;background:var(--line);vertical-align:middle;margin-right:7px;overflow:hidden}
+.hbar i{display:block;height:100%;background:#4A5568;border-radius:3px}
+.hbar.near i{background:var(--acc)}
+/* 완료·보유 요약 줄 — 칸마다 이름표 위, 숫자 아래 */
+.dsum{gap:8px}
+.dchip{border-radius:999px;padding:7px 13px;background:var(--panel)}
+.dchip.on,.dchip.kq.on,.dchip.bo.on,.dchip.us.on,.dchip.grp.on{background:var(--selbg);border-color:var(--acc)}
+.dstat{gap:10px;padding:10px 0 2px;font-size:14px}
+.dstat>span:not(.k){display:flex;flex-direction:column;gap:3px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 14px;min-width:92px}
+.dstat>span:not(.k)>.k{font-size:11px;font-family:'IBM Plex Sans KR',sans-serif;margin:0}
+.dstat>b{align-self:center;font-size:14px;margin-right:4px}
+.dperbtn{border-radius:8px;padding:8px 12px;align-self:center}
+.dperbox{border-radius:12px;padding:14px 16px 10px;border-color:rgba(245,165,36,.35)}
+.dseg button,.dq button{border-radius:0}
+.dseg button:first-child,.dq button:first-child{border-radius:8px 0 0 8px}
+.dseg button:last-child,.dq button:last-child{border-radius:0 8px 8px 0}
+.dper input[type=date]{border-radius:8px}
+/* 기간 — 같은 기간 지수와 내 성적을 막대로 */
+.didx{display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:12px 2px 4px;font-size:12.5px}
+.dbar{display:grid;grid-template-columns:150px minmax(0,1fr) 76px;align-items:center;gap:12px}
+.dbar .dl{color:var(--txt);font-family:'IBM Plex Sans KR',sans-serif}
+.dbar.me .dl{color:var(--acc2);font-weight:700}
+.dbar .dt{height:9px;border-radius:5px;background:var(--hi);overflow:hidden}
+.dbar .dt i{display:block;height:100%;border-radius:5px;background:#7A3B3E}
+.dbar .dt i.n{background:#3D5F96}
+.dbar.me .dt i{background:var(--acc)}
+.dbar .dv{text-align:right}
+@media(max-width:760px){.dbar{grid-template-columns:92px minmax(0,1fr) 64px;gap:8px}}
+/* 표 */
+.card{border-radius:12px}
+td{border-bottom-color:rgba(36,42,53,.85)}
+tr:hover td{background:rgba(255,255,255,.025)}
+tr:hover td:first-child{background:linear-gradient(rgba(255,255,255,.025),rgba(255,255,255,.025)),var(--panel)}
+.colmenu{border-radius:12px}
+.kpi div{border-radius:8px}.chart{border-radius:10px}
+@media(max-width:900px){.rail .k.ksub{display:none}}   /* 폰 레일은 가로로 감싸므로 묶음 머리를 뺀다(예전처럼 라벨 없음) */
 </style></head><body>
 <header>
-  <h1 id="home" title="첫 화면으로">밤호박 <span>종목 선별기</span></h1>
+  <h1 id="home" title="첫 화면으로"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F5A524" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7c-4.6 0-8 2.7-8 6.6S7.4 20.5 12 20.5s8-3 8-6.9S16.6 7 12 7z"/><path d="M9.2 7.6c-1.3 2.2-1.3 10.4 0 12.5M14.8 7.6c1.3 2.2 1.3 10.4 0 12.5"/><path d="M12 7V4.2c1.4 0 2.6.6 3.2 1.6"/></svg>밤호박 <span>종목 선별기</span></h1>
   <span id="mkt" class="mkt"></span>
   <span id="mktstate" class="mktstate"></span>
   <input id="q" type="search" placeholder="종목명·코드 검색" autocomplete="off">
@@ -1057,9 +1198,14 @@ function renderTabs(){
   /* 매수 대기가 있는 규칙은 **안 눌러도** 눈에 띄어야 한다(2026-09-16 요청). 예전에는
      이름이 전부 같은 회색이라 건수 하나만 다르고 나머지가 똑같아 보였다. 규칙 코드 글자와
      같은 색 계열로 이름을 칠하되 **연하게** 둔다 — 켜진 규칙(.on)은 예전 그대로다. */
+  /* 2026-10-24 디자인 개편 — 규칙 목록을 국장·미장(데이는 '데이 규칙') 묶음 머리로 나눈다.
+     orderedAll 은 시장끼리 붙어 나오므로(공통 A 는 국장 쪽) 머리는 묶음마다 한 번씩만 선다. */
+  let rgPrev='';
   const rules=orderedAll().map(f=>{
       const n=view.rows.filter(r=>f.fn(r)&&!heldBy(r.ticker,f.id)).length;   /* 목록과 같은 기준 */
-      return nrow(f.id,cls(f)+'rg-'+(f.regime||'down')+(n?' has':''),f.name.split(' · ')[1],n,
+      const g=TMODE==='scalp'?'데이 규칙':f.mkt==='US'?'미장 규칙':'국장 규칙';
+      const gh=g!==rgPrev?`<div class="k ksub${f.mkt==='US'?' us':''}"><i></i>${g}</div>`:''; rgPrev=g;
+      return gh+nrow(f.id,cls(f)+'rg-'+(f.regime||'down')+(n?' has':''),f.name.split(' · ')[1],n,
         `<span class="bar"></span><span class="rid">${codeOf(f.id)}</span>`,
         f.parent?` data-rule="${f.mkt}" data-child="1"`:` draggable="true" data-rule="${f.mkt}"`)}).join('');
   /* 스윙 / 데이 전환 — 모바일은 '규칙·조회 목록' 줄 오른쪽에 작게, PC 는 레일 맨 위(2026-10-03 요청) */
@@ -1261,8 +1407,40 @@ function whyCells(r,f){
         ['2M/1Y 거래량',Math.round(r.r16||0)+'%',C.dn,'기준 30%↓']]};
   return (T[f.id]||[]).map(([l,v,c,sub])=>
     `<div><div class="l">${l}</div><div class="v" style="color:${c}">${v}</div><div class="s">${sub}</div></div>`).join('')}
+/* 2026-10-24 디자인 개편 — 매수 대기 첫 화면 요약 4칸(대기 · 보유 · 이번 달 완료 · 장세).
+   숫자는 다른 탭과 같은 계산을 쓴다(보유 = sumMoney 동일가중 · 완료 = 비용 뒤 건별 평균). */
+function waitTiles(items){
+  const kr=items.filter(x=>x.r.mk!=='US').length, us=items.length-kr;
+  const sg=v=>v==null?'':v>0?'pos':v<0?'neg':'';
+  const pc=v=>v==null?'—':(v>0?'+':'')+v.toFixed(1)+'%';
+  const open=positions().filter(p=>!p.sell);
+  let m=null;try{m=open.length?sumMoney(open,false):null}catch(e){m=null}
+  const ym=kstToday().slice(0,6);
+  const dr=positions().filter(p=>p.sell&&String(p.sellDate||'').replace(/-/g,'').slice(0,6)===ym)
+    .map(p=>(costSell(p)/costBuy(p)-1)*100);
+  const davg=dr.length?dr.reduce((a,x)=>a+x,0)/dr.length:null;
+  /* 장세 — 머리줄 국면 칩과 같은 기준(낮 = 코스피 60일선, 밤 = S&P500 60일선) */
+  const K=raw.kospi||{}, U=raw.us, night=!krDay()&&U&&U.up60!=null, up=night?U.up60:K.up60;
+  const st=(($('#mktstate')||{}).textContent||'').trim();
+  const t=(l,v,s,c,sty)=>`<div class="dtile"><span class="l">${l}</span><span class="v ${c||''}"${sty?` style="${sty}"`:''}>${v}</span><span class="s">${s}</span></div>`;
+  return `<div class="dtiles">`
+    +t('매수 대기',items.length+'장',`국장 ${kr} · 미장 ${us}`,'','color:var(--acc)')
+    +t('보유 중',open.length+'종목',m&&m.avg!=null?`평가 ${pc(m.avg)} (동일가중 · 비용 뒤)`:'—','')
+    +t('이번 달 완료',pc(davg),dr.length?`${dr.length}건 · 승률 ${Math.round(dr.filter(x=>x>0).length/dr.length*100)}%`:'아직 없음',sg(davg))
+    +t('장세',up==null?'—':(up?'상승장':'하락장'),st||'시장 자료 받는 중',up==null?'':(up?'pos':'neg'))+`</div>`}
+/* 2026-10-24 디자인 개편 — 데이 첫 화면 하루 흐름 5단계. 장 여는 날만 지금 단계를 주황으로 */
+function dayFlow(){
+  const k=new Date(Date.now()+9*3600e3), hm=k.toISOString().slice(11,16).replace(':','');
+  const open=k.getUTCDay()>0&&k.getUTCDay()<6&&!HOLIDAY.has(kstToday());
+  const S=[['0852','0900','후보 확정','예상 갭이 낮고 시장보다 약한 종목'],['0900','0901','지정가 매수','예상 갭에서 -1.5%p 낮게 건다'],
+           ['0901','0905','못 산 주문 취소','시가에 안 맞은 건 바로 거둔다'],['1430','1520','조용히 팔기','2분마다 최우선 매도호가 한 칸 아래 · 실전 때만'],
+           ['1520','1531','종가 매도','남은 주식은 마감 동시호가로']];
+  return `<ol class="dflow" aria-label="오늘 데이 진행">`+S.map(([a,b,ti,de])=>{
+      const c=!open?'':hm>=b?'done':hm>=a?'now':'';
+      return `<li class="${c}"><b><i></i>${a.slice(0,2)}:${a.slice(2)}</b><span>${ti}</span><small>${de}</small></li>`}).join('')+`</ol>`}
 function renderCards(rows){
   const box=$('#cards');
+  const head=items=>cur!=='all'?'':TMODE==='scalp'?dayFlow():waitTiles(items);   /* 2026-10-24 디자인 개편 */
   if(!rows.length){
     /* '오늘' 이 아니라 **마지막으로 수집한 날**을 밝힌다 — 장 마감 전이거나 수집이 밀리면
        화면의 신호는 어제 기준인데 '오늘' 이라고 적혀 있어 오해를 부른다(2026-09-08 사용자 지적). */
@@ -1275,9 +1453,9 @@ function renderCards(rows){
     const us=ud?`미장 ${mdShort(ud)}`:(raw.usFail?'미장 자료 못 받음':'미장 불러오는 중…');
     const parts=[dd?`국장 ${mdShort(dd)}`:'',us].filter(Boolean);
     const on=parts.length?`현재[${parts.join(' · ')}] 조건`:'현재 조건';
-    if(TMODE==='scalp'&&cur==='all'&&!(DAYST&&DAYST.date===kstToday())){box.innerHTML=`<div class="empty" style="margin-top:60px">오늘 데이 후보가 아직 없습니다.<div style="font-size:12px;margin-top:8px;color:var(--faint)">[갭 하락 조용주] 후보는 장 여는 날 08:52 에 뜹니다(알림만 · 검증 중).</div></div>`;return}
+    if(TMODE==='scalp'&&cur==='all'&&!(DAYST&&DAYST.date===kstToday())){box.innerHTML=head([])+`<div class="empty" style="margin-top:60px">오늘 데이 후보가 아직 없습니다.<div style="font-size:12px;margin-top:8px;color:var(--faint)">[갭 하락 조용주] 후보는 장 여는 날 08:52 에 뜹니다(알림만 · 검증 중).</div></div>`;return}
     if(TMODE==='scalp'&&!FILTERS.length){box.innerHTML=`<div class="empty" style="margin-top:60px">데이 규칙이 아직 없습니다.<div style="font-size:12px;margin-top:8px;color:var(--faint)">1분봉을 모으는 중입니다 — 규칙을 찾으면 여기에 매수 대기가 뜹니다.</div></div>`;return}
-    box.innerHTML=`<div class="empty" style="margin-top:60px">${cur==='all'?on+'을 만족한 종목이 없습니다.':on+'으로 이 규칙에 걸린 종목이 없습니다.'}<div style="font-size:12px;margin-top:8px;color:var(--faint)">신호가 없는 날이 더 많습니다.</div></div>`;return}
+    box.innerHTML=head([])+`<div class="empty" style="margin-top:60px">${cur==='all'?on+'을 만족한 종목이 없습니다.':on+'으로 이 규칙에 걸린 종목이 없습니다.'}<div style="font-size:12px;margin-top:8px;color:var(--faint)">신호가 없는 날이 더 많습니다.</div></div>`;return}
   /* 매수 대기: **규칙마다 카드 한 장**(2026-10-03 요청) — A 종목이 N1·N2 에 걸리면 N1 카드·N2 카드 둘.
      예전엔 우선순위 높은 규칙 하나로만 보여 주고 매수 기록에 걸린 규칙을 다 적어, 매도일이 코드 순서상
      첫 규칙(N2 20일)으로 잡혀 N3(60일) 몫을 일찍 팔았다. 이제 카드마다 그 규칙으로 따로 사고 따로 판다.
@@ -1292,16 +1470,23 @@ function renderCards(rows){
     const cf=FILTERS.find(x=>x.id===cur);
     items=rows.map(r=>({r,f:cf||bestRule(r)}));
   }
-  box.innerHTML=items.map(({r,f})=>{
+  /* 2026-10-24 디자인 개편 — 매수 대기(스윙)는 국장·미장 묶음마다 머리 한 줄(이름 · 장 수 · 정렬 기준) */
+  let gPrev='';
+  box.innerHTML=head(items)+items.map(({r,f})=>{
     const pr=cur==='all'&&f?priOf(f.id):null;
     if(!f)return '';
+    const g=(cur==='all'&&TMODE!=='scalp')?(r.mk==='US'?'US':'KR'):'';
+    let gh='';
+    if(g&&g!==gPrev){const n=items.filter(x=>(x.r.mk==='US'?'US':'KR')===g).length;
+      gh=`<div class="cgh${g==='US'?' us':''}"><i></i><b>${g==='US'?'미장':'국장'}</b><span>${n}장</span><small>우선순위 = 하루당 기대수익(건당 평균 ÷ 보유일) 순</small></div>`;
+      gPrev=g}
     /* kq: 규칙의 시장(색·테두리용). 시장 이름 표시는 규칙이 아니라 **종목** 것을 써야 한다 —
        A1 처럼 mkt:'BOTH' 인 공통 규칙은 kq 가 늘 false 라 코스닥 종목도 '코스피' 로 찍혔다
        (2026-09-09 쎄노텍 222420 이 A1 로 걸렸는데 카드에 코스피라고 표시됨). */
     const kq=f.mkt==='KOSDAQ',hold=f.rule.hold,mkNm=r.mk==='KOSDAQ'?'코스닥':(r.mk==='US'?'미국':'코스피');
     const mc=mkCls(f.mkt);                       /* 규칙 시장색 — 코스닥 amber · 공통 초록 · 미장 주황 */
     const chp=(r.close&&r.change!=null&&r.close!==r.change)?r.change/(r.close-r.change)*100:0;
-    return `<div class="sig ${mc} ${sel===r.ticker?'sel':''}" data-c="${r.ticker}">
+    return gh+`<div class="sig ${mc} ${sel===r.ticker?'sel':''}" data-c="${r.ticker}">
       <div class="hd">
         <div style="flex-grow:1;min-width:0">
           <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
@@ -1314,8 +1499,8 @@ function renderCards(rows){
           <div style="color:var(--mut);font-size:12px">${mkNm}${r.up?' · '+r.up:''}${r.cap?' · 시총 '+(r.cap>=10000?(r.cap/10000).toFixed(1)+'조':fmt(r.cap)+'억'):''}</div>
         </div>
         <div style="text-align:right;flex:none">
-          <div class="n" style="font-size:23px;font-weight:700;line-height:1.1;font-family:'JetBrains Mono',monospace">${r.mk==='US'?'$'+(r.close!=null?r.close.toFixed(2):''):fmt(r.close)}<span style="font-size:13px;color:var(--mut);font-weight:500">${r.mk==='US'?'':'원'}</span></div>
-          <div class="${chp>0?'pos':'neg'}" style="font-size:12px;margin-top:2px;font-family:'JetBrains Mono',monospace">${chp>0?'+':''}${chp.toFixed(1)}%</div>
+          <div class="n" style="font-size:23px;font-weight:700;line-height:1.1;font-family:'IBM Plex Mono','IBM Plex Sans KR',monospace">${r.mk==='US'?'$'+(r.close!=null?r.close.toFixed(2):''):fmt(r.close)}<span style="font-size:13px;color:var(--mut);font-weight:500">${r.mk==='US'?'':'원'}</span></div>
+          <div class="${chp>0?'pos':'neg'}" style="font-size:12px;margin-top:2px;font-family:'IBM Plex Mono','IBM Plex Sans KR',monospace">${chp>0?'+':''}${chp.toFixed(1)}%</div>
         </div>
       </div>
       <div><div class="why">${whyCells(r,f)}</div></div>
@@ -1349,14 +1534,14 @@ function renderCards(rows){
   renderStatus()}
 function statsHtml(f){const t=f.stats;
   const cards=`<div class="stats">
-    <span class="s-item" title="기대 승률 — **검증기간(2023~26)** ${t.n}건 중 수익으로 끝난 비율. 규칙을 만들 때 보지 않은 구간이라 실전에 가장 가깝습니다. 손절이 없으므로 보유기간을 끝까지 채웠을 때 기준입니다."><b>${t.win}%</b></span>
-    <span class="s-item" title="Profit Factor — 이익 거래의 합 ÷ 손실 거래의 합. 1.0이면 본전, 높을수록 손실 대비 이익이 큽니다."><b>${t.pf}</b></span>
-    <span class="s-item" title="건당 평균 순수익 — **검증기간(2023~26)** 기준. 수수료·세금·슬리피지를 모두 뺀 값입니다. 중앙값은 이보다 낮을 수 있습니다(큰 수익 몇 건이 평균을 끌어올림)."><b>+${t.avg}%</b></span>
-    <span class="s-item" title="${f.regime==='both'?`출현 빈도·발현 장세 — 이 규칙은 **국면 조건이 없습니다**. 지수가 오르든 내리든 조건만 맞으면 신호가 납니다(실측: 거래의 45%가 상승 국면). 「낙폭」은 시장이 아니라 **그 종목이 52주 고점 대비 얼마나 떨어졌는가**를 뜻합니다. 검증기간 ${t.spanMonths||44}개월 중 ${t.monthsActive||'?'}개월에 신호가 났고 모두 합쳐 ${t.n}건입니다(월 평균 ${t.perMonth}건).`:f.regime==='up'?`출현 빈도·발현 장세 — 검증기간 ${t.spanMonths||44}개월 중 ${t.monthsActive||'?'}개월에만 신호가 났고 모두 합쳐 ${t.n}건입니다(신호가 난 달 기준 중앙 ${t.medPerActive||'?'}건, 가장 많았던 달 ${t.topMonth?t.topMonth.slice(0,4)+'-'+t.topMonth.slice(4):'-'} ${t.topN||0}건). 월 평균으로 나누면 ${t.perMonth}건이지만 실제로는 몰려서 납니다. 신호는 주로 코스피 60일선 위(상승·횡보장)에서 납니다(실측: P1 실거래 60건의 80%가 60일선 위, 거기서 평균 +8.6%). 신호가 없는 달도 많으니 조용하다고 고장난 게 아닙니다.`:`출현 빈도·발현 장세 — 검증기간 ${t.spanMonths||44}개월 중 ${t.monthsActive||'?'}개월에만 신호가 났고 모두 합쳐 ${t.n}건입니다(신호가 난 달 기준 중앙 ${t.medPerActive||'?'}건, 가장 많았던 달 ${t.topMonth?t.topMonth.slice(0,4)+'-'+t.topMonth.slice(4):'-'} ${t.topN||0}건). 월 평균으로 나누면 ${t.perMonth}건이지만 실제로는 몰려서 납니다. 신호는 코스피 60일선 아래(하락장)에서 납니다(P3·P5·D1·D2 는 조건 자체에 하락장 게이트, P4 는 실거래 816건의 92%·P2 는 98%가 하락장). 하락장이 없으면 몇 달씩 조용한 것이 정상입니다.`}"><b>월 ${t.perMonth}건</b></span>
+    <span class="s-item" title="기대 승률 — **검증기간(2023~26)** ${t.n}건 중 수익으로 끝난 비율. 규칙을 만들 때 보지 않은 구간이라 실전에 가장 가깝습니다. 손절이 없으므로 보유기간을 끝까지 채웠을 때 기준입니다."><b>${t.win}%</b><small>승률 · 검증</small></span>
+    <span class="s-item" title="Profit Factor — 이익 거래의 합 ÷ 손실 거래의 합. 1.0이면 본전, 높을수록 손실 대비 이익이 큽니다."><b>${t.pf}</b><small>PF</small></span>
+    <span class="s-item" title="건당 평균 순수익 — **검증기간(2023~26)** 기준. 수수료·세금·슬리피지를 모두 뺀 값입니다. 중앙값은 이보다 낮을 수 있습니다(큰 수익 몇 건이 평균을 끌어올림)."><b>+${t.avg}%</b><small>건당 평균 · 비용 뒤</small></span>
+    <span class="s-item" title="${f.regime==='both'?`출현 빈도·발현 장세 — 이 규칙은 **국면 조건이 없습니다**. 지수가 오르든 내리든 조건만 맞으면 신호가 납니다(실측: 거래의 45%가 상승 국면). 「낙폭」은 시장이 아니라 **그 종목이 52주 고점 대비 얼마나 떨어졌는가**를 뜻합니다. 검증기간 ${t.spanMonths||44}개월 중 ${t.monthsActive||'?'}개월에 신호가 났고 모두 합쳐 ${t.n}건입니다(월 평균 ${t.perMonth}건).`:f.regime==='up'?`출현 빈도·발현 장세 — 검증기간 ${t.spanMonths||44}개월 중 ${t.monthsActive||'?'}개월에만 신호가 났고 모두 합쳐 ${t.n}건입니다(신호가 난 달 기준 중앙 ${t.medPerActive||'?'}건, 가장 많았던 달 ${t.topMonth?t.topMonth.slice(0,4)+'-'+t.topMonth.slice(4):'-'} ${t.topN||0}건). 월 평균으로 나누면 ${t.perMonth}건이지만 실제로는 몰려서 납니다. 신호는 주로 코스피 60일선 위(상승·횡보장)에서 납니다(실측: P1 실거래 60건의 80%가 60일선 위, 거기서 평균 +8.6%). 신호가 없는 달도 많으니 조용하다고 고장난 게 아닙니다.`:`출현 빈도·발현 장세 — 검증기간 ${t.spanMonths||44}개월 중 ${t.monthsActive||'?'}개월에만 신호가 났고 모두 합쳐 ${t.n}건입니다(신호가 난 달 기준 중앙 ${t.medPerActive||'?'}건, 가장 많았던 달 ${t.topMonth?t.topMonth.slice(0,4)+'-'+t.topMonth.slice(4):'-'} ${t.topN||0}건). 월 평균으로 나누면 ${t.perMonth}건이지만 실제로는 몰려서 납니다. 신호는 코스피 60일선 아래(하락장)에서 납니다(P3·P5·D1·D2 는 조건 자체에 하락장 게이트, P4 는 실거래 816건의 92%·P2 는 98%가 하락장). 하락장이 없으면 몇 달씩 조용한 것이 정상입니다.`}"><b>월 ${t.perMonth}건</b><small>신호 빈도</small></span>
     ${(()=>{const a=f.alloc; if(!a||!a.pct)return '';
       /* 종목당 비중 (2026-09-15 요청). 자리 수(동시 보유 상한)는 2026-09-30 요청으로 없앴다 —
          지금은 신호가 나면 전부 산다(자리 제한 없음). */
-      return `<span class="s-item" title="종목당 투입 비중 — 계좌 전체를 100 으로 볼 때 이 규칙은 한 종목에 ${a.pct} 을 넣습니다.&#10;백테스트를 이 비중으로 돌려서 정한 값입니다.&#10;동시 보유 자리 제한은 없습니다 — 신호가 나면 전부 삽니다."><b>${a.pct}/n</b></span>`})()}
+      return `<span class="s-item" title="종목당 투입 비중 — 계좌 전체를 100 으로 볼 때 이 규칙은 한 종목에 ${a.pct} 을 넣습니다.&#10;백테스트를 이 비중으로 돌려서 정한 값입니다.&#10;동시 보유 자리 제한은 없습니다 — 신호가 나면 전부 삽니다."><b>${a.pct}/n</b><small>종목당 비중</small></span>`})()}
     <span class="s-item info-card" id="infobtn2" title="규칙 상세 조건과 연도별 성적 보기">${showInfo?'✕':'ⓘ'}</span></div>`;
   if(!showInfo) return cards;
   /* 기본은 **매수 조건만** 보여준다(2026-09-16 요청 — 설명이 길어 폰에서 안 읽혔다).
@@ -1698,8 +1883,13 @@ function perParts(P,o){
     +`<input type="date" id="dpf" value="${P.f}" aria-label="시작일"><span class="k">~</span><input type="date" id="dpt" value="${P.t}" aria-label="끝일">`
     +`<span class="dq"><button data-pq="7">7일</button><button data-pq="30">30일</button><button data-pq="m0">이번 달</button><button data-pq="m1">지난 달</button>`
     +`<button data-pq="x" class="${on?'':'on'}">전체 기간</button></span></div>`;
-  const idx=!fromD?'':`<div class="didx"><span class="k">${bl}일 기준 ${perMd(fromD)} ~ ${perMd(toD)} 지수</span>`
-    +perIx(o.selK,o.selF).map(s=>{const v=perIdxPct(s,fromD,toD);return `<span>${PER_IXN[s]} <span class="${v==null?'':v>0?'pos':v<0?'neg':''}">${v==null?(IDXH===false?'…':'—'):(v>0?'+':'')+v.toFixed(2)+'%'}</span></span>`}).join('')+`</div>`;
+  /* 2026-10-24 디자인 개편 — 같은 기간 지수 등락을 막대로, 맨 위에 내 성적(동일가중, o.mine) */
+  const iv=perIx(o.selK,o.selF).map(s=>[PER_IXN[s],perIdxPct(s,fromD,toD),0]);
+  if(o.mine!=null&&isFinite(o.mine))iv.unshift([o.toNow?'내 보유 (동일가중)':'내 거래 (동일가중)',o.mine,1]);
+  const mx=Math.max(1,...iv.map(x=>Math.abs(x[1]||0)));
+  const idx=!fromD?'':`<div class="didx"><span class="k">${bl}일 기준 ${perMd(fromD)} ~ ${perMd(toD)} · 같은 기간 지수와 비교</span>`
+    +iv.map(([l,v,me])=>`<div class="dbar${me?' me':''}"><span class="dl">${l}</span><span class="dt"><i class="${v!=null&&v<0?'n':''}" style="width:${v==null?0:Math.max(2,Math.abs(v)/mx*100).toFixed(0)}%"></i></span>`
+      +`<span class="dv ${v==null?'':v>0?'pos':v<0?'neg':''}">${v==null?(IDXH===false?'…':'—'):(v>0?'+':'')+v.toFixed(2)+'%'}</span></div>`).join('')+`</div>`;
   return{btn,box:`<div class="dperbox">${ctl}${idx}</div>`}}
 function perWire(P,save,toggle){
   const bt=$('#dperbtn');if(bt)bt.onclick=toggle;
@@ -1783,7 +1973,8 @@ async function renderPositions(){
     /* 기간 설정·지수 등락 — 완료·보유 탭 공용(perParts/perWire). 요약 줄 맨 오른쪽 [기간] 버튼으로 펼친다 */
     const selL=selK==='전체'?all:by[selK]||[];
     const selF=(selK==='전체'||MKG.includes(selK))?null:fOf(selK);
-    const pp=perParts(DPER,{open:DPEROPEN,basis:true,list:selL,dOf,selK,selF});
+    const pp=perParts(DPER,{open:DPEROPEN,basis:true,list:selL,dOf,selK,selF,
+      mine:selL.length?selL.reduce((a,p)=>a+ret(p),0)/selL.length:null});   /* 지수 비교 막대 맨 위 — 고른 묶음의 동일가중(10-24) */
     const statRow=(all.length?stat(selK,selL):'<div class="dstat"><span class="k">이 기간에 끝난 건이 없습니다</span></div>').replace(/<\/div>$/,pp.btn+'</div>');
     $('#fdesc').innerHTML=`<div class="dsum">${chips}</div>${statRow}${pp.box}`;
     perWire(DPER,DPER_SAVE,()=>{DPEROPEN=!DPEROPEN;render()});
@@ -1841,7 +2032,8 @@ async function renderPositions(){
          보여주면 안 된다. 미장 표가 도착하면 사라진다. */
       +(m.miss?`<span class="k" style="color:var(--up)">${USROWS?m.miss+'건 시세없음':'미장 '+m.miss+'건 받는 중…'}</span>`:'')
       +`</div>`};
-    const ppP=()=>perParts(PPER,{open:PPEROPEN,basis:false,list:sel||[],dOf:dOfP,selK:posRule&&by[posRule]?posRule:'전체',selF,toNow:true});
+    const ppP=()=>perParts(PPER,{open:PPEROPEN,basis:false,list:sel||[],dOf:dOfP,selK:posRule&&by[posRule]?posRule:'전체',selF,toNow:true,
+      mine:(()=>{try{return sumMoney(sel||[],usdOnly).avg}catch(e){return null}})()});   /* 지수 비교 막대 맨 위 — 지금 보유의 동일가중(10-24) */
     const statB=()=>statHtml().replace(/<\/div>$/,ppP().btn+'</div>');
     const togP=()=>{PPEROPEN=!PPEROPEN;render()};
     const stat=statB();
@@ -1982,7 +2174,9 @@ async function renderPositions(){
           :`<td class="${cls(q)}">${(q>0?'+':'')+q.toFixed(1)+'%'}</td>`})(),
       ret:`<td class="${cls(ret)}">${ret==null?'':(ret>0?'+':'')+ret.toFixed(1)+'%'}</td>`,
       pnl:`<td class="${cls(ret)}">${p.qty&&now?amon((sellNow(now,p.code)-costBuy(p))*p.qty,p.code,1):''}</td>`,
-      days:`<td>${days}일</td>`,
+      /* 2026-10-24 디자인 개편 — 보유일 앞에 진행 막대(매도 2거래일 전부터 주황) */
+      days:`<td>${rule?(()=>{const pc=Math.max(0,Math.min(100,days/rule.hold*100));
+        return `<span class="hbar${rule.hold-days<=2?' near':''}" title="${days}/${rule.hold}거래일"><i style="width:${pc.toFixed(0)}%"></i></span>`})():''}${days}일</td>`,
       sdate:`<td>${(()=>{if(!rule)return '<span class="code">-</span>';
         const sd=sellDate(p.date,rule.hold,p.code);if(!sd)return '<span class="code">-</span>';
         const left=rule.hold-days;
@@ -2735,11 +2929,11 @@ function showUS(code){
     const lab=(calOf(code).slice(-v.length)).map(md);
     charts.push(new Chart($('#c1'),{type:'bar',
       data:{labels:lab.length===v.length?lab:v.map((_,i)=>i+1),
-            datasets:[{label:'거래량',data:v,backgroundColor:'#a78bfa99',borderRadius:3}]},
+            datasets:[{label:'거래량',data:v,backgroundColor:'#F5A52488',borderRadius:3}]},
       options:{responsive:true,maintainAspectRatio:false,
         plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' 거래량: '+kor(c.raw,1)}}},
-        scales:{x:{grid:{display:false},ticks:{color:'#858c99',font:{size:10},maxTicksLimit:8}},
-                y:{grid:{color:'#272b34'},ticks:{color:'#858c99',font:{size:10},
+        scales:{x:{grid:{display:false},ticks:{color:'#A0A8B6',font:{size:10},maxTicksLimit:8}},
+                y:{grid:{color:'#2A303C'},ticks:{color:'#A0A8B6',font:{size:10},
                    callback:z=>kor(z,0)}}}}}));
   }
 }
@@ -2777,9 +2971,9 @@ async function showStock(code){
      addPosition(d.ticker,d.name,row?row.close:(L?L.close:0))};}
   if(!window.Chart)await chartReady();                    /* 차트 라이브러리를 막지 않고 받으므로(10-13) 아직이면 기다린다 */
   charts.forEach(c=>c.destroy());charts=[];
-  const grid={color:'#272b34'},tick={color:'#858c99',font:{size:10}};
+  const grid={color:'#2A303C'},tick={color:'#A0A8B6',font:{size:10}};
   const base={responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.dataset.label==='종가'?c.raw.toLocaleString():kor(c.raw,1)}`}}},scales:{x:{grid:{display:false},ticks:{...tick,maxTicksLimit:8}}}};
-  charts.push(new Chart($('#c1'),{data:{labels,datasets:[{type:'bar',label:'거래량',data:rows.map(r=>r.volume),backgroundColor:'#a78bfa99',yAxisID:'y',borderRadius:3},{type:'line',label:'종가',data:rows.map(r=>r.close),borderColor:'#eef1f6',borderWidth:2,pointRadius:2,yAxisID:'y2',tension:.3}]},
+  charts.push(new Chart($('#c1'),{data:{labels,datasets:[{type:'bar',label:'거래량',data:rows.map(r=>r.volume),backgroundColor:'#F5A52488',yAxisID:'y',borderRadius:3},{type:'line',label:'종가',data:rows.map(r=>r.close),borderColor:'#E8ECF2',borderWidth:2,pointRadius:2,yAxisID:'y2',tension:.3}]},
     options:{...base,scales:{...base.scales,y:{grid,ticks:{...tick,callback:v=>kor(v)}},y2:{position:'right',grid:{display:false},ticks:{...tick,callback:v=>v.toLocaleString()}}}}}));
   const ds=(k,label,c)=>({label,data:rows.map(r=>r[k]),backgroundColor:c,borderColor:c});
   charts.push(new Chart($('#c2'),{type:'bar',data:{labels,datasets:[ds('indiv','개인','#fbbf24'),ds('organ','기관','#34d399'),ds('frgn','외국인','#e879f9')]},options:{...base,scales:{...base.scales,y:{grid,ticks:{...tick,callback:v=>kor(v,1)}}}}}));

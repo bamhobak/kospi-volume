@@ -3,14 +3,14 @@
 <title>규칙 후보</title>
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
 <script src="sb.js"></script>
 <!-- 규칙 공장 후보 페이지(2026-10-10 사용자: "규칙 후보군 한 번에 볼 수 있게, 언제든"). 밤 작업(research/factory/board.py)이 Supabase '__factory__' 에 쓴다. -->
 <style>
 :root{--bg:#0a0b0e;--panel:#101217;--panel2:#171a21;--line:#272b34;--txt:#eef1f6;--mut:#858c99;--dim:#5b626d;--acc:#a78bfa;--up:#f87171;--dn:#60a5fa;--ind:#fbbf24;--ok:#4ade80}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--txt);font-family:'Noto Sans KR',Pretendard,-apple-system,"Malgun Gothic",sans-serif;font-size:13px;line-height:1.5}
-.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:'IBM Plex Sans KR',Pretendard,-apple-system,"Malgun Gothic",sans-serif;font-size:13px;line-height:1.5}
+.mono{font-family:'IBM Plex Mono','IBM Plex Sans KR',ui-monospace,monospace;font-variant-numeric:tabular-nums}
 header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
 header h1{font-size:16px;margin:0;font-weight:700}
 header a{color:var(--mut);text-decoration:none;border:1px solid var(--line);padding:5px 10px;background:var(--panel2)}
@@ -55,8 +55,31 @@ tr.base td{background:#151a14}
 h2{font-size:14px;margin:22px 0 8px;color:var(--mut);font-weight:600}
 .empty{color:var(--mut);padding:30px;text-align:center;border:1px dashed var(--line)}
 @media (max-width:600px){main{padding:10px 12px 60px}.kpis{grid-template-columns:1fr 1fr}}
+/* ════ 2026-10-24 디자인 개편 — 선별기 본 화면과 같은 테마(호박 주황 · IBM Plex · 둥근 모서리). 내용·배선은 그대로 ════ */
+:root{--bg:#0B0D12;--panel:#12151C;--panel2:#181C25;--line:#242A35;--txt:#E8ECF2;--mut:#A0A8B6;--dim:#7A8394;--acc:#F5A524;--up:#FF6166;--dn:#5B9BFF;--ind:#F5C26B;--ok:#34D3C0}
+body{font-size:13.5px}
+header{background:var(--bg);padding:12px 24px;gap:14px}
+header h1{font-size:20px;display:flex;align-items:center;gap:8px}
+header a{border-radius:8px;padding:8px 14px;background:var(--panel);color:var(--txt)}
+header a:hover{border-color:var(--acc);color:#F5C26B}
+main{max-width:1100px;padding:24px 24px 60px}
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.si{border-radius:10px;padding:12px 16px;background:var(--panel)}
+.si b{font-size:22px;color:var(--txt);font-family:'IBM Plex Mono','IBM Plex Sans KR',monospace}
+.note{border-left:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;line-height:1.65}
+.card{border-radius:14px;overflow:hidden}
+.ch{padding:16px 18px}
+.id{font-size:16px;color:#F5C26B}
+.badge{border-radius:999px;padding:3px 10px}
+.exp{border-radius:8px}
+.kpis{padding:14px 18px;gap:10px}
+.kpi{border-radius:10px;padding:10px 12px}
+.how{border-radius:8px}
+.tw{border-radius:10px}
+.empty{border-radius:12px}
+h2{font-size:15px;color:var(--txt);margin:28px 0 10px}
 </style></head><body>
-<header><a href="./">← 선별기</a><h1>규칙 후보</h1><span class="up" id="upd">불러오는 중…</span></header>
+<header><a href="./">← 선별기</a><h1><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F5A524" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7c-4.6 0-8 2.7-8 6.6S7.4 20.5 12 20.5s8-3 8-6.9S16.6 7 12 7z"/><path d="M9.2 7.6c-1.3 2.2-1.3 10.4 0 12.5M14.8 7.6c1.3 2.2 1.3 10.4 0 12.5"/><path d="M12 7V4.2c1.4 0 2.6.6 3.2 1.6"/></svg>규칙 후보</h1><span class="up" id="upd">불러오는 중…</span></header>
 <main>
   <div class="strip" id="strip"></div>
   <p class="note">공장이 매일 밤 찾은 규칙 중 <b>학습(2016~22)·잠가 둔 검증(2023~)·다중검정</b>을 통과한 것만 여기 올라온다. 수익은 전부 <b>비용 뒤 건당</b>. 조정 후보 칸을 고를 땐 검증 칸만 좋은 것보다 참고·학습 칸도 같이 좋은 걸로 — 여러 칸을 보고 고르는 것도 운이 섞인다. 채택·조정은 클로드 창에서 "F0035 채택"처럼 말하면 된다.</p>
@@ -83,7 +106,7 @@ function yearly(Y){if(!Y||!Y.length)return'';const mx=Math.max(...Y.map(y=>Math.
   <div class="yrl">${Y.map(([y])=>`<span>${String(y).slice(2)}</span>`).join('')}</div>`}
 function card(d){const r=d.res||{};const stl={review:'검토 대기',adopted:'채택'}[d.status]||d.status;
   const src=/https?:\/\/\S+/.exec(d.source||'');
-  const mks=(d.pass_mk||[]).map(m=>`<span class="badge" style="color:${m==='US'?'#fb923c':'#a78bfa'};border-color:${m==='US'?'#fb923c':'#a78bfa'}">${m==='US'?'미장 통과':'국장 통과'}</span>`).join('');
+  const mks=(d.pass_mk||[]).map(m=>`<span class="badge" style="color:${m==='US'?'#34D3C0':'#F5A524'};border-color:${m==='US'?'#34D3C0':'#F5A524'}">${m==='US'?'미장 통과':'국장 통과'}</span>`).join('');
   return `<div class="card"><div class="ch"><div class="top"><span class="id mono">${esc(d.id)}</span><span class="badge b-${esc(d.status)}">${stl}</span><span class="badge b-kind">${esc(d.kind)}</span>${mks}<span class="muted">${esc(d.name)}</span></div>
     <div class="desc">${esc(d.desc)}</div>
     ${(()=>{const e=(d.res&&d.res.honest)||(d.res&&d.res.va);if(!e)return'';return `<div class="exp">예상 <span class="muted">(${d.res.honest?'15:19 가격으로 고른 ':''}검증 2023~ 실측 — 만들 때 안 본 구간)</span> · 승률 <b>${Math.round(e.win)}%</b> · 건당 <b>${pct(e.mean)}</b> · PF <b class="mono">${e.pf!=null?(+e.pf).toFixed(2):'-'}</b> · 신호 날 하루 ${d.perday}종목</div>`})()}</div>
