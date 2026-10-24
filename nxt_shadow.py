@@ -342,9 +342,52 @@ def do_review():
         jsave(OUT / "test_order.json", t)
 
 
+def do_report(send=True):
+    """10-25 사용자 "그림자 테스트 해보고 어떤 게 가장 좋을지 알려줘" — 쌓인 log.csv 를 매수 방식·금액·무리·깊이별로.
+    매주 월 09:20 텔레그램(지난주까지 누적) · 손으로: python nxt_shadow.py report"""
+    f = OUT / "log.csv"
+    if not f.exists(): log("report: 기록 없음"); return
+    rows = list(csv.DictReader(open(f, encoding="utf-8")))
+    if not rows: return
+    fl = lambda v: float(v) if v not in ("", None, "None") else None
+    days = sorted({r["pick_day"] for r in rows})
+    lines = ["📊 NXT 장후 그림자 누적 — %s~%s · %d일" % (days[0][4:], days[-1][4:], len(days))]
+    md = ["# NXT 장후 그림자 성적표 · %s" % today(), "", "기간 %s~%s · %d거래일 · 칸 = 건수 · 건당(비용 뒤) · 승률 · 합계(금액 열은 원 → 만원)" % (days[0], days[-1], len(days)), ""]
+    def summ(rs, col, amtcol=None):
+        v = [(fl(r[col]), fl(r[amtcol]) if amtcol else None) for r in rs]
+        v = [(x, a) for x, a in v if x is not None and (a is None or a > 0)]
+        if not v: return None
+        n = len(v); m = sum(x for x, _ in v) / n; w = sum(1 for x, _ in v if x > 0) / n * 100
+        tot = sum(x / 100 * a for x, a in v if a) / 1e4 if amtcol else None
+        return n, m, w, tot
+    for grp, gl in (("picks", "상위 절반"), ("big", "대형 200")):
+        G = [r for r in rows if r["grp"] == grp]
+        if not G: continue
+        md += ["## %s (%d건)" % (gl, len(G)), "", "| 방식 | 건수 | 건당 | 승률 | 합계 |", "|---|---|---|---|---|"]
+        best = []
+        for lab, col, ac in (("매도 1호가", "r_ask", None), ("매수 1호가(체결 때만)", "r_bid", None), ("10분 평균가", "r_vwap", None), ("10분 최고가", "r_high", None),
+                             ("100만 호가 타기", "r_100만", None), ("300만", "r_300만", None), ("500만", "r_500만", None), ("1000만", "r_1000만", None),
+                             ("비례·상한 1천만×배율", "r_cap1000만", "amt_cap1000만"), ("비례·상한 3천만×배율", "r_cap3000만", "amt_cap3000만")):
+            s = summ(G, col, ac)
+            if not s: continue
+            md.append("| %s | %d | %+.2f%% | %.0f%% | %s |" % (lab, s[0], s[1], s[2], ("%+.0f만" % s[3]) if s[3] is not None else "—"))
+            best.append((s[1], lab, s))
+        for lo, hi, bl in ((-3, -2, "-2~-3%p"), (-5, -3, "-3~-5%p"), (-100, -5, "-5%p↓")):
+            B = [r for r in G if fl(r["rel"]) is not None and lo < fl(r["rel"]) <= hi]
+            s = summ(B, "r_ask")
+            if s: md.append("| 깊이 %s · 매도 1호가 | %d | %+.2f%% | %.0f%% | — |" % (bl, s[0], s[1], s[2]))
+        md.append("")
+        a = summ(G, "r_ask"); c = summ(G, "r_cap1000만", "amt_cap1000만")
+        lines.append("%s %d건 · 매도1호가 %s · 비례(1천만) %s" % (gl, len(G), ("%+.2f%% 승률 %.0f%%" % (a[1], a[2])) if a else "—",
+                                                       ("%+.0f만" % c[3]) if c else "—"))
+    (OUT / "report.md").write_text("\n".join(md) + "\n", encoding="utf-8")
+    log("report: %d건 · %d일" % (len(rows), len(days)))
+    if send: telegram("\n".join(lines) + "\n자세히: 서버 data/nxt/report.md")
+
+
 if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else ""
     try:
-        {"close": do_close, "pick": do_pick, "fill": do_fill, "sellopen": do_sellopen, "review": do_review}[mode]()
+        {"close": do_close, "pick": do_pick, "fill": do_fill, "sellopen": do_sellopen, "review": do_review, "report": do_report}[mode]()
     except Exception as ex:
         log("오류", mode, repr(ex)[:300]); telegram("⚠ NXT 그림자 %s 오류: %s" % (mode, repr(ex)[:200]))
