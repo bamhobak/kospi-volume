@@ -33,7 +33,9 @@ import autotrade as AT
 
 KST = M.KST
 COST = 0.23
-REL, CALM, LIQ, CAP = -2.0, -1.0, 3e7, None       # 10-25 사용자: 하루 10종목 제한 풀기(CAP None) — research/nxt_depth.py
+REL, CALM, LIQ, CAP = -2.0, -1.0, 1e7, None       # 10-25 사용자: 하루 10종목 제한 풀기(CAP None) — research/nxt_depth.py
+# 10-25 research/nxt_tune.py: 최소 거래대금 1천만이 3천만보다 나음 → 기록은 1천만↑ 전부(계좌별 추천 설정 3천·5천·1억을 나중에 log.csv 로 다시 계산)
+TUNED = {"3천만": (-2.0, "123", 0.02, 3000), "5천만": (-2.0, "123", 0.03, 2000), "1억": (-3.0, "1152", 0.05, 3000)}   # 문턱·배율·k·상한(만원)
 # 10-25 사용자 "최대 몇만원까지 살 수 있는지 · 종목당 금액 올리면 · 대형주 위주로" — 대형 따로 기록 + 호가 10단계로 금액별 평균 단가
 BIG_N, BIG_REL, BIG_LIQ = 200, -1.5, 1e8          # 시총 상위 200 · 시장 대비 1.5%p↓ · 19:41~19:50 1억↑
 SIZES = (100, 300, 500, 1000)                      # 만원 — 매도 호가를 타고 올라가며 샀을 때 평균 단가
@@ -323,13 +325,13 @@ def do_review():
             rows.append([pd_, d, grp, x["t"], x["krx"], x["p50"], x["ah"], x["rel"], x.get("mult"), x.get("v10"), x.get("cap05"), x.get("cap10"), x.get("ask"), x.get("bid"),
                          x.get("bid_fill"), x.get("vwap"), x.get("high"), o, r_(x.get("ask")), r_(x.get("bid")) if x.get("bid_fill") else "",
                          r_(x.get("vwap")), r_(x.get("high"))] + [r_(x.get("p%d" % sz)) for sz in SIZES]
-                        + sum(([x.get("amt%d" % cp), r_(x.get("pd%d" % cp))] for cp in DYN_CAPS), []))
+                        + sum(([x.get("amt%d" % cp), r_(x.get("pd%d" % cp))] for cp in DYN_CAPS), []) + [x.get("val10")])
     f = OUT / "log.csv"; new = not f.exists()
     with open(f, "a", newline="", encoding="utf-8") as w:
         cw = csv.writer(w)
         if new: cw.writerow(["pick_day", "sell_day", "grp", "t", "krx_close", "p1950", "ah", "rel", "mult", "v1941_50", "cap05", "cap10", "ask", "bid", "bid_fill",
                              "vwap", "high", "open1", "r_ask", "r_bid", "r_vwap", "r_high"] + ["r_%d만" % sz for sz in SIZES]
-                            + sum((["amt_cap%d만" % cp, "r_cap%d만" % cp] for cp in DYN_CAPS), []))
+                            + sum((["amt_cap%d만" % cp, "r_cap%d만" % cp] for cp in DYN_CAPS), []) + ["val1951_2000"])
         cw.writerows(rows)
     snap["reviewed"] = d; jsave(OUT / ("pick_%s.json" % pd_), snap)
     log("review %s → %s: %d종목" % (pd_, d, len(rows)))
@@ -438,6 +440,26 @@ def do_report(send=True):
         a = summ(G, "r_ask"); c = summ(G, "r_cap1000만", "amt_cap1000만")
         lines.append("%s %d건 · 매도1호가 %s · 비례(1천만) %s" % (gl, len(G), ("%+.2f%% 승률 %.0f%%" % (a[1], a[2])) if a else "—",
                                                        ("%+.0f만" % c[3]) if c else "—"))
+    # 계좌별 추천 설정(TUNED) — 기록으로 다시 계산: 깊은 순 채우기 · 금액 = min(상한×배율, k×19:41~50 거래대금×배율, 10%) · 10분 평균가 + 시장충격(√모형)
+    P_ = [r for r in rows if r["grp"] == "picks" and fl(r.get("r_vwap")) is not None and fl(r.get("v1941_50"))]
+    if P_:
+        md += ["## 계좌별 추천 설정 (기록으로 다시 계산 · 평균가+시장충격)", "", "| 계좌 | 설정 | 건수 | 건당 | 합계 |", "|---|---|---|---|---|"]
+        for acct, (th, mk, k, capm) in TUNED.items():
+            capw = {"3천만": 3e7, "5천만": 5e7, "1억": 1e8}[acct]
+            tot, nn, ws, asum = 0.0, 0, 0.0, 0.0
+            for day in days:
+                Q = sorted([r for r in P_ if r["pick_day"] == day and fl(r["rel"]) <= th], key=lambda r: fl(r["rel"]))
+                used = 0.0
+                for r in Q:
+                    rel = fl(r["rel"]); v = fl(r["v1941_50"]); a10 = fl(r.get("val1951_2000")) or 0
+                    m = (3.0 if rel <= -5 else 2.0 if rel <= -3 else 1.0) if mk == "123" else (2.0 if rel <= -5 else 1.5 if rel <= -3 else 1.0)
+                    amt = min(capm * 1e4 * m, k * v * m, DYN_CEIL * v, capw - used)
+                    if amt < DYN_MIN * 1e4: continue
+                    im = max(0.0, -0.25 + 2.40 * (amt / a10) ** 0.5) if a10 > 0 else 0.0
+                    rr = fl(r["r_vwap"]) - im
+                    tot += rr / 100 * amt; ws += rr * amt; asum += amt; used += amt; nn += 1
+            md.append("| %s | 문턱 %.0f%%p · 배율 %s · k %d%% · 상한 %d만 | %d | %s | %+.0f만 |" % (
+                acct, th, "1·2·3" if mk == "123" else "1·1.5·2", k * 100, capm, nn, ("%+.2f%%" % (ws / asum)) if asum else "—", tot / 1e4))
     (OUT / "report.md").write_text("\n".join(md) + "\n", encoding="utf-8")
     log("report: %d건 · %d일" % (len(rows), len(days)))
     if send: telegram("\n".join(lines) + "\n자세히: 서버 data/nxt/report.md")
