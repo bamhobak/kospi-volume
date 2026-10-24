@@ -31,7 +31,66 @@ W = BASE / "data" / "disc_watch.csv"
 LOG = BASE / "data" / "shadow" / "log.csv"
 SEEN = BASE / "data" / "shadow" / "activist_seen.csv"
 FIELDS = ["date", "rule", "ticker", "name", "close", "hold", "rcept_no", "note"]
-RULES = {"S1": ("자사주 신탁 + 20일 -10%", 20), "S2": ("행동주의 5% 신규", 120), "S3": ("밸류업 공시", 60)}
+RULES = {"S1": ("자사주 신탁 + 20일 -10%", 20), "S2": ("행동주의 5% 신규", 120), "S3": ("밸류업 공시", 60),
+         # 10-25 사용자 "기록해줘" — 등록부에 '그림자'로만 있던 미장 H0258. CI 에서 미장 표가 생긴 뒤 `python shadow.py us` 로 기록
+         "S4": ("미장 [저PBR 낙폭] + 고가 낮아지는 음봉 3개 (H0258)", 60), "S4x": ("(대조) 미장 [저PBR 낙폭] 음봉 3개 아님", 60)}
+US_RULES = ("S4", "S4x")
+USX = BASE / "data" / "shadow" / "us_exit.json"      # 미장 그림자 만기 종가(야후) — 한 번 받으면 다시 안 받는다
+
+
+def yahoo(sym, rng="1mo"):
+    """야후 일봉 [(뉴욕 날짜, 시가, 고가, 종가)] — 브라우저 머리글이 없으면 막힌다"""
+    import urllib.request
+    u = "https://query1.finance.yahoo.com/v8/finance/chart/%s?range=%s&interval=1d" % (sym.replace(".", "-"), rng)
+    j = json.loads(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"}), timeout=20).read().decode())
+    r = j["chart"]["result"][0]; q = r["indicators"]["quote"][0]; off = (r.get("meta") or {}).get("gmtoffset", 0)
+    out = []
+    for ts, o, h, c in zip(r.get("timestamp") or [], q["open"], q["high"], q["close"]):
+        if None in (o, h, c): continue
+        out.append((dt.datetime.fromtimestamp(ts + off, dt.timezone.utc).strftime("%Y%m%d"), o, h, c))
+    return out
+
+
+def n3(r, gate_dn):
+    """사이트 N3 [저PBR 낙폭] 판정과 같은 식(index.html FILTERS N3 fn)"""
+    g = lambda k: r.get(k)
+    return (gate_dn and not g("pref") and g("pbrd") is not None and 0 < g("pbrd") <= 0.8 and g("ret20") is not None and g("ret20") <= -10
+            and g("su1") is not None and g("su1") >= 2 and g("sr60") is not None and g("sr60") <= -10 and (g("amt20") or 0) >= 2 and (g("c") or 0) >= 3)
+
+
+def us_main():
+    """미장 그림자 H0258 기록 — N3 신호 종목 중 직전 3일이 '고가가 낮아지는 음봉 3개'면 S4, 아니면 대조 S4x."""
+    p = BASE / "site" / "data" / "table_us.json"
+    if not p.exists():
+        print("미장 표 없음 — 미장 그림자 건너뜀"); return
+    U = json.loads(p.read_text(encoding="utf-8"))
+    asof = U.get("asof") or (U.get("dates") or [""])[-1]
+    gate_dn = (U.get("us") or {}).get("up60") is False
+    sig = [r for r in U.get("rows") or [] if n3(r, gate_dn)]
+    log = read(LOG)
+    have = {(r["rule"], r["ticker"], r["rcept_no"]) for r in log}
+    new = []
+    for r in sig:
+        key = "N3-" + asof
+        if ("S4", r["t"], key) in have or ("S4x", r["t"], key) in have: continue
+        try:
+            B = [x for x in yahoo(r["t"]) if x[0] <= asof][-3:]
+        except Exception as ex:
+            print("야후 실패", r["t"], repr(ex)[:80]); continue
+        if len(B) < 3: continue
+        bear3 = all(c < o for _, o, h, c in B) and B[0][2] > B[1][2] > B[2][2]
+        rule = "S4" if bear3 else "S4x"
+        new.append(dict(date=asof, rule=rule, ticker=r["t"], name=r.get("n", ""), close=r.get("c"), hold=RULES[rule][1], rcept_no=key,
+                        note="음봉3 %s · 고가 %s" % ("O" if bear3 else "X", "→".join("%.2f" % x[2] for x in B))))
+    if new:
+        LOG.parent.mkdir(parents=True, exist_ok=True)
+        exists = LOG.exists()
+        with open(LOG, "a", encoding="utf-8", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=FIELDS)
+            if not exists: w.writeheader()
+            w.writerows(new)
+    print("미장 그림자 %s: S&P500 60일선 %s · N3 %d · 새로 S4 %d · S4x %d" % (asof, "아래" if gate_dn else "위(N3 닫힘)", len(sig),
+          sum(1 for n in new if n["rule"] == "S4"), sum(1 for n in new if n["rule"] == "S4x")))
 
 
 def read(p):
@@ -139,11 +198,38 @@ def page(last, rows):
                 cache[t] = None
         return cache[t]
 
+    # 미장 그림자(S4·S4x) — 미장 표 종가·거래일 달력, 만기 종가는 야후(한 번 받으면 us_exit.json 에 남김)
+    U = {}
+    try: U = json.loads((BASE / "site" / "data" / "table_us.json").read_text(encoding="utf-8"))
+    except Exception: pass
+    urows = {x["t"]: x for x in U.get("rows") or []}
+    try: ucal = json.loads((BASE / "site" / "data" / "uscal.json").read_text(encoding="utf-8")).get("dates") or []
+    except Exception: ucal = []
+    ucal = sorted(set(ucal) | set(U.get("usdates") or []))
+    try: ux = json.loads(USX.read_text(encoding="utf-8"))
+    except Exception: ux = {}
     by = {}
     for r in read(LOG):
         try: entry, hold = float(r["close"]), int(r["hold"])
         except (TypeError, ValueError): continue
-        s = series(r["ticker"]); px, held, done, xd = None, None, False, None
+        px, held, done, xd = None, None, False, None
+        if r["rule"] in US_RULES:
+            after = [d for d in ucal if d > r["date"]]
+            held = len(after)
+            if held >= hold:
+                xd = after[hold - 1]; done = True
+                k = r["ticker"] + ":" + xd
+                if k not in ux:
+                    try: ux[k] = next((c for d, o, h, c in yahoo(r["ticker"], "1y") if d == xd), None)
+                    except Exception: ux[k] = None
+                px = ux.get(k)
+            else:
+                px = (urows.get(r["ticker"]) or {}).get("c")
+            ret = round((px / entry - 1) * 100 - COST, 2) if px and entry else None
+            by.setdefault(r["rule"], []).append({"d": r["date"], "t": r["ticker"], "n": r.get("name", ""), "in": entry, "px": px, "ret": ret,
+                                                 "held": held, "hold": hold, "done": done, "xd": xd, "note": (r.get("note") or "").strip()})
+            continue
+        s = series(r["ticker"])
         if s:
             ds, cl = s
             after = [d for d in ds if d > r["date"]]
@@ -171,9 +257,20 @@ def page(last, rows):
             except ValueError: continue
             if e.get("status") in ("그림자", "후보"):
                 hyps.append({"id": e["id"], "st": e["status"], "name": e.get("name", ""), "date": e.get("date", ""), "reason": (e.get("reason") or "")[:160]})
-    (BASE / "site" / "data" / "shadow.json").write_text(json.dumps({"asof": last, "rules": out, "hyps": hyps}, ensure_ascii=False), encoding="utf-8")
+    try: USX.parent.mkdir(parents=True, exist_ok=True); USX.write_text(json.dumps(ux), encoding="utf-8")
+    except Exception: pass
+    (BASE / "site" / "data" / "shadow.json").write_text(json.dumps({"asof": last, "us_asof": U.get("asof"), "us_gate_dn": (U.get("us") or {}).get("up60") is False,
+                                                                    "rules": out, "hyps": hyps}, ensure_ascii=False), encoding="utf-8")
     print("그림자 페이지 자료: " + " · ".join("%s %d건(만기 %d)" % (x["id"], x["n"], x["done"]) for x in out) + " · 가설 %d" % len(hyps))
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "us":
+        us_main()
+        try:
+            T = json.loads((BASE / "site" / "data" / "table.json").read_text(encoding="utf-8"))
+            page((T.get("dates") or [""])[-1], {r["t"]: r for r in T.get("rows") or []})
+        except Exception as ex:
+            print("그림자 페이지 자료 실패:", repr(ex)[:200])
+    else:
+        main()
