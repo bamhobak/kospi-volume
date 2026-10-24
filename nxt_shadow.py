@@ -33,13 +33,20 @@ import autotrade as AT
 
 KST = M.KST
 COST = 0.23
-REL, CALM, LIQ, CAP = -2.0, -1.0, 3e7, 10
+REL, CALM, LIQ, CAP = -2.0, -1.0, 3e7, None       # 10-25 사용자: 하루 10종목 제한 풀기(CAP None) — research/nxt_depth.py
 # 10-25 사용자 "최대 몇만원까지 살 수 있는지 · 종목당 금액 올리면 · 대형주 위주로" — 대형 따로 기록 + 호가 10단계로 금액별 평균 단가
 BIG_N, BIG_REL, BIG_LIQ = 200, -1.5, 1e8          # 시총 상위 200 · 시장 대비 1.5%p↓ · 19:41~19:50 1억↑
 SIZES = (100, 300, 500, 1000)                      # 만원 — 매도 호가를 타고 올라가며 샀을 때 평균 단가
 # 10-25 사용자 "대형은 많이, 거래 적은 건 적게": 금액 = 19:41~19:50 거래대금 × DYN_K, 상한 DYN_CAPS(만원)
 #   research/nxt_sizing.py — 5%·상한 1천만이 2025 에도 시장충격 뒤 플러스(+1,035만/년) · 상한 3천만은 2026 두 배지만 2025 최고가면 -958만
 DYN_K, DYN_CAPS, DYN_MIN = 0.05, (1000, 3000), 30
+# 10-25 사용자 "갭 하락 조용주처럼 시장 대비 더 빠질수록 더": 계단 배율(-2~-3%p 1배 · -3~-5 2배 · -5↓ 3배)을 금액·상한에 곱하고
+#   천장 = 19:41~19:50 거래대금 10%. research/nxt_depth.py: 깊이별 건당(충격 뒤) 2025 -0.10/+0.47/+0.79/+1.14/+2.53 → 계단이 연속보다 약간 나음
+DYN_CEIL = 0.10
+
+
+def mult(rel):
+    return 3.0 if rel <= -5 else 2.0 if rel <= -3 else 1.0
 TEST_FLAG = OUT / "first_test_done"
 
 
@@ -180,8 +187,9 @@ def do_pick():
                  "ask": A_[0][0] if A_ else None, "bid": B_[0][0] if B_ else None, "asks": A_, "bids": B_[:3],
                  "cap05": cap_within(A_, 0.5), "cap10": cap_within(A_, 1.0)}
             for sz in SIZES: x["p%d" % sz] = walk(A_, sz * 1e4) if A_ else None
-            for cp in DYN_CAPS:                      # 거래대금 비례 금액(원) · 그만큼 호가 타고 샀을 때 평균 단가
-                amt = min(cp * 1e4, DYN_K * val)
+            x["mult"] = mult(rel[s])
+            for cp in DYN_CAPS:                      # 거래대금 비례 금액(원) × 깊이 배율, 천장 10% · 그만큼 호가 타고 샀을 때 평균 단가
+                amt = min(cp * 1e4 * x["mult"], DYN_K * val * x["mult"], DYN_CEIL * val)
                 x["amt%d" % cp] = round(amt) if amt >= DYN_MIN * 1e4 else 0
                 x["pd%d" % cp] = walk(A_, amt) if (A_ and amt >= DYN_MIN * 1e4) else None
             seen[s] = x; time.sleep(0.12)
@@ -191,13 +199,13 @@ def do_pick():
     if mkt <= CALM:
         log("pick: 시장 장후 %.2f%% ≤ %.1f — 쉼" % (mkt, CALM))
     else:
-        for s in cand[:30]:
-            if len(snap["picks"]) >= CAP: break
+        for s in cand:
+            if CAP and len(snap["picks"]) >= CAP: break
             x = take(s, LIQ)
             if x: snap["picks"].append(x)
         bc = sorted([s for s in rel if s in BIG and rel[s] <= BIG_REL], key=lambda s: rel[s])
-        for s in bc[:30]:
-            if len(snap["big"]) >= CAP: break
+        for s in bc:
+            if CAP and len(snap["big"]) >= CAP: break
             x = take(s, BIG_LIQ)
             if x: snap["big"].append(x)
         log("pick: 시장 %.2f%% · 후보 %d · 고름 %d · 대형 %d" % (mkt, len(cand), len(snap["picks"]), len(snap["big"])))
@@ -309,14 +317,14 @@ def do_review():
             o = opn[x["t"]]
             if not o: continue
             def r_(p): return round((o / p - 1) * 100 - COST, 3) if p else ""
-            rows.append([pd_, d, grp, x["t"], x["krx"], x["p50"], x["ah"], x["rel"], x.get("v10"), x.get("cap05"), x.get("cap10"), x.get("ask"), x.get("bid"),
+            rows.append([pd_, d, grp, x["t"], x["krx"], x["p50"], x["ah"], x["rel"], x.get("mult"), x.get("v10"), x.get("cap05"), x.get("cap10"), x.get("ask"), x.get("bid"),
                          x.get("bid_fill"), x.get("vwap"), x.get("high"), o, r_(x.get("ask")), r_(x.get("bid")) if x.get("bid_fill") else "",
                          r_(x.get("vwap")), r_(x.get("high"))] + [r_(x.get("p%d" % sz)) for sz in SIZES]
                         + sum(([x.get("amt%d" % cp), r_(x.get("pd%d" % cp))] for cp in DYN_CAPS), []))
     f = OUT / "log.csv"; new = not f.exists()
     with open(f, "a", newline="", encoding="utf-8") as w:
         cw = csv.writer(w)
-        if new: cw.writerow(["pick_day", "sell_day", "grp", "t", "krx_close", "p1950", "ah", "rel", "v1941_50", "cap05", "cap10", "ask", "bid", "bid_fill",
+        if new: cw.writerow(["pick_day", "sell_day", "grp", "t", "krx_close", "p1950", "ah", "rel", "mult", "v1941_50", "cap05", "cap10", "ask", "bid", "bid_fill",
                              "vwap", "high", "open1", "r_ask", "r_bid", "r_vwap", "r_high"] + ["r_%d만" % sz for sz in SIZES]
                             + sum((["amt_cap%d만" % cp, "r_cap%d만" % cp] for cp in DYN_CAPS), []))
         cw.writerows(rows)
