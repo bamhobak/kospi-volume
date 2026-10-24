@@ -558,7 +558,7 @@ header h1 svg{flex:none}
 .dchip{border-radius:999px;padding:7px 13px;background:var(--panel)}
 .dchip.on,.dchip.kq.on,.dchip.bo.on,.dchip.us.on,.dchip.grp.on{background:var(--selbg);border-color:var(--acc)}
 .dstat{gap:10px;padding:10px 0 2px;font-size:14px}
-.dstat>span:not(.k){display:flex;flex-direction:column;gap:3px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 14px;min-width:92px}
+.dstat>span:not(.k){display:flex;align-items:baseline;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 14px;white-space:nowrap}   /* 이름표·숫자 한 줄(10-24 요청) */
 .dstat>span:not(.k)>.k{font-size:11px;font-family:'IBM Plex Sans KR',sans-serif;margin:0}
 .dstat>b{align-self:center;font-size:14px;margin-right:4px}
 .dperbtn{border-radius:8px;padding:8px 12px;align-self:center}
@@ -1934,7 +1934,8 @@ async function renderPositions(){
        수량이 없는 기록은 매수금액을 모르므로 금액가중에서만 뺀다(동일가중에는 남긴다). */
     const chip=(k,list,on)=>{
       const f=(k==='전체'||MKG.includes(k))?null:fOf(k), kq=(k==='전체'||MKG.includes(k))?'grp':f&&mkCls(f.mkt);
-      return `<span class="dchip ${on?'on':''} ${kq||''}" data-r="${k}"><b>${k==='전체'?k:(f&&f.name?codeOf(k)+' · '+(f.name.split(' · ')[1]||f.name):codeOf(k))}</b><span class="c">${list.length}건</span></span>`};
+      /* 칩은 규칙 코드만(10-24 요청) — 이름은 마우스를 올리면 */
+      return `<span class="dchip ${on?'on':''} ${kq||''}" data-r="${k}"${f&&f.name?` title="${codeOf(k)} · ${f.name.split(' · ')[1]||f.name}"`:''}><b>${k==='전체'?k:codeOf(k)}</b><span class="c">${list.length}건</span></span>`};
     const stat=(k,list)=>{
       const f=(k==='전체'||MKG.includes(k))?null:fOf(k), kq=MKG.includes(k)?mkCls(k==='미장'?'US':'KR'):f&&mkCls(f.mkt);
       const avg=list.reduce((a,p)=>a+ret(p),0)/list.length;
@@ -2001,8 +2002,8 @@ async function renderPositions(){
       const al=f&&f.alloc;
       const slot=` <span class="c">${list.length}</span>`;
       return `<span class="dchip ${on?'on':''} ${kq||''}" data-pr="${k}"`
-        +`${f&&al&&al.pct?` title="보유 ${list.length}종목 · 종목당 ${al.pct}%"`:''}>`
-        +`<b>${k==='전체'?k:(f&&f.name?codeOf(k)+' · '+(f.name.split(' · ')[1]||f.name):codeOf(k))}</b>${slot}</span>`};
+        +`${f&&f.name?` title="${codeOf(k)} · ${f.name.split(' · ')[1]||f.name}${al&&al.pct?' · 보유 '+list.length+'종목 · 종목당 '+al.pct+'%':''}"`:''}>`
+        +`<b>${k==='전체'?k:codeOf(k)}</b>${slot}</span>`};   /* 칩은 규칙 코드만(10-24 요청) */
     /* 칩 아래에 고른 묶음의 요약 — 완료 탭과 같은 자리·같은 모양이다.
        예전에는 헤더에 늘 떠 있었는데, 규칙을 고르면 표만 걸러지고 헤더는 전체여서
        두 값이 따로 놀았다. 이제 칩 바로 아래에서 같이 움직인다. */
