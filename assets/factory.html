@@ -183,12 +183,12 @@ async function loadNxt(){let N=null;try{N=await rpc('kospi_state_get',{p_pin:'__
     +test;
   box.style.display=''}
 loadNxt();setInterval(loadNxt,60000);
-/* 기존 그림자 규칙(S1 자사주 신탁+낙폭 · S2 행동주의 5% · S3 밸류업) + 그림자·후보 가설 목록 — CI 의 shadow.py 가 매일 site/data/shadow.json 을 만든다(10-25 사용자) */
+/* 그림자 규칙(지금 S4 미장 H0258 · S1~S3 는 10-25 접음) + 그림자·후보 가설 목록 — CI 의 shadow.py 가 매일 site/data/shadow.json 을 만든다(10-25 사용자) */
 async function loadShd(){let J=null;try{const r=await fetch('data/shadow.json?'+Date.now(),{cache:'no-store'});if(r.ok)J=await r.json()}catch(e){}
   const box=$('#shd');if(!J){box.style.display='none';return}
   const md=d=>d?d.slice(4,6)+'/'+d.slice(6):'-';const won=v=>v==null?'-':Math.round(v).toLocaleString();
   const rules=(J.rules||[]).map(R=>{const it=R.items||[];
-    const tb=it.length?`<details${R.id==='S1'?' open':''}><summary>신호 ${R.n}건 보기</summary><div class="tw"><table><tr><th>신호일</th><th>종목</th><th class="r">산 값</th><th class="r">지금/만기 값</th><th class="r">수익(비용 뒤)</th><th class="r">보유</th></tr>`
+    const tb=it.length?`<details${R.id==='S4'?' open':''}><summary>신호 ${R.n}건 보기</summary><div class="tw"><table><tr><th>신호일</th><th>종목</th><th class="r">산 값</th><th class="r">지금/만기 값</th><th class="r">수익(비용 뒤)</th><th class="r">보유</th></tr>`
       +it.map(x=>`<tr><td class="mono">${md(x.d)}</td><td>${esc(x.n)} <span class="muted mono">${esc(x.t)}</span></td><td class="r mono">${won(x.in)}</td><td class="r mono">${won(x.px)}</td><td class="r mono">${pct(x.ret)}</td><td class="r mono">${x.done?'만기 '+md(x.xd):(x.held==null?'-':x.held+'/'+x.hold+'일')}</td></tr>`).join('')+`</table></div></details>`:'<div class="muted">아직 신호 없음</div>';
     return `<div class="sec"><h3>${esc(R.id)} · ${esc(R.name)} <span class="muted" style="font-weight:400">· ${R.hold}거래일 보유 · 신호 ${R.n} (진행 ${R.open} · 만기 ${R.done})${R.avg_done!=null?` · 만기 평균 ${pct(R.avg_done)} 승률 ${R.win_done}%`:''}${R.avg_all!=null?` · 전체(진행 포함) ${pct(R.avg_all)}`:''}</span></h3>${tb}</div>`}).join('');
   const H=J.hyps||[];const hy=H.length?`<div class="sec"><h3>등록부의 그림자·후보 가설 ${H.length}개</h3><div class="tw"><table><tr><th>번호</th><th>상태</th><th>가설</th><th>등록</th></tr>`

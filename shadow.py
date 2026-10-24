@@ -4,9 +4,11 @@
 그림자 규칙 = 아직 판정할 수 없는(표본·기간이 모자란) 후보를 **사지 않고 매일 기록만** 한다. 1년쯤 뒤
 research/shadow_eval.py 로 기록된 신호의 실제 성적을 일괄 판정한다. 기록은 data/shadow/log.csv(덧붙이기, 중복 없음).
 
-  S1 자사주 신탁 + 낙폭   자사주취득 신탁계약 체결 공시 & 신호일 20일 등락 ≤ -10%  · 20일 보유 (buyback_size.py)
-  S2 행동주의 5% 신규     행동주의·가치 운용사의 그 종목 첫 대량보유 보고 · 120일 보유 (event_lab 8번)
-  S3 밸류업 공시          기업가치제고계획 공시 · 60일 보유 (H0245)
+  S4 미장 [저PBR 낙폭] + 고가 낮아지는 음봉 3개 (H0258) · 대조 S4x — `python shadow.py us`
+  ✗ 10-25 접음(사용자 "반영해줘", 쌓인 기록은 log.csv 에 남김):
+    S1 자사주 신탁 + 20일 -10% — 더 좁힌 판이 실전 [자사주 신탁 급락] P8 로 돌고 있어 중복
+    S2 행동주의 5% 신규(H0269) — 같은 날 대비 초과는 있어도 절대 수익이 음수
+    S3 밸류업 공시(H0245) — 다시 재니 같은 날 대비 초과 0(research/valueup_recheck.py)
 재료: data/disc_watch.csv(collect_disc_watch.py) · site/data/table.json(국내 표 — ret20·종가)
 
 보유 경고등 → site/data/warn.json {종목코드: {d, why}} — 화면이 보유 종목 이름 옆에 ⚠ 를 띄운다(판단은 사용자).
@@ -31,7 +33,7 @@ W = BASE / "data" / "disc_watch.csv"
 LOG = BASE / "data" / "shadow" / "log.csv"
 SEEN = BASE / "data" / "shadow" / "activist_seen.csv"
 FIELDS = ["date", "rule", "ticker", "name", "close", "hold", "rcept_no", "note"]
-RULES = {"S1": ("자사주 신탁 + 20일 -10%", 20), "S2": ("행동주의 5% 신규", 120), "S3": ("밸류업 공시", 60),
+RULES = {  # S1·S2·S3 는 10-25 접음(위 설명) — 다시 켜려면 여기 되살리면 기록·페이지가 같이 돈다
          # 10-25 사용자 "기록해줘" — 등록부에 '그림자'로만 있던 미장 H0258. CI 에서 미장 표가 생긴 뒤 `python shadow.py us` 로 기록
          "S4": ("미장 [저PBR 낙폭] + 고가 낮아지는 음봉 3개 (H0258)", 60), "S4x": ("(대조) 미장 [저PBR 낙폭] 음봉 3개 아님", 60)}
 US_RULES = ("S4", "S4x")
@@ -160,7 +162,7 @@ def main():
                 rule = "S2"; seen.add(k)
         elif x["kind"] == "밸류업":
             rule = "S3"
-        if not rule or (rule, x["ticker"], x["rcept_no"]) in have:
+        if rule not in RULES or (rule, x["ticker"], x["rcept_no"]) in have:
             continue
         new.append(dict(date=sd, rule=rule, ticker=x["ticker"], name=r.get("n", ""), close=r.get("c"),
                         hold=RULES[rule][1], rcept_no=x["rcept_no"],
