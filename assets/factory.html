@@ -92,10 +92,20 @@ h2{font-size:15px;color:var(--txt);margin:28px 0 10px}
 #shd td.r,#shd th.r{text-align:right}#shd .st{font-size:11px;padding:1px 7px;border-radius:5px;background:rgba(245,165,36,.14);color:#F5C26B}#shd .st.c{background:rgba(91,155,255,.14);color:#9CC2FF}
 #shd details summary{padding:6px 0;color:var(--mut)}
 #nxt .gp{font-size:11px;padding:1px 7px;border-radius:5px;background:rgba(160,168,182,.14);color:#C9D0DB}#nxt .gp.big{background:rgba(52,211,192,.14);color:#5FE0D0}
+/* 그림자 테스트 중 — [갭 하락 조용주] 하루 위 3개(H0362) · 서버 day_top3.py 가 '__t1top3__' 에 5분마다(10-25 사용자) — 모양은 #nxt 와 같게 */
+#t1x{margin-bottom:22px;border:1px solid rgba(245,165,36,.45);border-radius:14px;background:var(--panel);overflow:hidden}
+#t1x .nh{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:14px 18px;border-bottom:1px solid var(--line)}
+#t1x .nh b{font-size:16px}#t1x .tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(245,165,36,.14);color:#F5C26B}
+#t1x .rule{padding:10px 18px;color:var(--mut);font-size:12.5px;line-height:1.6;border-bottom:1px solid var(--line)}
+#t1x .sec{padding:12px 18px}#t1x .sec h3{margin:0 0 8px;font-size:13.5px;color:var(--txt)}
+#t1x .tw{border-radius:10px}#t1x td.r,#t1x th.r{text-align:right}
+#t1x .gp{font-size:11px;padding:1px 7px;border-radius:5px;background:rgba(160,168,182,.14);color:#C9D0DB}#t1x .gp.big{background:rgba(245,165,36,.16);color:#F5C26B}
+#t1x tr.top td{background:rgba(245,165,36,.06)}
 </style></head><body>
 <header><a href="./">← 선별기</a><h1><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F5A524" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7c-4.6 0-8 2.7-8 6.6S7.4 20.5 12 20.5s8-3 8-6.9S16.6 7 12 7z"/><path d="M9.2 7.6c-1.3 2.2-1.3 10.4 0 12.5M14.8 7.6c1.3 2.2 1.3 10.4 0 12.5"/><path d="M12 7V4.2c1.4 0 2.6.6 3.2 1.6"/></svg>규칙 후보</h1><span class="up" id="upd">불러오는 중…</span></header>
 <main>
   <section id="nxt" style="display:none"></section>
+  <section id="t1x" style="display:none"></section>
   <section id="shd" style="display:none"></section>
   <div class="strip" id="strip"></div>
   <p class="note">공장이 매일 밤 찾은 규칙 중 <b>학습(2016~22)·잠가 둔 검증(2023~)·다중검정</b>을 통과한 것만 여기 올라온다. 수익은 전부 <b>비용 뒤 건당</b>. 조정 후보 칸을 고를 땐 검증 칸만 좋은 것보다 참고·학습 칸도 같이 좋은 걸로 — 여러 칸을 보고 고르는 것도 운이 섞인다. 채택·조정은 클로드 창에서 "F0035 채택"처럼 말하면 된다.</p>
@@ -183,7 +193,28 @@ async function loadNxt(){let N=null;try{N=await rpc('kospi_state_get',{p_pin:'__
     +test;
   box.style.display=''}
 loadNxt();setInterval(loadNxt,60000);
-/* 그림자 규칙(지금 S4 미장 H0258 · S1~S3 는 10-25 접음) + 그림자·후보 가설 목록 — CI 의 shadow.py 가 매일 site/data/shadow.json 을 만든다(10-25 사용자) */
+async function loadT1x(){let N=null;try{N=await rpc('kospi_state_get',{p_pin:'__t1top3__'})}catch(e){}
+  const box=$('#t1x');if(!N||!N.updated){box.style.display='none';return}
+  const won=v=>v==null?'-':Math.round(v).toLocaleString();const md=d=>d?d.slice(4,6)+'/'+d.slice(6):'-';
+  const T=N.today;const rows=(T&&T.rows)||[];
+  const fill=x=>x.filled==null?'<span class="muted">시가 전</span>':x.filled?'체결':'<span class="muted">안 사짐</span>';
+  const head=`<tr><th>순위</th><th>종목</th><th class="r">예상 갭</th><th class="r">시장 대비</th><th class="r">지정가</th><th class="r">시가</th><th class="r">${rows.some(x=>x.live)?'지금가':'종가'}</th><th class="r">수익(비용 뒤)</th><th>체결</th></tr>`;
+  const tr=x=>`<tr class="${x.rank<=3?'top':''}"><td>${x.rank<=3?`<span class="gp big">위 ${x.rank}</span>`:x.rank<=5?`<span class="gp">위 ${x.rank}</span>`:`<span class="muted mono">${x.rank}</span>`}</td><td>${esc(x.n)} <span class="muted mono">${esc(x.t)}</span></td><td class="r mono">${pct(x.gap)}</td><td class="r mono">${x.rel==null?'-':(x.rel>0?'+':'')+(+x.rel).toFixed(2)+'%p'}</td><td class="r mono">${won(x.lim)}</td><td class="r mono">${won(x.open)}</td><td class="r mono">${won(x.last)}</td><td class="r mono">${x.filled===false?'<span class="muted">'+pct(x.ret)+'</span>':pct(x.ret)}</td><td>${fill(x)}</td></tr>`;
+  const pick=rows.length?`<div class="tw"><table>${head}${rows.slice(0,5).map(tr).join('')}</table></div>`
+    +(rows.length>5?`<details><summary class="muted" style="padding:6px 0">나머지 ${rows.length-5}종목 (지금 그물에만 들어감)</summary><div class="tw"><table>${head}${rows.slice(5).map(tr).join('')}</table></div></details>`:'')
+    :`<div class="empty" style="padding:16px">아직 기록 없음 — 평일 08:52 데이 후보가 나오면 채워진다</div>`;
+  const C=N.cum||[];const cum=C.length?`<div class="tw"><table><tr><th>무리</th><th class="r">날</th><th class="r">하루 평균(예산 대비)</th><th class="r">플러스 날</th><th class="r">체결 건</th><th class="r">건당</th><th class="r">건 승률</th><th class="r">계좌 누적(하루 ${'20%'} 예산)</th></tr>`
+    +C.map(c=>`<tr><td>${esc(c.k)}</td><td class="r mono">${c.days}</td><td class="r mono">${pct(c.day_avg)}</td><td class="r mono">${c.day_win==null?'-':c.day_win+'%'}</td><td class="r mono">${c.trades}</td><td class="r mono">${pct(c.avg)}</td><td class="r mono">${c.win==null?'-':c.win+'%'}</td><td class="r mono">${pct(c.acct)}</td></tr>`).join('')+`</table></div>`:'';
+  const R=N.recent||[];const cell=v=>v?`${pct(v.day)} <span class="muted">${v.nf}/${v.n}</span>`:'-';
+  const rec=R.length?`<details><summary class="muted" style="padding:6px 0">날마다 보기 (${R.length}일)</summary><div class="tw"><table><tr><th>날</th><th class="r">시장 갭</th><th class="r">후보</th><th class="r">지금 그물</th><th class="r">위 3개</th><th class="r">위 5개</th></tr>`
+    +R.map(d=>`<tr><td class="mono">${md(d.d)}${d.live?' <span class="muted">(장중)</span>':''}</td><td class="r mono">${pct(d.mg)}</td><td class="r mono">${d.n}</td><td class="r mono">${cell(d.all)}</td><td class="r mono">${cell(d.top3)}</td><td class="r mono">${cell(d.top5)}</td></tr>`).join('')+`</table></div><div class="muted" style="font-size:12px;margin-top:6px">칸 = 그날 예산 대비 수익 · 체결/무리 종목 수(안 사진 몫은 0으로 셈)</div></details>`:'';
+  box.innerHTML=`<div class="nh"><span class="tag">그림자 테스트 중</span><b>[갭 하락 조용주] 하루 위 3개만 사면?</b><span class="mono muted">${esc(N.hid||'')}</span><span class="muted" style="margin-left:auto">${esc(N.stage||'')} · 갱신 ${esc(N.updated)} · 누적 ${N.days||0}일</span></div>`
+    +`<div class="rule">${esc(N.rule||'')}</div>`
+    +`<div class="sec"><h3>${T?`${md(T.date)} 후보 ${T.n}종목`:'후보'}${T&&T.mg!=null?` <span class="muted" style="font-weight:400">· 시장 예상 갭 ${pct(T.mg)} · 노란 줄 = 위 3개</span>`:''}</h3>${pick}</div>`
+    +(cum?`<div class="sec" style="border-top:1px solid var(--line)"><h3>누적 성적</h3>${cum}${rec}</div>`:'');
+  box.style.display=''}
+loadT1x();setInterval(loadT1x,60000);
+/* 그림자·후보 가설 목록(그림자 규칙 S1~S4 는 10-25 모두 접음 — shadow.py RULES 에 넣으면 다시 칸이 생긴다) — CI 의 shadow.py 가 매일 site/data/shadow.json 을 만든다(10-25 사용자) */
 async function loadShd(){let J=null;try{const r=await fetch('data/shadow.json?'+Date.now(),{cache:'no-store'});if(r.ok)J=await r.json()}catch(e){}
   const box=$('#shd');if(!J){box.style.display='none';return}
   const md=d=>d?d.slice(4,6)+'/'+d.slice(6):'-';const won=v=>v==null?'-':Math.round(v).toLocaleString();
@@ -193,7 +224,7 @@ async function loadShd(){let J=null;try{const r=await fetch('data/shadow.json?'+
     return `<div class="sec"><h3>${esc(R.id)} · ${esc(R.name)} <span class="muted" style="font-weight:400">· ${R.hold}거래일 보유 · 신호 ${R.n} (진행 ${R.open} · 만기 ${R.done})${R.avg_done!=null?` · 만기 평균 ${pct(R.avg_done)} 승률 ${R.win_done}%`:''}${R.avg_all!=null?` · 전체(진행 포함) ${pct(R.avg_all)}`:''}</span></h3>${tb}</div>`}).join('');
   const H=J.hyps||[];const hy=H.length?`<div class="sec"><h3>등록부의 그림자·후보 가설 ${H.length}개</h3><div class="tw"><table><tr><th>번호</th><th>상태</th><th>가설</th><th>등록</th></tr>`
     +H.map(h=>`<tr><td class="mono">${esc(h.id)}</td><td><span class="st ${h.st==='후보'?'c':''}">${esc(h.st)}</span></td><td class="l">${esc(h.name)}</td><td class="mono">${esc(h.date)}</td></tr>`).join('')+`</table></div></div>`:'';
-  box.innerHTML=`<div class="nh"><span class="tag">그림자 기록 중</span><b>기존 그림자 규칙</b><span class="muted" style="margin-left:auto">기준 ${md(J.asof)} · 사지 않고 신호만 적는다 — 산 값 = 신호일 종가</span></div>`+rules+hy;
+  box.innerHTML=`<div class="nh"><span class="tag">그림자 기록 중</span><b>${(J.rules||[]).length?'그림자 규칙':'등록부 그림자·후보 가설'}</b><span class="muted" style="margin-left:auto">기준 ${md(J.asof)}${(J.rules||[]).length?' · 사지 않고 신호만 적는다 — 산 값 = 신호일 종가':''}</span></div>`+rules+hy;
   box.style.display=''}
 loadShd();
 </script></body></html>
