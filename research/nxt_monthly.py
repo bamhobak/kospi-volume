@@ -19,7 +19,9 @@ P = lambda s="": (OUT.append(s), print(s, flush=True))
 CK = 0.23
 # 10-25 사용자 "1억 5천만도 비교" → research/nxt_tune2.py(버그 고침·1.5억, 2025 로 고름): 1억은 k 7%·상한 5천만으로 바뀜, 1.5억 새로
 TUNED = {"3천만": (3000, -2.0, "123", 0.02, 3000), "5천만": (5000, -2.0, "123", 0.03, 2000), "1억": (10000, -3.0, "1152", 0.07, 5000),
-         "1.5억": (15000, -2.0, "123", 0.03, 5000)}
+         "1.5억": (15000, -2.0, "123", 0.03, 5000),
+         # 10-25 사용자 "2억은?" — nxt_tune2.py 20000: 1등 = -3·1·1.5·2·k5%·상한 1억(한 종목에 계좌 절반까지) · 안전판 = 1.5억 설정 그대로(상한 5천만)
+         "2억": (20000, -3.0, "1152", 0.05, 10000), "2억 상한5천": (20000, -2.0, "123", 0.03, 5000)}
 MULT = {"123": lambda r: np.where(r <= -5, 3.0, np.where(r <= -3, 2.0, 1.0)), "1152": lambda r: np.where(r <= -5, 2.0, np.where(r <= -3, 1.5, 1.0))}
 
 
@@ -107,6 +109,11 @@ def main():
         z, cap = res[nm]; pm = z.groupby("m").pnl.sum()
         cells.append("%+.0f만 · %+.1f%% · 플러스 달 %d/%d" % (z.pnl.sum(), z.pnl.sum() / cap * 100, (pm > 0).sum(), len(pm)))
     P("| **합계** | %s |" % " | ".join(cells))
+    P(""); P("| 계좌 | 한 종목 최대 금액 | 하루 최대 투입 | 위 10건 몫 | 위 10건 빼면 | 가장 나쁜 날 |"); P("|---|---|---|---|---|---|")
+    for nm in cols:
+        z, cap = res[nm]; zs = z.pnl.sort_values(ascending=False); dp = z.groupby("d").pnl.sum()
+        P("| %s | %.0f만 | %.0f만 | %.0f%% | %+.0f만 | %s %+.0f만 |" % (nm, z.amt.max(), z.groupby("d").amt.sum().max(), zs.head(10).sum() / zs.sum() * 100,
+                                                       zs.sum() - zs.head(10).sum(), dp.idxmin(), dp.min()))
     P(""); P("가장 나쁜 날(계좌별): " + " · ".join("%s %s %+.0f만" % (nm, *res[nm][0].groupby("d").pnl.sum().agg(["idxmin", "min"]).values) for nm in cols))
     P(""); P("## ④ 큰 몇 건에 기대나 — 3천만 설정")
     z, cap = res["3천만"]

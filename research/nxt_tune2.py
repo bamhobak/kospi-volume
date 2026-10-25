@@ -72,11 +72,12 @@ def main():
                     win=(r_im > 0).mean() * 100, used=pd.Series(amt).groupby(z.d.values).sum().mean() / 1e4)
 
     # 1차(k 3·5·10%, 천장 10·15%)에서 1등이 모두 k 3%(끝값) · 천장은 안 닿아 같음 → k 를 1·2·3·5% 로 넓히고 천장은 10% 하나(10-25)
-    grid = list(itertools.product((-2.0, -2.5, -3.0), MULT, (0.01, 0.02, 0.03, 0.05, 0.07), (500, 1000, 2000, 3000, 5000, 7000), (0.10,), (1e7, 3e7)))
+    grid = list(itertools.product((-2.0, -2.5, -3.0), MULT, (0.01, 0.02, 0.03, 0.05, 0.07, 0.10), (500, 1000, 2000, 3000, 5000, 7000, 10000), (0.10,), (1e7, 3e7)))
     P("# ⑪ 10차 — 계좌 크기별 세부값(버그 고침 · 1.5억) · %s" % time.strftime("%Y-%m-%d")); P("")
     P("- 2025 로 고르고 2026 은 확인만 · 조합 %d개 × 계좌 4 · 연 손익 = 시장충격 뒤(괄호 최고가 매수) · 낙폭 = 시장충격 뒤 최대 낙폭" % len(grid)); P("")
     n = 0
-    for capm_acct in (3000, 5000, 10000, 15000):
+    ACCTS = tuple(int(a) for a in sys.argv[1:]) or (3000, 5000, 10000, 15000)     # 10-25 사용자 "2억은?" → python research/nxt_tune2.py 20000
+    for capm_acct in ACCTS:
         capw = capm_acct * 1e4
         res = []
         for g in grid:
@@ -87,20 +88,20 @@ def main():
         ok = [(g, a) for g, a in res if a["yr_hi"] > 0 and -a["mdd"] <= capm_acct * 0.30]
         ok.sort(key=lambda x: -x[1]["yr"])
         cur = {3000: (-2.0, "1·2·3", 0.02, 3000, 0.10, 1e7), 5000: (-2.0, "1·2·3", 0.03, 2000, 0.10, 1e7), 10000: (-3.0, "1·1.5·2", 0.05, 3000, 0.10, 1e7),
-               15000: (-3.0, "1·1.5·2", 0.05, 3000, 0.10, 1e7)}[capm_acct]          # 지금 추천(8차) — 1.5억은 1억 설정 그대로 비교
-        P("## 계좌 %s (2025 조건 통과 %d / %d)" % ("%d만" % capm_acct if capm_acct < 10000 else ("1억" if capm_acct == 10000 else "1.5억"), len(ok), len(res))); P("")
+               15000: (-2.0, "1·2·3", 0.03, 5000, 0.10, 1e7), 20000: (-2.0, "1·2·3", 0.03, 5000, 0.10, 1e7)}[capm_acct]          # 지금 추천(8차) — 1.5억은 1억 설정 그대로 비교
+        P("## 계좌 %s (2025 조건 통과 %d / %d)" % ("%d만" % capm_acct if capm_acct < 10000 else "%g억" % (capm_acct / 10000), len(ok), len(res))); P("")
         P("| 순위 | 문턱 | 배율 | 기본 k | 상한 | 천장 | 최소 거래대금 | 2025 연(최고가) · 낙폭 · 건당 · 승률 · 하루 건수/평균 투입 | **2026 확인** 연(최고가) · 낙폭 · 건당 |"); P("|---|---|---|---|---|---|---|---|---|")
         show = ok[:5] + [(cur, sim(capw, *cur, D25))]
         for i, (g, a) in enumerate(show):
             b = sim(capw, *g, D26)
-            lab = "8차 추천" if i == len(show) - 1 else str(i + 1)
+            lab = "지금 추천(1.5억 설정)" if capm_acct == 20000 and i == len(show) - 1 else "8차 추천" if i == len(show) - 1 else str(i + 1)
             P("| %s | %.1f%%p | %s | %d%% | %d만 | %d%% | %d천만 | %+.0f만(%+.0f) · %+.0f · %+.2f%% · %.0f%% · %.1f/%.0f만 | **%+.0f만**(%+.0f) · %+.0f · %+.2f%% |" % (
                 lab, g[0], g[1], g[2] * 100, g[3], g[4] * 100, g[5] / 1e7, a["yr"], a["yr_hi"], a["mdd"], a["per"], a["win"], a["n"], a["used"],
                 b["yr"], b["yr_hi"], b["mdd"], b["per"]))
         P("")
     P("(칸 %d · %.1f분)" % (n, (time.time() - t0) / 60))
     log_trials("nxt_tune2_%s" % time.strftime("%Y%m%d"), n)
-    (ROOT / "reports" / ("nxt_tune2_%s.md" % time.strftime("%Y%m%d"))).write_text("\n".join(OUT) + "\n", encoding="utf-8")
+    (ROOT / "reports" / ("nxt_tune2_%s%s.md" % (time.strftime("%Y%m%d"), "_" + "_".join(sys.argv[1:]) if sys.argv[1:] else ""))).write_text("\n".join(OUT) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":
