@@ -30,8 +30,8 @@ COST = 0.23
 BUDGET = 0.20                                    # 계좌 중 하루 예산 비율(H0362 연구 가정)
 DOWN_Q = 0.30                                    # 장기하락 = 어제 종가의 120일선 대비(d120)가 그날 유니버스 하위 30% (H0368, lab q_d120 과 같은 식)
 # (키, 이름, 위 몇 개, 거르기) — 거르기 무리는 그날 걸린 후보가 없으면 그날 돈이 논다(0%)
-GROUPS = (("all", "지금 그물(후보 전부)", None, None), ("top3", "하루 위 3개", 3, None), ("top5", "하루 위 5개", 5, None),
-          ("down", "장기하락만(120일선 하위 30%)", None, "down"))
+# 10-26 '장기하락만'(H0368) 무리는 같은 날 사용자 "하지 말자"로 뺌 — q120()·score(filt) 는 다른 거르기 무리를 붙일 때 쓰라고 남김
+GROUPS = (("all", "지금 그물(후보 전부)", None, None), ("top3", "하루 위 3개", 3, None), ("top5", "하루 위 5개", 5, None))
 KRD = BASE / "data" / "factory" / "live" / "kr_daily.parquet"
 
 
@@ -78,7 +78,7 @@ def q120(snap):
 def day_rows(snap, px=None):
     """그날 T1 후보마다 {t, n, rel, lim, open, last, ret, filled, rank} — ret 는 종가(리뷰 뒤) 또는 지금가 기준"""
     C = sorted([x for x in snap.get("cand") or [] if x.get("t1", True)], key=lambda x: x.get("rel") if x.get("rel") is not None else 99)
-    Q = q120(snap) if C else {}
+    Q = q120(snap) if (C and any(g[3] == "down" for g in GROUPS)) else {}
     out = []
     for i, x in enumerate(C):
         o, lim = x.get("open"), x.get("lim")
@@ -152,7 +152,7 @@ def main():
         stage = "오늘 후보 없음/휴장 — 최근 날 표시"
     data = {"updated": now.strftime("%Y-%m-%d %H:%M"), "stage": stage, "hid": "H0362", "days": nd,
             "rule": "아침 [갭 하락 조용주] 후보(덤 빼고)를 시장 대비 깊은 순으로 위 3개(비교 위 5개)만 산다고 보고, 후보 전부와 비교 · "
-                    "장기하락만 = 어제 종가가 120일선 대비 그날 유니버스 하위 30%%인 후보만(H0368 — 걸린 게 없는 날은 쉼) · 지정가 체결(시가 ≤ 지정가)만 · "
+                    "지정가 체결(시가 ≤ 지정가)만 · "
                     "하루 예산을 무리에 똑같이 나눔(안 사진 몫은 놂) · 계좌 = 매일 계좌 %d%%를 그날 예산으로 · 비용 %.2f 뒤 · 돈은 안 든다(기록만)" % (BUDGET * 100, COST),
             "today": {"date": tsnap["date"], "mg": tsnap.get("mgap"), "rows": trows[:60], "n": len(trows)} if tsnap else None,
             "cum": cum, "recent": days[::-1][:40]}
