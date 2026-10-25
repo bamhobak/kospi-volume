@@ -114,6 +114,15 @@ def main():
         z, cap = res[nm]; zs = z.pnl.sort_values(ascending=False); dp = z.groupby("d").pnl.sum()
         P("| %s | %.0f만 | %.0f만 | %.0f%% | %+.0f만 | %s %+.0f만 |" % (nm, z.amt.max(), z.groupby("d").amt.sum().max(), zs.head(10).sum() / zs.sum() * 100,
                                                        zs.sum() - zs.head(10).sum(), dp.idxmin(), dp.min()))
+    P(""); P("## ⑤ 실제로 살 수 있나 — 내 금액 ÷ 19:51~20:00 실제 거래대금(그 10분 동안 모든 사람이 사고판 금액)")
+    P("호가창(매도벽) 과거 자료는 없다 — 대신 '그 10분 거래 중 내 몫'. 10%↑면 내가 값을 밀어 올리고, 50%↑면 사실상 그 10분 매도 물량을 혼자 다 받아야 한다.")
+    P(""); P("| 계좌 | 건 | 내 몫 중앙 | 90% 선 | 10%↑ 건 | 30%↑ 건 | 50%↑ 건 | 100%↑ 건 | 50%↑ 건 수익(충격 뒤) |"); P("|---|---|---|---|---|---|---|---|---|")
+    for nm in cols:
+        z, cap = res[nm]; sh = z.amt * 1e4 / z.a10 * 100
+        P("| %s | %d | %.1f%% | %.0f%% | %.0f%% | %.0f%% | %.0f%% | %.0f%% | %+.2f%% |" % (nm, len(z), sh.median(), sh.quantile(0.9), (sh >= 10).mean() * 100, (sh >= 30).mean() * 100,
+                                                                    (sh >= 50).mean() * 100, (sh >= 100).mean() * 100, z[sh >= 50].r.mean() if (sh >= 50).any() else float("nan")))
+    z, cap = res["3천만"]
+    P(""); P("참고: 신호 종목의 19:51~20:00 거래대금 중앙 %.1f억 · 하위 25%% %.2f억 · 19:41~50 거래대금 중앙 %.1f억" % (S0.a10.median() / 1e8, S0.a10.quantile(0.25) / 1e8, S0.v41.median() / 1e8))
     P(""); P("가장 나쁜 날(계좌별): " + " · ".join("%s %s %+.0f만" % (nm, *res[nm][0].groupby("d").pnl.sum().agg(["idxmin", "min"]).values) for nm in cols))
     P(""); P("## ④ 큰 몇 건에 기대나 — 3천만 설정")
     z, cap = res["3천만"]
