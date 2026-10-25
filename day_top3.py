@@ -28,7 +28,11 @@ KST = M.KST
 DAY = BASE / "data" / "day"
 COST = 0.23
 BUDGET = 0.20                                    # 계좌 중 하루 예산 비율(H0362 연구 가정)
-GROUPS = (("all", "지금 그물(후보 전부)", None), ("top3", "하루 위 3개", 3), ("top5", "하루 위 5개", 5))
+DOWN_Q = 0.30                                    # 장기하락 = 어제 종가의 120일선 대비(d120)가 그날 유니버스 하위 30% (H0368, lab q_d120 과 같은 식)
+# (키, 이름, 위 몇 개, 거르기) — 거르기 무리는 그날 걸린 후보가 없으면 그날 돈이 논다(0%)
+GROUPS = (("all", "지금 그물(후보 전부)", None, None), ("top3", "하루 위 3개", 3, None), ("top5", "하루 위 5개", 5, None),
+          ("down", "장기하락만(120일선 하위 30%)", None, "down"))
+KRD = BASE / "data" / "factory" / "live" / "kr_daily.parquet"
 
 
 def log(*a):
@@ -48,9 +52,33 @@ def live_prices(syms):
     return out
 
 
+_K = None
+
+
+def q120(snap):
+    """{종목: d120 백분위} — 10-26 사용자(H0368 '장기하락만' 무리 추가). 공장 live/kr_daily.parquet(1분봉으로 만든 KRX 일봉 최근 200일)에서
+    신호일 전날까지 종가로 d120 = 어제 종가 ÷ 120일 평균(96일↑) − 1 → 그날 유니버스(snap 'all' 종목)끼리 백분위. 자료가 없으면 {}."""
+    global _K
+    try:
+        import pandas as pd
+        if _K is None:
+            _K = pd.read_parquet(KRD.resolve(), columns=["ticker", "date", "close"]).sort_values(["ticker", "date"])
+        K = _K[_K.date < snap["date"]]
+        if K.empty or K.date.max() < snap.get("prev", ""): return {}               # 전날 일봉이 아직 없음(자료 늦음)
+        T = K.groupby("ticker").tail(120)
+        g = T.groupby("ticker").close
+        n, mean, last = g.size(), g.mean(), g.last()
+        d = ((last / mean - 1) * 100)[n >= 96]
+        d = d[d.index.isin(list((snap.get("all") or {}).keys()))]
+        return d.rank(pct=True).to_dict() if len(d) >= 100 else {}
+    except Exception as ex:
+        log("120일선 계산 실패", repr(ex)[:120]); return {}
+
+
 def day_rows(snap, px=None):
     """그날 T1 후보마다 {t, n, rel, lim, open, last, ret, filled, rank} — ret 는 종가(리뷰 뒤) 또는 지금가 기준"""
     C = sorted([x for x in snap.get("cand") or [] if x.get("t1", True)], key=lambda x: x.get("rel") if x.get("rel") is not None else 99)
+    Q = q120(snap) if C else {}
     out = []
     for i, x in enumerate(C):
         o, lim = x.get("open"), x.get("lim")
@@ -61,11 +89,16 @@ def day_rows(snap, px=None):
             last = px.get(x["t"]); live = last is not None
         ret = round((last / o - 1) * 100 - COST, 3) if (o and last) else None
         out.append({"t": x["t"], "n": x.get("name", x["t"]), "rel": x.get("rel"), "gap": x.get("gap"), "lim": lim, "open": o, "last": last,
-                    "ret": ret, "filled": filled, "rank": i + 1, "live": live})
+                    "ret": ret, "filled": filled, "rank": i + 1, "live": live,
+                    "q120": (round(Q[x["t"]], 3) if x["t"] in Q else None), "qok": bool(Q)})
     return out
 
 
-def score(rows, k):
+def score(rows, k, filt=None):
+    if filt == "down":
+        if rows and not rows[0]["qok"]: return None                        # 120일선 자료 없음 — 이 날은 안 셈
+        rows = [x for x in rows if x["q120"] is not None and x["q120"] <= DOWN_Q]
+        if not rows: return {"n": 0, "nf": 0, "day": 0.0, "trade": []}    # 걸린 후보 없음 = 그날 돈이 논다
     G = rows if k is None else rows[:k]
     if not G: return None
     F = [x for x in G if x["filled"] and x["ret"] is not None]
@@ -79,7 +112,7 @@ def main():
         log("데이 기록 없음"); return
     now = dt.datetime.now(KST)
     today = now.strftime("%Y%m%d")
-    days, acct, tr = [], {g: 1.0 for g, _, _ in GROUPS}, {g: [] for g, _, _ in GROUPS}
+    days, acct, tr = [], {g: 1.0 for g, _, _, _ in GROUPS}, {g: [] for g, _, _, _ in GROUPS}
     trows, tsnap = None, None
     for f in snaps:
         try: s = json.loads(f.read_text(encoding="utf-8"))
@@ -95,8 +128,8 @@ def main():
             trows, tsnap = rows, s                                         # 오늘(없으면 가장 최근 날) 후보표
         d = {"d": s["date"], "mg": s.get("mgap"), "n": len(rows), "live": is_today}
         done = True
-        for g, _, k in GROUPS:
-            sc = score(rows, k)
+        for g, _, k, ft in GROUPS:
+            sc = score(rows, k, ft)
             d[g] = sc and {kk: sc[kk] for kk in ("n", "nf", "day")}
             if sc is None: done = False; continue
             if not is_today:
@@ -105,7 +138,7 @@ def main():
         if rows: days.append(d)
     cum = []
     nd = sum(1 for d in days if not d["live"])
-    for g, lab, k in GROUPS:
+    for g, lab, k, ft in GROUPS:
         T = tr[g]
         D = [d[g]["day"] for d in days if not d["live"] and d.get(g)]
         cum.append({"g": g, "k": lab, "days": len(D), "trades": len(T), "avg": round(sum(T) / len(T), 3) if T else None,
@@ -118,7 +151,8 @@ def main():
     else:
         stage = "오늘 후보 없음/휴장 — 최근 날 표시"
     data = {"updated": now.strftime("%Y-%m-%d %H:%M"), "stage": stage, "hid": "H0362", "days": nd,
-            "rule": "아침 [갭 하락 조용주] 후보(덤 빼고)를 시장 대비 깊은 순으로 위 3개(비교 위 5개)만 산다고 보고, 후보 전부와 비교 · 지정가 체결(시가 ≤ 지정가)만 · "
+            "rule": "아침 [갭 하락 조용주] 후보(덤 빼고)를 시장 대비 깊은 순으로 위 3개(비교 위 5개)만 산다고 보고, 후보 전부와 비교 · "
+                    "장기하락만 = 어제 종가가 120일선 대비 그날 유니버스 하위 30%%인 후보만(H0368 — 걸린 게 없는 날은 쉼) · 지정가 체결(시가 ≤ 지정가)만 · "
                     "하루 예산을 무리에 똑같이 나눔(안 사진 몫은 놂) · 계좌 = 매일 계좌 %d%%를 그날 예산으로 · 비용 %.2f 뒤 · 돈은 안 든다(기록만)" % (BUDGET * 100, COST),
             "today": {"date": tsnap["date"], "mg": tsnap.get("mgap"), "rows": trows[:60], "n": len(trows)} if tsnap else None,
             "cum": cum, "recent": days[::-1][:40]}

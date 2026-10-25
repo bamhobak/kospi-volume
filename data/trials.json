@@ -1,5 +1,5 @@
 {
- "total": 54286,
+ "total": 54831,
  "by_topic": {
   "상승장 탐색": 12000,
   "유튜브·커뮤니티 기법": 311,
@@ -300,7 +300,7 @@
   "sector_day_m1_20261008": 138,
   "sector_swing_20261008": 310,
   "sector_leader_20261008": 84,
-  "factory": 13985,
+  "factory": 14470,
   "yt_flux_KR_20261011": 20,
   "yt_flux_US_20261011": 20,
   "theme_laggard_20261024": 100,
@@ -320,6 +320,7 @@
   "us_ideas3_20261025": 28,
   "us_daymkt_20261025": 38,
   "nxt_monthly_20261025": 18,
-  "nxt_tune2_20261025": 3672
+  "nxt_tune2_20261025": 3672,
+  "gap_quiet_tune_1026": 60
  }
 }
