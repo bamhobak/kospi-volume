@@ -49,7 +49,8 @@ DYN_K, DYN_CAPS, DYN_MIN = 0.05, (1000, 3000), 30
 DYN_CEIL = 0.10
 
 
-def mult(rel):
+def mult(rel, kind="123"):
+    if kind == "1152": return 2.0 if rel <= -5 else 1.5 if rel <= -3 else 1.0
     return 3.0 if rel <= -5 else 2.0 if rel <= -3 else 1.0
 TEST_FLAG = OUT / "first_test_done"
 
@@ -196,6 +197,15 @@ def do_pick():
                 amt = min(cp * 1e4 * x["mult"], DYN_K * val * x["mult"], DYN_CEIL * val)
                 x["amt%d" % cp] = round(amt) if amt >= DYN_MIN * 1e4 else 0
                 x["pd%d" % cp] = walk(A_, amt) if (A_ and amt >= DYN_MIN * 1e4) else None
+            # 10-25 사용자 "다 매수는 되는 거지? 매도벽" — 계좌별 추천 설정(TUNED)이 이 종목에 넣을 금액을 19:50 매도 호가 10단계로 타고 올라가 산 평균 단가.
+            #   10단계로 모자라면 None(= 매도벽 부족). 계좌 안 다른 종목과 나눠 쓰는 건 빼고 이 종목 몫만. ask10 = 매도 10단계 총액.
+            x["ask10"] = round(sum(p_ * n_ for p_, n_ in A_)) if A_ else 0
+            for acct, (th, mk, k, capm) in TUNED.items():
+                if rel[s] > th: continue
+                m_ = mult(rel[s], mk)
+                amt = min(capm * 1e4 * m_, k * val * m_, DYN_CEIL * val)
+                x["wa_" + acct] = round(amt)
+                x["pw_" + acct] = walk(A_, amt) if (A_ and amt >= 30e4) else None
             seen[s] = x; time.sleep(0.12)
         x = seen[s]
         return x if x and x["v10"] >= liq else None
@@ -327,13 +337,15 @@ def do_review():
             rows.append([pd_, d, grp, x["t"], x["krx"], x["p50"], x["ah"], x["rel"], x.get("mult"), x.get("v10"), x.get("cap05"), x.get("cap10"), x.get("ask"), x.get("bid"),
                          x.get("bid_fill"), x.get("vwap"), x.get("high"), o, r_(x.get("ask")), r_(x.get("bid")) if x.get("bid_fill") else "",
                          r_(x.get("vwap")), r_(x.get("high"))] + [r_(x.get("p%d" % sz)) for sz in SIZES]
-                        + sum(([x.get("amt%d" % cp), r_(x.get("pd%d" % cp))] for cp in DYN_CAPS), []) + [x.get("val10")])
+                        + sum(([x.get("amt%d" % cp), r_(x.get("pd%d" % cp))] for cp in DYN_CAPS), []) + [x.get("val10"), x.get("ask10")]
+                        + sum(([x.get("wa_" + a), r_(x.get("pw_" + a)) if x.get("pw_" + a) else ("벽부족" if x.get("wa_" + a, 0) >= 30e4 else "")] for a in TUNED), []))
     f = OUT / "log.csv"; new = not f.exists()
     with open(f, "a", newline="", encoding="utf-8") as w:
         cw = csv.writer(w)
         if new: cw.writerow(["pick_day", "sell_day", "grp", "t", "krx_close", "p1950", "ah", "rel", "mult", "v1941_50", "cap05", "cap10", "ask", "bid", "bid_fill",
                              "vwap", "high", "open1", "r_ask", "r_bid", "r_vwap", "r_high"] + ["r_%d만" % sz for sz in SIZES]
-                            + sum((["amt_cap%d만" % cp, "r_cap%d만" % cp] for cp in DYN_CAPS), []) + ["val1951_2000"])
+                            + sum((["amt_cap%d만" % cp, "r_cap%d만" % cp] for cp in DYN_CAPS), []) + ["val1951_2000", "ask10"]
+                            + sum((["amt_%s" % a, "r_wall_%s" % a] for a in TUNED), []))
         cw.writerows(rows)
     snap["reviewed"] = d; jsave(OUT / ("pick_%s.json" % pd_), snap)
     log("review %s → %s: %d종목" % (pd_, d, len(rows)))
@@ -462,6 +474,14 @@ def do_report(send=True):
                     tot += rr / 100 * amt; ws += rr * amt; asum += amt; used += amt; nn += 1
             md.append("| %s | 문턱 %.0f%%p · 배율 %s · k %d%% · 상한 %d만 | %d | %s | %+.0f만 |" % (
                 acct, th, "1·2·3" if mk == "123" else "1·1.5·2", k * 100, capm, nn, ("%+.2f%%" % (ws / asum)) if asum else "—", tot / 1e4))
+        # 매도벽 실측(10-25 사용자 "다 매수는 되는 거지?") — 19:50 매도 호가 10단계를 타고 그 계좌 금액을 다 샀을 때(종목 하나씩, 계좌 나눠 쓰기 전)
+        md += ["", "## 매도벽 — 19:50 매도 호가 10단계로 계좌 금액을 다 살 수 있었나", "",
+               "| 계좌 | 건 | 10단계로 다 산 건 | 벽 부족 | 다 산 건 수익(호가 타고 산 값 → 시가, 비용 뒤) |", "|---|---|---|---|---|"]
+        for acct in TUNED:
+            R_ = [r for r in rows if r["grp"] == "picks" and r.get("amt_" + acct) not in (None, "", "None") and (fl(r.get("amt_" + acct)) or 0) >= 30e4]
+            ok_ = [fl(r["r_wall_" + acct]) for r in R_ if r.get("r_wall_" + acct) not in ("", "벽부족", None)]
+            md.append("| %s | %d | %d | %d | %s |" % (acct, len(R_), len(ok_), sum(1 for r in R_ if r.get("r_wall_" + acct) == "벽부족"),
+                                                  ("%+.2f%% 승률 %.0f%%" % (sum(ok_) / len(ok_), sum(1 for v in ok_ if v > 0) / len(ok_) * 100)) if ok_ else "—"))
     (OUT / "report.md").write_text("\n".join(md) + "\n", encoding="utf-8")
     log("report: %d건 · %d일" % (len(rows), len(days)))
     if send: telegram("\n".join(lines) + "\n자세히: 서버 data/nxt/report.md")
