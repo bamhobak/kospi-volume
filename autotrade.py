@@ -109,14 +109,20 @@ def tg_send(tok, chat, text):
     msgs.append(text)
     left = []
     for m in msgs:
-        ok = False
+        ok, html = False, True
         for i in range(4):
             try:
-                body = json.dumps({"chat_id": chat, "text": m, "parse_mode": "HTML", "disable_web_page_preview": True}).encode()
-                rq = urllib.request.Request(f"https://api.telegram.org/bot{tok}/sendMessage", data=body, headers={"Content-Type": "application/json"})
+                d = {"chat_id": chat, "text": m, "disable_web_page_preview": True}
+                if html: d["parse_mode"] = "HTML"
+                else: d["text"] = re.sub(r"</?(b|i|u|s|code|pre)>", "", m)          # 서식 없이 — 굵은 글씨 꼬리표만 떼고 나머지 글자는 그대로
+                rq = urllib.request.Request(f"https://api.telegram.org/bot{tok}/sendMessage", data=json.dumps(d).encode(), headers={"Content-Type": "application/json"})
                 urllib.request.urlopen(rq, timeout=30, context=_tg_ctx()).read(); ok = True; break
             except urllib.error.HTTPError as ex:
-                log("텔레그램 거절:", ex.code); ok = True; break        # 형식 문제면 다시 해도 같다 — 쌓지 않는다
+                # 2026-10-27: 실패 알림에 '<HTTPError 403: ...>' 같은 글자가 들어가 HTML 서식이 깨져 400 으로 거절 → 04:15 미장 매도 실패 알림이 사라졌다.
+                #   400 이면 서식 없이 한 번 더 보낸다. 그래도 거절이면 형식 문제라 다시 해도 같다 — 쌓지 않는다.
+                if ex.code == 400 and html:
+                    log("텔레그램 서식 거절(400) — 서식 없이 다시"); html = False; continue
+                log("텔레그램 거절:", ex.code); ok = True; break
             except Exception as ex:
                 log("텔레그램 실패(%d):" % (i + 1), repr(ex)[:120]); time.sleep(5 * (i + 1))
         if not ok: left.append(m)
@@ -159,6 +165,14 @@ class TossErr(Exception):
 _acct = {}
 
 
+def _blocked(path, code=None):
+    """토스 403 — 허용 IP 밖. 지금 공인 IP 를 같이 알려 준다(서버 공유기·회선이 바뀌면 생긴다)."""
+    ip = "?"
+    try: ip = urllib.request.urlopen("https://ifconfig.me/ip", timeout=10).read().decode().strip()
+    except Exception: pass
+    return TossErr("토스 403 차단 %s — 허용 IP 밖일 수 있다(지금 공인 IP %s). 토스 웹 설정 > Open API > 허용 IP 관리에 추가" % (path, ip), code or "forbidden", 403)
+
+
 NET_WAIT = 300      # 네트워크가 끊겨도 이만큼(초)은 다시 해 본다 — 종가 단일가(15:20~30) 안에 붙어야 한다
 
 
@@ -173,6 +187,10 @@ def call(method, path, acct=False, body=None, **q):
         except TossErr:
             raise
         except (urllib.error.URLError, OSError, TimeoutError, http.client.HTTPException) as ex:
+            # 2026-10-27: 서버 공유기 교체로 공인 IP 가 바뀌자 토큰 발급·계좌번호 조회(_call 의 try 밖)가 403 → 여기서 '네트워크 오류'로
+            #   5분 넘게 다시 했다(04:15 미장 매도). 403 은 다시 해도 같다 — 바로 '허용 IP 밖' 으로 끝낸다.
+            if isinstance(ex, urllib.error.HTTPError) and ex.code == 403:
+                raise _blocked(path)
             k += 1
             if time.time() - t0 > NET_WAIT:
                 raise TossErr("네트워크 %d번 실패(%.0f초) %s: %s" % (k, time.time() - t0, path, repr(ex)[:120]), "network")
@@ -229,10 +247,7 @@ def _call(method, path, acct=False, body=None, **q):
                 except Exception: w = min(5.0, 0.5 * 2 ** att)
                 time.sleep(w); continue
             if ex.code == 403:
-                ip = "?"
-                try: ip = urllib.request.urlopen("https://ifconfig.me/ip", timeout=10).read().decode().strip()
-                except Exception: pass
-                raise TossErr("403 차단 — 허용 IP 밖일 수 있다(지금 공인 IP %s). 토스 웹 설정 > Open API > 허용 IP 관리에 추가" % ip, code, 403)
+                raise _blocked(path, code)
             raise TossErr("HTTP %d %s %s" % (ex.code, path, raw), code, ex.code)
     raise TossErr("재시도 뒤에도 실패 %s" % path)
 
