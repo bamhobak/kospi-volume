@@ -1521,7 +1521,9 @@ function renderCards(rows){
           :`<button data-buy="${r.ticker}" data-rid="${f.id}" title="${codeOf(f.id)} 규칙으로 매수를 기록합니다 — 매도일도 이 규칙(${hold}거래일)으로 잡힙니다">매수 기록</button>`}</div>
       </div>
       <div class="warn">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ind)" stroke-width="2" stroke-linecap="round" style="flex:none"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+        ${f.rule.trail||f.rule.stop
+          ?`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ind)" stroke-width="2" stroke-linecap="round" style="flex:none"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>`
+          :`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ind)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>`}
         <span>${f.rule.trail?'트레일링 -'+f.rule.trail+'% — 보유 중 종가 최고점에서 이만큼 내려오면 다음날 시가에 팝니다(선이 매일 따라 올라갑니다)':f.rule.stop?'손절 -'+f.rule.stop+'%':''}${f.rule.trail||f.rule.stop?'. ':''}기대 승률 ${f.stats.win}% · 건당 ${f.stats.avg>0?'+':''}${f.stats.avg}%</span>
       </div></div>`}).join('');
   bindCopy();
