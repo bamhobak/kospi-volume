@@ -445,13 +445,28 @@ def candidates(mk, F, ST, R, rank, today_keys):
     held_by = {}
     for p in pos: held_by.setdefault(p["code"], set()).update(str(f) for f in (p.get("filters") or []))
     streak = F.get("streaks") or {}
+    toss_us = _toss_us() if mk == "US" else None
     C = []
     for rid, L in (F.get("filters") or {}).items():
         for t in L:
             if mk_of(t) != mk or rid not in R or rid in held_by.get(t, set()) or f"{rid}:{t}" in today_keys:
                 continue
+            if toss_us and t not in toss_us:
+                log("토스에 없는 미장 종목이라 건너뜀:", rid, t); continue
             C.append((rank.get(rid, 99), streak.get(f"{rid}:{t}", 1), rid, t))
     return sorted(C)
+
+
+def _toss_us():
+    """토스에서 살 수 있는 미장 종목(toss_us_list.py → data/us/toss_us.csv). 10-26 VSECU(유닛)가 [N4] 에 걸린 사고 —
+    사이트 표는 다음 CI 부터 걸러지지만 그 사이·목록 밖 종목을 여기서도 막는다. 파일이 없거나 이상하면 None(거르지 않음)."""
+    try:
+        import csv
+        with open(BASE / "data" / "us" / "toss_us.csv", encoding="utf-8") as fh:
+            s = {r["symbol"] for r in csv.DictReader(fh)}
+        return s if len(s) >= 5000 else None
+    except Exception:
+        return None
 
 
 def ovl_state():
