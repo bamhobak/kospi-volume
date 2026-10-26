@@ -9,9 +9,12 @@ is malformed" — 모든 테이블 읽기 실패). 9월 초에도 같은 일로 
 어떻게:
   · SQLite **백업 API**(sqlite3.Connection.backup)로 복사한다 — 파일 복사와 달리 쓰는 도중이어도
     일관된 사본이 나온다. 원본이 깨져 있으면 여기서 오류가 나므로 **손상 감지기** 역할도 한다.
-  · D:\\kospi_backup\\YYYYMMDD\\ 에 두고 **최근 2일치**만 남긴다 — 깨진 날의 사본이 멀쩡한
+  · C:\\kospi_backup\\YYYYMMDD\\ 에 두고 **최근 2일치**만 남긴다 — 깨진 날의 사본이 멀쩡한
     사본을 덮어쓰지 않게.
-  · 원본과 다른 드라이브(D:)에 둔다.
+  · 원본과 다른 드라이브(D:)에 둔다. ⚠ 2026-10-26: 서버컴(bam)의 D: 는 윈도우 **복구 파티션**(1GB, 꽉 참)이라
+    10-24 서버 이전 뒤 이틀 연속 첫 파일부터 실패했다(수집기 현황판 '연구·내부자 오류 1'). 서버엔 다른 디스크가 없어
+    C:\\kospi_backup 으로 바꿨다 — 같은 디스크라 디스크 고장엔 못 버티지만, 원래 목적(SQLite 깨짐 대비)은 된다.
+  · 시작 전에 남은 공간이 (DB 합계 × 1.2) 보다 적으면 아무것도 안 쓰고 이유를 남기고 실패한다.
 
     python backup_dbs.py            # 전부
     python backup_dbs.py --keep 3
@@ -31,7 +34,7 @@ for _n in ("stdout", "stderr"):                      # pythonw(예약 작업)에
 
 arg = lambda k, d: sys.argv[sys.argv.index(k) + 1] if k in sys.argv else d
 KEEP = int(arg("--keep", "2"))
-DEST = Path(arg("--to", r"D:\kospi_backup"))
+DEST = Path(arg("--to", r"C:\kospi_backup"))
 # 다시 받기 어렵거나 오래 걸리는 것만. 패널 pkl·캐시는 원본에서 다시 만들 수 있어 뺀다.
 DBS = ["data/kospi.db", "data/kosdaq.db", "data/kis/market.db", "data/krx_daily.db", "data/investor.db",
        "data/toss.db", "data/index_members.db", "data/feargreed.db", "data/delisted.db", "data/delisted_kd.db",
@@ -44,6 +47,12 @@ def log(m):
 
 
 def main():
+    need = sum((BASE / r).stat().st_size for r in DBS if (BASE / r).exists()) * 1.2
+    DEST.mkdir(parents=True, exist_ok=True)
+    free = shutil.disk_usage(DEST).free
+    if free < need:
+        log(f"✗ 백업 공간 모자람 — {DEST} 남은 {free / 1e9:.1f}GB < 필요 {need / 1e9:.1f}GB (DB 합계 × 1.2) · 아무것도 안 씀")
+        return 1
     day = DEST / time.strftime("%Y%m%d")
     day.mkdir(parents=True, exist_ok=True)
     fail, t0, tot = [], time.time(), 0
