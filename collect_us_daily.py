@@ -56,6 +56,26 @@ def tickers():
         import us_collect
         U = us_collect.build_tickers()
     U = U[U.Symbol.notna() & U.Symbol.astype(str).str.fullmatch(r"[A-Z]{1,5}")]
+    # 2026-10-26 사용자 "큰일날 뻔했는데": 나스닥 목록엔 토스에서 못 사는 종목(SPAC 유닛·Tangible Equity Units·우선주·
+    #   예탁증서 등 541개)이 섞여 VSECU 가 [N4] 매수 대기에 떴다. 서버가 커밋하는 토스 목록(toss_us_list.py)에 없는 건 뺀다.
+    #   목록이 없으면(처음·실패) 그대로 — 오래됐으면 경고만(새 상장 종목이 목록 새로 받을 때까지 빠질 수 있다).
+    T_ = BASE / "data" / "us" / "toss_us.csv"
+    if T_.exists():
+        try:
+            T = pd.read_csv(T_, dtype=str)
+            keep = set(T.symbol)
+            asof = str(T["asof"].max()) if "asof" in T.columns else "?"      # T.asof 는 판다스 메서드라 [] 로
+            if len(keep) >= 5000:
+                drop = ~U.Symbol.isin(keep)
+                log(f"  토스에 없는 종목 {int(drop.sum()):,}개 뺌 (토스 목록 {asof} · {len(keep):,}개)")
+                try:
+                    if (datetime.now() - datetime.strptime(asof, "%Y%m%d")).days > 14:
+                        log(f"  ⚠ 토스 목록이 {asof} 이라 오래됐다 — 서버 run_daily_research 10단계(toss_us_list.py) 확인")
+                except ValueError:
+                    pass
+                U = U[~drop]
+        except Exception as e:
+            log(f"  토스 목록 읽기 실패 — 거르지 않음: {e!r}"[:120])
     return U.reset_index(drop=True)
 
 

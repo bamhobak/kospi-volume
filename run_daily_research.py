@@ -69,6 +69,9 @@ STEPS = [
     # 9) DB 백업 — C:\kospi_backup 에 최근 2일치(10-26: 서버 D: 는 윈도우 복구 파티션이라 C 로). 2026-09-20~22 PC 가 7번 죽어 toss.db 가 통째로
     #    깨졌는데 백업이 없었다. SQLite 백업 API 라 원본이 깨져 있으면 여기서 실패로 드러난다.
     (9, "DB 백업", ["backup_dbs.py"]),
+    # 10) 토스에서 살 수 있는 미장 종목 목록(2026-10-26 VSECU 유닛이 [N4] 매수 대기에 뜬 사고) — 6일 넘었을 때만
+    #     새로 받아 data/us/toss_us.csv 만 커밋·푸시. CI 의 미장 표(collect_us_daily.tickers)가 이걸로 토스에 없는 종목을 뺀다.
+    (10, "토스 미장 종목 목록", ["toss_us_list.py", "--push", "--max-age", "6"]),
 ]
 
 def clean(t):
