@@ -53,10 +53,17 @@ def telegram(msg):
     t, c = E.get("TELEGRAM_BOT_TOKEN"), E.get("TELEGRAM_CHAT_ID")
     if not (t and c):
         return
+    def _ctx():   # 10-26: 서버 윈도우 루트 목록에 GoDaddy 가 없으면 파이썬 기본 검증이 실패 → certifi 묶음(autotrade._tg_ctx 와 같다)
+        try:
+            import ssl, certifi
+            return ssl.create_default_context(cafile=certifi.where())
+        except Exception:
+            return None
     try:
         d = json.dumps({"chat_id": c, "text": msg}).encode()
         urllib.request.urlopen(urllib.request.Request("https://api.telegram.org/bot%s/sendMessage" % t, data=d,
-                                                      headers={"Content-Type": "application/json"}), timeout=15)
+                                                      headers={"Content-Type": "application/json"}), timeout=15,
+                               context=_ctx())
     except Exception:
         pass
 

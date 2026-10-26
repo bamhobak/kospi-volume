@@ -82,6 +82,19 @@ def telegram(text):
 
 
 TG_PEND = BASE / "data" / "autotrade" / "tg_pending.jsonl"
+_TGC = []
+
+
+def _tg_ctx():
+    """텔레그램 TLS 검증 — certifi 묶음 우선. 2026-10-26 서버 첫 실전날: 윈도우 루트 목록에 GoDaddy 루트가 아직 없어서
+    (윈도우는 처음 쓸 때 받아 오지만 파이썬은 안 받아 옴) 'self-signed certificate in chain' 으로 아침 알림이 전부 막혔다."""
+    if not _TGC:
+        try:
+            import ssl, certifi
+            _TGC.append(ssl.create_default_context(cafile=certifi.where()))
+        except Exception:
+            _TGC.append(None)
+    return _TGC[0]
 
 
 def tg_send(tok, chat, text):
@@ -101,7 +114,7 @@ def tg_send(tok, chat, text):
             try:
                 body = json.dumps({"chat_id": chat, "text": m, "parse_mode": "HTML", "disable_web_page_preview": True}).encode()
                 rq = urllib.request.Request(f"https://api.telegram.org/bot{tok}/sendMessage", data=body, headers={"Content-Type": "application/json"})
-                urllib.request.urlopen(rq, timeout=30).read(); ok = True; break
+                urllib.request.urlopen(rq, timeout=30, context=_tg_ctx()).read(); ok = True; break
             except urllib.error.HTTPError as ex:
                 log("텔레그램 거절:", ex.code); ok = True; break        # 형식 문제면 다시 해도 같다 — 쌓지 않는다
             except Exception as ex:
