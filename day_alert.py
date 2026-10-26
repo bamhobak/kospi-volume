@@ -604,34 +604,64 @@ def open_guard(placed, today, until_s=40):
     (나이스정보통신·진양화학·셀비온 — 시가가 지정가보다 10~30원 위). → 09:00 부터 1초마다 그 종목 1분봉 첫 봉(=시가 단일가)을 보고
     시가 > 지정가면 바로 취소한다. 시가 단일가에서 이미 체결된 주문은 취소가 '이미 체결'로 거절될 뿐이라 손해 없음."""
     if AT.DRY or not placed: return
+    # 10-26 사용자 "후보 많아질 걸 미리 대비" — 전엔 주문마다 1초마다 (주문 조회 + 1분봉) 2번 × 8갈래 → 37종목에서 HTTP 429 4건.
+    #   이제 ① 시가는 **종목마다 한 번만**(T1·T2·T3 가 같은 종목을 나눠 씀 · 찾으면 다시 안 봄) ② 주문 조회는 안 한다 —
+    #   시가 ≤ 지정가면 시가에 사진 것(체결 반영은 wait_fills 가 본다), 시가 > 지정가면 바로 취소(이미 체결이면 토스가 거절할 뿐, 09:01 cancel_left 가 다시 본다).
+    #   ③ 호출은 AT._pace·M._throttle 같은 자물쇠(초당 ~14회)라 1분봉을 종목마다 보면 120종목에 한 바퀴 ~9초 — 시가가 찍히기 전에
+    #      본 종목은 다음 바퀴까지 기다린다(가짜 시험에서 40초 안에 다시 못 봄). → 매 바퀴 먼저 **시세 묶음 조회(200종목 한 번)**로
+    #      '오늘 09:00:00 뒤 체결이 있나'만 보고, 시가가 찍힌 종목만 1분봉을 본다(시가 값은 늘 1분봉 09:01 봉 — 정확).
     from concurrent.futures import ThreadPoolExecutor
     left = {o["oid"]: o for o in placed if o.get("oid")}
     t_end = time.time() + until_s
+    opens, early = {}, {}                                   # early = 시세가 09:00:00~05 인 종목의 그 값(1분봉이 아직 없을 때만 시가로 씀 — 전과 같은 규칙)
 
-    def first_open(sym):
-        return krx_open(sym, today)
+    def ready(syms):
+        out = set()
+        for i in range(0, len(syms), 200):
+            try: R = M.get("/api/v1/prices", symbols=",".join(syms[i:i + 200])) or []
+            except Exception as ex:
+                log("시세 묶음 조회 실패:", repr(ex)[:120]); return set(syms)          # 못 보면 전처럼 다 1분봉으로
+            for x in R:
+                ts = x.get("timestamp") or ""
+                if ts[:10].replace("-", "") == today and ts[11:19] >= "09:00:00":
+                    out.add(x["symbol"])
+                    if ts[11:19] <= "09:00:05": early[x["symbol"]] = float(x["lastPrice"])
+        return out
 
-    def one(o):
+    def look(sym):
         try:
-            st = (AT.detail(o["oid"]) or {}).get("status")
-            if st in AT.FINAL or st == "PARTIALLY_FILLED": return o["oid"], "done"
-            op_ = first_open(o["t"])
-            if op_ is None: return o["oid"], "wait"
-            o["open"] = op_
-            if op_ <= o["lim"]: return o["oid"], "done"           # 시가 단일가에서 사질 값 — 체결 반영만 기다린다
-            try:
-                AT.call("POST", "/api/v1/orders/%s/cancel" % o["oid"], acct=True, body={})
-                o["canceled"] = True; log("시가 %s > 지정가 %s — 바로 취소:" % (op_, o["lim"]), o["t"], o.get("rid"))
-            except AT.TossErr as ex:
-                log("즉시 취소 거절(%s):" % ex.code, o["t"])
-            return o["oid"], "done"
+            c = (M.get("/api/v1/candles", symbol=sym, interval="1m", count=3) or {}).get("candles") or []
+            c = [x for x in c if x["timestamp"][:10].replace("-", "") == today and "09:01" <= x["timestamp"][11:16] <= "15:31"
+                 and float(x.get("volume") or 0) > 0]
+            if c: return sym, float(min(c, key=lambda x: x["timestamp"])["openPrice"])
+            return sym, early.get(sym)
         except Exception as ex:
-            log("시가 확인 실패:", o["t"], repr(ex)[:120]); return o["oid"], "wait"
+            log("시가 확인 실패:", sym, repr(ex)[:120]); return sym, None
+
+    def cancel(o):
+        try:
+            AT.call("POST", "/api/v1/orders/%s/cancel" % o["oid"], acct=True, body={})
+            o["canceled"] = True; log("시가 %s > 지정가 %s — 바로 취소:" % (o["open"], o["lim"]), o["t"], o.get("rid"))
+        except AT.TossErr as ex:
+            log("즉시 취소 거절(%s):" % ex.code, o["t"], o.get("rid"))
+        except Exception as ex:
+            log("즉시 취소 실패:", o["t"], repr(ex)[:120])
 
     while left and time.time() < t_end:
-        with ThreadPoolExecutor(min(8, len(left))) as ex:
-            for oid, st in ex.map(one, list(left.values())):
-                if st == "done": left.pop(oid, None)
+        need = sorted({o["t"] for o in left.values() if o["t"] not in opens})
+        if need: need = sorted(ready(need))                 # 시가 찍힌 종목만(묶음 한 번)
+        for i in range(0, len(need), 30):                   # 30종목씩 '보고 → 바로 취소' (300종목이어도 첫 취소가 몇 초 안에)
+            with ThreadPoolExecutor(min(8, len(need[i:i + 30]))) as ex:
+                for sym, op_ in ex.map(look, need[i:i + 30]):
+                    if op_ is not None: opens[sym] = op_
+            hit = [o for o in left.values() if o["t"] in opens]
+            for o in hit: o["open"] = opens[o["t"]]
+            bad = [o for o in hit if o.get("lim") and o["open"] > o["lim"]]      # 지정가 없는(시장가) 주문은 그냥 둔다
+            if bad:
+                with ThreadPoolExecutor(min(8, len(bad))) as ex:
+                    list(ex.map(cancel, bad))
+            for o in hit: left.pop(o["oid"], None)
+            if time.time() >= t_end: break
         if left: time.sleep(1.0)
     if left: log("시가 확인 못 한 주문 %d — 09:01 정리에서 취소" % len(left))
 

@@ -180,9 +180,25 @@ def call(method, path, acct=False, body=None, **q):
             time.sleep(w)
 
 
+_TH = []
+
+
+def _pace():
+    """2026-10-26 사용자 "후보 많아질 걸 미리 대비" — 주문·조회 호출도 collect_m1 시세 호출과 **같은 자물쇠**로 초당 ~14회(토스 한도 20/초) 안에.
+    전엔 주문 쪽엔 속도 조절이 없어 데이 09:00 시가 확인(8갈래 동시)에서 HTTP 429 가 4건 났다. 한 프로세스 안에서만 맞춘다."""
+    if not _TH:
+        try:
+            import collect_m1 as _M
+            _TH.append(_M._throttle)
+        except Exception:
+            _TH.append(None)
+    if _TH[0]: _TH[0]()
+
+
 def _call(method, path, acct=False, body=None, **q):
     u = toss.B + path + ("?" + urllib.parse.urlencode(q) if q else "")
-    for att in range(3):
+    for att in range(6):
+        _pace()
         h = {"Authorization": "Bearer " + toss.token(), "Accept": "application/json"}
         if acct: h["X-Tossinvest-Account"] = ACCT()
         data = None
@@ -208,8 +224,10 @@ def _call(method, path, acct=False, body=None, **q):
                 try: (BASE / "data" / ".toss_token.json").unlink()
                 except Exception: pass
                 continue
-            if ex.code == 429 and att < 2:
-                time.sleep(1.5); continue
+            if ex.code == 429 and att < 5:                 # 10-26: 2번 → 5번 · 0.5→1→2→4→5초(토스가 Retry-After 를 주면 그 값)
+                try: w = float(ex.headers.get("Retry-After"))
+                except Exception: w = min(5.0, 0.5 * 2 ** att)
+                time.sleep(w); continue
             if ex.code == 403:
                 ip = "?"
                 try: ip = urllib.request.urlopen("https://ifconfig.me/ip", timeout=10).read().decode().strip()
