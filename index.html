@@ -1889,7 +1889,7 @@ function perParts(P,o){
   const ctl=`<div class="dper">`
     +(o.basis?`<span class="dseg"><button data-pb="buy" class="${P.b==='buy'?'on':''}">매수일</button><button data-pb="sell" class="${P.b==='sell'?'on':''}">매도일</button></span>`:`<span class="k">매수일</span>`)
     +`<input type="date" id="dpf" value="${P.f}" aria-label="시작일"><span class="k">~</span><input type="date" id="dpt" value="${P.t}" aria-label="끝일">`
-    +`<span class="dq"><button data-pq="7">7일</button><button data-pq="30">30일</button><button data-pq="m0">이번 달</button><button data-pq="m1">지난 달</button>`
+    +`<span class="dq"><button data-pq="1">오늘</button><button data-pq="7">7일</button><button data-pq="30">30일</button><button data-pq="m0">이번 달</button><button data-pq="m1">지난 달</button>`
     +`<button data-pq="x" class="${on?'':'on'}">전체 기간</button></span></div>`;
   /* 2026-10-24 디자인 개편 — 같은 기간 지수 등락을 막대로, 맨 위에 내 성적(동일가중, o.mine) */
   const iv=perIx(o.selK,o.selF).map(s=>[PER_IXN[s],perIdxPct(s,fromD,toD),0]);
