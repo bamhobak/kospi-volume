@@ -436,6 +436,85 @@ def scalp_update(mutate, why):
     log("⚠ 사이트 기록 실패:", why)
 
 
+# ── 가상 매매(2026-10-27 사용자: "매수가능 금액 부족한 것들도 가상으로 매수 시도하는 것처럼 — 사지는 조건이면 사진 것처럼 사이트에") ──
+#   trade() 가 돈 모자라 못 낸 몫(통째로 건너뜀 · 3→1주로 줄인 나머지 2주 · 매수가능 부족 거절)을 data/day/paper_날짜.json 에 적는다.
+#   paper_buy: 시가 뒤 KRX 시가 단일가 ≤ 지정가면 '사졌다' → 사이트 데이 보유에 그 주수 · 매수가 = 시가 · paper=True(토스 주문 없음)
+#   paper_sell: 16:25 리뷰가 KRX 종가 단일가로 매도 기록. 실제 매도(close_sell·지킴이·carry_sell)는 원장만 보므로 가상 보유를 안 판다.
+def _paper(today):
+    f = OUT / ("paper_%s.json" % today)
+    return (f, json.loads(f.read_text(encoding="utf-8"))) if f.exists() else (f, [])
+
+
+def paper_buy(today):
+    f, X = _paper(today)
+    if not X: return
+    for x in X:
+        if x.get("open"): continue
+        try: x["open"] = krx_open(x["t"], today, late=True)
+        except Exception as ex: log("가상 매수 시가 못 받음:", x["t"], repr(ex)[:100])
+        x["fill"] = bool(x.get("open") and x["open"] <= x["lim"])
+    f.write_text(json.dumps(X, ensure_ascii=False), encoding="utf-8")
+    F = [x for x in X if x.get("fill")]
+
+    def add(P):
+        have = {(p.get("code"), tuple(p.get("filters") or []), str(p.get("date"))) for p in P if p.get("paper") and p.get("day")}
+        n = 0
+        for i, x in enumerate(F):
+            if (x["t"], (x["rid"],), today) in have: continue
+            P.append({"id": int(time.time() * 1000) + 500 + i, "code": x["t"], "name": x["name"], "date": today, "price": x["open"],
+                      "qty": x["qty"], "filters": [x["rid"]], "auto": True, "day": True, "paper": True})
+            n += 1
+        return n > 0
+    if F: scalp_update(add, "데이 가상 매수 %d건(돈 모자라 못 낸 몫)" % len(F))
+    log("가상 매수: 못 낸 몫 %d건 중 시가 ≤ 지정가 %d건(%d주) · 시가가 높아 안 사졌을 것 %d건" % (
+        len(X), len(F), sum(x["qty"] for x in F), sum(1 for x in X if x.get("open") and not x["fill"])))
+    if F:
+        telegram("🧾 <b>데이 가상 매수</b> %s/%s — 돈 모자라 못 낸 몫 %d건 중 시가에 사졌을 %d건 %d주 = %s원 · 사이트에만 기록(토스 주문 없음)" % (
+            today[4:6], today[6:], len(X), len(F), sum(x["qty"] for x in F), f"{sum(x['qty'] * x['open'] for x in F):,.0f}"))
+
+
+def paper_rebuild(today):
+    """아침 프로그램이 가상 몫 목록을 못 남긴 날(10-27 처음 켠 날 등) — 후보 목록과 원장으로 다시 계산: 원래 주수 − 실제로 낸 주수."""
+    f = OUT / ("paper_%s.json" % today)
+    if f.exists(): return
+    snap = json.loads((OUT / ("snap_%s.json" % today)).read_text(encoding="utf-8"))
+    sent = {}
+    for o in _led()["orders"]:
+        if o.get("date") == today and o.get("side") == "BUY" and o.get("oid"):
+            sent[(o["t"], o.get("rid", "T1"))] = sent.get((o["t"], o.get("rid", "T1")), 0) + int(o.get("qty") or 0)
+    X = []
+    for x, rid in order_list(snap.get("cand") or []):
+        mult = day_mult(x); lim = int(x.get("lim") or limit_price(x["pc"], 0.0))
+        if DAY_QTY: q = max(DAY_QTY, min(int(DAY_MULT_MAX), int(mult)))
+        else:
+            base = DAY_BASE or DAY_PER
+            q = math.floor(base * mult * float(x.get("lm") or 1.0) / lim)
+            if q < 1 and lim <= base * 2: q = 1
+        n = q - sent.get((x["t"], rid), 0)
+        if q >= 1 and n > 0: X.append(dict(t=x["t"], name=x["name"], rid=rid, lim=lim, pc=x.get("pc"), qty=int(n)))
+    f.write_text(json.dumps(X, ensure_ascii=False), encoding="utf-8")
+    log("가상 몫 다시 계산: %d건(%d주)" % (len(X), sum(z["qty"] for z in X)))
+
+
+def paper_sell(today, act):
+    """act = {종목: (KRX 시가, KRX 종가)} — review() 가 만든 것."""
+    f, X = _paper(today)
+    if not X: return None
+    upd = {}
+
+    def mark(P):
+        for p in P:
+            if p.get("paper") and p.get("day") and str(p.get("date")) == today and not p.get("sell") and act.get(p.get("code")):
+                p["sell"] = act[p["code"]][1]; p["sellDate"] = today; upd[p["id"]] = p
+        return bool(upd)
+    scalp_update(mark, "데이 가상 매도(종가) %d건" % sum(1 for x in X if x.get("fill")))
+    if not upd: return None
+    r = [(p["sell"] / float(p["price"]) - 1) * 100 - COST for p in upd.values()]
+    amt = sum(float(p["price"]) * p["qty"] for p in upd.values()); pnl = sum((p["sell"] - float(p["price"])) * p["qty"] - float(p["price"]) * p["qty"] * COST / 100 for p in upd.values())
+    return "🧾 가상(돈 모자라 못 낸 몫) %d건 평균 %+.2f%% · 오른 것 %d/%d · %s원 → %s원(비용 뒤)" % (
+        len(r), sum(r) / len(r), sum(1 for z in r if z > 0), len(r), f"{amt:,.0f}", f"{pnl:+,.0f}")
+
+
 def day_mult(x):
     """2026-10-19 사용자: 시장보다 더 빠진 만큼 더 산다 — 배율 = 08:52 예상 '시장 대비'(%p)의 크기 그대로(-1.5 → 1.5배 · -2.2 → 2.2배 · -5 → 5배),
     최소 1배 · 최대 DAY_MULT_MAX(3, 10-24~ · 전엔 5)배. 테스트 동안은 주수 = 배율의 정수 부분(1~3주). research t1_weight_1019.py: 큰 금액이면 깊은 종목은
@@ -463,7 +542,7 @@ def trade(L, today):
     if not S or S["date"] != today or AT.now() >= S["start"]:
         log("데이 매수 시각 지남 — 건너뜀"); return
     Lg = _led(); done = {(o["t"], o.get("rid", "T1")) for o in Lg["orders"] if o.get("date") == today and o.get("side") == "BUY"}
-    placed, skip = [], []
+    placed, skip, short = [], [], []                   # short = 돈 모자라 못 낸 몫 → 가상 매매(10-27)
     # 2026-10-06 T2(사용자 '1번'): 어제 막판 1시간 -1%↓ 인 후보는 T2 로 한 번 더 산다 — 규칙마다 따로 주문·기록
     # 2026-10-11 T3: 짝 미장 예상 갭 -0.5%↓ 도 한 번 더 — T2 와 둘 다면 둘 다(사용자 10-11)
     orders = order_list(L)
@@ -487,10 +566,12 @@ def trade(L, today):
         x.setdefault("mult", round(mult, 2))
         if q < 1:
             skip.append((x["name"] + ("" if rid == "T1" else "[%s]" % RNAME.get(rid, rid)), "1주가 너무 비쌈")); continue
+        sh = lambda n: n > 0 and short.append(dict(t=x["t"], name=x["name"], rid=rid, lim=lim, pc=x.get("pc"), qty=int(n)))
+        want = q
         # 2026-10-06 사용자: 돈이 모자라면 1주씩만 산다(규칙이 제대로 도는지 보는 게 먼저)
         if bp is not None and q * px > bp:
             if px > bp:
-                skip.append((x["name"] + ("" if rid == "T1" else "[%s]" % RNAME.get(rid, rid)), "매수가능 부족")); continue
+                skip.append((x["name"] + ("" if rid == "T1" else "[%s]" % RNAME.get(rid, rid)), "매수가능 부족")); sh(want); continue
             log("매수가능 부족 — 1주만:", x["t"], "%d→1주" % q); q = 1
         cid = re.sub(r"[^A-Za-z0-9_-]", "", f"db{today}{x['t']}" + ("" if rid == "T1" else rid))[:36]
         o = dict(side="BUY", date=today, t=x["t"], name=x["name"], qty=q, cid=cid, rid=rid, lim=lim, pc=x.get("pc"), at=AT.now().isoformat())
@@ -508,13 +589,21 @@ def trade(L, today):
             o["oid"] = None; o["err"] = ex.code or str(ex)[:100]
             skip.append((x["name"] + ("" if rid == "T1" else "[%s]" % RNAME.get(rid, rid)), "주문 거부 " + str(o["err"])))
             Lg["orders"].append(o); _led_save(Lg)
-            if ex.code == "insufficient-buying-power" and bp is not None: bp = min(bp, px * 0.999)   # 이보다 비싼 건 건너뛴다
+            if ex.code == "insufficient-buying-power":
+                sh(want)
+                if bp is not None: bp = min(bp, px * 0.999)   # 이보다 비싼 건 건너뛴다
             continue                                          # 시가 단일가를 놓치면 사지 않는다(09:05 만 늦어도 효과가 사라진다)
-        Lg["orders"].append(o); _led_save(Lg); placed.append(o)
+        Lg["orders"].append(o); _led_save(Lg); placed.append(o); sh(want - q)
         if bp is not None: bp -= q * px
         time.sleep(0.4)                                   # 10-21: 후보가 늘어 주문이 많다(하루 최대 100건+) — 토스 429 피하려고 0.3→0.4초
+    if short:
+        (OUT / ("paper_%s.json" % today)).write_text(json.dumps(short, ensure_ascii=False), encoding="utf-8")
+        log("돈 모자라 못 낸 몫 %d건(%d주) → 시가 뒤 가상 매수" % (len(short), sum(z["qty"] for z in short)))
     if not placed:
         if skip: telegram("⚠ 데이 매수 0건 — " + " · ".join("%s(%s)" % s_ for s_ in skip[:6]))
+        if short:
+            AT.sleep_until(S["start"] + dt.timedelta(seconds=60), "가상 매수 시가 확인")
+            paper_buy(today)
         return
     AT.sleep_until(S["start"] - dt.timedelta(seconds=30), "후보 호가 스냅샷(시가 직전)")
     try: book_snap(today, "am", [x["t"] for x in L])
@@ -543,6 +632,8 @@ def trade(L, today):
         scalp_update(lambda P: (P.extend(dict(o["pos"]) for o in got) or True), "데이 매수 %d건" % len(got))
     try: mark_snap(today, placed, got)
     except Exception as ex: log("후보 시가 표시 실패:", repr(ex)[:200])
+    try: paper_buy(today)
+    except Exception as ex: log("가상 매수 실패:", repr(ex)[:200])
     lines = ["🌅 <b>데이 매수</b> %s/%s 시가" % (today[4:6], today[6:])]
     lines += ["✅ [%s] %s %d주 @ %s원 = %s원%s" % (RNAME.get(o.get("rid", "T1"), ""), o["name"], int(o["fq"]), f"{o['ap']:,.0f}", f"{o['fq'] * o['ap']:,.0f}",
                                                  (" ⚠ 장중 체결(시가 %s > 지정가 — 취소 전에 사짐)" % f"{o['open']:,.0f}") if o.get("intraday") else "") for o in got]
@@ -1198,6 +1289,11 @@ def review():
     except Exception as ex:
         log("실행 방법 실측 실패:", repr(ex)[:200])
         L.append("⚠ 실행 방법 실측 실패: %s" % str(ex)[:120])      # 조용히 죽지 않게(매일 그림자 테스트 — 사용자 10-14)
+    try:                                                  # 가상 매매(돈 모자라 못 낸 몫, 10-27) 종가 매도 기록
+        ln = paper_sell(today, act)
+        if ln: L.append(ln)
+    except Exception as ex:
+        log("가상 매도 실패:", repr(ex)[:200]); L.append("⚠ 가상 매도 기록 실패: %s" % str(ex)[:120])
     telegram("\n".join(L))
     log("리뷰:", L[1], "|", L[2], "|", L[3])
 
@@ -1217,7 +1313,10 @@ if __name__ == "__main__":
             late(AT.now().strftime("%Y%m%d"))
         elif a[:1] == ["close"]:
             close_job(AT.now().strftime("%Y%m%d"))
-        else: log("사용법: python day_alert.py morning | review | late | close")
+        elif a[:1] == ["paper"]:                           # 손으로: 가상 몫 다시 계산 + 가상 매수(시가 뒤) — python day_alert.py paper [YYYYMMDD]
+            d_ = a[1] if len(a) > 1 else AT.now().strftime("%Y%m%d")
+            paper_rebuild(d_); paper_buy(d_)
+        else: log("사용법: python day_alert.py morning | review | late | close | paper [날짜]")
     except Exception as ex:
         log("실패:", repr(ex)[:500])
         telegram("⚠ 데이 알림 실패: %s" % str(ex)[:300]); raise
