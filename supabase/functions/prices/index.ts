@@ -445,6 +445,7 @@ Deno.serve(async (req) => {
       const STK: Record<string, number> =
         ((await rpc("kospi_state_get", { p_pin: "__filters__" })) ?? {}).streaks ?? {};
       const dueToSell: string[] = [];   // 매도일 도달분 — 모았다가 한 통으로
+      let dueManual = 0;                 // 그중 자동매매가 아닌 것(직접 팔아야 함)
       const before = sent.size;
       for (const p of positions) {
         const lv = prices[p.code];
@@ -526,15 +527,19 @@ Deno.serve(async (req) => {
         // 두 번 세지 않는다.
         if (days >= rule.hold && hour >= 12 && !sent.has(`${id}:hold`)) {
           dueToSell.push(id);
+          if (!p.auto) dueManual++;
           sent.add(`${id}:hold`);
         }
       }
       if (dueToSell.length) {
         fired++;
+        // 2026-10-29 사용자: 자동매매 보유는 15:15 매도 작업이 종가 단일가(미장은 마감 전)에 알아서 판다 — 그걸 알 수 있게.
+        const NL = String.fromCharCode(10), nAuto = dueToSell.length - dueManual;
         await telegram(
-          `⏰ <b>매도일인 종목이 ${dueToSell.length}개 있습니다</b>` +
-          `${String.fromCharCode(10)}장 마감 전에 매도해 주세요 — 사이트에서 확인해 주세요.` +
-          `${String.fromCharCode(10)}${String.fromCharCode(10)}${SITE}/`,
+          `⏰ <b>오늘 매도일 ${dueToSell.length}종목</b>` +
+          (nAuto ? `${NL}🤖 자동매매 ${nAuto}종목 — 장 마감 때 알아서 팔아요(국장 15:20 종가 · 미장 마감 전). 손댈 것 없어요.` : "") +
+          (dueManual ? `${NL}✋ 직접 산 ${dueManual}종목 — 장 마감 전에 직접 팔아 주세요.` : "") +
+          `${NL}${NL}${SITE}/`,
         );
       }
       if (sent.size !== before) {
