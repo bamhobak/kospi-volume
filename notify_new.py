@@ -322,8 +322,8 @@ for fid, name, _ in FILTERS:
 n_new = len(set(newly))
 
 if n_new and prev_date:   # 첫 실행(비교 대상 없음)에는 보내지 않음
-    telegram("🆕 <b>매수 대기 종목이 있습니다</b> (%s/%s)" % (last_date[4:6], last_date[6:])
-             + chr(10) + "오늘 새로 걸린 종목 %d개 — 사이트에서 확인해 주세요." % n_new
+    telegram("🆕 <b>매수 대기</b> %s/%s" % (last_date[4:6], last_date[6:])
+             + chr(10) + "새 종목 %d개" % n_new
              + chr(10) + chr(10) + SITE_URL + "/")
 elif n_new:
     print("첫 실행 — 기준 목록만 저장:", cur)

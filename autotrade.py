@@ -437,7 +437,7 @@ def heal():
 
 def guard():
     if (OUT / "STOP").exists():
-        log("STOP 파일 — 멈춤"); telegram("⛔ 자동매매 멈춤 상태(data/autotrade/STOP) — 주문 안 함"); return False
+        log("STOP 파일 — 멈춤"); telegram("⛔ 자동매매 멈춤(STOP)"); return False
     return True
 
 
@@ -558,7 +558,7 @@ def ovl_record(o, S, info):
             if z.get("cid") == o["cid"]: z["pos"] = pos                  # heal() 이 사이트에서 빠지면 되살린다
         led_save(Lg)
         site_update(lambda P: (P.append(dict(pos)) or True), "지수 덮개 매수")
-        telegram("📈 <b>[지수 덮개] 매수</b> %s %d주 @ %s원 = %s\n%s → 60일선 +3%% 위라 들어감(상승장에만 지수를 든다)" % (
+        telegram("📈 <b>[지수 덮개] 매수</b> %s %d주 @ %s원 = %s\n%s" % (
             OVL_NAME, int(o["fq"]), f"{o['ap']:,.0f}", won(o["fq"] * o["ap"]), why))
     else:
         sold = {"sell": o["ap"], "sellDate": S["date"]}
@@ -573,7 +573,7 @@ def ovl_record(o, S, info):
         site_update(mark, "지수 덮개 매도")
         bp_ = next((float(p["price"]) for p in (site_state().get("positions") or []) if p.get("id") == o["posId"]), None)
         r = (o["ap"] / bp_ - 1) * 100 if bp_ else float("nan")
-        telegram("📉 <b>[지수 덮개] 매도</b> %s %d주 @ %s원 (%+.1f%%)\n%s → 60일선 -3%% 아래라 나옴" % (OVL_NAME, int(o["fq"]), f"{o['ap']:,.0f}", r, why))
+        telegram("📉 <b>[지수 덮개] 매도</b> %s %d주 @ %s원 (%+.1f%%)\n%s" % (OVL_NAME, int(o["fq"]), f"{o['ap']:,.0f}", r, why))
 
 
 def buy(mk):
@@ -615,7 +615,7 @@ def buy(mk):
         stale = "신호가 묵었다 — 신호 %s · 직전 거래일 %s" % (have, S["prev"])
     if stale:
         log(mk, "매수 안 함:", stale)
-        telegram("⚠ <b>자동매매 %s 매수 안 함</b>\n%s (수집 실패?) — 묵은 신호로는 사지 않는다" % ("국장" if mk == "KR" else "미장", stale))
+        telegram("⚠ <b>자동매매 %s 매수 안 함</b>\n%s — 묵은 신호" % ("국장" if mk == "KR" else "미장", stale))
         ovl_alone(); return
     R = rules()
     rank = {rid: i + 1 for i, rid in enumerate(sorted([r for r in R if (r[0] == "N") == (mk == "US")], key=lambda r: -R[r][2]))}
@@ -853,9 +853,9 @@ def sell(mk):
     sold_ids = {id(o) for o, _ in sold}
     for o, p in placed:
         if id(o) not in sold_ids:
-            L.append("❌ %s 매도 미체결(%s) — 직접 확인" % (p.get("name"), o.get("status")))
+            L.append("❌ %s 매도 미체결(%s)" % (p.get("name"), o.get("status")))
     for p, why in fail:
-        L.append("⚠ %s 매도 못 함: %s — 직접 확인" % (p.get("name"), why))
+        L.append("⚠ %s 매도 실패: %s" % (p.get("name"), why))
     if paper:
         sleep_until(S["end"] + dt.timedelta(seconds=90 if mk == "KR" else 150), "가상 보유 종가 확인")
         ppx = prices(sorted({p["code"] for p, _, _ in paper}))
@@ -873,7 +873,7 @@ def sell(mk):
             for p, rid, d in paper:
                 if p["id"] not in upd: continue
                 r = (upd[p["id"]] / float(p["price"]) - 1) * 100
-                L.append("🧾 [%s] %s %s주 %s → %s (%+.1f%%, %d일) — 가상(돈 없어 못 산 것, 토스 주문 없음)" % (
+                L.append("🧾 [%s] %s %s주 %s → %s (%+.1f%%, %d일) 가상" % (
                     R[rid][0], p.get("name"), p["qty"], f"{float(p['price']):,.0f}", f"{upd[p['id']]:,.0f}", r, d))
         if len(L) == 1: return
     telegram("\n".join(L))

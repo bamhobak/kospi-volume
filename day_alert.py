@@ -274,7 +274,7 @@ def morning():
     if env().get("DAY_MODE", "notify") == "live":               # 어제까지 못 판 데이 종목(하한가 묶임 등) — 오늘 시가에 판다(10-19 사용자)
         try: carry_sell(today)
         except Exception as ex:
-            log("넘어온 데이 종목 매도 실패:", repr(ex)[:200]); telegram("⚠ 어제 못 판 데이 종목 처리 실패: %s" % str(ex)[:150])
+            log("넘어온 데이 종목 매도 실패:", repr(ex)[:200]); telegram("⚠ 이월 데이 처리 실패: %s" % str(ex)[:150])
     nxt = {}
     for i in range(0, len(uni), 200):
         for x in M.get("/api/v1/prices", symbols=",".join(uni[i:i + 200])) or []:
@@ -353,7 +353,7 @@ def morning():
         L = [x for x in L if x["t"] not in bn]; U = [x for x in U if x["t"] not in bn]
         log("악재 공시로 뺌:", dropped)
     elif bn is None and deep:
-        telegram("⚠ 데이: -10%%p 넘게 빠진 후보 %d종목 악재 공시를 못 봤다(DART 실패) — 그대로 산다" % len(deep))
+        telegram("⚠ 데이: 악재 공시 확인 실패(DART) %d종목 — 그대로 매수" % len(deep))
     log("T4 나스닥 %s(%s) · 덜 반영 %d종목 · 고른 것 %d(겹침 %d) · 넓은 판 기록 %d" % (
         "%+.2f%%" % nas if nas is not None else "모름", nas_src, len(res), len(u_sel), len(u_sel) - len(U), len(u_wide)))
     snap = dict(date=today, prev=prev, made=dt.datetime.now(KST).strftime("%H:%M"), rule=RULE, n_uni=len(uni), n_gap=len(gap), mgap=round(mg, 2),
@@ -469,8 +469,8 @@ def paper_buy(today):
     log("가상 매수: 못 낸 몫 %d건 중 시가 ≤ 지정가 %d건(%d주) · 시가가 높아 안 사졌을 것 %d건" % (
         len(X), len(F), sum(x["qty"] for x in F), sum(1 for x in X if x.get("open") and not x["fill"])))
     if F:
-        telegram("🧾 <b>데이 가상 매수</b> %s/%s — 돈 모자라 못 낸 몫 %d건 중 시가에 사졌을 %d건 %d주 = %s원 · 사이트에만 기록(토스 주문 없음)" % (
-            today[4:6], today[6:], len(X), len(F), sum(x["qty"] for x in F), f"{sum(x['qty'] * x['open'] for x in F):,.0f}"))
+        telegram("🧾 <b>데이 가상 매수</b> %s/%s %d/%d건 %d주 %s원" % (
+            today[4:6], today[6:], len(F), len(X), sum(x["qty"] for x in F), f"{sum(x['qty'] * x['open'] for x in F):,.0f}"))
 
 
 def paper_rebuild(today):
@@ -511,7 +511,7 @@ def paper_sell(today, act):
     if not upd: return None
     r = [(p["sell"] / float(p["price"]) - 1) * 100 - COST for p in upd.values()]
     amt = sum(float(p["price"]) * p["qty"] for p in upd.values()); pnl = sum((p["sell"] - float(p["price"])) * p["qty"] - float(p["price"]) * p["qty"] * COST / 100 for p in upd.values())
-    return "🧾 가상(돈 모자라 못 낸 몫) %d건 평균 %+.2f%% · 오른 것 %d/%d · %s원 → %s원(비용 뒤)" % (
+    return "🧾 가상 %d건 %+.2f%% · 상승 %d/%d · %s원 → %s원" % (
         len(r), sum(r) / len(r), sum(1 for z in r if z > 0), len(r), f"{amt:,.0f}", f"{pnl:+,.0f}")
 
 
@@ -550,7 +550,7 @@ def trade(L, today):
     try: bp = AT.buying_power("KRW")
     except AT.TossErr: bp = None
     if bp is not None and L and bp < min(float(x.get("lim") or x["exp"] or x["pc"]) for x in L):
-        telegram("⚠ 데이 매수 0건 — 원화 매수가능 %s원 — 후보 %d종목 모두 1주도 못 삼(토스 계좌에 원화 입금 필요)" % (f"{bp:,.0f}", len(L)))
+        telegram("⚠ 데이 매수 0건 — 원화 %s원, 후보 %d종목" % (f"{bp:,.0f}", len(L)))
         log("원화 부족 — 매수가능", bp); return
     for x, rid in orders:
         if (x["t"], rid) in done: continue
@@ -783,7 +783,7 @@ def cancel_left(placed):
             bad.append(o["name"])
         time.sleep(0.3)
     if bad:
-        telegram("🚨 데이 지정가 미체결 취소 못 함 — %s · 장중에 사질 수 있으니 토스에서 직접 취소" % ", ".join(bad))
+        telegram("🚨 데이 미체결 취소 실패 — %s · 토스에서 취소" % ", ".join(bad))
 
 
 def _sell_mark(pid, ap, today, why, stop=False):
@@ -800,8 +800,8 @@ def _sell_mark(pid, ap, today, why, stop=False):
 def _stop_done(so, o, today):
     _sell_mark(o["pos"]["id"], so["ap"], today, "데이 -29% 손절", stop=True)
     r = (so["ap"] / o["ap"] - 1) * 100 - COST
-    telegram("🧯 <b>데이 -29%% 손절</b> [%s] %s %d주 %s → %s원 %+.2f%% — 전일 종가 %s원의 %.0f%% 에 닿아 팜(하한가 묶임 피하기)" % (
-        RNAME.get(o.get("rid", "T1"), ""), o["name"], int(so["fq"]), f"{o['ap']:,.0f}", f"{so['ap']:,.0f}", r, f"{float(o['pc']):,.0f}", 100 + STOP_PCT))
+    telegram("🧯 <b>데이 -29%% 손절</b> [%s] %s %d주 %s → %s원 %+.2f%%" % (
+        RNAME.get(o.get("rid", "T1"), ""), o["name"], int(so["fq"]), f"{o['ap']:,.0f}", f"{so['ap']:,.0f}", r))
 
 
 def _poll(so):
@@ -921,13 +921,13 @@ def stop_watch(got, Lg, S, today):
                 if so.get("fq", 0) >= so["qty"] and so.get("ap", 0) > 0: _stop_done(so, o, today)
                 else:
                     pend.append((so, o))
-                    telegram("⏳ <b>데이 -29%% 손절 주문 냄</b> %s %d주 — 하한가 근처라 바로 안 팔림. 주문은 걸어 두고 팔리는 대로 기록" % (o["name"], so["qty"]))
+                    telegram("⏳ <b>데이 -29%% 손절 대기</b> %s %d주 — 하한가 근처, 미체결" % (o["name"], so["qty"]))
         for so, o in list(pend):
             _poll(so)
             if so.get("fq", 0) >= so["qty"] and so.get("ap", 0) > 0:
                 _led_save(Lg); _stop_done(so, o, today); pend.remove((so, o))
             elif so.get("status") in ("CANCELED", "REJECTED"):
-                pend.remove((so, o)); telegram("🚨 데이 -29%% 손절 주문 %s(%s) — 내일 아침 시가에 다시 판다" % (o["name"], so.get("status")))
+                pend.remove((so, o)); telegram("🚨 데이 -29%% 손절 %s(%s) — 내일 시가 재매도" % (o["name"], so.get("status")))
         if left and p_start <= AT.now() < p_end and time.time() - b_last >= PASS_EVERY:   # 실제 호가 기록(모든 모드)
             b_last = time.time()
             try: pm_book(sorted({o["t"] for o in left}), today)
@@ -983,9 +983,9 @@ def carry_sell(today):
             so["err"] = getattr(ex, "code", None) or str(ex)[:100]
         Lg["orders"].append(so); _led_save(Lg)
         if so.get("oid"): out.append((so, o))
-        else: telegram("🚨 넘어온 데이 종목 %s 시가 매도 주문 실패(%s) — 토스에서 직접 확인" % (o["name"], so.get("err")))
+        else: telegram("🚨 이월 데이 %s 시가 매도 실패(%s)" % (o["name"], so.get("err")))
     if out:
-        telegram("🔁 <b>어제 못 판 데이 종목</b> %d개 오늘 시가에 시장가 매도: %s" % (len(out), ", ".join("%s %d주" % (o["name"], so["qty"]) for so, o in out)))
+        telegram("🔁 <b>이월 데이</b> %d개 시가 매도: %s" % (len(out), ", ".join("%s %d주" % (o["name"], so["qty"]) for so, o in out)))
 
         def check():
             S = AT.session("KR")
@@ -1000,7 +1000,7 @@ def carry_sell(today):
                     r = (so["ap"] / o["ap"] - 1) * 100 - COST
                     telegram("🔁 %s %d주 팔림 %s → %s원 %+.2f%%(산 날 %s)" % (o["name"], int(so["fq"]), f"{o['ap']:,.0f}", f"{so['ap']:,.0f}", r, o["date"][4:]))
                 else:
-                    telegram("🔒 %s 오늘 시가에도 안 팔림(%s) — 내일 다시" % (o["name"], so.get("status")))
+                    telegram("🔒 %s 시가 미체결(%s) — 내일 재매도" % (o["name"], so.get("status")))
             _led_save(L2)
         import threading
         threading.Thread(target=check, daemon=False).start()
@@ -1012,7 +1012,7 @@ def close_sell(got, Lg, S, today):
     try:
         stopped, spend = stop_watch(got, Lg, S, today)         # 장중 -29% 손절(10-19 사용자) — 그동안 종가까지 기다리는 역할도 한다
     except Exception as ex:
-        log("손절 감시 실패:", repr(ex)[:200]); telegram("⚠ 데이 -29% 손절 감시가 죽었다: %s — 종가 매도는 그대로" % str(ex)[:120]); stopped, spend = [], []
+        log("손절 감시 실패:", repr(ex)[:200]); telegram("⚠ 데이 손절 감시 중단: %s" % str(ex)[:120]); stopped, spend = [], []
     got = [o for o in got if o not in stopped]
     full = [o for o in got if o.get("pas_q", 0) >= float(o["fq"])]        # 장중 걸어 팔기로 다 팔린 것 — 종가 주문 없음
     got_all, got = got, [o for o in got if o not in full]
@@ -1047,7 +1047,7 @@ def close_sell(got, Lg, S, today):
         else:
             break
     if pend:
-        telegram("🚨 <b>데이 종가 매도 못 함</b> — " + ", ".join(o["name"] for o in pend) + " · 토스에서 직접 확인")
+        telegram("🚨 <b>데이 종가 매도 실패</b> — " + ", ".join(o["name"] for o in pend))
     AT.sleep_until(S["end"] + dt.timedelta(seconds=90), "데이 종가 체결 확인")
     try:
         AT.wait_fills([so for so, _ in sold])
@@ -1078,14 +1078,14 @@ def close_sell(got, Lg, S, today):
         tot += won_; rs.append(r)
         lines.append("%s [%s] %s %+.2f%% (%s원)" % ("🔺" if r > 0 else "🔻", RNAME.get(o.get("rid", "T1"), ""), o["name"], r, f"{won_:+,.0f}"))
     if rs:
-        lines.append("합계 %s원 · 평균 %+.2f%% · 오른 종목 %d/%d (수수료·세금 뒤)" % (f"{tot:+,.0f}", sum(rs) / len(rs), sum(r > 0 for r in rs), len(rs)))
+        lines.append("합계 %s원 · 평균 %+.2f%% · 상승 %d/%d" % (f"{tot:+,.0f}", sum(rs) / len(rs), sum(r > 0 for r in rs), len(rs)))
     fin_ids = {o["pos"]["id"] for _, o in fin}
     left = [o["name"] for o in got if o["pos"]["id"] not in fin_ids]
-    if left: lines.append("⚠ 못 판 것: " + ", ".join(left) + " — 내일 아침 시가에 다시 판다(carry_sell)")
+    if left: lines.append("⚠ 못 판 것: " + ", ".join(left) + " — 내일 시가 재매도")
     for so, o in spend:                                    # 하한가에 묶였던 손절 — 장 끝난 뒤 마지막으로 본다
         _poll(so); _led_save(Lg)
         if so.get("fq", 0) >= so["qty"] and so.get("ap", 0) > 0: _stop_done(so, o, today)
-        else: lines.append("🔒 %s -29%% 손절 주문이 오늘 안 팔림(하한가 묶임) — 내일 아침 시가에 다시 판다" % o["name"])
+        else: lines.append("🔒 %s -29%% 손절 미체결 — 내일 시가 재매도" % o["name"])
     if got or spend: telegram("\n".join(lines))
 
 
@@ -1151,7 +1151,7 @@ def close_watch(today):
     if not got:
         log("지킴이: 오늘 팔 데이 종목 없음(또는 이미 주문됨)"); return
     log("지킴이: 매도 주문 없는 데이 %d종목 — 지금 판다" % len(got))
-    telegram("🛟 데이 지킴이: 아침 프로세스가 못 판 %d종목을 종가 단일가로 매도" % len(got))
+    telegram("🛟 데이 지킴이 종가 매도 %d종목" % len(got))
     close_sell(got, Lg, S, today)
 
 
@@ -1185,7 +1185,7 @@ def late(today):
     _led_save(Lg)
     if got:
         scalp_update(lambda P: (P.extend(dict(o["pos"]) for o in got) or True), "데이 늦은 매수 %d건" % len(got))
-    lines = ["🕚 <b>데이 늦은 매수</b> %s/%s 지금 시장가 1주씩(시가 아님)" % (today[4:6], today[6:])]
+    lines = ["🕚 <b>데이 늦은 매수</b> %s/%s 시장가" % (today[4:6], today[6:])]
     lines += ["✅ %s %d주 @ %s원" % (o["name"], int(o["fq"]), f"{o['ap']:,.0f}") for o in got]
     lines += ["❌ %s 미체결(%s)" % (o["name"], o.get("status")) for o in placed if o not in got]
     if skip: lines.append("못 산 것: " + " · ".join("%s(%s)" % s_ for s_ in skip[:6]))
@@ -1270,10 +1270,10 @@ def review():
         supa_set("__day__", {k: v for k, v in snap.items() if k != "all"})
     except Exception as ex:
         log("사이트 기록 실패:", ex)
-    L = ["📊 <b>데이 [%s] 오늘 결과</b> %s/%s (후보 전체 기준 · 예상 시가 점검)" % (RULE, today[4:6], today[6:]),
-         "아침 후보 %d종목 시가→종가 평균 <b>%+.2f%%</b>(비용 뒤) · 오른 종목 %d/%d" % (len(rets), avg(rets), sum(r > 0 for r in rets), len(rets)),
-         "실제 시가로 골랐다면 %d종목 평균 %+.2f%% · 아침 후보와 겹침 %d" % (len(real_rets), avg(real_rets), len(mine & real_cand)),
-         "예상 시가 오차(갭 %%p): NXT %.2f(%d종목) · 호가 %.2f(%d종목)" % (mae(errs["NXT"]), len(errs["NXT"]), mae(errs["호가"]), len(errs["호가"]))]
+    L = ["📊 <b>데이 [%s] 결과</b> %s/%s" % (RULE, today[4:6], today[6:]),
+         "후보 %d종목 시가→종가 <b>%+.2f%%</b> · 상승 %d/%d" % (len(rets), avg(rets), sum(r > 0 for r in rets), len(rets)),
+         "실제 시가 기준 %d종목 %+.2f%% · 겹침 %d" % (len(real_rets), avg(real_rets), len(mine & real_cand)),
+         "예상 시가 오차 %%p: NXT %.2f(%d) · 호가 %.2f(%d)" % (mae(errs["NXT"]), len(errs["NXT"]), mae(errs["호가"]), len(errs["호가"]))]
     if snap.get("u_sel") or snap.get("u_wide"):
         L.append("🇺🇸 [%s] 나스닥 %s%% — 고른 %d종목 중 시가 -2%%↓로 열린 %d종목 평균 <b>%+.2f%%</b>(안 사짐 %d) · 넓은 판(기록만) %d종목 평균 %+.2f%%(안 사짐 %d)" % (
             RNAME["T4"], snap.get("nas"), len(snap.get("u_sel") or []), len(u_r), avg(u_r), u_nf, len(w_r), avg(w_r), w_nf))

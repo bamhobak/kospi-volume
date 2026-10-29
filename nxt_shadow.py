@@ -267,7 +267,7 @@ def first_test(snap):
     ex_ = (st or {}).get("execution") or {}
     res.update(status=(st or {}).get("status"), filled=float(ex_.get("filledQuantity") or 0), avg=float(ex_.get("averageFilledPrice") or 0), raw=st)
     jsave(OUT / "test_order.json", res); TEST_FLAG.write_text(snap["date"])
-    telegram("🧪 NXT 장후 1주 지정가 매수 시험 — %s\n%s 지정가 %s원 · 체결 %d주 @ %s원\n다음 날 시가(OPG)에 팝니다" % (
+    telegram("🧪 NXT 장후 1주 지정가 매수 시험 — %s\n%s 지정가 %s원 · 체결 %d주 @ %s원" % (
         res["status"], p["t"], f"{lim:,.0f}", res["filled"], f"{res['avg']:,.0f}"))
 
 

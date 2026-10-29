@@ -611,7 +611,7 @@ tr:hover td:first-child{background:linear-gradient(rgba(255,255,255,.025),rgba(2
     <div class="wrap">
       <div class="card" id="tblcard"><div class="tblwrap"><table id="tbl"><thead></thead><tbody></tbody></table></div></div>
       <div id="cards" class="cards" style="display:none"></div>
-      <div class="card side" id="side"><div class="empty">종목을 클릭하면 거래량·투자자 추이가 표시됩니다</div></div>
+      <div class="card side" id="side"><div class="empty">종목을 누르면 거래량·투자자 추이</div></div>
     </div>
   </div>
 </div>
@@ -1062,13 +1062,13 @@ function copyCode(el,txt){
     try{const t=document.createElement('textarea');t.value=txt;
       t.style.cssText='position:fixed;opacity:0';document.body.appendChild(t);
       t.select();document.execCommand('copy');t.remove();done()}
-    catch(e){alert('복사하지 못했습니다: '+txt)}}
+    catch(e){alert('복사 실패: '+txt)}}
 }
 /* 화면을 다시 그릴 때마다 코드 칸에 복사 동작을 붙인다(중복 방지 플래그 포함) */
 function bindCopy(){
   document.querySelectorAll('.cpy[data-cp]').forEach(el=>{
     if(el.dataset.cb)return; el.dataset.cb='1';
-    el.title='누르면 복사됩니다';
+    el.title='눌러서 복사';
     /* 글자를 고르는 중이어도 그냥 복사한다 — 코드를 누르면 언제나 복사되는 게 예측 가능하다.
        (예전엔 드래그로 골라서 복사하라고 막아 뒀는데, 이제 눌러서 복사하므로 필요 없다) */
     el.onclick=e=>{e.stopPropagation();e.preventDefault();copyCode(el,el.dataset.cp)};
@@ -1185,7 +1185,7 @@ function freqNote(){
     '  같은 하락장이라도 이격 -2% 와 -20% 는 신호량이 700배 차이 납니다.',
     '',
     '신호는 폭락 구간에 몰려 나옵니다 — 평상시엔 80~89% 의 날이 0건입니다.',
-    miss?`성적을 아직 재지 않은 규칙 ${miss}개는 빠져 있습니다.`:null
+    miss?`성적 없는 규칙 ${miss}개 제외`:null
   ].filter(x=>x!==null&&x!==undefined).join(String.fromCharCode(10));
   return `<div class="freq" title="${tip.replace(/"/g,'&quot;')}">${txt}</div>`;
 }
@@ -1323,7 +1323,7 @@ function renderTabs(){
     const ma=grp.map(g=>`${g.d.join('·')}일선 ${g.u?'위':'아래'}`).join(' · ');
     /* 화살표 뒤가 '오늘 열린 규칙' 이라는 건 마우스를 올리면 나온다 — 한 줄을 지키려 라벨은 뺐다 */
     $('#mktstate').title=open.length?`오늘 열린 규칙: ${open.join('·')} (시장 조건을 만족해 신호가 날 수 있는 규칙)`
-                                    :'오늘은 시장 조건을 만족하는 규칙이 없습니다';
+                                    :'시장 조건 맞는 규칙 없음';
     /* 미장은 국내와 장 시간이 달라 표의 기준일이 하루씩 어긋날 수 있다. 하루 이상 묵으면
        그날 난 진입 이벤트(nh5·qnew)가 통째로 빠져 미장 규칙이 조용히 0 이 되므로 눈에 보이게 한다
        (2026-09-11: 정규 수집이 09-10 대신 09-09 자료를 받아 [상승장 신고가]가 사라졌다). */
@@ -1337,7 +1337,7 @@ function renderTabs(){
     if(!krDay()&&U&&U.up60!=null){
       const uo=orderedAll().filter(f=>f.mkt==='US'&&GATE[f.gate||'always'](K)).map(f=>codeOf(f.id));
       $('#mktstate').title=uo.length?`지금 열린 미장 규칙: ${uo.join('·')} (S&P500 ${U.up60?'60일선 위':'60일선 아래'})`
-                                    :'지금은 조건을 만족하는 미장 규칙이 없습니다';
+                                    :'조건 맞는 미장 규칙 없음';
       $('#mktstate').innerHTML=`<i style="background:${uo.length?'var(--org)':'var(--faint)'}"></i>`
         +`S&P500 60일선 ${U.up60?'위':'아래'}`;
     }else{
@@ -1347,8 +1347,8 @@ function renderTabs(){
     usState();
   }else $('#mktstate').innerHTML='';
   document.querySelectorAll('.railstate').forEach(el=>{el.innerHTML=$('#mktstate').innerHTML;el.title=$('#mktstate').title||''});   /* 레일 칩도 같이 */
-  $('#fdesc').innerHTML=cur==='done'?`매수 후 매도까지 끝난 종목입니다. 실제 성적을 백테스트 기대치와 비교해 보세요. 수익률은 <b>매매비용 차감 후</b>입니다 — 국내 왕복 ${feeSum(fees().KR)}%(매수 ${fees().KR.b} + 매도 ${fees().KR.s}) · 미장 왕복 ${feeSum(fees().US)}%(매수 ${fees().US.b} + 매도 ${fees().US.s}). <b>슬리피지는 빼지 않습니다</b> — 직접 적은 체결가에 이미 들어 있습니다. 환전 수수료도 빠져 있습니다.`:cur==='pos'?''   /* 보유 탭 설명은 없앴다(2026-09-12 요청) — 규칙 칩과 표가 자리를 차지한다 */:cur==='all'?'':cur==='us'?(USROWS?`나스닥·뉴욕·아멕스 상장 ${USROWS.length.toLocaleString()}종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. <b>가격·시가총액·거래대금은 달러</b>이고, 열 설정은 코스피·코스닥 표와 따로 저장됩니다. ${raw.usUpdated?'기준 '+raw.usUpdated:''}`:'미장 자료를 받는 중입니다…')
-      :(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. 열 머리글을 누르면 수익률·PER·PBR 등으로 정렬됩니다.`:statsHtml(FILTERS.find(f=>f.id===cur));{const fd=$('#fdesc');
+  $('#fdesc').innerHTML=cur==='done'?`매도 끝난 종목 · 수익률은 <b>비용 뒤</b> — 국내 왕복 ${feeSum(fees().KR)}%(매수 ${fees().KR.b} + 매도 ${fees().KR.s}) · 미장 왕복 ${feeSum(fees().US)}%(매수 ${fees().US.b} + 매도 ${fees().US.s}) · 슬리피지·환전 수수료 제외`:cur==='pos'?''   /* 보유 탭 설명은 없앴다(2026-09-12 요청) — 규칙 칩과 표가 자리를 차지한다 */:cur==='all'?'':cur==='us'?(USROWS?`나스닥·뉴욕·아멕스 상장 ${USROWS.length.toLocaleString()}종목을 시가총액 순으로 보여줍니다 — 규칙과 무관한 조회용 목록입니다. <b>가격·시가총액·거래대금은 달러</b>이고, 열 설정은 코스피·코스닥 표와 따로 저장됩니다. ${raw.usUpdated?'기준 '+raw.usUpdated:''}`:'미장 자료를 받는 중입니다…')
+      :(cur==='kp'||cur==='kq')?`${cur==='kp'?'코스피':'코스닥'} 전체 · 시가총액 순 · 머리글 눌러 정렬`:statsHtml(FILTERS.find(f=>f.id===cur));{const fd=$('#fdesc');
   if(fd&&fd.style){const has=(fd.innerHTML||'').trim();
     fd.style.display=has?'':'none';
     if(has&&MOB&&!DESCOPEN){fd.dataset.full=fd.innerHTML;
@@ -1459,9 +1459,9 @@ function renderCards(rows){
     const us=ud?`미장 ${mdShort(ud)}`:(raw.usFail?'미장 자료 못 받음':'미장 불러오는 중…');
     const parts=[dd?`국장 ${mdShort(dd)}`:'',us].filter(Boolean);
     const on=parts.length?`현재[${parts.join(' · ')}] 조건`:'현재 조건';
-    if(TMODE==='scalp'&&cur==='all'&&!(DAYST&&DAYST.date===kstToday())){box.innerHTML=head([])+`<div class="empty" style="margin-top:60px">오늘 데이 후보가 아직 없습니다.<div style="font-size:12px;margin-top:8px;color:var(--faint)">[갭 하락 조용주] 후보는 장 여는 날 08:52 에 뜹니다(알림만 · 검증 중).</div></div>`;return}
-    if(TMODE==='scalp'&&!FILTERS.length){box.innerHTML=`<div class="empty" style="margin-top:60px">데이 규칙이 아직 없습니다.<div style="font-size:12px;margin-top:8px;color:var(--faint)">1분봉을 모으는 중입니다 — 규칙을 찾으면 여기에 매수 대기가 뜹니다.</div></div>`;return}
-    box.innerHTML=head([])+`<div class="empty" style="margin-top:60px">${cur==='all'?on+'을 만족한 종목이 없습니다.':on+'으로 이 규칙에 걸린 종목이 없습니다.'}<div style="font-size:12px;margin-top:8px;color:var(--faint)">신호가 없는 날이 더 많습니다.</div></div>`;return}
+    if(TMODE==='scalp'&&cur==='all'&&!(DAYST&&DAYST.date===kstToday())){box.innerHTML=head([])+`<div class="empty" style="margin-top:60px">오늘 데이 후보 없음<div style="font-size:12px;margin-top:8px;color:var(--faint)">장날 08:52 갱신</div></div>`;return}
+    if(TMODE==='scalp'&&!FILTERS.length){box.innerHTML=`<div class="empty" style="margin-top:60px">데이 규칙 없음</div>`;return}
+    box.innerHTML=head([])+`<div class="empty" style="margin-top:60px">${cur==='all'?on+' 신호 없음':on+' 이 규칙 신호 없음'}</div>`;return}
   /* 매수 대기: **규칙마다 카드 한 장**(2026-10-03 요청) — A 종목이 N1·N2 에 걸리면 N1 카드·N2 카드 둘.
      예전엔 우선순위 높은 규칙 하나로만 보여 주고 매수 기록에 걸린 규칙을 다 적어, 매도일이 코드 순서상
      첫 규칙(N2 20일)으로 잡혀 N3(60일) 몫을 일찍 팔았다. 이제 카드마다 그 규칙으로 따로 사고 따로 판다.
@@ -1496,12 +1496,12 @@ function renderCards(rows){
       <div class="hd">
         <div style="flex-grow:1;min-width:0">
           <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
-            <span class="nm" title="누르면 상세 화면이 열립니다 (카드의 다른 곳은 눌러도 반응하지 않습니다)">${dispName(r.name)}</span>
+            <span class="nm" title="눌러서 상세">${dispName(r.name)}</span>
             <span class="code cpy" data-cp="${r.ticker}" style="color:var(--dim);font-size:12px">${r.ticker}</span>
             <span class="tag ${mc} goto" data-goto="${f.id}" style="cursor:pointer" title="${codeOf(f.id)} · ${f.name.split(' · ')[1]||f.name} 규칙 탭으로 이동">${codeOf(f.id)}</span>${pr?`<span class="tag pri" title="${pr.g==='US'?'미장':'국장'} 규칙 ${pr.n}개 중 우선 ${pr.rank} — 보유 기간 하루당 기대수익 ${pr.perDay>0?'+':''}${pr.perDay.toFixed(2)}%(건당 평균 ÷ 보유일). 돈이 모자라면 위에서부터">우선 ${pr.rank}</span>`:''}${(()=>{const hp=heldPos(r.ticker);if(!hp)return '';
               const dd=heldDays(hp),pl=hp.price?((r.close/hp.price-1)*100):null;
               const by=[...new Set(positions().filter(p=>p.code===r.ticker&&!p.sell).flatMap(p=>p.filters||[]).map(codeOf))].join('·');
-              return `<span class="tag hold" title="${hp.date} 에 ${fmt(hp.price)}원으로 매수 기록됨 — 지금 이 규칙에 다시 걸렸습니다">${by?by+'로 ':''}보유 중${dd!=null?' '+dd+'일':''}${pl!=null?' · '+(pl>0?'+':'')+pl.toFixed(1)+'%':''}</span>`})()}</div>
+              return `<span class="tag hold" title="${hp.date} 에 ${fmt(hp.price)}원 매수 · 다시 신호">${by?by+'로 ':''}보유 중${dd!=null?' '+dd+'일':''}${pl!=null?' · '+(pl>0?'+':'')+pl.toFixed(1)+'%':''}</span>`})()}</div>
           <div style="color:var(--mut);font-size:12px">${mkNm}${r.up?' · '+r.up:''}${r.cap?' · 시총 '+(r.cap>=10000?(r.cap/10000).toFixed(1)+'조':fmt(r.cap)+'억'):''}</div>
         </div>
         <div style="text-align:right;flex:none">
@@ -1517,7 +1517,7 @@ function renderCards(rows){
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         <div class="st"><span class="k">매도</span><b>${f.id[0]==='T'?'오늘 종가(단일가)':hold+'일 뒤 종가'}</b></div>
         <div style="flex:none">${heldBy(r.ticker,f.id)
-          ?`<button class="ghost" data-buy="${r.ticker}" data-rid="${f.id}" title="이 규칙으로 이미 보유 중입니다. 그래도 추가 매수를 기록하려면 누르세요">추가 매수</button>`
+          ?`<button class="ghost" data-buy="${r.ticker}" data-rid="${f.id}" title="이미 보유 · 추가 매수 기록">추가 매수</button>`
           :`<button data-buy="${r.ticker}" data-rid="${f.id}" title="${codeOf(f.id)} 규칙으로 매수를 기록합니다 — 매도일도 이 규칙(${hold}거래일)으로 잡힙니다">매수 기록</button>`}</div>
       </div>
       <div class="warn">
@@ -1542,14 +1542,14 @@ function renderCards(rows){
   renderStatus()}
 function statsHtml(f){const t=f.stats;
   const cards=`<div class="stats">
-    <span class="s-item" title="기대 승률 — **검증기간(2023~26)** ${t.n}건 중 수익으로 끝난 비율. 규칙을 만들 때 보지 않은 구간이라 실전에 가장 가깝습니다. 손절이 없으므로 보유기간을 끝까지 채웠을 때 기준입니다."><b>${t.win}%</b><small>승률 · 검증</small></span>
+    <span class="s-item" title="기대 승률 — **검증기간(2023~26)** ${t.n}건 중 수익 비율 · 손절 없이 보유기간 끝까지"><b>${t.win}%</b><small>승률 · 검증</small></span>
     <span class="s-item" title="Profit Factor — 이익 거래의 합 ÷ 손실 거래의 합. 1.0이면 본전, 높을수록 손실 대비 이익이 큽니다."><b>${t.pf}</b><small>PF</small></span>
-    <span class="s-item" title="건당 평균 순수익 — **검증기간(2023~26)** 기준. 수수료·세금·슬리피지를 모두 뺀 값입니다. 중앙값은 이보다 낮을 수 있습니다(큰 수익 몇 건이 평균을 끌어올림)."><b>+${t.avg}%</b><small>건당 평균 · 비용 뒤</small></span>
-    <span class="s-item" title="${f.regime==='both'?`출현 빈도·발현 장세 — 이 규칙은 **국면 조건이 없습니다**. 지수가 오르든 내리든 조건만 맞으면 신호가 납니다(실측: 거래의 45%가 상승 국면). 「낙폭」은 시장이 아니라 **그 종목이 52주 고점 대비 얼마나 떨어졌는가**를 뜻합니다. 검증기간 ${t.spanMonths||44}개월 중 ${t.monthsActive||'?'}개월에 신호가 났고 모두 합쳐 ${t.n}건입니다(월 평균 ${t.perMonth}건).`:f.regime==='up'?`출현 빈도·발현 장세 — 검증기간 ${t.spanMonths||44}개월 중 ${t.monthsActive||'?'}개월에만 신호가 났고 모두 합쳐 ${t.n}건입니다(신호가 난 달 기준 중앙 ${t.medPerActive||'?'}건, 가장 많았던 달 ${t.topMonth?t.topMonth.slice(0,4)+'-'+t.topMonth.slice(4):'-'} ${t.topN||0}건). 월 평균으로 나누면 ${t.perMonth}건이지만 실제로는 몰려서 납니다. 신호는 주로 코스피 60일선 위(상승·횡보장)에서 납니다(실측: P1 실거래 60건의 80%가 60일선 위, 거기서 평균 +8.6%). 신호가 없는 달도 많으니 조용하다고 고장난 게 아닙니다.`:`출현 빈도·발현 장세 — 검증기간 ${t.spanMonths||44}개월 중 ${t.monthsActive||'?'}개월에만 신호가 났고 모두 합쳐 ${t.n}건입니다(신호가 난 달 기준 중앙 ${t.medPerActive||'?'}건, 가장 많았던 달 ${t.topMonth?t.topMonth.slice(0,4)+'-'+t.topMonth.slice(4):'-'} ${t.topN||0}건). 월 평균으로 나누면 ${t.perMonth}건이지만 실제로는 몰려서 납니다. 신호는 코스피 60일선 아래(하락장)에서 납니다(P3·P5·D1·D2 는 조건 자체에 하락장 게이트, P4 는 실거래 816건의 92%·P2 는 98%가 하락장). 하락장이 없으면 몇 달씩 조용한 것이 정상입니다.`}"><b>월 ${t.perMonth}건</b><small>신호 빈도</small></span>
+    <span class="s-item" title="건당 평균 순수익 — **검증기간(2023~26)** 기준 · 수수료·세금·슬리피지 뺀 값 · 중앙값은 더 낮을 수 있음"><b>+${t.avg}%</b><small>건당 평균 · 비용 뒤</small></span>
+    <span class="s-item" title="${f.regime==='both'?`신호 빈도 — 국면 조건 없음(거래의 45% 상승 국면) · 「낙폭」= 종목의 52주 고점 대비 · 검증 ${t.spanMonths||44}개월 중 ${t.monthsActive||'?'}개월 신호 · ${t.n}건(월 평균 ${t.perMonth})`:f.regime==='up'?`신호 빈도 — 검증 ${t.spanMonths||44}개월 중 ${t.monthsActive||'?'}개월 · ${t.n}건(난 달 중앙 ${t.medPerActive||'?'}, 최다 ${t.topMonth?t.topMonth.slice(0,4)+'-'+t.topMonth.slice(4):'-'} ${t.topN||0}건) · 몰려서 남 · 주로 코스피 60일선 위(P1 실거래 80%, 평균 +8.6%) · 빈 달 많음`:`신호 빈도 — 검증 ${t.spanMonths||44}개월 중 ${t.monthsActive||'?'}개월 · ${t.n}건(난 달 중앙 ${t.medPerActive||'?'}, 최다 ${t.topMonth?t.topMonth.slice(0,4)+'-'+t.topMonth.slice(4):'-'} ${t.topN||0}건) · 몰려서 남 · 코스피 60일선 아래(하락장)에서 남 · 하락장 없으면 몇 달 조용`}"><b>월 ${t.perMonth}건</b><small>신호 빈도</small></span>
     ${(()=>{const a=f.alloc; if(!a||!a.pct)return '';
       /* 종목당 비중 (2026-09-15 요청). 자리 수(동시 보유 상한)는 2026-09-30 요청으로 없앴다 —
          지금은 신호가 나면 전부 산다(자리 제한 없음). */
-      return `<span class="s-item" title="종목당 투입 비중 — 계좌 전체를 100 으로 볼 때 이 규칙은 한 종목에 ${a.pct} 을 넣습니다.&#10;백테스트를 이 비중으로 돌려서 정한 값입니다.&#10;동시 보유 자리 제한은 없습니다 — 신호가 나면 전부 삽니다."><b>${a.pct}/n</b><small>종목당 비중</small></span>`})()}
+      return `<span class="s-item" title="종목당 비중 — 계좌 100 중 ${a.pct} · 자리 제한 없음"><b>${a.pct}/n</b><small>종목당 비중</small></span>`})()}
     <span class="s-item info-card" id="infobtn2" title="규칙 상세 조건과 연도별 성적 보기">${showInfo?'✕':'ⓘ'}</span></div>`;
   if(!showInfo) return cards;
   /* 기본은 **매수 조건만** 보여준다(2026-09-16 요청 — 설명이 길어 폰에서 안 읽혔다).
@@ -1635,7 +1635,7 @@ function colMenu(cols){
   const items=cols.map(x=>{const on=!hid.has(x[0]);
     return `<label class="colitem ${on?'on':''}" title="${x[1]}"><input type="checkbox" data-col="${x[0]}" ${on?'checked':''}>`
       +`<span class="nm">${x[1]}</span></label>`}).join('');
-  return `<div class="colmenu" id="colmenu"><div class="colhd">볼 열을 모두 고른 뒤 <b>적용</b>을 누르세요 · 머리글을 끌면 순서, 오른쪽 끝을 끌면 너비가 바뀝니다
+  return `<div class="colmenu" id="colmenu"><div class="colhd">열 고르고 <b>적용</b> · 머리글 끌기 = 순서 · 오른쪽 끝 끌기 = 너비
     <span class="sp"></span><button class="ghost mini" id="colall">전체</button>
     <button class="ghost mini" id="colnone">해제</button></div>
     <div class="colgrid">${items}</div>
@@ -1675,7 +1675,7 @@ function savePositions(a){
   if(TMODE==='scalp'){POS_S=a;try{localStorage.setItem('positions_s',JSON.stringify(a))}catch(e){}}
   else{POS=a;try{localStorage.setItem('positions',JSON.stringify(a))}catch(e){}}
   pushRemote()}
-async function setPin(){const cur_=getPin();const v=prompt('기기 간 공유용 PIN (4자 이상). 기본값이면 모든 기기가 자동 공유됩니다. 남과 분리하고 싶을 때만 바꾸세요.',cur_===DEFAULT_PIN?'':cur_);if(v==null)return;const pin=v.trim();if(pin.length<4){if(pin===''){try{localStorage.removeItem('pin')}catch(e){};await pullRemote();render();return}alert('4자 이상 입력하세요');return}
+async function setPin(){const cur_=getPin();const v=prompt('기기 공유 PIN (4자 이상, 비우면 기본)',cur_===DEFAULT_PIN?'':cur_);if(v==null)return;const pin=v.trim();if(pin.length<4){if(pin===''){try{localStorage.removeItem('pin')}catch(e){};await pullRemote();render();return}alert('4자 이상');return}
   try{localStorage.setItem('pin',pin)}catch(e){}
   const remote=await rpc('kospi_state_get',{p_pin:pin}).catch(()=>null);
   if(remote&&Array.isArray(remote.positions)&&remote.positions.length){if(POS.length&&!confirm(`이 PIN에 저장된 보유 종목 ${remote.positions.length}건을 불러옵니다. 현재 기기의 ${POS.length}건은 덮어씁니다. 계속?`))return;POS=remote.positions;try{localStorage.setItem('positions',JSON.stringify(POS))}catch(e){}}
@@ -1735,13 +1735,13 @@ function ask(title, sub, value, kind){
         inp.value=c; try{inp.setSelectionRange(at,at)}catch(e){}}
       /* 정수 칸(수량)에 소수점을 치면 그냥 지워져 10.5 → 105 가 된다. 조용히 틀린 숫자가
          들어가는 것이 제일 위험하므로 그 경우만 따로 알린다(2026-09-11). */
-      err.textContent=(kind==='int'&&/\./.test(raw0))?'수량은 정수로 입력하세요':'';});
+      err.textContent=(kind==='int'&&/\./.test(raw0))?'정수만':'';});
     const close=v=>{document.removeEventListener('keydown',key);bg.remove();resolve(v)};
     const done=()=>{
       const v=clean(inp.value);
-      if(!v){err.textContent='값을 입력하세요';return}
-      if(dateMode&&v.length!==8){err.textContent='YYYYMMDD 8자리로 입력하세요';return}
-      if(!dateMode&&!(+v>0)){err.textContent='0보다 큰 숫자를 입력하세요';return}
+      if(!v){err.textContent='값 없음';return}
+      if(dateMode&&v.length!==8){err.textContent='YYYYMMDD 8자리';return}
+      if(!dateMode&&!(+v>0)){err.textContent='0보다 큰 숫자';return}
       close(v)};
     const key=e=>{if(e.key==='Escape')close(null); else if(e.key==='Enter'){e.preventDefault();done()}};
     bg.querySelector('.ok').onclick=done;
@@ -1963,7 +1963,7 @@ async function renderPositions(){
       const sg=x=>x>0?'pos':x<0?'neg':'';
       const miss=list.length-wl.length;
       const _f=fees();
-      return `<div class="dstat" title="동일가중 = 건별 수익률의 단순 평균(규칙 자체의 성적, 백테스트와 비교용)&#10;금액가중 = 총손익 ÷ 총매수금액(내 계좌가 실제로 번 비율)&#10;승률 = 금액과 상관없이 비용 뒤 수익으로 끝난 건의 비율&#10;PF = 이긴 건 수익률 합 ÷ 진 건 손실률 합(1 보다 크면 번 쪽이 큼)&#10;&#10;매매비용 차감 후입니다 — 국내 매수 ${_f.KR.b}% / 매도 ${_f.KR.s}% · 미장 매수 ${_f.US.b}% / 매도 ${_f.US.s}%.&#10;슬리피지는 빼지 않습니다: 직접 적은 체결가에 이미 들어 있습니다.${miss?'&#10;수량 없는 기록 '+miss+'건은 금액가중에서 제외':''}">`
+      return `<div class="dstat" title="동일가중 = 건별 수익률의 단순 평균(규칙 자체의 성적, 백테스트와 비교용)&#10;금액가중 = 총손익 ÷ 총매수금액(내 계좌가 실제로 번 비율)&#10;승률 = 금액과 상관없이 비용 뒤 수익으로 끝난 건의 비율&#10;PF = 이긴 건 수익률 합 ÷ 진 건 손실률 합(1 보다 크면 번 쪽이 큼)&#10;&#10;비용 뒤 — 국내 매수 ${_f.KR.b}% / 매도 ${_f.KR.s}% · 미장 매수 ${_f.US.b}% / 매도 ${_f.US.s}% · 슬리피지 제외${miss?'&#10;수량 없는 기록 '+miss+'건은 금액가중에서 제외':''}">`
         +`<b class="${kq||''}">${k==='전체'?k:(f&&f.name?codeOf(k)+' · '+(f.name.split(' · ')[1]||f.name):codeOf(k))}</b>`
         +`<span><span class="k">동일</span><span class="${sg(avg)}">${avg>0?'+':''}${avg.toFixed(2)}%</span></span>`
         +`<span><span class="k">금액</span><span class="${sg(wavg)}">${wavg==null?'—':(wavg>0?'+':'')+wavg.toFixed(2)+'%'}</span></span>`
@@ -1984,7 +1984,7 @@ async function renderPositions(){
     const selF=(selK==='전체'||MKG.includes(selK))?null:fOf(selK);
     const pp=perParts(DPER,{open:DPEROPEN,basis:true,list:selL,dOf,selK,selF,
       mine:selL.length?selL.reduce((a,p)=>a+ret(p),0)/selL.length:null});   /* 지수 비교 막대 맨 위 — 고른 묶음의 동일가중(10-24) */
-    const statRow=(all.length?stat(selK,selL):'<div class="dstat"><span class="k">이 기간에 끝난 건이 없습니다</span></div>').replace(/<\/div>$/,pp.btn+'</div>');
+    const statRow=(all.length?stat(selK,selL):'<div class="dstat"><span class="k">이 기간 완료 없음</span></div>').replace(/<\/div>$/,pp.btn+'</div>');
     $('#fdesc').innerHTML=`<div class="dsum">${chips}</div>${statRow}${pp.box}`;
     perWire(DPER,DPER_SAVE,()=>{DPEROPEN=!DPEROPEN;render()});
     document.querySelectorAll('.dchip').forEach(el=>el.onclick=()=>{
@@ -2073,7 +2073,7 @@ async function renderPositions(){
       ['dret','수익률'],['dpnl','손익'],['act','작업','l']]
     :[['name','종목','l'],['rule','규칙','l'],['bdate','매수일','l'],['bprice','매수가'],
       ['qty','수량'],['bamt','매수금액'],['now','현재가'],['chgpct','전일비'],['ret','수익률'],['pnl','평가손익'],
-      ['days','보유일'],['sdate','매도일|규칙상 매도일 — 매수일을 1일째로 세어 보유기간이 되는 거래일. 아직 오지 않은 날은 주말·공휴일을 빼서 추정한 값이라 휴장일에 따라 하루 이틀 밀릴 수 있습니다','l'],['hi','고점|매수 후 최고가 — 매수가와 매수일 이후 일별 종가, 오늘 실시간 고가 중 최댓값'],
+      ['days','보유일'],['sdate','매도일|규칙상 매도일 — 매수일 = 1일째 · 미래는 추정(휴장일 따라 밀릴 수 있음)','l'],['hi','고점|매수 후 최고가 — 매수가와 매수일 이후 일별 종가, 오늘 실시간 고가 중 최댓값'],
       ['line','손절/익절선'],['streak','신호 유지'],['state','상태','l'],['act','작업','l']];
   /* ⚠ '매도가/손익'(sellinfo) 은 뺐다(2026-09-14). 보유 탭은 **미매도만** 담는데 그 칸은
      p.sell 이 있을 때만 값을 내므로 **늘 빈 칸**이었다. 완료 탭이 매도가·수익률·손익
@@ -2085,7 +2085,7 @@ async function renderPositions(){
     return `<th data-k="${c[0]}" draggable="true" class="${c[2]||''}"`
       +`${tip?` title="${tip}"`:''} style="cursor:pointer">${h}${arrow}<span class="rz"></span></th>`
     }).join('')+'</tr>';
-  if(!ps.length){$('#tbl tbody').innerHTML=`<tr><td colspan="${cols.length}" class="l" style="color:var(--mut);padding:30px">${DONE?'매도 완료된 종목이 없습니다. 보유 종목 탭에서 「매도」를 기록하면 여기로 옵니다.':'보유 종목이 없습니다. 종목 행의 「매수」 버튼으로 추가하세요.'}</td></tr>`;$('#status').textContent='보유 0종목';return}
+  if(!ps.length){$('#tbl tbody').innerHTML=`<tr><td colspan="${cols.length}" class="l" style="color:var(--mut);padding:30px">${DONE?'매도 완료 없음':'보유 없음'}</td></tr>`;$('#status').textContent='보유 0종목';return}
   const rows=await Promise.all(ps.map(async p=>{const d=await stockFile(p.code);
     /* 종목 JSON 이 없거나 깨져도 표 전체가 죽지 않게 방어 */
     const rs=(d&&Array.isArray(d.rows)&&Array.isArray(d.dates))
@@ -2259,7 +2259,7 @@ async function renderPositions(){
       p.date=d;p.price=+pr_;p.qty=Math.floor(+q);
     }
     savePositions(a);render()});
-  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=e=>{e.stopPropagation();if(!confirm('삭제할까요?'))return;savePositions(positions().filter(x=>x.id!=b.dataset.del));render()});
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=e=>{e.stopPropagation();if(!confirm('삭제?'))return;savePositions(positions().filter(x=>x.id!=b.dataset.del));render()});
 }
 let raw={dates:[],rows:[]},view={dates:[],rows:[]},sortKey='last',desc=true,sel=null,charts=[];
 /* 보유 경고등(2026-10-02 · 사용자 제안 12번) — shadow.py 가 만드는 data/warn.json {asof, w:{코드:{d,why}}}.
@@ -2436,7 +2436,7 @@ function rtBadge(){
   const el=$('#rtsw'); if(!el)return;
   el.className='rtsw'+(RT.on?' on':'')+((RT.on&&RT.ws)?' live':'');
   /* 점만 보이므로 낱말은 툴팁으로 남긴다 — 대기·연결 중·끊김·실패를 구분해야 할 때가 있다 */
-  el.title='실시간 시세 — '+RT.stat+' (보유 종목 현재가를 체결 단위로 받습니다 · 표시 전용)';
+  el.title='실시간 시세 — '+RT.stat+' (보유 종목 체결 단위 · 표시 전용)';
 }
 function rtStop(quiet){
   if(RT.hb){clearInterval(RT.hb);RT.hb=null}
@@ -2635,8 +2635,8 @@ function usState(){
   const md=d=>d.slice(4,6)+'/'+d.slice(6,8);
   el.style.color=stale?'var(--up)':'';
   el.title=`미장 표 기준일 ${raw.usAsof}`+(stale
-    ? ` — 달력의 마지막 미장 거래일(${lastUS})보다 오래됐습니다. 그날 난 미장 진입 이벤트가 빠져 있어 미장 규칙이 덜 잡힐 수 있습니다`
-    : ' — 최신입니다');
+    ? ` — 마지막 미장 거래일(${lastUS})보다 묵음 · 그날 신호 누락 가능`
+    : ' — 최신');
   el.innerHTML=`<i style="background:${stale?'var(--up)':'var(--usc)'}"></i>미장 ${md(raw.usAsof)}`
     +(stale?' ⚠ 묵음':'');
 }
@@ -2724,7 +2724,7 @@ async function loadUS(quiet){
   }catch(e){USROWS=null;raw.usFail=true;
     /* 배경으로 받는 중이면 조용히 넘어간다 — 미장 자료가 없다고 매번 경고창이 뜨면 안 된다.
        탭을 눌러 직접 요청했을 때만 알린다. */
-    if(!quiet)alert('미장 자료를 받지 못했습니다: '+e.message)}
+    if(!quiet)alert('미장 자료 실패: '+e.message)}
   return USROWS}
 function prep(){const n=7,D=raw.dates,k=Math.max(0,D.length-n);view.dates=D.slice(k);
   view.rows=raw.rows.map(r=>{const vols=r.v.slice(k),valid=vols.filter(x=>x!=null);const sum=a=>a.slice(k).reduce((x,y)=>x+(y||0),0);
@@ -2860,7 +2860,7 @@ function render(){renderTabs();
     const base=location.href.split('?')[0].split('#')[0];
     const w=window.open(base+'?detail='+b.dataset.detail,'detail_'+b.dataset.detail,
                         'width=560,height=920,scrollbars=yes,resizable=yes');
-    if(w)w.focus(); else alert('팝업이 차단되었습니다. 브라우저에서 이 사이트의 팝업을 허용해주세요.');});
+    if(w)w.focus(); else alert('팝업 차단됨 — 팝업 허용 필요');});
   document.querySelectorAll('[data-buy]').forEach(b=>b.onclick=e=>{e.stopPropagation();const r=view.rows.find(x=>x.ticker===b.dataset.buy);addPosition(r.ticker,r.name,r.close)});
   bindCopy();
 }
@@ -2875,8 +2875,8 @@ function render(){renderTabs();
 function verHtml(){
   const stale=!!(VERLATEST&&VERLATEST!==VERSION);
   return `<div class="ver${stale?' stale':''}" id="verbox" title="${stale
-      ?'지금 배포된 것은 '+VERLATEST+' 입니다. 이 화면은 브라우저에 저장된 옛 것이니 눌러서 새로 받으세요'
-      :'이 화면의 버전입니다'+(VERLATEST?' — 배포본과 같습니다(최신)':'')}">`
+      ?'최신 '+VERLATEST+' · 옛 화면 — 눌러서 새로 받기'
+      :'화면 버전'+(VERLATEST?' — 최신':'')}">`
     +`v<b>${VERSION}</b>${stale?' · ⚠ 옛 화면 (누르면 최신 '+VERLATEST+' 받기)':''}</div>`;
 }
 async function checkVer(){
@@ -2892,7 +2892,7 @@ function openDetail(code){
   const w=window.open(base+'?detail='+code,'detail_'+code,
                       'width=560,height=920,scrollbars=yes,resizable=yes');
   if(w)w.focus();
-  else alert('팝업이 차단되었습니다. 브라우저에서 이 사이트의 팝업을 허용해주세요.');
+  else alert('팝업 차단됨 — 팝업 허용 필요');
 }
 function showUS(code){
   const r=view.rows.find(x=>x.ticker===code); if(!r)return;
@@ -2969,7 +2969,7 @@ async function showStock(code){
   ${(()=>{const row=raw.rows.find(x=>x.t===d.ticker);if(!row)return '';const TR=raw.themeRet||{};
     const tags=(row.th||[]).map(g=>`<span class="thtag ${(TR[g]||0)>0?'up':''}">${g}${TR[g]!=null?` <b>${TR[g]>0?'+':''}${TR[g]}%</b>`:''}</span>`).join('');
     return (row.up||tags)?`<div class="themes">${row.up?`<span class="thtag sector">${row.up}</span>`:''}${tags}</div>`:''})()}</div><div style="display:flex;gap:6px;flex:none;align-items:flex-start">${(()=>{const hp=heldPos(d.ticker);
-    return `<button class="ghost mini" id="buyhere" title="${hp?'이미 보유 중입니다 — 추가 매수를 기록합니다':'규칙에 걸리지 않아도 직접 매수를 기록할 수 있습니다'}">${hp?'추가 매수':'매수'}</button>`})()}<button class="ghost mini" id="close">닫기</button></div></div>
+    return `<button class="ghost mini" id="buyhere" title="${hp?'이미 보유 · 추가 매수 기록':'직접 매수 기록'}">${hp?'추가 매수':'매수'}</button>`})()}<button class="ghost mini" id="close">닫기</button></div></div>
   <div class="kpi"><div><small>최근 거래량</small><b>${kor(L.volume)}</b></div><div><small>개인 누적(${rows.length}일)</small><b class="${cls(sum('indiv'))}">${kor(sum('indiv'),1)}</b></div><div><small>기관 누적</small><b class="${cls(sum('organ'))}">${kor(sum('organ'),1)}</b></div><div><small>외국인 누적</small><b class="${cls(sum('frgn'))}">${kor(sum('frgn'),1)}</b></div></div>
   <div class="legend"><span><i style="background:#a78bfa"></i>거래량</span><span><i style="background:#eef1f6"></i>종가</span></div><div class="chart"><canvas id="c1"></canvas></div>
   <div class="legend"><span><i style="background:var(--ind)"></i>개인</span><span><i style="background:var(--org)"></i>기관</span><span><i style="background:var(--frg)"></i>외국인</span><span style="margin-left:auto">일별 순매수</span></div><div class="chart"><canvas id="c2"></canvas></div>

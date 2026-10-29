@@ -257,9 +257,7 @@ Deno.serve(async (req) => {
       const kp = await naver("index/KOSPI").catch(() => null);
       await telegram(`🔔 <b>알림 연결 확인</b> (${stamp})
 ` +
-        `이제 PC·브라우저가 꺼져 있어도 평일 09:00~15:40 10분마다 서버가 시세를 확인합니다.
-` +
-        `손절·익절·추가매수·매도일 조건에 걸리면 이 대화로 알려드립니다.` +
+        `평일 09:00~15:40 10분마다 시세 확인 · 손절·익절·추가매수·매도일 알림` +
         (kp ? `
 코스피 ${num(kp.closePrice)?.toLocaleString("en-US")}` : ""));
       return new Response(JSON.stringify({ ping: "sent", at: stamp, hasToken: !!TG_TOKEN, hasChat: !!TG_CHAT }),
@@ -518,7 +516,7 @@ Deno.serve(async (req) => {
 ` +
             `현재가 ${fmt(now)} (매수 ${fmt(price)}) · 보유 ${days}거래일 · 규칙 ${RNAME[rid] ?? rid}
 ` +
-            `최초 매수와 같은 비중으로 한 번만 · 매도는 이 매수분 기준 60거래일`);
+            `최초와 같은 비중 1회 · 매도 60거래일`);
           sent.add(`${id}:add`); fired++;
         }
         // 매도일 알림은 **종목명 없이 한 통**으로 모아 보낸다(2026-09-10 사용자 요청).
@@ -537,8 +535,8 @@ Deno.serve(async (req) => {
         const NL = String.fromCharCode(10), nAuto = dueToSell.length - dueManual;
         await telegram(
           `⏰ <b>오늘 매도일 ${dueToSell.length}종목</b>` +
-          (nAuto ? `${NL}🤖 자동매매 ${nAuto}종목 — 장 마감 때 알아서 팔아요(국장 15:20 종가 · 미장 마감 전). 손댈 것 없어요.` : "") +
-          (dueManual ? `${NL}✋ 직접 산 ${dueManual}종목 — 장 마감 전에 직접 팔아 주세요.` : "") +
+          (nAuto ? `${NL}🤖 자동 ${nAuto} — 마감 때 자동 매도` : "") +
+          (dueManual ? `${NL}✋ 수동 ${dueManual} — 직접 매도` : "") +
           `${NL}${NL}${SITE}/`,
         );
       }
