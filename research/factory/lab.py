@@ -220,6 +220,26 @@ def desc(spec):
     return "[%s] " % FT.MODES[spec["mode"]][0] + " · ".join(ps)
 
 
+def sig(spec):
+    """종류 표지 = 매매 방식 + 조건 재료와 방향(문턱 값은 안 본다)."""
+    return spec.get("mode"), frozenset((c.get("f"), c.get("op")) for c in spec.get("conds") or [])
+
+
+KIND_JAC = 0.5          # 10-31 사용자 "처음 보는 아이디어만": 방식 같고 재료·방향 절반↑ 겹치는 게 이미 떨어졌으면 시험 안 함(과거 632개 중 43% 걸림·검증 통과 0)
+
+
+def kind_seen(spec, L):
+    """이미 판정돼 떨어진(검증 통과 못 했거나 사용자 기각) 같은 종류 명세 — 있으면 그 명세, 없으면 None."""
+    m, fs = sig(spec)
+    if not fs: return None
+    for x in L:
+        if x.get("status") in ("queued", "error") or x.get("origin") == "invert": continue
+        if (x.get("stage") or 0) >= 2 and x.get("status") != "rejected": continue          # 통과해서 살아 있는 건 비교 대상 아님
+        xm, xs = sig(x)
+        if xm == m and xs and len(fs & xs) / len(fs | xs) >= KIND_JAC: return x
+    return None
+
+
 def invert(spec):
     """뒤집기 짝 — 조건마다 반대쪽으로. 국장은 개인 공매도가 사실상 안 돼서 '반대로 판다'가 아니라 '반대 성질 종목을 산다'."""
     cs = []

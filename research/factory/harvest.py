@@ -255,6 +255,29 @@ QUERIES_FOREIGN = [("day trading strategy stocks", "en"), ("swing trading strate
 LANG_NAME = {"ko": "", "en": "(영어)", "ja": "(일본어)", "zh-Hant": "(중국어)"}
 RETRY = C.DATA / "harvest_retry.json"
 STATS = C.DATA / "harvest_stats.jsonl"          # 수집 기록(출처별·밤마다 건수)
+# 10-31 사용자 "처음 보는 아이디어만" — 번역 전에 제목·거르기 한 줄로 종류를 가려, 이미 FAM_MIN 개↑ 시험해 검증 통과 0 인 종류는 건너뜀.
+#   어느 종류에도 안 걸리면(기타) 늘 번역. 10-08~31 실측: 눌림목 141·신고가·돌파 139·종가베팅 102·갭·시가 98 … 전부 검증 통과 0.
+FAMS = [("종가베팅", r"종가\s*[베배]팅|종베|종가\s*매수|closing"), ("상한가", r"상한가|limit.?up"), ("신고가·돌파", r"신고가|돌파|breakout|전고점|저항"),
+        ("눌림목", r"눌림|pullback|지지"), ("갭·시가", r"갭|시가|시초|gap|ORB|opening range"), ("장대양봉", r"장대양봉"),
+        ("과매도·반등", r"과매도|RSI|반등|oversold"), ("이평·추세", r"이평|정배열|이동평균|추세|EMA|SMA|moving average"), ("거래량", r"거래량|거래대금|volume")]
+FAM_MIN = 30
+
+
+def fam_of(text):
+    for n, p in FAMS:
+        if re.search(p, text or "", re.I): return n
+    return "기타"
+
+
+def dead_fams(L):
+    """이미 FAM_MIN 개↑ 시험했고 검증 통과(stage 2)가 한 번도 없는 종류."""
+    n, ok = {}, set()
+    for x in L:
+        if x.get("origin") != "harvest" or x.get("status") == "queued": continue
+        f = fam_of("%s %s" % (x.get("name") or "", x.get("source") or ""))
+        n[f] = n.get(f, 0) + 1
+        if (x.get("stage") or 0) >= 2 and x.get("status") != "rejected": ok.add(f)       # 사용자 기각(F0023 등)은 통과로 안 셈
+    return {f for f, k in n.items() if k >= FAM_MIN and f not in ok and f != "기타"}
 NB_QUERIES = ["단타 매매법", "종가베팅 기법", "시초가 매매 기법", "스윙 매매 기법", "눌림목 매매법", "주식 매매 기법 승률"]
 NEEDS = C.DATA / "needs.jsonl"
 
@@ -307,7 +330,8 @@ def run(max_extract=MAX_EXTRACT):
     xsys = extract_sys()
     retry = C.jload(RETRY, {})
     import collections                                                # 수집 기록(2026-10-10 사용자: 사이트별로 제대로 가져오나 날짜별로)
-    ST = collections.defaultdict(lambda: dict(found=0, tried=0, ok=0, err=0, blocked=0, short=0, passed=0, xl=0, specs=0))
+    ST = collections.defaultdict(lambda: dict(found=0, tried=0, ok=0, err=0, blocked=0, short=0, passed=0, known=0, xl=0, specs=0))
+    LL = lab.load(); dead = dead_fams(LL); kn = [0, 0]           # 이미 본 종류 건너뜀(번역 전, 번역 뒤)
     for x in allc: ST[x["src"]]["found"] += 1
     for it in cand:
         if month_spent() >= budget(): rep.append("이달 한도 다 써서 멈춤"); break
@@ -330,6 +354,9 @@ def run(max_extract=MAX_EXTRACT):
         if not s.get("rule") or s.get("kind") not in ("day", "swing"):
             seen[it["key"]] = "거름: %s" % (s.get("why") or s.get("kind")); continue
         st_["passed"] += 1
+        f_ = fam_of("%s %s" % (title, s.get("why") or ""))
+        if f_ in dead:
+            seen[it["key"]] = "이미 본 종류: " + f_; st_["known"] += 1; kn[0] += 1; continue
         if nx >= max_extract:
             continue                                                  # 내일 밤 다시(본 목록에 안 넣음)
         nx += 1; st_["xl"] += 1
@@ -358,11 +385,15 @@ def run(max_extract=MAX_EXTRACT):
             err = lab.check(sp)
             if err:
                 rep.append("· %s — 명세 오류: %s" % (title[:40], err)); continue
+            old = lab.kind_seen(sp, LL)
+            if old:
+                kn[1] += 1; rep.append("· %s — 이미 본 종류(%s)" % (title[:40], old["id"])); continue
             specs.append(sp); got += 1; st_["specs"] += 1
         rep.append("· [%s·%s] %s — %s · 명세 %d개" % (it["src"], j.get("kind", ""), title[:45], (j.get("summary") or "")[:60], got))
     C.jsave(SEEN, seen); C.jsave(RETRY, {k: v for k, v in retry.items() if k not in seen})
     with open(STATS, "a", encoding="utf-8") as fh:
         for src, v in ST.items():
             fh.write(json.dumps(dict(date=time.strftime("%Y%m%d"), ts=time.strftime("%H:%M"), src=src, **v), ensure_ascii=False) + "\n")
-    C.log("수집 일꾼: 후보 %d · 번역 %d · 명세 %d" % (len(cand), nx, len(specs)))
+    if kn[0] or kn[1]: rep.insert(0, "이미 본 종류 건너뜀: 번역 전 %d · 번역 뒤 %d (%s)" % (kn[0], kn[1], "·".join(sorted(dead)) or "-"))
+    C.log("수집 일꾼: 후보 %d · 번역 %d · 명세 %d · 이미 본 종류 %d+%d" % (len(cand), nx, len(specs), kn[0], kn[1]))
     return specs, rep
