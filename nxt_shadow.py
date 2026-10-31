@@ -287,17 +287,28 @@ def do_fill():
         x["high"] = max((r[2] for r in B if r[5] > 0), default=None)
         x["low"] = min((r[3] for r in B if r[5] > 0), default=None)
         x["val10"] = round(sum(r[4] * r[5] for r in B))
-        x["bid_fill"] = bool(x.get("bid") and x["low"] is not None and x["low"] <= x["bid"])
+        x["bid_fill"] = bool(x.get("bid") and x["low"] is not None and x["low"] < x["bid"])      # 닿기만 해선 줄 뒤라 안 사질 수 있다 — 뚫고 내려가야 체결로 센다
         time.sleep(0.12)
     jsave(OUT / ("pick_%s.json" % d), snap)
     log("fill: %d종목" % len(done))
     publish("20:02 장후 체결 기록")
 
 
-def last_pick_day():
-    fs = sorted(OUT.glob("pick_*.json"))
-    fs = [f for f in fs if f.stem[5:] < today()]
-    return fs[-1].stem[5:] if fs else None
+def open_picks():
+    """아직 채점 안 된 고른 날들(오래된 순). 지나간 날만."""
+    out = []
+    for f in sorted(OUT.glob("pick_*.json")):
+        d = f.stem[5:]
+        if d >= today(): continue
+        s = jload(f)
+        if s and not s.get("reviewed"): out.append(d)
+    return out
+
+
+def next_td(day):
+    """그 날 다음 거래일(YYYYMMDD) — 오늘까지의 거래일 달력으로. 없으면 None."""
+    ds = sorted(set(M.trading_days("KR", 40)) | ({today()} if trading_today() else set()))
+    return next((x for x in ds if x > day), None)
 
 
 def do_sellopen():
@@ -315,30 +326,50 @@ def do_sellopen():
 
 
 def do_review():
+    """고른 날 하나하나를 **그 다음 거래일 시가**로 채점한다(2026-11-01 감사). 전엔 가장 최근 한 날만 오늘 시가로 채점해서
+    월요일 작업이 빠지면 금요일 고름이 화요일 시가로 채점되고, 하루 실패하면 그 전 날은 영영 빠졌다."""
     if not trading_today(): return
-    pd_ = last_pick_day()
-    if not pd_: return
+    for pd_ in open_picks():
+        d = next_td(pd_)
+        if not d:
+            log("review %s: 다음 거래일 못 찾음" % pd_); continue
+        review_one(pd_, d)
+
+
+def review_one(pd_, d):
     snap = jload(OUT / ("pick_%s.json" % pd_))
     if not snap or snap.get("reviewed"): return
-    d = today()
+    S = AT.session("KR") if d == today() else None
+    late_open = bool(S) and S["start"].strftime("%H%M") != "0900"     # 수능일 — 09:12 엔 시가가 없다
+    first, upto = (1001, "1006") if late_open or d in M.LATE_OPEN else (901, "0903")
     rows, opn = [], {}
+    nopen = 0
+    wall = lambda x, k: "호가없음" if not x.get("ask") else "벽부족"
     for grp in ("picks", "big"):
         for x in snap.get(grp) or []:
             if x["t"] not in opn:
                 try:
-                    B = bars(x["t"], d, "0903")
-                    opn[x["t"]] = next((r[1] for r in B if r[0] >= 901), None)
+                    B = bars(x["t"], d, upto)
+                    opn[x["t"]] = next((r[1] for r in B if r[0] >= first and r[5] > 0), None)
                 except Exception:
                     opn[x["t"]] = None
                 time.sleep(0.12)
             o = opn[x["t"]]
-            if not o: continue
-            def r_(p): return round((o / p - 1) * 100 - COST, 3) if p else ""
+            if not o: nopen += 1                               # 거래정지 등 — 행을 남긴다(빠지면 가장 나쁜 건만 사라진다)
+            def r_(p): return round((o / p - 1) * 100 - COST, 3) if (p and o) else ""
             rows.append([pd_, d, grp, x["t"], x["krx"], x["p50"], x["ah"], x["rel"], x.get("mult"), x.get("v10"), x.get("cap05"), x.get("cap10"), x.get("ask"), x.get("bid"),
-                         x.get("bid_fill"), x.get("vwap"), x.get("high"), o, r_(x.get("ask")), r_(x.get("bid")) if x.get("bid_fill") else "",
-                         r_(x.get("vwap")), r_(x.get("high"))] + [r_(x.get("p%d" % sz)) for sz in SIZES]
-                        + sum(([x.get("amt%d" % cp), r_(x.get("pd%d" % cp))] for cp in DYN_CAPS), []) + [x.get("val10"), x.get("ask10")]
-                        + sum(([x.get("wa_" + a), r_(x.get("pw_" + a)) if x.get("pw_" + a) else ("벽부족" if x.get("wa_" + a, 0) >= 30e4 else "")] for a in TUNED), []))
+                         x.get("bid_fill"), x.get("vwap"), x.get("high"), o or "", r_(x.get("ask")), r_(x.get("bid")) if x.get("bid_fill") else "",
+                         r_(x.get("vwap")), r_(x.get("high"))]
+                        + [(r_(x.get("p%d" % sz)) if x.get("p%d" % sz) else (wall(x, sz) if o else "")) for sz in SIZES]
+                        + sum(([x.get("amt%d" % cp), (r_(x.get("pd%d" % cp)) if x.get("pd%d" % cp) else (wall(x, cp) if (o and x.get("amt%d" % cp)) else ""))] for cp in DYN_CAPS), []) + [x.get("val10"), x.get("ask10")]
+                        + sum(([x.get("wa_" + a), r_(x.get("pw_" + a)) if x.get("pw_" + a) else ((wall(x, a) if x.get("wa_" + a, 0) >= 30e4 else "") if o else "")] for a in TUNED), []))
+    n_pick = len(snap.get("picks") or []) + len(snap.get("big") or [])
+    if n_pick and nopen == n_pick:                         # 전부 시가가 없으면 아직 안 열린 것 — 채점 끝으로 치지 않는다(다음 실행이 다시 본다)
+        log("review %s → %s: 시가가 하나도 없음 — 미룸" % (pd_, d))
+        if d < today(): telegram("⚠ NXT 채점 못 함 %s → %s 시가 없음" % (pd_, d))
+        return
+    if nopen:
+        telegram("ℹ NXT 채점 %s: 시가 없는 종목 %d건(수익 빈칸으로 남김)" % (pd_, nopen))
     f = OUT / "log.csv"; new = not f.exists()
     with open(f, "a", newline="", encoding="utf-8") as w:
         cw = csv.writer(w)
@@ -350,6 +381,7 @@ def do_review():
     snap["reviewed"] = d; jsave(OUT / ("pick_%s.json" % pd_), snap)
     log("review %s → %s: %d종목" % (pd_, d, len(rows)))
     publish("다음 날 시가 채점")
+    if d != today(): return
     t = jload(OUT / "test_order.json")
     if t and t.get("sold") == d and not t.get("reported"):
         try:
@@ -360,6 +392,11 @@ def do_review():
         except Exception as ex:
             log("시험 매도 확인 실패", repr(ex)[:120])
         jsave(OUT / "test_order.json", t)
+
+
+def _fl(v):
+    try: return float(v)
+    except (TypeError, ValueError): return None
 
 
 def publish(stage):
@@ -383,8 +420,8 @@ def publish(stage):
                 r = lg.get((g, x["t"])) or {}
                 return {"t": x["t"], "n": nm.get(x["t"], x["t"]), "ah": x.get("ah"), "rel": x.get("rel"), "m": x.get("mult"), "v10": x.get("v10"),
                         "ask": x.get("ask"), "bid": x.get("bid"), "amt": x.get("amt1000"), "vw": x.get("vwap"), "hi": x.get("high"),
-                        "o1": float(r["open1"]) if r.get("open1") else None, "r": float(r["r_ask"]) if r.get("r_ask") not in (None, "") else None,
-                        "rc": float(r["r_cap1000만"]) if r.get("r_cap1000만") not in (None, "") else None}
+                        "o1": _fl(r.get("open1")), "r": _fl(r.get("r_ask")),
+                        "rc": _fl(r.get("r_cap1000만"))}
             S = {"date": snap["date"], "mkt": snap.get("mkt"), "calm": snap.get("calm"), "n_nxt": snap.get("n_nxt"), "n_cand": snap.get("n_cand"),
                  "reviewed": snap.get("reviewed"), "picks": [row("picks", x) for x in snap.get("picks") or []], "big": [row("big", x) for x in snap.get("big") or []]}
         cum, recent, days = {}, [], []
@@ -392,7 +429,9 @@ def publish(stage):
         if f.exists():
             rows = list(csv.DictReader(open(f, encoding="utf-8")))
             days = sorted({r["pick_day"] for r in rows})
-            fl = lambda v: float(v) if v not in ("", None, "None") else None
+            def fl(v):
+                try: return float(v)
+                except (TypeError, ValueError): return None
             for g in ("picks", "big"):
                 G = [r for r in rows if r["grp"] == g]
                 cum[g] = []
@@ -423,7 +462,9 @@ def do_report(send=True):
     if not f.exists(): log("report: 기록 없음"); return
     rows = list(csv.DictReader(open(f, encoding="utf-8")))
     if not rows: return
-    fl = lambda v: float(v) if v not in ("", None, "None") else None
+    def fl(v):
+        try: return float(v)
+        except (TypeError, ValueError): return None        # 빈칸·벽부족·호가없음 — 평균에서 빠지되 몇 건인지는 아래 표가 센다
     days = sorted({r["pick_day"] for r in rows})
     lines = ["📊 NXT 장후 그림자 누적 — %s~%s · %d일" % (days[0][4:], days[-1][4:], len(days))]
     md = ["# NXT 장후 그림자 성적표 · %s" % today(), "", "기간 %s~%s · %d거래일 · 칸 = 건수 · 건당(비용 뒤) · 승률 · 합계(금액 열은 원 → 만원)" % (days[0], days[-1], len(days)), ""]

@@ -102,7 +102,7 @@ def score(rows, k, filt=None):
     G = rows if k is None else rows[:k]
     if not G: return None
     F = [x for x in G if x["filled"] and x["ret"] is not None]
-    if not F and any(x["filled"] is None for x in G): return None     # 시가 전
+    if not F and any(x["filled"] is None or (x["filled"] and x["ret"] is None) for x in G): return None     # 시가 전 · 리뷰 전(0% 하루로 세지 않는다)
     return {"n": len(G), "nf": len(F), "day": round(sum(x["ret"] for x in F) / len(G), 3), "trade": [x["ret"] for x in F]}
 
 

@@ -133,7 +133,19 @@ def pct_rank(vals):
     return {k: (i + 1) / n for i, k in enumerate(ks)}
 
 
-def prep(today):
+def krx_closes(day):
+    """그날 KRX 종가 {종목: 값} — 1분봉 파일(16:11 저장)의 거래량 있는 마지막 봉. 파일이 없으면 {}.
+    ⚠ 2026-11-01: 토스 일봉 종가는 NXT 장후 끝값이다(KRX 와 같은 값 9.5%, 평균 차이 0.84%). 연구의 갭·기준가는 KRX 종가라
+    실전 '어제 종가'를 이걸로 맞춘다(후보의 21%가 진짜 갭 하락이 아니었다, research/reports/live_recon_1031.md)."""
+    f = BASE / "data" / "m1" / "KR" / "day" / ("%s.parquet" % day)
+    if not f.exists(): return {}
+    import pandas as pd
+    D = pd.read_parquet(f, columns=["t", "ts", "c", "v"])
+    D = D[D.v > 0].sort_values(["t", "ts"])
+    return {t: float(c) for t, c in D.groupby("t").c.last().items()}
+
+
+def prep(today, prev=None):
     """전 종목 일봉 25개 → 어제 종가·20일 평균 거래대금·어제 거래량 배수."""
     U = M.universe("KR"); R = {}; t0 = time.time()
     for s in U:
@@ -146,7 +158,15 @@ def prep(today):
         if base <= 0 or cl[-1] <= 0: continue
         R[s] = dict(pc=cl[-1], amt20=amt20, vm=v[-1] / base, pdate=c[-1]["timestamp"][:10].replace("-", ""),
                     d5=(cl[-1] / (sum(cl[-5:]) / 5) - 1) * 100)          # 어제 종가의 5일선 대비 — 낮을수록 기대 큼(day2.py)
-    log("준비: %d종목 · %.1f분" % (len(R), (time.time() - t0) / 60))
+    kc = krx_closes(prev) if prev else {}
+    hit = 0
+    for s, v in R.items():
+        if s in kc:
+            v["pc_toss"] = v["pc"]; v["pc"] = kc[s]; hit += 1
+    if R and hit < len(R) * 0.9:
+        log("⚠ 어제 KRX 종가 %d/%d 만 있음 — 나머지는 토스 종가" % (hit, len(R)))
+        telegram("⚠ 데이: 어제 KRX 종가 %d/%d종목만 있음 — 나머지는 토스 종가(NXT 끝값)로 계산" % (hit, len(R)))
+    log("준비: %d종목 · KRX 종가 %d · %.1f분" % (len(R), hit, (time.time() - t0) / 60))
     return R
 
 
@@ -200,7 +220,13 @@ def nasdaq_last(today):
         import FinanceDataReader as fdr
         X = fdr.DataReader("IXIC", (dt.datetime.now(KST) - dt.timedelta(days=15)).strftime("%Y-%m-%d"))
         X = X[(X.Close > 0) & (X.index.strftime("%Y%m%d") < today)]
-        if len(X) >= 2: return float((X.Close.iloc[-1] / X.Close.iloc[-2] - 1) * 100), "IXIC " + X.index[-1].strftime("%m/%d")
+        if len(X) >= 2:
+            # 직전 평일 자료가 아니면 쓰지 않는다 — 묵은 값이면 지난주 폭락으로 T4 가 켜진다(감사)
+            d_ = dt.datetime.strptime(today, "%Y%m%d").date() - dt.timedelta(days=1)
+            while d_.weekday() >= 5: d_ -= dt.timedelta(days=1)
+            if X.index[-1].strftime("%Y%m%d") < d_.strftime("%Y%m%d"):
+                log("나스닥 자료 묵음:", X.index[-1].strftime("%m/%d"), "— T4 쉼"); return None, None
+            return float((X.Close.iloc[-1] / X.Close.iloc[-2] - 1) * 100), "IXIC " + X.index[-1].strftime("%m/%d")
     except Exception as ex:
         log("나스닥 못 받음(IXIC):", repr(ex)[:150])
     try:
@@ -231,6 +257,8 @@ def bad_news(tickers, prev, today):
                 if t in tickers and re.search(BAD_RE, nm): out.setdefault(t, it.get("report_nm", "").strip())
             if page >= int(r.get("total_page") or 1): break
             page += 1; time.sleep(0.15)
+        else:
+            log("악재 공시 60쪽 넘음 — 다 못 봄"); return None         # 분기보고 마감 주엔 뒤쪽 악재를 놓치므로 '모름'으로 알린다
         return out
     except Exception as ex:
         log("악재 공시 조회 실패:", repr(ex)[:200]); return None
@@ -245,7 +273,13 @@ def morning():
     today, it, prev = today_session()
     if not today:
         log("국장 휴장 — 건너뜀"); return
-    R = prep(today)
+    try:
+        S0 = AT.session("KR")
+        if S0 and S0["start"].strftime("%H%M") != "0900":             # 수능일 등 늦은 개장 — 장전 시장이 달라 예상 시가를 믿을 수 없다
+            log("개장 %s — 오늘 데이 쉼" % S0["start"].strftime("%H:%M")); telegram("ℹ 데이 쉼 — 개장 %s" % S0["start"].strftime("%H:%M")); return
+    except AT.TossErr as ex:
+        log("장 시각 못 받음:", ex)
+    R = prep(today, prev)
     names = {}
     # 유니버스: 20일 평균 거래대금 상위 40% (1,000원 미만 제외 — 연구와 같게)
     R = {k: v for k, v in R.items() if v["pc"] >= 1000 and v["pdate"] == prev}
@@ -272,6 +306,7 @@ def morning():
     if w > 0:
         log("08:52 까지 기다림 %.0f초" % w); time.sleep(w)
     if env().get("DAY_MODE", "notify") == "live":               # 어제까지 못 판 데이 종목(하한가 묶임 등) — 오늘 시가에 판다(10-19 사용자)
+        day_sync()
         try: carry_sell(today)
         except Exception as ex:
             log("넘어온 데이 종목 매도 실패:", repr(ex)[:200]); telegram("⚠ 이월 데이 처리 실패: %s" % str(ex)[:150])
@@ -411,29 +446,49 @@ LEDGER = OUT / "ledger.json"
 
 
 def _led():
-    try: return json.loads(LEDGER.read_text(encoding="utf-8"))
-    except Exception: return {"orders": []}
+    return AT.led_read(LEDGER)
 
 
 def _led_save(L):
-    if AT.DRY: return
-    tmp = LEDGER.with_suffix(".tmp"); tmp.write_text(json.dumps(L, ensure_ascii=False, indent=1), encoding="utf-8"); tmp.replace(LEDGER)
+    AT.led_write(LEDGER, L)
 
 
 def scalp_update(mutate, why):
-    """사이트 데이 보유 목록(positions_scalp)을 읽고 고쳐 쓴다 — 스윙 목록(positions)은 건드리지 않는다."""
-    for att in range(3):
-        d = AT.site_state()
-        pos = d.get("positions_scalp") if isinstance(d.get("positions_scalp"), list) else []
-        if not mutate(pos): return
-        d["positions_scalp"] = pos; d["updated"] = int(time.time() * 1000)
-        if AT.DRY:
-            log("사이트 쓰기(보내지 않음):", why); return
-        AT.rpc("kospi_state_set", {"p_pin": AT._sb["pin"], "p_data": d})
-        if AT.site_state().get("updated") == d["updated"]:
-            log("사이트 기록:", why); return
-        time.sleep(1)
-    log("⚠ 사이트 기록 실패:", why)
+    """사이트 데이 보유 목록(positions_scalp)을 읽고 고쳐 쓴다 — 스윙 목록(positions)은 건드리지 않는다.
+    사이트가 막혀도 매매를 멈추지 않는다 — 실패는 알리고, 원장이 있으니 day_sync 가 되살린다."""
+    try:
+        for att in range(3):
+            d = AT.site_raw()
+            pos = d.get("positions_scalp") if isinstance(d.get("positions_scalp"), list) else []
+            if not mutate(pos): return False
+            d["positions_scalp"] = pos; d["updated"] = int(time.time() * 1000)
+            if AT.DRY:
+                log("사이트 쓰기(보내지 않음):", why); return True
+            AT.rpc("kospi_state_set", {"p_pin": AT._sb["pin"], "p_data": d})
+            if AT.site_state().get("updated") == d["updated"]:
+                log("사이트 기록:", why); return True
+            time.sleep(1)
+        log("⚠ 사이트 기록 실패:", why); telegram("⚠ 데이 사이트 기록 실패: %s" % why)
+    except Exception as ex:
+        log("⚠ 사이트 기록 실패:", why, repr(ex)[:150]); telegram("⚠ 데이 사이트 기록 실패: %s" % why)
+    return False
+
+
+def day_pos(o):
+    return {"id": AT.new_id(), "code": o["t"], "name": o.get("name"), "date": o["date"], "price": o["ap"], "qty": int(o["fq"]),
+            "filters": [o.get("rid", "T1")], "auto": True, "day": True, "oid": o["oid"]}
+
+
+def day_sync():
+    """데이 원장을 토스와 맞춘다 — 놓친 체결 기록·시가 지난 미체결 취소·사이트 되살리기. 09:03·15:24·이월 앞에서 돈다."""
+    try:
+        L = _led(); msgs = AT.sync_orders(L, _led_save, scalp_update, day_pos, AT.SYNC_FROM); _led_save(L)
+        if msgs: telegram("🛟 <b>데이 주문 확정</b>\n" + "\n".join(msgs[:12]))
+        AT.heal(L, scalp_update, AT.SYNC_FROM)
+    except AT.LedgerBad:
+        raise
+    except Exception as ex:
+        log("데이 주문 확정 실패:", repr(ex)[:300]); telegram("⚠ 데이 주문 확정 실패: %s" % str(ex)[:150])
 
 
 # ── 가상 매매(2026-10-27 사용자: "매수가능 금액 부족한 것들도 가상으로 매수 시도하는 것처럼 — 사지는 조건이면 사진 것처럼 사이트에") ──
@@ -541,6 +596,7 @@ def trade(L, today):
     S = AT.session("KR")
     if not S or S["date"] != today or AT.now() >= S["start"]:
         log("데이 매수 시각 지남 — 건너뜀"); return
+    job = AT.FileLock(OUT / "job_trade.lock", wait=120); job.__enter__()     # 겹쳐 돌아도 주문은 한 줄로
     Lg = _led(); done = {(o["t"], o.get("rid", "T1")) for o in Lg["orders"] if o.get("date") == today and o.get("side") == "BUY"}
     placed, skip, short = [], [], []                   # short = 돈 모자라 못 낸 몫 → 가상 매매(10-27)
     # 2026-10-06 T2(사용자 '1번'): 어제 막판 1시간 -1%↓ 인 후보는 T2 로 한 번 더 산다 — 규칙마다 따로 주문·기록
@@ -572,30 +628,33 @@ def trade(L, today):
         if bp is not None and q * px > bp:
             if px > bp:
                 skip.append((x["name"] + ("" if rid == "T1" else "[%s]" % RNAME.get(rid, rid)), "매수가능 부족")); sh(want); continue
-            log("매수가능 부족 — 1주만:", x["t"], "%d→1주" % q); q = 1
+            q2 = 1 if DAY_QTY else math.floor(bp / px)                # 테스트(1~3주) 땐 전처럼, 실전 금액이면 살 수 있는 만큼
+            log("매수가능 부족 — 줄임:", x["t"], "%d→%d주" % (q, q2)); q = q2
         cid = re.sub(r"[^A-Za-z0-9_-]", "", f"db{today}{x['t']}" + ("" if rid == "T1" else rid))[:36]
         o = dict(side="BUY", date=today, t=x["t"], name=x["name"], qty=q, cid=cid, rid=rid, lim=lim, pc=x.get("pc"), at=AT.now().isoformat())
         body = {"clientOrderId": cid, "symbol": x["t"], "side": "BUY", "orderType": "LIMIT", "timeInForce": "OPG", "price": str(lim), "quantity": str(q)}
+        AT.high_value(body, q * px)
         try:
             try:
-                o["oid"] = AT.place(body)
+                ok = AT.submit(Lg, o, body, _led_save)
             except AT.TossErr as ex:
                 if ex.code != "insufficient-buying-power" or q == 1: raise
                 # 시장가는 토스가 넉넉히 잡아 둬서 모자랄 수 있다 → 1주로 한 번 더
                 log("매수가능 부족 거절 — 1주로 다시:", x["t"])
-                q = 1; body.update(quantity="1", clientOrderId=(cid + "o")[:36]); o.update(qty=1, cid=body["clientOrderId"])
-                o["oid"] = AT.place(body)
+                q = 1; body.update(quantity="1", clientOrderId=(cid + "o")[:36]); body.pop("confirmHighValueOrder", None); o = dict(o, _k=None, qty=1)
+                ok = AT.submit(Lg, o, body, _led_save)
         except AT.TossErr as ex:
-            o["oid"] = None; o["err"] = ex.code or str(ex)[:100]
-            skip.append((x["name"] + ("" if rid == "T1" else "[%s]" % RNAME.get(rid, rid)), "주문 거부 " + str(o["err"])))
-            Lg["orders"].append(o); _led_save(Lg)
+            skip.append((x["name"] + ("" if rid == "T1" else "[%s]" % RNAME.get(rid, rid)), "주문 거부 " + str(ex.code or str(ex)[:100])))
             if ex.code == "insufficient-buying-power":
                 sh(want)
                 if bp is not None: bp = min(bp, px * 0.999)   # 이보다 비싼 건 건너뛴다
             continue                                          # 시가 단일가를 놓치면 사지 않는다(09:05 만 늦어도 효과가 사라진다)
-        Lg["orders"].append(o); _led_save(Lg); placed.append(o); sh(want - q)
+        if not ok:
+            skip.append((x["name"], "주문 결과 모름 — 확정 대기")); continue
+        placed.append(o); sh(want - q)
         if bp is not None: bp -= q * px
         time.sleep(0.4)                                   # 10-21: 후보가 늘어 주문이 많다(하루 최대 100건+) — 토스 429 피하려고 0.3→0.4초
+    job.__exit__()
     if short:
         (OUT / ("paper_%s.json" % today)).write_text(json.dumps(short, ensure_ascii=False), encoding="utf-8")
         log("돈 모자라 못 낸 몫 %d건(%d주) → 시가 뒤 가상 매수" % (len(short), sum(z["qty"] for z in short)))
@@ -606,7 +665,7 @@ def trade(L, today):
             paper_buy(today)
         return
     AT.sleep_until(S["start"] - dt.timedelta(seconds=30), "후보 호가 스냅샷(시가 직전)")
-    try: book_snap(today, "am", [x["t"] for x in L])
+    try: book_snap(today, "am", [x["t"] for x in L], until=S["start"])      # 후보가 많아도 시가 확인을 밀지 않는다
     except Exception as ex: log("시가 직전 호가 스냅샷 실패:", repr(ex)[:200])
     AT.sleep_until(S["start"], "데이 시가 단일가")
     open_guard(placed, today)                              # 시가가 찍히자마자 '시가 > 지정가' 주문을 바로 취소(10-12 장중 체결 3건)
@@ -618,18 +677,19 @@ def trade(L, today):
         try:
             ex_ = ((AT.detail(o["oid"]) or {}).get("execution") or {})
             o["fq"] = float(ex_.get("filledQuantity") or 0); o["ap"] = float(ex_.get("averageFilledPrice") or 0); o["status"] = "CANCELED"
-        except Exception:
-            o["fq"], o["ap"], o["status"] = 0.0, 0.0, "CANCELED"
+        except Exception:                                  # 조회 실패는 '안 사짐'이 아니라 '모름' — day_sync 가 다시 본다
+            o["fq"], o["ap"], o["status"] = 0.0, 0.0, None
     got = [o for o in placed if o["fq"] > 0 and o["ap"] > 0]
     for o in got:                                          # 그래도 장중에 사진 것 — 시가보다 싸게(=지정가에) 체결됐다
         op_ = (o.get("open") or 0)
         if op_ and o.get("lim") and op_ > o["lim"]: o["intraday"] = True
-    for i, o in enumerate(got):
-        o["pos"] = {"id": int(time.time() * 1000) + i, "code": o["t"], "name": o["name"], "date": today, "price": o["ap"],
+    for o in got:
+        o["pos"] = {"id": AT.new_id(), "code": o["t"], "name": o["name"], "date": today, "price": o["ap"],
                     "qty": int(o["fq"]), "filters": [o.get("rid", "T1")], "auto": True, "day": True, "oid": o["oid"]}
+        o["pf"] = o["fq"]
     _led_save(Lg)
     if got:
-        scalp_update(lambda P: (P.extend(dict(o["pos"]) for o in got) or True), "데이 매수 %d건" % len(got))
+        scalp_update(lambda P: (P.extend(dict(o["pos"]) for o in got) or True), "데이 매수 %d건(%s)" % (len(got), ", ".join(o["t"] for o in got[:8])))
     try: mark_snap(today, placed, got)
     except Exception as ex: log("후보 시가 표시 실패:", repr(ex)[:200])
     try: paper_buy(today)
@@ -637,8 +697,9 @@ def trade(L, today):
     lines = ["🌅 <b>데이 매수</b> %s/%s 시가" % (today[4:6], today[6:])]
     lines += ["✅ [%s] %s %d주 @ %s원 = %s원%s" % (RNAME.get(o.get("rid", "T1"), ""), o["name"], int(o["fq"]), f"{o['ap']:,.0f}", f"{o['fq'] * o['ap']:,.0f}",
                                                  (" ⚠ 장중 체결(시가 %s > 지정가 — 취소 전에 사짐)" % f"{o['open']:,.0f}") if o.get("intraday") else "") for o in got]
+    lines += ["⚠ %s 일부 체결 %d/%d주" % (o["name"], int(o["fq"]), int(o["qty"])) for o in got if o["fq"] < float(o["qty"])]
     lines += [("⏭ [%s] %s 시가가 지정가 %s원 위 — 안 삼(취소)" % (RNAME.get(o.get("rid", "T1"), ""), o["name"], f"{o['lim']:,}"))
-              if o.get("canceled") else ("❌ %s 미체결(%s)" % (o["name"], o.get("status"))) for o in placed if o not in got]
+              if (o.get("canceled") and o.get("status")) else ("❌ %s 미체결(%s)" % (o["name"], o.get("status") or "확인 못 함, 확정 대기")) for o in placed if o not in got]
     if skip: lines.append("못 산 것: " + " · ".join("%s(%s)" % s_ for s_ in skip[:6]))
     telegram("\n".join(lines))
     if not got: return
@@ -674,6 +735,7 @@ def mark_snap(today, placed, got):
     for x in snap.get("cand") or []:
         x["rules"] = sorted({o.get("rid", "T1") for o in got if o["t"] == x["t"]})   # 실제로 산 규칙
         t = x["t"]
+        if t in op: x["open"] = op[t]                       # 산 종목도 시가를 적는다 — 하루 위 3개 그림자가 쓴다
         if t in bought:
             x["bought"] = True; continue
         if t not in op:
@@ -768,7 +830,7 @@ def cancel_left(placed):
             st = (AT.detail(o["oid"]) or {}).get("status")
         except Exception as ex:
             st = None; log("주문 조회 실패(취소 판단):", o["t"], repr(ex)[:150])
-        if st in AT.FINAL: continue
+        if st in AT.DONE: continue                          # CANCEL_REJECTED 는 끝난 게 아니다 — 주문이 살아 있다
         for k in range(4):
             try:
                 AT.call("POST", "/api/v1/orders/%s/cancel" % o["oid"], acct=True, body={})
@@ -798,6 +860,7 @@ def _sell_mark(pid, ap, today, why, stop=False):
 
 
 def _stop_done(so, o, today):
+    so["sold"] = {"sell": so["ap"], "sellDate": today, "stop": True}
     _sell_mark(o["pos"]["id"], so["ap"], today, "데이 -29% 손절", stop=True)
     r = (so["ap"] / o["ap"] - 1) * 100 - COST
     telegram("🧯 <b>데이 -29%% 손절</b> [%s] %s %d주 %s → %s원 %+.2f%%" % (
@@ -909,12 +972,11 @@ def stop_watch(got, Lg, S, today):
                 if st_: _pass_settle(st_, Lg)                    # 걸어 둔 장중 매도부터 치우고 남은 몫만 손절
                 qx = int(o["fq"]) - int(st_["q"] if st_ else 0)
                 if qx < 1: continue
-                so = dict(side="SELL", date=today, t=o["t"], name=o["name"], qty=qx, posId=o["pos"]["id"], cid=("dx" + o["cid"][2:])[:36], stop=True)
+                so = dict(side="SELL", date=today, t=o["t"], name=o["name"], qty=qx, posId=o["pos"]["id"], cid=("dx" + o["cid"][2:])[:36], stop=True, at=AT.now().isoformat())
                 try:
-                    so["oid"] = AT.place({"clientOrderId": so["cid"], "symbol": o["t"], "side": "SELL", "orderType": "MARKET", "quantity": str(qx)})
+                    AT.submit(Lg, so, {"clientOrderId": so["cid"], "symbol": o["t"], "side": "SELL", "orderType": "MARKET", "quantity": str(qx)}, _led_save)
                 except Exception as ex:
                     so["err"] = getattr(ex, "code", None) or str(ex)[:100]
-                Lg["orders"].append(so); _led_save(Lg)
                 if not so.get("oid"):
                     telegram("🚨 <b>데이 -29%% 손절 주문 실패</b> %s — %s · 토스에서 직접 확인" % (o["name"], so.get("err"))); continue
                 done.append(o); time.sleep(3); _poll(so); _led_save(Lg)
@@ -967,21 +1029,23 @@ def carry_sell(today):
         if o.get("side") == "SELL" and o.get("posId"): sold[o["posId"]] = sold.get(o["posId"], 0) + float(o.get("fq") or 0)
     try: site_sold = {p.get("id") for p in (AT.site_state().get("positions_scalp") or []) if p.get("sell")}
     except Exception: site_sold = set()
+    open_sell = {z.get("posId") for z in Lg["orders"] if z.get("side") == "SELL" and z.get("date", "") >= AT.SYNC_FROM and not z.get("closed") and not z.get("passive")}
     out = []
     for o in buys:
         pid = o["pos"]["id"]
         rem = int(float(o["fq"]) - sold.get(pid, 0))
         if rem < 1 or pid in site_sold: continue
+        if pid in open_sell:                               # 어제 매도 결과를 아직 모른다 — 또 내면 손으로 산 몫이나 스윙 몫을 판다
+            log("안 맺어진 매도 있음 — 이월 건너뜀:", o["t"]); telegram("⚠ 이월 데이 %s 건너뜀 — 어제 매도 결과 모름" % o["name"]); continue
         try: have = AT.sellable(o["t"]) if not AT.DRY else rem
         except Exception: have = None
         q = rem if have is None else int(min(rem, have))
         if q < 1: log("넘어온 데이 종목 매도가능 0 — 손으로 판 듯:", o["t"]); continue
-        so = dict(side="SELL", date=today, t=o["t"], name=o["name"], qty=q, posId=pid, cid=("dc%s%s" % (today[2:], pid))[:36], carry=True)
+        so = dict(side="SELL", date=today, t=o["t"], name=o["name"], qty=q, posId=pid, cid=("dc%s%s" % (today[2:], pid))[:36], carry=True, at=AT.now().isoformat())
         try:
-            so["oid"] = AT.place({"clientOrderId": so["cid"], "symbol": o["t"], "side": "SELL", "orderType": "MARKET", "quantity": str(q), "timeInForce": "OPG"})
+            AT.submit(Lg, so, {"clientOrderId": so["cid"], "symbol": o["t"], "side": "SELL", "orderType": "MARKET", "quantity": str(q), "timeInForce": "OPG"}, _led_save)
         except Exception as ex:
             so["err"] = getattr(ex, "code", None) or str(ex)[:100]
-        Lg["orders"].append(so); _led_save(Lg)
         if so.get("oid"): out.append((so, o))
         else: telegram("🚨 이월 데이 %s 시가 매도 실패(%s)" % (o["name"], so.get("err")))
     if out:
@@ -993,12 +1057,12 @@ def carry_sell(today):
             L2 = _led()
             for so, o in out:
                 _poll(so)
-                for z in L2["orders"]:
-                    if z.get("cid") == so["cid"]: z.update({k: so[k] for k in ("fq", "ap", "status") if k in so})
+                me = next((z for z in L2["orders"] if z.get("cid") == so["cid"]), so)
+                me.update({k: so[k] for k in ("fq", "ap", "status") if k in so})
                 if so.get("fq", 0) > 0 and so.get("ap", 0) > 0:
-                    _sell_mark(o["pos"]["id"], so["ap"], today, "어제 못 판 데이 종목 매도")
+                    whole = AT.settle_sell(L2, me, scalp_update, "어제 못 판 데이 종목 매도")
                     r = (so["ap"] / o["ap"] - 1) * 100 - COST
-                    telegram("🔁 %s %d주 팔림 %s → %s원 %+.2f%%(산 날 %s)" % (o["name"], int(so["fq"]), f"{o['ap']:,.0f}", f"{so['ap']:,.0f}", r, o["date"][4:]))
+                    telegram("🔁 %s %d주 팔림%s %s → %s원 %+.2f%%(산 날 %s)" % (o["name"], int(so["fq"]), "" if whole else " (일부)", f"{o['ap']:,.0f}", f"{so['ap']:,.0f}", r, o["date"][4:]))
                 else:
                     telegram("🔒 %s 시가 미체결(%s) — 내일 재매도" % (o["name"], so.get("status")))
             _led_save(L2)
@@ -1021,6 +1085,11 @@ def close_sell(got, Lg, S, today):
     #   (네트워크 한 번의 실패는 AT.call 이 5분까지 다시 한다 · 그래도 남으면 여기서 또 · 끝내 못 팔면 알림)
     sold, pend = [], list(got)
     deadline = S["end"] - dt.timedelta(minutes=1)
+    job = AT.FileLock(OUT / "job_close.lock", wait=120); job.__enter__()   # 겹쳐 돌아도 매도는 한 번 — 잠금 안에서 원장을 다시 본다
+    L2 = _led()
+    have_sell = {z.get("posId") for z in L2["orders"] if z.get("side") == "SELL" and z.get("date") == today and z.get("oid") and not z.get("passive")
+                 and not (z.get("status") in AT.DONE and float(z.get("fq") or 0) < float(z.get("qty") or 0))}
+    pend = [o for o in pend if o["pos"]["id"] not in have_sell]
     while pend:
         nxt = []
         for o in pend:
@@ -1028,24 +1097,27 @@ def close_sell(got, Lg, S, today):
                 have = AT.sellable(o["t"]) if not AT.DRY else o["fq"]
             except Exception:
                 have = None
-            need = int(float(o["fq"]) - o.get("pas_q", 0))                   # 장중에 판 몫은 빼고
+            need = int(AT.left_qty(Lg, o["pos"]) - o.get("pas_q", 0))         # 장중에 판 몫·앞서 일부 팔린 몫은 빼고
             q = need if have is None else int(min(need, have))
             if q < 1:
                 log("매도가능 0 — 이미 팔렸거나 주문이 들어가 있음:", o["t"]); continue
-            so = dict(side="SELL", date=today, t=o["t"], name=o["name"], qty=q, posId=o["pos"]["id"], cid=("ds" + o["cid"][2:])[:36])
+            k = sum(1 for z in Lg["orders"] if z.get("side") == "SELL" and z.get("date") == today and z.get("posId") == o["pos"]["id"] and z.get("oid"))
+            so = dict(side="SELL", date=today, t=o["t"], name=o["name"], qty=q, posId=o["pos"]["id"], cid=("ds" + o["cid"][2:] + ("r%d" % k if k else ""))[:36], at=AT.now().isoformat())
             try:
-                so["oid"] = AT.place({"clientOrderId": so["cid"], "symbol": o["t"], "side": "SELL", "orderType": "MARKET", "quantity": str(q)})
-                sold.append((so, o))
+                if AT.submit(Lg, so, {"clientOrderId": so["cid"], "symbol": o["t"], "side": "SELL", "orderType": "MARKET", "quantity": str(q)}, _led_save):
+                    sold.append((so, o))
+                else:
+                    nxt.append(o); log("데이 매도 결과 모름 — 같은 번호로 다시:", o["t"])
             except Exception as ex:
                 so["err"] = getattr(ex, "code", None) or str(ex)[:100]; nxt.append(o)
                 log("데이 매도 주문 실패 — 다시 할 것:", o["t"], so["err"])
-            Lg["orders"].append(so); _led_save(Lg)
             time.sleep(0.3)
         pend = nxt
         if pend and AT.now() < deadline:
             time.sleep(20)
         else:
             break
+    job.__exit__()
     if pend:
         telegram("🚨 <b>데이 종가 매도 실패</b> — " + ", ".join(o["name"] for o in pend))
     AT.sleep_until(S["end"] + dt.timedelta(seconds=90), "데이 종가 체결 확인")
@@ -1054,7 +1126,14 @@ def close_sell(got, Lg, S, today):
     except Exception as ex:
         log("체결 확인 실패:", repr(ex)[:200])
         for so, _ in sold: so.setdefault("fq", 0); so.setdefault("ap", 0)
-    fin = [(so, o) for so, o in sold if so["fq"] > 0 and so["ap"] > 0]
+    _led_save(Lg)                                          # 체결부터 원장에
+    fin, parted = [], []
+    for so, o in sold:
+        if not (so["fq"] > 0 and so["ap"] > 0): continue
+        if so["fq"] >= float(so["qty"]) - 1e-9:
+            so["sold"] = {"sell": so["ap"], "sellDate": today}; fin.append((so, o))
+        elif so.get("status") in AT.DONE:                  # 일부만 팔림 — 판 몫만 완료로, 남은 몫은 보유로 둔다(내일 이월 매도)
+            AT.settle_sell(Lg, so, scalp_update, "데이 매도 %s" % o["name"]); parted.append((so, o))
     _led_save(Lg)
     # 장중 걸어 판 몫과 합친 평균 매도가 — 사이트·알림은 이 값으로(종가 주문 없이 장중에 다 팔린 것도 넣는다)
     fin = [(dict(so, fq=so["fq"] + o.get("pas_q", 0), ap=(so["fq"] * so["ap"] + o.get("pas_val", 0)) / (so["fq"] + o.get("pas_q", 0))), o) for so, o in fin]
@@ -1069,7 +1148,7 @@ def close_sell(got, Lg, S, today):
                 if p_.get("id") in ids and not p_.get("sell"):
                     p_["sell"] = ids[p_["id"]]; p_["sellDate"] = today; ch = True
             return ch
-        scalp_update(mark, "데이 매도 %d건" % len(fin))
+        scalp_update(mark, "데이 매도 %d건(%s)" % (len(fin), ", ".join(o["t"] for _, o in fin[:8])))
     lines = ["🌇 <b>데이 매도</b> %s/%s 종가" % (today[4:6], today[6:])]
     tot, rs = 0.0, []
     for so, o in fin:
@@ -1081,6 +1160,7 @@ def close_sell(got, Lg, S, today):
         lines.append("합계 %s원 · 평균 %+.2f%% · 상승 %d/%d" % (f"{tot:+,.0f}", sum(rs) / len(rs), sum(r > 0 for r in rs), len(rs)))
     fin_ids = {o["pos"]["id"] for _, o in fin}
     left = [o["name"] for o in got if o["pos"]["id"] not in fin_ids]
+    if parted: lines.append("⚠ 일부만 팔림: " + ", ".join("%s %d/%d주" % (o["name"], int(so["fq"]), int(so["qty"])) for so, o in parted))
     if left: lines.append("⚠ 못 판 것: " + ", ".join(left) + " — 내일 시가 재매도")
     for so, o in spend:                                    # 하한가에 묶였던 손절 — 장 끝난 뒤 마지막으로 본다
         _poll(so); _led_save(Lg)
@@ -1089,12 +1169,14 @@ def close_sell(got, Lg, S, today):
     if got or spend: telegram("\n".join(lines))
 
 
-def book_snap(today, part, syms):
+def book_snap(today, part, syms, until=None):
     """실행 방법 실측(day_exec.py)용 — 우리 후보 종목 호가 10단계를 단일가 직전(08:59:30 · 15:29:30)에 찍어 둔다.
     녹화기는 08:56:15·15:27:20 이 마지막이라 그 뒤 몇 분 사이 호가 변화를 놓친다(2026-10-14)."""
     import pandas as pd
     rows = []
     for s_ in syms:
+        if until is not None and AT.now() >= until:
+            log("호가 스냅샷 시간 끝 — 여기까지"); break
         try:
             r = M.get("/api/v1/orderbook", symbol=s_) or {}
             for side, key in (("A", "asks"), ("B", "bids")):
@@ -1114,7 +1196,7 @@ def close_job(today):
         try:
             f = OUT / ("snap_%s.json" % today)
             S = AT.session("KR")
-            if f.exists() and S and S["date"] == today:
+            if f.exists() and S and S["date"] == today and AT.now() < S["end"]:     # 16:22 예비 실행이 장후 호가로 덮어쓰지 않게
                 syms = [x["t"] for x in json.loads(f.read_text(encoding="utf-8")).get("cand") or []]
                 AT.sleep_until(S["end"] - dt.timedelta(seconds=30), "후보 호가 스냅샷(종가 직전)")
                 book_snap(today, "pm", syms)
@@ -1131,10 +1213,12 @@ def close_watch(today):
         log("국장 휴장 — 건너뜀"); return
     if not (S["close_auction"] <= AT.now() < S["end"] - dt.timedelta(minutes=1)):
         log("종가 단일가 시간 아님 — 건너뜀"); return
+    day_sync()                                             # 아침 프로세스가 놓친 체결부터 맺는다 — 안 그러면 지킴이도 그 주식을 못 본다
     Lg = _led()
-    sold_pos = {o.get("posId") for o in Lg["orders"] if o.get("side") == "SELL" and o.get("date") == today and o.get("oid") and not o.get("passive")}
+    sold_pos = {o.get("posId") for o in Lg["orders"] if o.get("side") == "SELL" and o.get("date") == today and not o.get("passive")
+                and (o.get("oid") or o.get("unk") or o.get("intent")) and not (o.get("status") in AT.DONE and float(o.get("fq") or 0) < float(o.get("qty") or 0))}
     got = [o for o in Lg["orders"] if o.get("side") == "BUY" and o.get("date") == today and o.get("pos")
-           and (o.get("fq") or 0) > 0 and o["pos"]["id"] not in sold_pos]
+           and (o.get("fq") or 0) > 0 and AT.left_qty(Lg, o["pos"]) > 0 and o["pos"]["id"] not in sold_pos]
     # 장중 걸어 팔기 주문(10-21~): 아침 프로세스가 죽어 남아 있으면 취소하고, 팔린 몫은 빼고 나머지만 종가에
     pq = {}
     for so in [z for z in Lg["orders"] if z.get("passive") and z.get("date") == today and z.get("oid")]:
@@ -1207,17 +1291,26 @@ def review():
     #   후보 성적·'실제 시가로 골랐다면'·예상 시가 오차(NXT 2.54%p)가 다 틀렸다. KRX 값은 1분봉(16:11 저장 전 종목 파일)에서:
     #   첫 봉(09:01 끝) 시가 = 시가 단일가, 마지막 봉(15:31 끝) 종가 = 종가 단일가.
     mf = BASE / "data" / "m1" / "KR" / "day" / ("%s.parquet" % today)
-    if mf.exists():
-        import pandas as pd
-        D = pd.read_parquet(mf, columns=["t", "ts", "o", "c"]).sort_values(["t", "ts"])
-        g = D.groupby("t")
-        act = {t: (float(o), float(c)) for t, o, c in zip(g.o.first().index, g.o.first().values, g.c.last().values)}
+    for _ in range(30):                                    # 16:11 저장 — 늦으면 기다린다. 통합 봉(NXT 시가·종가)으로 채점하면 성적이 틀어진다
+        if mf.exists(): break
+        log("1분봉 파일 기다림"); time.sleep(60)
+    if not mf.exists():
+        telegram("⚠ 데이 리뷰 미룸 — 오늘 1분봉 파일 없음(채점 안 함)"); return
+    lf0 = OUT / "log.csv"
+    if lf0.exists() and today in lf0.read_text(encoding="utf-8-sig"):
+        log("오늘 리뷰 이미 있음 — 건너뜀"); return
+    import pandas as pd
+    D = pd.read_parquet(mf, columns=["t", "ts", "o", "c", "v"])
+    D = D[D.v > 0].sort_values(["t", "ts"])                # 거래량 0 인 빈 봉은 시가가 아니다
+    g = D.groupby("t")
+    act = {t: (float(o), float(c)) for t, o, c in zip(g.o.first().index, g.o.first().values, g.c.last().values)}
+    kc = krx_closes(prev)                                  # 어제 KRX 종가 — 없는 종목만 토스 종가
     for s in syms:
+        if s in kc:
+            prevc[s] = kc[s]; continue
         c = (M.get("/api/v1/candles", symbol=s, interval="1d", count=3) or {}).get("candles") or []
         c = sorted(c, key=lambda x: x["timestamp"])
-        t = [x for x in c if x["timestamp"][:10].replace("-", "") == today]
         b = [x for x in c if x["timestamp"][:10].replace("-", "") < today]
-        if t and s not in act and not mf.exists(): act[s] = (float(t[0]["openPrice"]), float(t[0]["closePrice"]))   # 1분봉 파일이 없을 때만(통합 봉)
         if b: prevc[s] = float(b[-1]["closePrice"])
     for x in snap["cand"]:                                 # 파일에 없는 후보는 그 종목만 1분봉을 받는다
         if x["t"] not in act:
@@ -1313,10 +1406,12 @@ if __name__ == "__main__":
             late(AT.now().strftime("%Y%m%d"))
         elif a[:1] == ["close"]:
             close_job(AT.now().strftime("%Y%m%d"))
+        elif a[:1] == ["sync"]:                            # 09:03 — 아침 프로세스가 죽었어도 놓친 체결·남은 주문을 맺는다
+            day_sync()
         elif a[:1] == ["paper"]:                           # 손으로: 가상 몫 다시 계산 + 가상 매수(시가 뒤) — python day_alert.py paper [YYYYMMDD]
             d_ = a[1] if len(a) > 1 else AT.now().strftime("%Y%m%d")
             paper_rebuild(d_); paper_buy(d_)
-        else: log("사용법: python day_alert.py morning | review | late | close | paper [날짜]")
-    except Exception as ex:
+        else: log("사용법: python day_alert.py morning | review | late | close | sync | paper [날짜]")
+    except (Exception, SystemExit) as ex:
         log("실패:", repr(ex)[:500])
         telegram("⚠ 데이 알림 실패: %s" % str(ex)[:300]); raise

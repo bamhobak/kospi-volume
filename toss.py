@@ -24,6 +24,31 @@ def _env():
         if k not in e: raise SystemExit(f"{k} 가 없습니다(.env 또는 환경변수)")
     return e
 
+class _IssueLock:
+    """토큰 발급 잠금 — 윈도우 서버에서만 건다(GitHub Actions 는 프로세스가 하나라 필요 없다). 프로세스가 죽으면 OS 가 푼다."""
+
+    def __init__(self, c):
+        self.p = str(c) + ".lock"; self.fd = None
+
+    def __enter__(self):
+        try:
+            import msvcrt
+            self.fd = os.open(self.p, os.O_CREAT | os.O_RDWR)
+            for _ in range(600):
+                try:
+                    os.lseek(self.fd, 0, 0); msvcrt.locking(self.fd, msvcrt.LK_NBLCK, 1); return self
+                except OSError: time.sleep(0.05)
+        except Exception: pass
+        return self
+
+    def __exit__(self, *a):
+        try:
+            if self.fd is not None:
+                import msvcrt
+                os.lseek(self.fd, 0, 0); msvcrt.locking(self.fd, msvcrt.LK_UNLCK, 1); os.close(self.fd)
+        except Exception: pass
+
+
 def token():
     if _TOK["v"] and time.time() < _TOK["exp"] - 60: return _TOK["v"]
     c = BASE/"data"/".toss_token.json"
@@ -33,15 +58,25 @@ def token():
             if time.time() < j["exp"] - 60:
                 _TOK.update(v=j["v"], exp=j["exp"]); return j["v"]
         except Exception: pass
-    e = _env()
-    body = urllib.parse.urlencode({"grant_type": "client_credentials",
-        "client_id": e["TOSS_CLIENT_KEY"], "client_secret": e["TOSS_SECRET_KEY"]}).encode()
-    r = urllib.request.Request(B+"/oauth2/token", data=body,
-        headers={"Content-Type": "application/x-www-form-urlencoded"})
-    t = json.loads(urllib.request.urlopen(r, timeout=30).read().decode())
-    _TOK.update(v=t["access_token"], exp=time.time()+int(t.get("expires_in", 3600)))
-    try: c.write_text(json.dumps(_TOK))
-    except Exception: pass
+    # 2026-11-01: 토큰은 키당 1개라 두 프로세스가 같이 받으면 서로를 끊는다 → 발급은 프로세스 사이 잠금 안에서, 파일은 통째로 바꿔 쓴다.
+    with _IssueLock(c):
+        if c.exists():
+            try:
+                j = json.loads(c.read_text())
+                if time.time() < j["exp"] - 60:
+                    _TOK.update(v=j["v"], exp=j["exp"]); return j["v"]
+            except Exception: pass
+        e = _env()
+        body = urllib.parse.urlencode({"grant_type": "client_credentials",
+            "client_id": e["TOSS_CLIENT_KEY"], "client_secret": e["TOSS_SECRET_KEY"]}).encode()
+        r = urllib.request.Request(B+"/oauth2/token", data=body,
+            headers={"Content-Type": "application/x-www-form-urlencoded"})
+        t = json.loads(urllib.request.urlopen(r, timeout=30).read().decode())
+        _TOK.update(v=t["access_token"], exp=time.time()+int(t.get("expires_in", 3600)))
+        try:
+            tmp = c.with_name("%s.%d.tmp" % (c.name, os.getpid()))
+            tmp.write_text(json.dumps(_TOK)); os.replace(tmp, c)
+        except Exception: pass
     return _TOK["v"]
 
 def get(path, **q):
