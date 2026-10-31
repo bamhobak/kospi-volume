@@ -95,10 +95,15 @@ def ts_utc(s):
     return int(dt.datetime.fromisoformat(s).timestamp())
 
 
+LATE_OPEN = {"20261119"}                                            # 수능일 — 국장 10:00~16:30(해마다 11월 공지 뒤 추가)
+
+
 def window(mk, day):
     """그 날 정규장 봉 범위(봉 끝 시각, UTC 초)와 첫 요청 before."""
     y, m, d = int(day[:4]), int(day[4:6]), int(day[6:])
-    if mk == "KR":
+    if mk == "KR" and day in LATE_OPEN:
+        a = dt.datetime(y, m, d, 10, 1, tzinfo=KST); b = dt.datetime(y, m, d, 16, 31, tzinfo=KST)
+    elif mk == "KR":
         a = dt.datetime(y, m, d, 9, 1, tzinfo=KST); b = dt.datetime(y, m, d, 15, 31, tzinfo=KST)
     else:
         a = dt.datetime(y, m, d, 9, 31, tzinfo=NY); b = dt.datetime(y, m, d, 16, 1, tzinfo=NY)
@@ -181,6 +186,12 @@ def collect_day(mk, day):
             if i % 500 == 499: log(mk, day, "%d/%d · 봉 있는 종목 %d" % (i + 1, len(U), n0))
     frame(rows).to_parquet(out, index=False, compression="zstd")
     log(mk, day, "끝 — %d종목 중 %d · 봉 %d · %.0f분 · %.1fMB" % (len(U), n0, len(rows), (time.time() - t0) / 60, out.stat().st_size / 1e6))
+    if mk == "KR":
+        try:                                                        # 사이트 규칙의 KRX 종가 재료를 Supabase 에 올린다(krx_close.py) — 실패해도 수집은 끝
+            import krx_close
+            krx_close.publish(day)
+        except Exception as ex:
+            log("KRX 종가 올리기 실패", repr(ex)[:200])
 
 
 def daily(mk):

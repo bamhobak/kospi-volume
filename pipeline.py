@@ -693,5 +693,10 @@ if __name__ == "__main__":
     if "--no-collect" not in sys.argv:
         if "--wait" in sys.argv: collect.wait_for_today()
         collect.main()
+    try:                                     # 2026-11-01: 네이버 종가는 09-14 부터 KRX 종가가 아니다 — 표를 만들기 전에 매번 덮는다(krx_close.py)
+        import krx_close
+        krx_close.apply([collect.DB, DATA / "kosdaq.db"])
+    except Exception as e:
+        print("::warning::KRX 종가 적용 실패 — 네이버 종가 그대로:", str(e)[:200])
     dump_csv()
     if "--no-site" not in sys.argv: build_site()

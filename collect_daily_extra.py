@@ -51,6 +51,7 @@ def short_recent():
     log.info(f"공매도 대상: 코스피 {len(codes)} + 코스닥 {len(kd)}")
     d1 = (today - dt.timedelta(days=80)).strftime("%Y%m%d"); d2 = today.strftime("%Y%m%d")
     rows = []
+    closes = []
     def one(tk):
         for _ in range(4):
             try:
@@ -58,8 +59,10 @@ def short_recent():
                     {"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": tk,
                      "FID_INPUT_DATE_1": d1, "FID_INPUT_DATE_2": d2}, token=T)
                 if d.get("rt_cd") == "0":
-                    return [(x.get("stck_bsop_date"), tk, x.get("ssts_vol_rlim"))
-                            for x in (d.get("output2") or []) if x.get("stck_bsop_date")]
+                    o2 = [x for x in (d.get("output2") or []) if x.get("stck_bsop_date")]
+                    # 맨 위(최신) 줄 종가는 시간외·NXT 값이 섞여 있다 — 다음 거래일부터 KRX 종가로 굳는다(krx_close.py)
+                    closes.extend((x.get("stck_bsop_date"), tk, x.get("stck_clpr")) for x in sorted(o2, key=lambda z: z["stck_bsop_date"])[:-1])
+                    return [(x.get("stck_bsop_date"), tk, x.get("ssts_vol_rlim")) for x in o2]
             except Exception: pass
             time.sleep(1)
         return []
@@ -77,6 +80,10 @@ def short_recent():
         log.info(f"공매도 저장: {fname} ({len(res):,}행)")
     run(codes, "short_recent.csv")
     run(kd, "kosdaq_short_recent.csv")
+    try:
+        import krx_close
+        krx_close.merge_kis(closes)
+    except Exception as e: log.warning(f"KRX 종가 저장 실패: {str(e)[:100]}")
 
 # ── ② 유상증자·CB 공시 (DART) ──────────────────────────────
 def dilution_recent():
