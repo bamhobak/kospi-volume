@@ -28,6 +28,9 @@ KST = M.KST
 DAY = BASE / "data" / "day"
 COST = 0.23
 BUDGET = 0.20                                    # 계좌 중 하루 예산 비율(H0362 연구 가정)
+# 2026-11-01 사용자 "다시 세줘": 10-30 까지는 어제 종가가 토스 값(NXT 끝값)이라 후보 순서·지정가가 연구와 달랐다. KRX 로 다시 재면
+#   체결 36→14건·날 평균 +0.26→-0.70%. 같은 시험이 아니므로 11-02 부터 다시 센다(합격선은 그대로, research/reports/prereg_1031.md).
+START = "20261102"
 DOWN_Q = 0.30                                    # 장기하락 = 어제 종가의 120일선 대비(d120)가 그날 유니버스 하위 30% (H0368, lab q_d120 과 같은 식)
 # (키, 이름, 위 몇 개, 거르기) — 거르기 무리는 그날 걸린 후보가 없으면 그날 돈이 논다(0%)
 # 10-26 '장기하락만'(H0368) 무리는 같은 날 사용자 "하지 말자"로 뺌 — q120()·score(filt) 는 다른 거르기 무리를 붙일 때 쓰라고 남김
@@ -107,9 +110,7 @@ def score(rows, k, filt=None):
 
 
 def main():
-    snaps = sorted(DAY.glob("snap_*.json"))
-    if not snaps:
-        log("데이 기록 없음"); return
+    snaps = [f for f in sorted(DAY.glob("snap_*.json")) if f.stem[5:] >= START]
     now = dt.datetime.now(KST)
     today = now.strftime("%Y%m%d")
     days, acct, tr = [], {g: 1.0 for g, _, _, _ in GROUPS}, {g: [] for g, _, _, _ in GROUPS}
@@ -149,10 +150,10 @@ def main():
         stage = ("종가 채점 끝" if tsnap.get("review") else "장 전" if now.strftime("%H%M") < "0901" else
                  "장중(지금가)" if now.strftime("%H%M") <= "1530" else "장 마감 · 16:25 채점 전")
     else:
-        stage = "오늘 후보 없음/휴장 — 최근 날 표시"
+        stage = "오늘 후보 없음/휴장 — 최근 날 표시" if tsnap else "11-02 부터 다시 셉니다"
     data = {"updated": now.strftime("%Y-%m-%d %H:%M"), "stage": stage, "hid": "H0362", "days": nd,
             "rule": "아침 [갭 하락 조용주] 후보(덤 빼고)를 시장 대비 깊은 순으로 위 3개(비교 위 5개)만 산다고 보고, 후보 전부와 비교 · "
-                    "지정가 체결(시가 ≤ 지정가)만 · "
+                    "11-02 부터 집계(그 전은 어제 종가가 토스 값이라 뺌) · 지정가 체결(시가 ≤ 지정가)만 · "
                     "하루 예산을 무리에 똑같이 나눔(안 사진 몫은 놂) · 계좌 = 매일 계좌 %d%%를 그날 예산으로 · 비용 %.2f 뒤 · 돈은 안 든다(기록만)" % (BUDGET * 100, COST),
             "today": {"date": tsnap["date"], "mg": tsnap.get("mgap"), "rows": trows[:60], "n": len(trows)} if tsnap else None,
             "cum": cum, "recent": days[::-1][:40]}
