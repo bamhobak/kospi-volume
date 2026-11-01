@@ -104,7 +104,9 @@ FILTERS = [
      # 2개월 평균 거래대금 3억. 사이트((r.amt||0)>=3)에만 있고 여기엔 없어서, 잔챙이까지
      # 알림이 나갔다 — 2026-09-14 부일이엔에스(거래대금 0.22억)로 드러났다. 같은 부류의
      # 누락이 이 규칙에서만 두 번째다(앞은 rw1). 조건을 고칠 땐 양쪽을 함께 본다.
-     and (r.get("amt") or 0) >= 3
+     # 2026-11-01: 백테스트는 20일 평균 거래대금·주가 1,000원 기준이다(portfolio.py base) — 실전을 맞춘다
+     and (r.get("amt20") if r.get("amt20") is not None else (r.get("amt") or 0)) >= 3
+     and (r.get("c") or 0) >= 1000
      and r.get("ret3") is not None and r["ret3"] <= -5
      and r.get("ret10") is not None and r["ret10"] <= 0
      and not bool(kospi.get("up20"))
@@ -115,6 +117,7 @@ FILTERS = [
      and r.get("vs1") is not None and r["vs1"] >= 1.5
      and r.get("fw60") is not None and r["fw60"] >= 1
      and (r.get("amt20") if r.get("amt20") is not None else (r.get("amt") or 0)) >= 3
+     and (r.get("c") or 0) >= 1000
      and r.get("crc") is not None and r["crc"] <= -15
      and kospi.get("up60") is False
      and (r.get("sr60") is not None and r["sr60"] <= -10)
@@ -157,6 +160,7 @@ FILTERS = [
      lambda r: r.get("mk") == "KOSPI" and not r["pref"]
      and kospi.get("up60") is True
      and r.get("cap") is not None and 10000 <= r["cap"] < 100000
+     and (r.get("amt20") or 0) >= 30 and (r.get("c") or 0) >= 1000
      and r.get("fw20") is not None and r["fw20"] >= 1
      and r.get("ow60") is not None and r["ow60"] < 0.4
      and (r.get("a1") and r.get("a6") and 100 <= r["a1"] / r["a6"] * 100 < 150)
@@ -176,6 +180,9 @@ FILTERS = [
     ("P5", "자사주 낙폭 (공통·10일 보유)",
      lambda r: not r["pref"] and r.get("bb") is True
      and r.get("r3m") is not None and r["r3m"] <= -20
+     and (r.get("amt20") if r.get("amt20") is not None else (r.get("amt") or 0)) >= 3
+     and (r.get("c") or 0) >= 1000
+     and r.get("dilu") is not True and r.get("disc") is not True
      and kospi.get("up60") is False),
     # 자사주 신탁 급락 — bbt = 오늘 신호인 자사주취득 신탁계약 체결 공시(pipeline · data/disc_watch.csv) · 2026-10-02 채택(H0271)
     ("P8", "자사주 신탁 급락 (공통·10일 보유)",
@@ -267,6 +274,14 @@ for fid, name, fn in FILTERS:
 hits = {str(fid): {r["t"] for r in rows if ok(fn, r, fid)} for fid, name, fn in FILTERS}
 if BROKEN:
     print(f"⚠ 판정 중 예외 {len(BROKEN)}건(해당 종목만 제외):", ", ".join(BROKEN[:10]))
+# 2026-11-01: 코스피 공매도가 08-28 에 멈춘 걸 두 달 몰랐다 — 5거래일 넘게 묵으면 알린다
+if "--lite" not in sys.argv:
+    try:
+        _sd = max(l[:8] for l in (BASE / "data" / "short_recent.csv").read_text(encoding="utf-8").splitlines()[1:] if l[:2] == "20")
+        if len(T["dates"]) >= 6 and _sd < T["dates"][-6]:
+            telegram("⚠ 코스피 공매도 자료 %s 멈춤" % _sd)
+    except Exception as e:
+        print("공매도 날짜 확인 실패:", repr(e)[:100])
 
 # ── --lite: 사이트 첫 화면용 작은 표(2026-10-13 사용자 "켤 때마다 전체 표를 받을 필요가 있어? 내 종목만 보면 되잖아") ──
 #   켤 때는 규칙에 걸린 종목 + 보유 종목만 받는다(국장 표 3.4MB·미장 4.7MB → 수십 KB). 전체 표는 '코스피·코스닥·미장 전체'를

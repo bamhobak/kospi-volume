@@ -123,6 +123,23 @@ try:
 except Exception as e:
     warn(f"spd 확인 실패: {e}")
 
+# 2026-11-01 — 조용히 멈춘 자료: 코스피 공매도가 두 달, 미장 표에서 S&P 종목이 빠진 걸 못 봤다
+try:
+    _rows = (BASE / "data" / "short_recent.csv").read_text(encoding="utf-8").splitlines()[1:]
+    _sd = max(l[:8] for l in _rows if l[:2] == "20")
+    _lag = (now.date() - dt.datetime.strptime(_sd, "%Y%m%d").date()).days
+    (ok if _lag <= 10 else warn)(f"코스피 공매도 자료 {_sd} ({_lag}일 전)")
+except Exception as e: warn(f"코스피 공매도 날짜 확인 실패: {e}")
+try:
+    import csv as _csv
+    _us = json.loads((BASE / "site" / "data" / "table_us.json").read_text(encoding="utf-8"))
+    _tk = {x.get("t") for x in _us.get("rows") or []}
+    _toss = {x["symbol"]: x.get("type") for x in _csv.DictReader(open(BASE / "data" / "us" / "toss_us.csv", encoding="utf-8"))}
+    _sp = [x["ticker"].upper().replace("-", ".") for x in _csv.DictReader(open(BASE / "data" / "us" / "sp500" / "spy_last.csv", encoding="utf-8")) if x.get("ticker")]
+    _miss = [t for t in _sp if t in _toss and t not in _tk]
+    (ok if len(_miss) <= 5 else warn)(f"S&P 종목 중 토스에 있는데 미장 표에 없음 {len(_miss)}개 {_miss[:8]}")
+except Exception as e: warn(f"S&P 표 대조 실패: {e}")
+
 print("\n## 2) 사이트와 알림이 같은 종목을 뽑는가 (실행 비교)")
 try:
     out = subprocess.run([r"node", "site_eval.js"], cwd=str(BASE), capture_output=True, timeout=180)
@@ -227,7 +244,33 @@ try:
     (ok if js.returncode == 0 else ng)("JS 문법 정상" if js.returncode == 0
                                        else "JS 문법 오류: " + js.stdout.decode('utf-8')[:120])
 except Exception as e: ng(f"JS 검사 실패: {e}")
+# 2026-11-01 — 매도일·보유 병합은 화면 함수를 떼어 실제로 돌린다. 전엔 휴장일 개수만 봐서 매도일 오류를 못 잡았다.
 if SITE:
+    try:
+        cut = lambda x, y: HTML[HTML.index(x):HTML.index(y, HTML.index(x))]
+        fx = cut("function sellDate(", "const mdShort=") + "\n" + cut("function merge3(", "let PUSHQ=")
+        t_js = r"""
+const HOLIDAY=new Set(), dkey=d=>''+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0'),
+  dparse=d=>new Date(+d.slice(0,4),+d.slice(4,6)-1,+d.slice(6,8)), isTrading=d=>d.getDay()%6!==0, isUSCode=()=>false;
+const CAL=[];for(let d=new Date(2025,0,1);CAL.length<300;d.setDate(d.getDate()+1))if(isTrading(d))CAL.push(dkey(d));
+const calOf=()=>CAL;
+""" + fx + r"""
+const bad=[];
+if(sellDate(CAL[250],40).date!==CAL[289])bad.push('40일 보유 매도일');
+if(sellDate(CAL[290],5).date!==CAL[294])bad.push('5일 보유 매도일');
+const ids=a=>a.map(p=>p.id).join(',');
+const base=[{id:1,q:1},{id:2,q:1},{id:3,q:1}];
+const mine=[{id:1,q:1},{id:3,q:9},{id:5,q:1}];          /* 2 지움 · 3 고침 · 5 추가 */
+const their=[{id:1,q:1},{id:2,q:1},{id:3,q:1},{id:4,q:1}];/* 다른 기기가 4 추가 */
+const m=merge3(base,mine,their);
+if(ids(m)!=='1,3,4,5'||m.find(p=>p.id===3).q!==9)bad.push('보유 병합 '+ids(m));
+const same=merge3(base,base,[{id:1,q:7}]);               /* 내 변경 없음 → 서버 그대로(남이 지운 건 안 살린다) */
+if(ids(same)!=='1'||same[0].q!==7)bad.push('변경 없는 저장이 서버를 덮음');
+console.log(bad.join(' / '));process.exit(bad.length?1:0);"""
+        js2 = subprocess.run(["node", "-e", t_js], cwd=str(BASE), capture_output=True, timeout=60)
+        (ok if js2.returncode == 0 else ng)("매도일·보유 병합 실행 검사" if js2.returncode == 0
+                                            else "매도일·보유 병합 오류: " + (js2.stdout + js2.stderr).decode("utf-8", "replace")[:160])
+    except Exception as e: ng(f"매도일·보유 병합 검사 실패: {e}")
     hol = re.search(r"const HOLIDAY=new Set\(\[([^\]]*)\]\)", HTML)
     days = re.findall(r"'(\d{8})'", hol.group(1)) if hol else []
     fut = [d for d in days if d >= now.strftime("%Y%m%d")]

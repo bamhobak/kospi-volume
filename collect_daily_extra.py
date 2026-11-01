@@ -37,8 +37,11 @@ def short_recent():
         log.warning(f"KIS 토큰 실패 — 공매도 건너뜀: {str(e)[:60]}"); return
     con = sqlite3.connect(f"file:{BASE/'data'/'kospi.db'}?mode=ro", uri=True)
     codes = [r[0] for r in con.execute(
-        "SELECT DISTINCT ticker FROM daily WHERE market='KOSPI' AND date=(SELECT max(date) FROM daily)")]
+        "SELECT DISTINCT ticker FROM daily WHERE (market='KOSPI' OR market IS NULL) AND date=(SELECT max(date) FROM daily)")]
     con.close()
+    # 2026-11-01: 일일 수집(collect.py)은 market 을 비워 넣는다 — market='KOSPI' 만 찾아 대상이 0이 되고 조용히 끝나,
+    #   short_recent.csv 가 08-28 에 두 달 멈췄다(sr20·srDown 을 쓰는 코스피 규칙이 8월 값으로 판정). update_feargreed 와 같은 조건으로 맞춤.
+    if not codes: log.warning("::warning::공매도 대상 코스피 0종목 — short_recent.csv 가 갱신되지 않는다")
     kd = []                                   # 코스닥(있으면) — 결과는 별도 파일에 저장
     kdb = BASE / "data" / "kosdaq.db"
     if kdb.exists():

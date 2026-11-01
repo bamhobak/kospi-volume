@@ -138,7 +138,7 @@ def upjong_rs(con, up, dates):
     if len(ds) < 21 or not up: return {}
     px = {}
     for d, t, c in con.execute(
-            "SELECT date, ticker, close FROM daily WHERE market='KOSPI' AND close IS NOT NULL "
+            "SELECT date, ticker, close FROM daily WHERE (market='KOSPI' OR market IS NULL) AND close IS NOT NULL "
             "AND date IN (%s)" % ",".join("?" * len(ds)), ds):
         px.setdefault(t, {})[d] = c
     gret, mret = {}, {}
@@ -168,7 +168,7 @@ def upjong_ret60(con, up, dates, n=60):
     d0, d1 = dates[-(n + 1)], dates[-1]
     px = {}
     for d, t, c in con.execute(
-            "SELECT date, ticker, close FROM daily WHERE market='KOSPI' AND close>0 AND date IN (?,?)", (d0, d1)):
+            "SELECT date, ticker, close FROM daily WHERE (market='KOSPI' OR market IS NULL) AND close>0 AND date IN (?,?)", (d0, d1)):
         px.setdefault(t, {})[d] = c
     byg = {}
     for t, s in px.items():
@@ -582,8 +582,9 @@ def build_site():
         ow60 = (round(sum(x or 0 for x in o60) / v60s * 100, 2)
                 if len(v60) >= 55 and len(o60) >= 55 and v60s else None)
         # 가격 불연속(액면분할·병합 등 미조정) 감지: 상하한가 ±30% 라 32% 초과 변동은 물리적으로 불가능
-        rec = closes[-26:]
-        disc = any(rec[i-1] and not (0.68 < rec[i] / rec[i-1] < 1.32) for i in range(1, len(rec)))
+        # 2026-11-01: 25일 → 250일. 백테스트(portfolio.py _jumpwin)가 점프 뒤 250거래일을 빼므로 실전도 같은 창으로 뺀다
+        rec = closes[-251:]
+        disc = any(rec[i-1] and rec[i] and not (0.68 < rec[i] / rec[i-1] < 1.32) for i in range(1, len(rec)))
         # ── P4(조용한 신고가)용 지표 ────────────────────────────
         hi250 = max(closes[-250:]) if len(closes) >= 60 else None            # 52주 신고가
         fromhi = round((closes[-1] / hi250 - 1) * 100, 2) if hi250 else None  # 신고가 대비(%)
@@ -643,7 +644,8 @@ def build_site():
                   open(SITE / "data" / "stock" / f"{s['ticker']}.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     fill_sr60(table, UP, R60)
     fill_valuation(table)
-    json.dump({"dates": tdates, "rows": table, "kospi": kospi_state(), "themeRet": TRET, "upjongRS": RS, "upjongRet60": R60, "shortN": len(SF), "diluN": len(DILU), "sectorSnap": SNAP, "updated": collect.datetime.now().strftime("%Y-%m-%d %H:%M")},
+    # krcal = 국장 거래일 달력(최근 300일). 표의 dates 는 20일뿐이라 20거래일 넘게 든 종목의 매도일이 틀렸다(2026-11-01)
+    json.dump({"dates": tdates, "krcal": dates, "rows": table, "kospi": kospi_state(), "themeRet": TRET, "upjongRS": RS, "upjongRet60": R60, "shortN": len(SF), "diluN": len(DILU), "sectorSnap": SNAP, "updated": collect.datetime.now().strftime("%Y-%m-%d %H:%M")},
               open(SITE / "data" / "table.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     print(f"site: {len(table)}종목, {tdates[0]}~{tdates[-1]}, table.json {round((SITE/'data'/'table.json').stat().st_size/1024)}KB")
     write_idx()

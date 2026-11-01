@@ -359,24 +359,46 @@ def _unknown(ex):
     return ex.status is None or ex.status == 0 or ex.status in (408, 409, 425) or (ex.status or 0) >= 500
 
 
-def order_list(status, pages=6):
-    """토스 주문 목록 — status=OPEN|CLOSED, 최신순 20건씩. ⚠ clientOrderId 칸이 없어 종목·방향·수량·시각으로 맞춘다."""
+def order_list(status, pages=6, since=None):
+    """토스 주문 목록 — status=OPEN|CLOSED, 최신순 20건씩. ⚠ clientOrderId 칸이 없어 종목·방향·수량·시각으로 맞춘다.
+    since(시각)를 주면 그 시각보다 옛 주문이 나올 때까지 넘긴다 — 못 닿으면 TossErr('list-cut').
+    2026-11-01: 6쪽(120건)에서 잘린 '없음'을 '안 나간 주문'으로 맺어, 체결된 주문이 장부에서 빠질 수 있었다."""
     out, cur = [], None
     for _ in range(pages):
         q = {"status": status}
         if cur: q["cursor"] = cur
         r = tget("/api/v1/orders", acct=True, **q) or {}
-        out += r.get("orders") or []
+        page = r.get("orders") or []
+        out += page
         cur = r.get("nextCursor")
-        if not r.get("hasNext") or not cur: break
+        if not r.get("hasNext") or not cur: return out
+        if since is not None:
+            try:
+                if min(ts(z["orderedAt"]) for z in page) < since: return out
+            except (KeyError, TypeError, ValueError):
+                pass                                   # 시각을 못 읽은 쪽 — 다음 쪽으로 넘어가 본다
+    if since is not None:
+        raise TossErr("주문 목록이 %d쪽 안에 %s 까지 안 닿음" % (pages, since), "list-cut")
     return out
+
+
+def used_oids(Lg):
+    """이미 원장에 잡힌 주문번호 — 스윙·데이 원장을 함께 본다.
+    2026-11-01: 자기 원장만 보면 같은 종목·수량으로 같은 때 낸 다른 원장의 주문을 내 주문으로 잡았다.
+    다른 원장을 못 읽어도 멈추지 않는다(자기 원장은 Lg 로 이미 봤다)."""
+    used = {o.get("oid") for o in Lg["orders"] if o.get("oid")}
+    for f in (LEDGER, BASE / "data" / "day" / "ledger.json"):
+        try: used |= {o.get("oid") for o in json.loads(f.read_text(encoding="utf-8"))["orders"] if o.get("oid")}
+        except FileNotFoundError: pass
+        except (OSError, ValueError, KeyError, TypeError) as ex: log("다른 원장 못 읽음:", f.name, repr(ex)[:80])
+    return used
 
 
 def find_order(o, used=()):
     """결과를 모르는 주문을 토스 목록에서 찾는다 — 접수됐으면 그 주문, 없으면 None."""
     t0 = ts(o["at"])
     for st in ("OPEN", "CLOSED"):
-        for z in order_list(st):
+        for z in order_list(st, pages=50, since=t0 - dt.timedelta(seconds=120)):
             if z.get("orderId") in used or z.get("symbol") != o.get("t") or z.get("side") != o.get("side"): continue
             try:
                 if abs(float(z.get("quantity") or 0) - float(o.get("qty") or 0)) > 1e-9: continue
@@ -397,7 +419,7 @@ def submit(Lg, o, body, save=None):
     o.update(cid=body["clientOrderId"], intent=True, unk=False, oid=None)
     if not any(z is o for z in Lg["orders"]): Lg["orders"].append(o)
     save(Lg)
-    used = {x.get("oid") for x in Lg["orders"] if x.get("oid")}
+    used = used_oids(Lg)
 
     def look():
         try: z = find_order(o, used)
@@ -685,7 +707,7 @@ def sync_orders(Lg, save, update, make_pos, since):
     체결됐는데 기록이 없으면 포지션·매도를 만들고, 시가가 지났는데 살아 있는 매수는 취소한다. 고친 내용을 줄로 돌려준다."""
     if DRY: return []
     n = now(); today = n.strftime("%Y%m%d"); msgs = []
-    used = {o.get("oid") for o in Lg["orders"] if o.get("oid")}
+    used = used_oids(Lg)
 
     def hours(o):
         try: return (n - ts(o["at"])).total_seconds() / 3600
@@ -703,7 +725,8 @@ def sync_orders(Lg, save, update, make_pos, since):
                 log("놓친 주문 찾음:", side, o.get("t"), o["oid"]); save(Lg)
             elif (n - ts(o["at"])).total_seconds() >= 720:
                 o.update(intent=False, unk=False, closed=True, err=o.get("err") or "no-order"); save(Lg)
-                log("토스에 없는 주문 — 안 나간 걸로 맺음:", side, o.get("t")); continue
+                log("토스에 없는 주문 — 안 나간 걸로 맺음:", side, o.get("t"))
+                msgs.append("⚠ 결과 모름 주문이 토스에 없음 %s %s" % (side, o.get("name") or o.get("t"))); continue
             else:
                 continue
         old = hours(o) >= 20                           # 하루 지난 주문 — 미장은 세션 날짜와 한국 날짜가 달라 날짜로 재면 안 된다(장애 훈련)

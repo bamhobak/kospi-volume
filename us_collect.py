@@ -53,9 +53,10 @@ def build_tickers():
         log(f"  {m} {len(d):,}개")
     U = pd.concat(D, ignore_index=True).drop_duplicates("Symbol")
     # ETF·펀드·신탁 추정분 제외 — 업종이 비었거나 이름에 표시가 있는 것
+    # 2026-11-01: 대소문자 무시 부분일치라 Netflix 가 'etf' 에, Digital Realty Trust·Northern Trust 가 'Trust' 에 걸렸다.
+    #   낱말 단위로만 보고 Trust 는 뺀다(리츠·은행 이름). ETF·신탁 상품은 토스 목록의 종류 칸이 거른다(collect_us_daily.tickers).
     etf = (U.Industry.isna() |
-           U.Name.str.contains("ETF|Trust|Fund|Index|ETN|Bond|Portfolio|Depositary",
-                               case=False, na=False))
+           U.Name.str.contains(r"\b(?:ETF|ETN|Fund|Index|Bond|Portfolio|Depositary)\b", na=False))
     U = U[~etf].copy()
     # 티커에 특수문자가 있는 것(우선주·워런트 등)은 뺀다 — yfinance 조회가 잘 안 된다
     U = U[U.Symbol.notna() & U.Symbol.astype(str).str.fullmatch(r"[A-Z]{1,5}")]

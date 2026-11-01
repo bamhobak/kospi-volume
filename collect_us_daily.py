@@ -49,6 +49,9 @@ def log(m):
     print(f"[미장] {m}", flush=True)
 
 
+CLASS_SHARES = (("BRK.B", "Berkshire Hathaway", "CB"), ("BF.B", "Brown-Forman", "STZ"))
+
+
 def tickers():
     if TICK.exists():
         U = pd.read_csv(TICK)
@@ -63,7 +66,8 @@ def tickers():
     if T_.exists():
         try:
             T = pd.read_csv(T_, dtype=str)
-            keep = set(T.symbol)
+            # 2026-11-01: ETF·ETN 도 목록에 있다 — 이름 거르개를 낱말 단위로 바꿔서 여기서 종류로 뺀다
+            keep = set(T.symbol[T.type.isin(["STOCK", "DEPOSITARY_RECEIPT"])]) if "type" in T.columns else set(T.symbol)
             asof = str(T["asof"].max()) if "asof" in T.columns else "?"      # T.asof 는 판다스 메서드라 [] 로
             if len(keep) >= 5000:
                 drop = ~U.Symbol.isin(keep)
@@ -76,6 +80,12 @@ def tickers():
                 U = U[~drop]
         except Exception as e:
             log(f"  토스 목록 읽기 실패 — 거르지 않음: {e!r}"[:120])
+    # 2026-11-01: 클래스주는 거래소 목록에 없고 티커 형식 검사에서도 빠져 S&P 대형주가 표에 없었다. 업종은 같은 업종 종목에서 빌린다.
+    X = []
+    for sym, name, like in CLASS_SHARES:
+        r = U[U.Symbol == like]
+        if len(r): X.append({"Symbol": sym, "Name": name, "mk": "NYSE", "Industry": r.Industry.iloc[0]})
+    if X: U = pd.concat([U, pd.DataFrame(X)], ignore_index=True)
     return U.reset_index(drop=True)
 
 
@@ -149,7 +159,7 @@ def fetch_stooq(syms, start):
 
     def one(sym):
         try:
-            x = fdr.DataReader(sym, st)
+            x = fdr.DataReader(sym.replace(".", "-"), st)      # 클래스주 — 표·토스는 BRK.B, 시세는 BRK-B
             if x is None or not len(x):
                 return sym, None
             return sym, x[["Open", "High", "Low", "Close", "Volume"]]
@@ -414,8 +424,11 @@ def metrics(x, bbdates=None, edates=None):
         for _k in range(max(0, n - 21), n):
             if not (_fh[_k] <= -30 and _r20[_k] <= -20): continue
             if not len(_bb): continue
-            _d1 = _idx[_k].strftime('%Y%m%d')
-            _d0 = (_idx[_k] - pd.Timedelta(days=88)).strftime('%Y%m%d')
+            # 2026-11-01: _shape 뒤 인덱스는 문자열이라 strftime 에서 죽었고 main 이 예외를 삼켜 종목이 표에서 통째로 빠졌다.
+            #   고점 -30%·20일 -20%·자사주 기록이 겹친 종목, 곧 규칙이 노리는 폭락주가 사라졌다(AKAM·CHTR·FICO 등).
+            _t = pd.Timestamp(_idx[_k])
+            _d1 = _t.strftime('%Y%m%d')
+            _d0 = (_t - pd.Timedelta(days=88)).strftime('%Y%m%d')
             _st[_k] = bool(((_bb <= _d1) & (_bb >= _d0)).any())
         bbnew = bool(_st[-1] and not _st[max(0, n - 21):n - 1].any())
     # pinr = 최근 20일 변동성 ÷ 최근 250일 변동성 (자기 과거 대비 얼마나 죽었나)
@@ -729,6 +742,7 @@ def main():
     WANT = wait_for_data(start)
 
     rows, dates, t0, fail = [], [], time.time(), 0
+    mfail = []          # 지표 계산에서 죽은 종목 — 조용히 빠지면 안 된다
     lastd = []          # 종목마다 마지막 거래일 — 표의 '기준일' 을 최빈값으로 정한다
     for i in range(0, len(syms), a.chunk):
         part = syms[i:i + a.chunk]
@@ -739,8 +753,8 @@ def main():
         for s, x in got.items():
             try:
                 m = metrics(x, BBD.get(s), EDT.get(s))
-            except Exception:
-                continue
+            except Exception as e:
+                mfail.append(f"{s} {e!r}"[:70]); continue
             if not dates or len(x.index) > len(dates):
                 dates = list(x.index[-NDAY:])
             if len(x.index): lastd.append(str(x.index[-1]))
@@ -772,6 +786,8 @@ def main():
         if (i // a.chunk) % 10 == 0:
             log(f"  {i+len(part):,}/{len(syms):,} · 담은 종목 {len(rows):,} · {time.time()-t0:.0f}초")
     log(f"완료 {len(rows):,}종목 (실패 {fail:,}) · {time.time()-t0:.0f}초")
+    if mfail:
+        log(f"::warning::지표 계산 실패 {len(mfail)}종목이 표에서 빠졌다: {mfail[:5]}")
     # 어느 공급처가 얼마나 줬는지 남긴다 — 한쪽이 조용히 죽으면 여기서 먼저 보인다
     log(f"  공급처: 야후(FDR 경로) {_SRC['stooq']:,} · 야후 보충 {_SRC['yahoo']:,} · 최근 {MV_DAYS}거래일 Massive 로 덮음 {_SRC['massive']:,}")
     if not rows:

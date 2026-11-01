@@ -48,6 +48,8 @@ def load(f, mk):
     K["cap조"] = K.marcap / (1e12 if _mx and _mx > 1e13 else 1e4)   # 원 → 조 / 억 → 조
     if "dev25" not in K.columns or K["dev25"].isna().all():
         K["dev25"] = (K.close/g.close.transform(lambda s: s.rolling(25,min_periods=25).mean())-1)*100
+    if "dma5" not in K.columns or K["dma5"].isna().all():
+        K["dma5"] = (K.close/g.close.transform(lambda s: s.rolling(5,min_periods=5).mean())-1)*100
     return K
 import os as _os
 KP = load(_os.environ.get("PANEL_KP", "panel_kp.pkl"), "KOSPI")
@@ -149,7 +151,7 @@ RULES = {
  #   14.4 → 10: 300시드 245/300 · 20.14 → 21.98배 · 낙폭 -12.4% 그대로 · 낙폭 하위1% -23.0 → -20.5%
  #   · 언더워터 하위5% 3.2 → 2.8년 · 3억 14.17 → 15.45배. p1_final.py · p1_realloc.py
  "P1": (KP, 40, None, 10, 7, base(KP,200)&(KP.fromhi>=-10)&(KP.r16<120)&(KP.rw1<=120)&(KP.fw5>=3)
-        &(KP.fw60>=1)&(KP.vol20<=2)&(KP.sr20<=0.5)&(KP.ret20<=5)
+        &(KP.fw60>=1)&(KP.vol20<=2)&(KP.sr20<=0.5)&(KP.ret20<=5)&(KP.dma5<=1)   # dma5: 2026-10-02 좁힘, 사이트·알림에만 있었다(11-01 맞춤)
         &~((KP.above20>70)&(KP.ret250>120))),
  "P2": (KP, 10, None, 18, 2, base(KP,3)&dn20(KP)&(KP.r16<30)&(KP.rw1>=200)&(KP.fw5>=2)
         &(KP.ret3<=-5)&(KP.ret10<=0)&(KP.srd==True)),
