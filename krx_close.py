@@ -105,19 +105,24 @@ def apply(dbs, M=None):
     for db in dbs:
         if not Path(db).exists(): continue
         con = sqlite3.connect(str(db), timeout=300)
-        cur = con.execute("SELECT date,ticker,close FROM daily WHERE date>=? AND close>0", (days[0],)).fetchall()
-        up, skip, tick = [], 0, set()
-        for d, t, c in cur:
-            k = M.get((d, t))
-            if k is None or k == c: continue
-            if abs(k / c - 1) * 100 > GUARD:
-                skip += 1; continue
-            up.append((k, d, t)); tick.add(t)
-        con.executemany("UPDATE daily SET close=? WHERE date=? AND ticker=?", up)
-        ch = []
-        for t in tick:
-            rows = con.execute("SELECT date,close FROM daily WHERE ticker=? AND date>=(SELECT COALESCE(MAX(date),'') FROM daily WHERE ticker=? AND date<?) ORDER BY date", (t, t, days[0])).fetchall()
-            ch += [(rows[i][1] - rows[i - 1][1], rows[i][0], t) for i in range(1, len(rows))]
-        con.executemany("UPDATE daily SET change=? WHERE date=? AND ticker=?", ch)
-        con.commit(); con.close()
+        # 2026-11-01: 종가가 빈 줄에서 change 계산이 TypeError 로 죽고 연결이 열린 채 남아, 10-31 부터 코스닥을 못 읽었다
+        #   (pipeline.load_kosdaq 'database is locked' → 사이트에서 코스닥이 통째로 빠짐). 빈 종가는 건너뛰고, 실패해도 닫는다.
+        try:
+            cur = con.execute("SELECT date,ticker,close FROM daily WHERE date>=? AND close>0", (days[0],)).fetchall()
+            up, skip, tick = [], 0, set()
+            for d, t, c in cur:
+                k = M.get((d, t))
+                if k is None or k == c: continue
+                if abs(k / c - 1) * 100 > GUARD:
+                    skip += 1; continue
+                up.append((k, d, t)); tick.add(t)
+            con.executemany("UPDATE daily SET close=? WHERE date=? AND ticker=?", up)
+            ch = []
+            for t in tick:
+                rows = con.execute("SELECT date,close FROM daily WHERE ticker=? AND date>=(SELECT COALESCE(MAX(date),'') FROM daily WHERE ticker=? AND date<?) ORDER BY date", (t, t, days[0])).fetchall()
+                ch += [(rows[i][1] - rows[i - 1][1], rows[i][0], t) for i in range(1, len(rows)) if rows[i][1] is not None and rows[i - 1][1] is not None]
+            con.executemany("UPDATE daily SET change=? WHERE date=? AND ticker=?", ch)
+            con.commit()
+        finally:
+            con.close()
         print("KRX 종가 적용 %s: %d줄 바꿈(%d종목) · 차이 %.0f%% 넘어 건너뜀 %d줄 · 대상 %d줄" % (Path(db).name, len(up), len(tick), GUARD, skip, len(cur)))

@@ -272,7 +272,7 @@ def load_kosdaq(dates):
         print(f"코스닥 {len(r):,}행 · {len({x['ticker'] for x in r})}종목")
         return list(r)
     except Exception as e:
-        print("코스닥 로드 실패:", str(e)[:80]); return []
+        print("::warning::코스닥 로드 실패 — 표에서 코스닥이 통째로 빠진다:", str(e)[:80]); return []
 
 def ret2y_map(dates, back=500):
     """2년(기본 500거래일) 전 종가 대비 수익률 — 기준은 창의 첫 날이 아니라 **최신 거래일** — P4 의 '장기 과열 배제' 조건용.
