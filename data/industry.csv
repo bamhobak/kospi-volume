@@ -1499,6 +1499,7 @@ ticker,market,industry
 398120,KOSDAQ,의료용 기기 제조업
 473000,KOSDAQ,금융 지원 서비스업
 473950,KOSDAQ,금융 지원 서비스업
+0205H0,KOSDAQ,금융 지원 서비스업
 475660,KOSDAQ,기타 화학제품 제조업
 096630,KOSDAQ,통신 및 방송 장비 제조업
 0070X0,KONEX,특수 목적용 기계 제조업
@@ -1651,6 +1652,7 @@ ticker,market,industry
 033310,KOSDAQ,전자부품 제조업
 259630,KOSDAQ,특수 목적용 기계 제조업
 105550,KOSDAQ,전자부품 제조업
+359410,KOSDAQ,"구조용 금속제품, 탱크 및 증기발생기 제조업"
 060850,KOSDAQ,소프트웨어 개발 및 공급업
 014440,KOSPI,플라스틱제품 제조업
 143540,KOSDAQ,특수 목적용 기계 제조업
@@ -1955,6 +1957,7 @@ ticker,market,industry
 129260,KOSPI,도로 화물 운송업
 051370,KOSDAQ,전자부품 제조업
 064290,KOSDAQ,특수 목적용 기계 제조업
+420610,KOSDAQ,소프트웨어 개발 및 공급업
 189300,KOSDAQ,통신 및 방송 장비 제조업
 287840,KOSDAQ,자연과학 및 공학 연구개발업
 048530,KOSDAQ,기초 의약물질 제조업
@@ -2279,6 +2282,7 @@ ticker,market,industry
 215570,KONEX,자연과학 및 공학 연구개발업
 110790,KOSDAQ,봉제의복 제조업
 900250,KOSDAQ,기타 금융업
+439270,KOSDAQ,그외 기타 제품 제조업
 045520,KOSDAQ,일반 목적용 기계 제조업
 214150,KOSDAQ GLOBAL,의료용 기기 제조업
 466100,KOSDAQ,소프트웨어 개발 및 공급업
@@ -2352,6 +2356,7 @@ ticker,market,industry
 064760,KOSDAQ GLOBAL,기타 비금속 광물제품 제조업
 246710,KOSDAQ,기초 의약물질 제조업
 340570,KOSDAQ,의료용품 및 기타 의약 관련제품 제조업
+0053F0,KOSDAQ,일반 목적용 기계 제조업
 043220,KOSDAQ,특수 목적용 기계 제조업
 277880,KOSDAQ,특수 목적용 기계 제조업
 131290,KOSDAQ,"측정, 시험, 항해, 제어 및 기타 정밀기기 제조업; 광학기기 제외"
@@ -2508,7 +2513,6 @@ ticker,market,industry
 347770,KOSDAQ,전자부품 제조업
 163730,KOSDAQ,소프트웨어 개발 및 공급업
 417180,KOSDAQ,기타 정보 서비스업
-475240,KOSDAQ,금융 지원 서비스업
 475250,KOSDAQ,금융 지원 서비스업
 484130,KOSDAQ,금융 지원 서비스업
 0041L0,KOSDAQ,금융 지원 서비스업
@@ -2665,6 +2669,7 @@ ticker,market,industry
 042660,KOSPI,선박 및 보트 건조업
 003530,KOSPI,금융 지원 서비스업
 498390,KOSDAQ,금융 지원 서비스업
+0127E0,KOSDAQ,금융 지원 서비스업
 195870,KOSPI,전자부품 제조업
 034810,KOSDAQ,기타 금융업
 059270,KOSDAQ,기타 금속 가공제품 제조업
