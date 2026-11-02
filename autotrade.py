@@ -807,13 +807,23 @@ def reconcile():
         log("주문 확정 실패:", repr(ex)[:300]); telegram("⚠ 주문 확정 실패: %s" % str(ex)[:150])
 
 
+HIDDEN = OUT / "site_hidden.json"     # 2026-11-02 사용자: 사이트에서 일부러 지운 자동 포지션 id — heal 이 되살리지 않는다(원장은 그대로)
+
+
+def site_hidden():
+    try: return set(json.loads(HIDDEN.read_text(encoding="utf-8")).get("ids") or [])
+    except FileNotFoundError: return set()
+
+
 def heal(L=None, update=None, since=""):
     """원장에 체결로 남은 자동 포지션이 사이트에서 빠졌거나 매도 기록이 없으면 되살린다. 되살렸으면 알린다(조용히 넘어가지 않게)."""
     L = L or led(); update = update or site_update
     O = [o for o in L["orders"] if o.get("date", "") >= since]
     buys = {o["pos"]["id"]: o for o in O if o.get("side") == "BUY" and o.get("pos")}
     sells = {o["posId"]: o for o in O if o.get("side") == "SELL" and o.get("sold")}
-    parts = [o["part"] for o in O if o.get("part")]
+    hid = site_hidden()
+    buys = {k: o for k, o in buys.items() if k not in hid}
+    parts = [o["part"] for o in O if o.get("part") and o["part"].get("id") not in hid]
     gone = {}
     for o in O:
         if o.get("part"): gone[o["posId"]] = gone.get(o["posId"], 0.0) + float(o["part"]["qty"])
@@ -847,7 +857,7 @@ def safe_heal():
 def ledger_positions(mk):
     """사이트를 못 읽을 때 — 원장으로 지금 들고 있는 자동 포지션을 만든다."""
     L = led()
-    sold = {o["posId"] for o in L["orders"] if o.get("side") == "SELL" and o.get("sold")}
+    sold = {o["posId"] for o in L["orders"] if o.get("side") == "SELL" and o.get("sold")} | site_hidden()   # 일부러 지운 것은 이미 판 것
     return [dict(o["pos"]) for o in L["orders"] if o.get("side") == "BUY" and o.get("pos") and o["pos"]["id"] not in sold
             and mk_of(o["pos"].get("code")) == mk and not o["pos"].get("overlay")]
 
