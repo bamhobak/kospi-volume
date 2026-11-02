@@ -37,7 +37,7 @@ if sys.stdout is not None:
 
 PER = {"KR": 1_500_000, "US": 1_000_000}      # 규칙 하나당(원) — 2026-10-03 사용자: 국장 150만·미장 100만
 SEED = {"KR": 50_000_000, "US": 50_000_000}   # 시장별 시드(원) — 자동매매가 들고 있는 매수금(미장은 그때 환율) + 오늘 살 것 ≤ 시드
-MAXDAY = {"KR": 5, "US": 5}   # 하루 최대 매수 건수
+# 하루 최대 매수 건수는 없앴다(2026-11-02 사용자 "하루상한 없애줘" — 11-02 미장 [저PBR 낙폭] 9건 중 티커 알파벳 순 4건이 잘림). 시드·매수가능이 막는다.
 # 2026-10-15 사용자 "스윙도 일단 1주씩": 테스트 동안 신호마다 1주만(PER 금액 무시). 돈 제대로 넣을 때 None 으로 되돌린다.
 SWING_QTY = 1
 # 2026-10-18 [지수 덮개] IX1(사용자 '둘 다 적용' · research H0360): 코스피200 종가가 60일선 +3% 위로 마감 → 다음날 시가에 KODEX 200 매수,
@@ -1072,14 +1072,11 @@ def buy(mk):
     job.__enter__()
     Lg = led()                                                        # 잠금 안에서 다시 읽는다 — 겹친 실행이 낸 주문을 본다
     today_keys = {f"{o['rid']}:{o['t']}" for o in Lg["orders"] if o.get("side") == "BUY" and o.get("date") == S["date"]}
-    prior = len({o["cid"] for o in Lg["orders"] if o.get("side") == "BUY" and o.get("date") == S["date"] and o.get("oid") and not o.get("overlay")})
     for rk, stk, rid, t in C:
         info = nm.get(t, (t, None, None))
         if f"{rid}:{t}" in today_keys: continue
         if stop_reason:
             skip.append((rid, t, info[0], stop_reason)); continue
-        if prior + len(placed) >= MAXDAY[mk]:
-            skip.append((rid, t, info[0], "하루 %d건 초과" % MAXDAY[mk])); continue
         if t not in px:
             skip.append((rid, t, info[0], "현재가 없음")); continue
         if info[1] not in (None, "ACTIVE") or info[2]:

@@ -50,6 +50,9 @@ def log(m):
 
 
 CLASS_SHARES = (("BRK.B", "Berkshire Hathaway", "CB"), ("BF.B", "Brown-Forman", "STZ"))
+# 보통주가 아닌 것(우선주·채권·유닛·권리·워런트) — 이름 낱말로 본다. 대소문자 구분(PRF Technologies 같은 회사 이름은 안 걸리게)
+NOT_COMMON = (r"\b(?:Pref|Prf|Pfd|Preference|Notes?|Debentures?|Tangible Equity Units?|Rights|Warrants?)\b"
+              r"|\bPreferred\b(?!\s+Bank)")
 
 
 def tickers():
@@ -59,6 +62,13 @@ def tickers():
         import us_collect
         U = us_collect.build_tickers()
     U = U[U.Symbol.notna() & U.Symbol.astype(str).str.fullmatch(r"[A-Z]{1,5}")]
+    # 2026-11-02 사용자: 알파벳 강제전환우선주(GOOGM·GOOGN)가 [저PBR 낙폭]에 걸려 자동매매가 샀다 — 티커가 다섯 글자 보통 모양이고
+    #   토스 종류도 STOCK 이라 위·아래 검사를 다 지난다. 이름으로 뺀다. 브라질 우선주 ADR(BBD·CIG)은 그 나라 주력 주식이라 둔다.
+    _nm = U.Name.astype(str)
+    sec = _nm.str.contains(NOT_COMMON, regex=True, na=False) & ~_nm.str.contains(r"\bADR\b", regex=True, na=False)
+    if sec.any():
+        log(f"  우선주·채권·권리 {int(sec.sum()):,}개 뺌")
+        U = U[~sec]
     # 2026-10-26 사용자 "큰일날 뻔했는데": 나스닥 목록엔 토스에서 못 사는 종목(SPAC 유닛·Tangible Equity Units·우선주·
     #   예탁증서 등 541개)이 섞여 VSECU 가 [N4] 매수 대기에 떴다. 서버가 커밋하는 토스 목록(toss_us_list.py)에 없는 건 뺀다.
     #   목록이 없으면(처음·실패) 그대로 — 오래됐으면 경고만(새 상장 종목이 목록 새로 받을 때까지 빠질 수 있다).
