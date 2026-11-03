@@ -36,7 +36,14 @@ PRE_MAX = 30.0             # |어제 종가 대비| 30% 넘는 값은 버린다(
 FRESH = (8, 35)            # 신호가 = 08:35 이후 체결만(연구: 5분 안 체결)
 SIG_AT, BUY_AT, BUY_END, SELL_AT = (8, 40, 1), (8, 41, 0), (8, 46, 0), (8, 50, 30)
 WATCH_REL = -2.0           # 채점·호가 기록은 -2%p↓ 까지 넓게(규칙은 -3)
-PER = 1_000_000            # 실전 금액(D.DAY_QTY 가 None 일 때) — 연구상 종목당 100만 안팎이 한계
+PER = 1_000_000            # 실전 기준금액(D.DAY_QTY 가 None 일 때) × 깊이 배율
+# 2026-11-03 사용자 '응 바꿔줘' — 깊이 계단: 시장 대비 -3~-4%p 1배 · -4~-5 2배 · -5↓ 3배(테스트 중엔 1~3주)
+#   √충격·5분 거래대금 10%까지 체결로 연 환산 학/검: 고정 100만 +150/+307만 · 계단 100만 +263/+578만(하루 최대 2,549만·최악의 날 -53만) · 고정 500만 +262/+590(-139만)
+STEPS = ((-5.0, 3), (-4.0, 2))
+
+
+def mult(rel):
+    return next((m for c, m in STEPS if rel <= c), 1)
 COST = 0.23
 
 
@@ -198,9 +205,10 @@ def morning():
         if not a:
             skip.append((x["name"], "매도 호가 없음")); continue
         lim = int(a[0][0]); x["ask"] = lim; x["ask_vol"] = a[0][1]
-        if D.DAY_QTY: q = D.DAY_QTY
+        k = mult(x["rel"]); x["mult"] = k
+        if D.DAY_QTY: q = D.DAY_QTY * k
         else:
-            q = math.floor(PER / lim)
+            q = math.floor(PER * k / lim)
             if q < 1 and lim <= PER * 2: q = 1
         if q < 1:
             skip.append((x["name"], "1주가 너무 비쌈")); continue
