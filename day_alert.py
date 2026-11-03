@@ -48,7 +48,7 @@ STOP_PCT = -29.0                                 # 10-19 사용자: 데이로 �
 DAY_MAX = None                                    # 하루 최대 종목 수 — None = 제한 없음(후보 전부 주문) · 10-13 10→20 · 10-19 20→50 · 10-21 사용자 제한 없앰: 실행 실측(종목당 100만 체결 89%)상 종목 수를 막을 이유가 없다
 COST = 0.23                                     # 토스 실제 왕복: 수수료 0.015×2 + 거래세 0.20 (index.html DEFFEE)
 RULE = "갭 하락 조용주"
-RNAME = {"T1": "갭 하락 조용주", "T2": "갭 하락 조용주 +", "T3": "갭 하락 조용주 ++", "T4": "미장 폭락 과잉 갭", "T5": "NXT 장전 되돌림"}   # T5 = nxt_pre.py(11-03, 같은 원장)
+RNAME = {"T1": "갭 하락 조용주", "T2": "갭 하락 조용주 +", "T3": "갭 하락 조용주 ++", "T4": "미장 폭락 과잉 갭", "T5": "NXT 장전 되돌림", "T6": "NXT 장후 빠진 종목"}   # T5 = nxt_pre.py · T6 = nxt_shadow.py(11-03, 같은 원장)
 # 2026-10-18 T4(사용자 '둘 다 적용' · research H0352): 나스닥 전날 -2.5%↓ 인 날만 — 작은 종목(유니버스 아래 1/3) 중
 #   예상 갭 -2%↓ & 짝 미장으로 본 예상 갭보다 더 빠진 정도(덜 반영 = 갭 − 짝 예상)가 유니버스 하위 10% → 시가 단일가 지정가(어제 종가 -2%) → 종가.
 #   2016~22 1,285건 건당 +1.75% · 승률 69% · PF 2.99 / 2023~ 296건 +2.44% · 74% · PF 5.32 · 연 약 9일 · 그날 15종목쯤. [갭 하락 조용주]와 겹치면 한 번만 산다.
@@ -1030,11 +1030,13 @@ def carry_sell(today):
     try: site_sold = {p.get("id") for p in (AT.site_state().get("positions_scalp") or []) if p.get("sell")}
     except Exception: site_sold = set()
     open_sell = {z.get("posId") for z in Lg["orders"] if z.get("side") == "SELL" and z.get("date", "") >= AT.SYNC_FROM and not z.get("closed") and not z.get("passive")}
+    # 11-03 T6 [NXT 장후 빠진 종목]: 밤새 들고 와서 nxt_shadow.py 가 08:50:30 에 시가 매도를 낸다 — 그 주문이 있으면 조용히 넘긴다(못 냈으면 여기서 판다)
+    t6_sent = {z.get("posId") for z in Lg["orders"] if z.get("side") == "SELL" and z.get("date") == today and z.get("rid") == "T6" and z.get("oid")}
     out = []
     for o in buys:
         pid = o["pos"]["id"]
         rem = int(float(o["fq"]) - sold.get(pid, 0))
-        if rem < 1 or pid in site_sold: continue
+        if rem < 1 or pid in site_sold or pid in t6_sent: continue
         if pid in open_sell:                               # 어제 매도 결과를 아직 모른다 — 또 내면 손으로 산 몫이나 스윙 몫을 판다
             log("안 맺어진 매도 있음 — 이월 건너뜀:", o["t"]); telegram("⚠ 이월 데이 %s 건너뜀 — 어제 매도 결과 모름" % o["name"]); continue
         try: have = AT.sellable(o["t"]) if not AT.DRY else rem
