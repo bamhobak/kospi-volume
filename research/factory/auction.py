@@ -24,6 +24,10 @@ AD = C.DATA / "auction"; AD.mkdir(exist_ok=True)
 RATE = 7.0
 AM = [(8, 30, 30), (8, 36, 0), (8, 42, 0), (8, 47, 0), (8, 56, 15)]
 PM = [(15, 20, 20), (15, 24, 30), (15, 27, 20)]
+# 2026-11-03 사용자 '2번 해줘'([NXT 장전 되돌림] T5 · research/newdata_pmrev*_1103.py): 위 호가 유니버스는 거래대금 상위 40% 라
+#   장전에 얇은 NXT 종목이 빠진다 → 08:40:20 · 08:45:20 에 '오늘 장전 체결이 있는데 유니버스 밖인 종목' 호가 10단계를 따로 찍는다
+#   (매도 1호가로 실제 몇에 살 수 있었는지 재는 용도). 저장 KR_YYYYMMDD_amnxt.parquet
+AM_NXT = [(8, 40, 20), (8, 45, 20)]
 
 
 def uni_today():
@@ -89,10 +93,20 @@ def morning(day):
     ALL = M.universe("KR")
     C.log("장전 녹화 시작 — 전 종목 %d · 호가 유니버스 %d" % (len(ALL), len(U)))
     fo, fx = AD / ("KR_%s_am.parquet" % day), AD / ("KR_%s_nxt.parquet" % day)
+    fn = AD / ("KR_%s_amnxt.parquet" % day)
     plan = [C.at(*t) for t in AM]
+    plan2 = [C.at(*t) for t in AM_NXT]
+    traded, inU = set(), set(U)
     end = C.at(8, 59, 40)
     with C.Busy("rec"):
         while C.now() < end:
+            if plan2 and C.now() >= plan2[0]:
+                plan2.pop(0)
+                thin = sorted(traded - inU)
+                if thin:
+                    try: _save(fn, ob_pass(M, thin, C.now().strftime("%H%M%S")), ["tag", "ticker", "side", "lvl", "price", "vol"])
+                    except Exception as ex: C.log("얇은 NXT 호가 실패:", repr(ex)[:150])
+                continue
             nxt_ob = plan[0] if plan else None
             if nxt_ob and C.now() >= nxt_ob:
                 plan.pop(0)
@@ -108,8 +122,10 @@ def morning(day):
                     _save(fo, ob_pass(M, U2, C.now().strftime("%H%M%S")), ["tag", "ticker", "side", "lvl", "price", "vol"])
                 continue
             if C.at(8, 0) <= C.now() and not (C.at(8, 51, 30) <= C.now() <= C.at(8, 55, 30) and _day_busy()):
-                _save(fx, px_pass(M, ALL, C.now().strftime("%H%M%S"), day), ["tag", "ticker", "price", "ts", "today"])
-            nx = min([p for p in plan] + [C.now().replace(second=0, microsecond=0) + dt.timedelta(minutes=1)])
+                rx = px_pass(M, ALL, C.now().strftime("%H%M%S"), day)
+                traded |= {r[1] for r in rx if r[4]}
+                _save(fx, rx, ["tag", "ticker", "price", "ts", "today"])
+            nx = min([p for p in plan] + [p for p in plan2] + [C.now().replace(second=0, microsecond=0) + dt.timedelta(minutes=1)])
             C.sleep_until(nx)
     C.log("장전 녹화 끝")
 
