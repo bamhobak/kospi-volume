@@ -395,7 +395,7 @@ jobs:
             git rebase --abort 2>/dev/null || true
             sleep $((i * 15))
           done
-          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage"             -d chat_id="$TELEGRAM_CHAT_ID"             -d text="⚠ 오늘 수집 데이터를 저장하지 못했습니다(커밋 경합 5회 실패). 데이터는 받았으나 리포지토리에 없습니다 — Actions 로그를 확인하세요." > /dev/null
+          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage"             -d chat_id="$TELEGRAM_CHAT_ID"             -d text="⚠ 수집 저장 실패 — 커밋 경합 5회" > /dev/null
           echo "::error::데이터 커밋 5회 실패"
           exit 1
       # Cloudflare Pages 가 유일한 배포처다(2026-09-11 전환 완료).
@@ -429,14 +429,14 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" -d chat_id="$TELEGRAM_CHAT_ID" -d text="❌ 수집·배포 워크플로가 실패했습니다(${{ github.run_id }}). 사이트가 묵을 수 있으니 Actions 로그를 확인하세요." > /dev/null
+          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" -d chat_id="$TELEGRAM_CHAT_ID" -d text="❌ 수집·배포 실패 (${{ github.run_id }})" > /dev/null
       - name: 수집 누락 알림
         if: always() && steps.fresh.outcome == 'failure'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage"             -d chat_id="$TELEGRAM_CHAT_ID"             -d text="⚠ 표가 묵었습니다 — 오늘 수집이 빠졌거나 덜 들어왔습니다. 규칙이 조용히 덜 잡힐 수 있으니 Actions 로그를 확인하세요." > /dev/null
+          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage"             -d chat_id="$TELEGRAM_CHAT_ID"             -d text="⚠ 표 묵음 — 오늘 수집 빠짐·덜 들어옴" > /dev/null
   # 알림은 **배포가 끝난 뒤에** 보낸다. 예전에는 build 잡 안에서 커밋·배포보다 먼저 보냈고,
   # 그래서 알림 링크를 바로 누르면 사이트는 아직 어제 데이터였다(2026-09-10 사용자 신고:
   # 20:10 알림 · 20:11 배포 완료). 알림이 부가 기능이라 수집 커밋을 막으면 안 된다는
@@ -490,7 +490,7 @@ jobs:
           python notify_new.py || {
             curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
               -d chat_id="$TELEGRAM_CHAT_ID" \
-              -d text="⚠ 신규 편입 알림 스크립트가 죽었습니다. 오늘 알림이 나가지 않았습니다 — Actions 로그를 확인하세요." > /dev/null
+              -d text="⚠ 신규 편입 알림 실패 — 오늘 알림 안 나감" > /dev/null
             echo "notify_new.py 실패 — 텔레그램으로 사실만 알렸다"
           }
 
