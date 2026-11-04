@@ -1197,7 +1197,7 @@ function freqNote(){
   let mult=null;
   if(dev!==null){for(const[hi,m]of FREQ_MULT){if(dev<=hi){mult=m;break}}}
   const est=(gateSum!==null&&mult!==null)?gateSum*mult:null;
-  const fx=v=>v>=10?v.toFixed(0):v.toFixed(1);
+  const fx=v=>v>=10?v.toFixed(0):String(+v.toFixed(1));   /* 0 은 0.0 이 아니라 0, 2.0 은 2 (11-04 요청) */
   const kr0=est!==null?est:(gateSum!==null?gateSum:null);
   const kr=kr0===null?(day?day:null):kr0+day;
   const txt=kr!==null?`월 ${fx(kr+us)}건(K ${fx(kr)}, N ${fx(us)})`
