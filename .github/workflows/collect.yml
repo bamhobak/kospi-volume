@@ -124,6 +124,7 @@ jobs:
         env:
           TZ: Asia/Seoul
           WAIT_MINUTES: ${{ github.event.client_payload.ready == true && '20' || '' }}
+          KRX_DAY: ${{ github.event.client_payload.krx_day == true && '1' || '' }}    # 2026-11-05: 서버 KRX 하루 자료로 깨운 경우 — 네이버 안 기다림
         run: python pipeline.py --wait --no-site
       - name: collect sector/theme (테마 주1회·업종 분기1회)
         if: github.event_name != 'push' && steps.td.outputs.trading == 'true'

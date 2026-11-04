@@ -101,6 +101,9 @@ def wait_for_today(deadline=None, interval=600):
                     if m.isdigit() and int(m) > 0 else "21:00")
     today = datetime.today()
     if today.weekday() >= 5: return
+    if os.environ.get("KRX_DAY"):                       # 2026-11-05: 서버 KRX 하루 자료가 있어 깨운 것 — 그날 줄은 krx_day.apply 가 KRX 값으로 넣는다
+        log.info("KRX 하루 자료로 깨움: 네이버 당일 대기 없이 수집")
+        return
     # 장 마감 전이면 '오늘 데이터'는 존재할 수 없다. 기다려 봐야 타임아웃이므로
     # 곧장 수집으로 넘어가 직전 거래일치를 확정값으로 다시 받는다.
     # (아침 재수집 — 장 직후 받은 잠정 수급을 확정치로 덮어쓰는 용도)
