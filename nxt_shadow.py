@@ -393,6 +393,10 @@ def live_buy(snap):
     D._led_save(Lg)
     if got:
         D.scalp_update(lambda P: (P.extend(dict(o["pos"]) for o in got) or True), "데이 [%s] 매수 %d건" % (RNAME, len(got)))
+    try:                                                   # 11-04: 사이트 매수 대기엔 실제로 산 것만(안 산 후보는 19:59 뒤 숨김)
+        f_ = OUT / ("pick_%s.json" % d); sn = jload(f_) or snap
+        sn["bought"] = sorted({o["t"] for o in got}); jsave(f_, sn); publish("19:59 매수")
+    except Exception as ex: log("T6 산 것 표시 실패", repr(ex)[:120])
     L = ["🌙 <b>[%s] 매수</b> %s/%s 19:51 · 시장 장후 %+.1f%%" % (RNAME, d[4:6], d[6:], snap.get("mkt") or 0)]
     L += ["✅ %s %d주 @ %s (%+.1f%%p)" % (o["name"], int(o["fq"]), f"{o['ap']:,.0f}", o.get("rel") or 0) for o in got]
     L += ["❌ %s 미체결" % o["name"] for o in placed if o not in got]
@@ -570,7 +574,7 @@ def publish(stage):
                         "o1": _fl(r.get("open1")), "r": _fl(r.get("r_ask")),
                         "rc": _fl(r.get("r_cap1000만"))}
             S = {"date": snap["date"], "mkt": snap.get("mkt"), "calm": snap.get("calm"), "n_nxt": snap.get("n_nxt"), "n_cand": snap.get("n_cand"),
-                 "reviewed": snap.get("reviewed"), "picks": [row("picks", x) for x in snap.get("picks") or []], "big": [row("big", x) for x in snap.get("big") or []]}
+                 "reviewed": snap.get("reviewed"), "bought": snap.get("bought"), "picks": [row("picks", x) for x in snap.get("picks") or []], "big": [row("big", x) for x in snap.get("big") or []]}
         cum, recent, days = {}, [], []
         f = OUT / "log.csv"
         if f.exists():
