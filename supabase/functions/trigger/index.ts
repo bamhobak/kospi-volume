@@ -39,6 +39,7 @@ const NAVER = { "User-Agent": "Mozilla/5.0" };
 // 위해서다. 실측 최장이 20:47 이라 20:50 으로 끊으면 그 날도 국내 경로가 먼저 발사되어
 // (= state.fired 가 오늘로 찍혀) 여기까지 오지 않는다. 호출 창은 17:40~21:00 · 20분 간격.
 const US_CUT = "20:50";
+const KRX_CUT = "20:20";   // 2026-11-05: 이때까지 네이버 수급이 안 오면 서버 KRX 하루 자료로(있을 때만)
 const JSONH = { "Content-Type": "application/json; charset=utf-8" };
 
 async function rpc(fn: string, body: unknown) {
@@ -178,6 +179,19 @@ Deno.serve(async (req) => {
   if (t.dow === 0 || t.dow === 6) return out({ skip: "주말", ...base });
   if (state.fired === t.today && !force) return out({ skip: "오늘 이미 발사", ...base });
   if (!GH_TOKEN) return out({ error: "GH_DISPATCH_TOKEN 미설정", ...base }, 500);
+
+  // ── 2026-11-05: 네이버 수급이 늦는 날(11-04 는 다음 날 아침까지 안 옴) — 서버가 18:40 에 올린 KRX 하루 자료
+  //   ('__krx_day__')가 오늘이면 KRX_CUT 부터는 그걸로 수집을 쏜다(파이프라인 krx_day.apply 가 그날 줄을 채움).
+  if (biz !== t.today && !err && t.hhmm >= KRX_CUT) {
+    let kd: any = null;
+    try { kd = await rpc("kospi_state_get", { p_pin: "__krx_day__" }); } catch (_) { kd = null; }
+    if (kd?.days?.[t.today]) {
+      try { await dispatch({ ready: true, krx_day: true }); } catch (e) { return out({ error: "dispatch(krx)", detail: String(e).slice(0, 200), ...base }, 502); }
+      try { await rpc("kospi_state_set", { p_pin: "__collect__", p_data: { ...state, fired: t.today, at: t.stamp, via: "krx_day" } }); }
+      catch (e) { return out({ fired: true, via: "krx_day", warn: "상태 기록 실패", detail: String(e).slice(0, 200), ...base }); }
+      return out({ fired: true, via: "krx_day", ...base });
+    }
+  }
 
   // ── 국내가 오늘 안 오는 날(=한국 공휴일)이라도 미장은 열린다 ────────────────
   //   창의 마지막 회차에서만 본다. 그 전에 보면 '데이터가 늦은 평일' 과 구별이 안 되어

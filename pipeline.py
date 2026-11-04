@@ -695,6 +695,11 @@ if __name__ == "__main__":
     if "--no-collect" not in sys.argv:
         if "--wait" in sys.argv: collect.wait_for_today()
         collect.main()
+    try:                                     # 2026-11-05: 네이버 수급이 늦은 날은 서버가 올린 KRX 하루 자료로 그날 줄을 채운다(krx_day.py)
+        import krx_day
+        krx_day.apply(collect.DB, DATA / "kosdaq.db")
+    except Exception as e:
+        print("::warning::KRX 하루 자료 채우기 실패 — 네이버만:", str(e)[:200])
     try:                                     # 2026-11-01: 네이버 종가는 09-14 부터 KRX 종가가 아니다 — 표를 만들기 전에 매번 덮는다(krx_close.py)
         import krx_close
         krx_close.apply([collect.DB, DATA / "kosdaq.db"])
