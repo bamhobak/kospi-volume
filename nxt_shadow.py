@@ -53,6 +53,24 @@ def mult(rel, kind="123"):
     if kind == "1152": return 2.0 if rel <= -5 else 1.5 if rel <= -3 else 1.0
     return 3.0 if rel <= -5 else 2.0 if rel <= -3 else 1.0
 TEST_FLAG = OUT / "first_test_done"
+# 11-05 규칙 T6 실주문 조건 바꿈(사용자 "장후 등락 ≤ -2.5% + 낮 ±1% 빼기 + 두 조건 다 뺌 + 종목당 금액 = 19:41~50 거래대금 10%까지",
+#   research/nxt_grid_1105.py · nxt_exec_1105.py). 그림자(picks·big)는 그대로 두고 실주문만 snap["live"] 로 따로 고른다.
+#   장후 등락 = 19:50 가격 ÷ 오늘 KRX 종가 - 1(시장 평균 안 뺌) · 낮 등락 = 오늘 KRX 종가 ÷ 전 거래일 KRX 종가 - 1, ±1% 이내면 뺌
+#   시장 -1% 쉼·19:41~50 1천만 조건 없음 — 대신 금액 = min(500만, 19:41~50 거래대금 10%), 30만 미만이면 안 삼 · 깊은 순으로 계좌 3천만까지
+#   지정가 = min(매도 1호가, 19:50 가격 +0.5%, KRX 종가 -2.5%) 를 호가 단위로 내림 — 값이 튄 뒤 쫓아 사거나 되돌아온 걸 사지 않게
+LIVE_AH, LIVE_DAY, LIVE_K, LIVE_CAP, LIVE_ACCT, LIVE_MIN, LIVE_N = -2.5, 1.0, 0.10, 5_000_000, 30_000_000, 300_000, 40
+
+
+def tick_floor(p):
+    t = 1 if p < 2000 else 5 if p < 5000 else 10 if p < 20000 else 50 if p < 50000 else 100 if p < 200000 else 500 if p < 500000 else 1000
+    return int(p // t * t)
+
+
+def prev_close(d):
+    """전 거래일 KRX 종가 {종목: 값} — 그날 15:36 close 기록에서."""
+    try: prv = max(x for x in M.trading_days("KR", 10) if x < d)
+    except Exception: return {}
+    return (jload(OUT / ("close_%s.json" % prv)) or {}).get("close") or {}
 
 
 def log(*a):
@@ -178,7 +196,7 @@ def do_pick():
     rel = {s: v - mkt for s, v in ah.items()}
     cand = sorted([s for s in rel if rel[s] <= REL], key=lambda s: rel[s])
     snap = {"date": d, "at": dt.datetime.now(KST).isoformat(), "n_nxt": len(ah), "mkt": round(mkt, 3), "calm": mkt > CALM,
-            "n_cand": len(cand), "picks": [], "big": []}
+            "n_cand": len(cand), "picks": [], "big": [], "live": []}
     seen = {}
 
     def take(s, liq):
@@ -210,6 +228,18 @@ def do_pick():
         x = seen[s]
         return x if x and x["v10"] >= liq else None
 
+    # 실주문(T6) 먼저 — 그림자보다 앞에 골라야 19:51 매수 시각을 넘기지 않는다
+    P0 = prev_close(d)
+    for s in sorted([s for s in ah if ah[s] <= LIVE_AH], key=lambda s: ah[s]):
+        if len(snap["live"]) >= LIVE_N: break
+        dr = (C[s] / P0[s] - 1) * 100 if P0.get(s) else None          # 전 거래일 종가를 모르면 거르지 않는다(연구와 같게)
+        if dr is not None and abs(dr) <= LIVE_DAY: continue
+        x = take(s, 0)
+        if not x: continue
+        amt = min(LIVE_CAP, LIVE_K * x["v10"])
+        if amt < LIVE_MIN: continue
+        snap["live"].append(dict(x, dayr=None if dr is None else round(dr, 2), lamt=round(amt)))
+    log("pick: 실주문 후보 %d(장후 %.1f%%↓ %d · 전 거래일 종가 %d)" % (len(snap["live"]), LIVE_AH, sum(1 for v in ah.values() if v <= LIVE_AH), len(P0)))
     if mkt <= CALM:
         log("pick: 시장 장후 %.2f%% ≤ %.1f — 쉼" % (mkt, CALM))
     else:
@@ -225,7 +255,7 @@ def do_pick():
         log("pick: 시장 %.2f%% · 후보 %d · 고름 %d · 대형 %d" % (mkt, len(cand), len(snap["picks"]), len(snap["big"])))
     jsave(OUT / ("pick_%s.json" % d), snap)
     publish("19:50 고름")
-    if snap["picks"]:                                  # 2026-11-03 규칙 T6 — 그림자 기록은 위에서 그대로, 실주문은 상위 절반(picks)만
+    if snap["live"]:                                   # 규칙 T6 — 그림자 기록은 위에서 그대로, 실주문은 11-05 조건(live)만
         try: live_buy(snap)
         except Exception as ex:
             log("T6 실매수 오류", repr(ex)[:300]); telegram("⚠ [%s] 매수 오류: %s" % (RNAME, repr(ex)[:200]))
@@ -316,11 +346,10 @@ def next_td(day):
 
 
 # ── 규칙 T6 [NXT 장후 빠진 종목] 실주문(2026-11-03 사용자 "이것도 규칙으로 추가해줘 · 조건별 그림자 테스트는 계속") ──
-#   상위 절반 무리(picks) 그대로 → 19:51 매도 1호가 지정가 · 1주 × 깊이 배율 정수(1~3주, 테스트 — 데이 규칙과 같게) → 19:59 미체결 취소
+#   11-05~ snap["live"](위 LIVE_* 조건) → 19:51 지정가 min(매도 1호가, 19:50 +0.5%, KRX 종가 -2.5%) · 테스트 중엔 1주(배율 없음) → 19:59 미체결 취소
 #   → 다음 거래일 08:50:30(NXT 장전 끝난 뒤) KRX 시가 단일가 시장가 매도 → 09:01:30 확인.
 #   데이 원장(data/day/ledger.json)에 rid T6 — 매도를 못 냈으면 day_alert 이월 매도(08:52)가 시가에 판다.
 RID, RNAME = "T6", "NXT 장후 빠진 종목"
-LIVE_PER = 1_000_000          # 실전 기준금액(day_alert.DAY_QTY 가 None 일 때) × 깊이 배율
 
 
 def live_buy(snap):
@@ -338,27 +367,31 @@ def live_buy(snap):
     except AT.TossErr: bp = None
     Lg = D._led()
     done = {o["t"] for o in Lg["orders"] if o.get("date") == d and o.get("side") == "BUY" and o.get("rid") == RID}
-    try: nm = {k: v[0] for k, v in AT.names([x["t"] for x in snap["picks"]]).items()}
+    try: nm = {k: v[0] for k, v in AT.names([x["t"] for x in snap["live"]]).items()}
     except Exception: nm = {}
     placed, skip = [], []
-    for x in snap["picks"]:
+    left = LIVE_ACCT                                       # 깊은 순으로 계좌 3천만까지(실전 금액 모드)
+    for x in snap["live"]:
         if x["t"] in done: continue
         name = nm.get(x["t"], x["t"])
         a, b = book(x["t"])
         if not a:
             skip.append((name, "매도 호가 없음")); continue
-        lim = int(a); k = int(x.get("mult") or 1)
-        if D.DAY_QTY: q = D.DAY_QTY * k
+        lim = tick_floor(min(a, x["p50"] * 1.005, x["krx"] * (1 + LIVE_AH / 100)))
+        if lim < 1:
+            skip.append((name, "지정가 계산 실패")); continue
+        if D.DAY_QTY: q = D.DAY_QTY
         else:
-            q = math.floor(LIVE_PER * k / lim)
-            if q < 1 and lim <= LIVE_PER * 2: q = 1
+            amt = min(x.get("lamt") or 0, left)
+            if amt < LIVE_MIN: skip.append((name, "계좌 한도 다 씀")); continue
+            q = math.floor(amt / lim)
         if q < 1:
             skip.append((name, "1주가 너무 비쌈")); continue
         if bp is not None and q * lim > bp:
             q = math.floor(bp / lim)
             if q < 1: skip.append((name, "매수가능 부족")); continue
         cid = re.sub(r"[^A-Za-z0-9_-]", "", "da%s%s" % (d, x["t"]))[:36]
-        o = dict(side="BUY", date=d, t=x["t"], name=name, qty=q, cid=cid, rid=RID, lim=lim, pc=x.get("krx"), rel=x.get("rel"), at=AT.now().isoformat())
+        o = dict(side="BUY", date=d, t=x["t"], name=name, qty=q, cid=cid, rid=RID, lim=lim, ask=a, pc=x.get("krx"), ah=x.get("ah"), rel=x.get("rel"), dayr=x.get("dayr"), at=AT.now().isoformat())
         try:
             ok = AT.submit(Lg, o, {"clientOrderId": cid, "symbol": x["t"], "side": "BUY", "orderType": "LIMIT", "timeInForce": "DAY",
                                    "price": str(lim), "quantity": str(q)}, D._led_save)
@@ -367,6 +400,7 @@ def live_buy(snap):
         if not ok:
             skip.append((name, "주문 결과 모름 — 확정 대기")); continue
         placed.append(o)
+        left -= q * lim
         if bp is not None: bp -= q * lim
         time.sleep(0.3)
     end = dt.datetime.now(KST).replace(hour=19, minute=59, second=0, microsecond=0)
@@ -398,7 +432,7 @@ def live_buy(snap):
         sn["bought"] = sorted({o["t"] for o in got}); jsave(f_, sn); publish("19:59 매수")
     except Exception as ex: log("T6 산 것 표시 실패", repr(ex)[:120])
     L = ["🌙 <b>[%s] 매수</b> %s/%s 19:51 · 시장 장후 %+.1f%%" % (RNAME, d[4:6], d[6:], snap.get("mkt") or 0)]
-    L += ["✅ %s %d주 @ %s (%+.1f%%p)" % (o["name"], int(o["fq"]), f"{o['ap']:,.0f}", o.get("rel") or 0) for o in got]
+    L += ["✅ %s %d주 @ %s (장후 %+.1f%%)" % (o["name"], int(o["fq"]), f"{o['ap']:,.0f}", o.get("ah") or 0) for o in got]
     L += ["❌ %s 미체결" % o["name"] for o in placed if o not in got]
     if skip: L.append("못 낸 것: " + " · ".join("%s(%s)" % z for z in skip[:6]))
     telegram("\n".join(L))
@@ -558,7 +592,7 @@ def publish(stage):
         snap = jload(fs[-1]) if fs else None
         S = None
         if snap:
-            syms = sorted({x["t"] for g in ("picks", "big") for x in (snap.get(g) or [])})
+            syms = sorted({x["t"] for g in ("picks", "big", "live") for x in (snap.get(g) or [])})
             nm = {}
             try: nm = {k: v[0] for k, v in AT.names(syms).items()} if syms else {}
             except Exception: pass
@@ -572,9 +606,10 @@ def publish(stage):
                 return {"t": x["t"], "n": nm.get(x["t"], x["t"]), "ah": x.get("ah"), "rel": x.get("rel"), "m": x.get("mult"), "v10": x.get("v10"),
                         "ask": x.get("ask"), "bid": x.get("bid"), "amt": x.get("amt1000"), "vw": x.get("vwap"), "hi": x.get("high"),
                         "o1": _fl(r.get("open1")), "r": _fl(r.get("r_ask")),
-                        "rc": _fl(r.get("r_cap1000만"))}
+                        "rc": _fl(r.get("r_cap1000만")), "dr": x.get("dayr"), "la": x.get("lamt"), "krx": x.get("krx"), "p50": x.get("p50")}
             S = {"date": snap["date"], "mkt": snap.get("mkt"), "calm": snap.get("calm"), "n_nxt": snap.get("n_nxt"), "n_cand": snap.get("n_cand"),
-                 "reviewed": snap.get("reviewed"), "bought": snap.get("bought"), "picks": [row("picks", x) for x in snap.get("picks") or []], "big": [row("big", x) for x in snap.get("big") or []]}
+                 "reviewed": snap.get("reviewed"), "bought": snap.get("bought"), "picks": [row("picks", x) for x in snap.get("picks") or []], "big": [row("big", x) for x in snap.get("big") or []],
+                 "live": [row("live", x) for x in snap.get("live") or []]}
         cum, recent, days = {}, [], []
         f = OUT / "log.csv"
         if f.exists():
