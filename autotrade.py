@@ -883,6 +883,64 @@ def wait_fills(orders):
             apply_detail(o, dtl)
 
 
+# ── 미장 단계 지정가(2026-11-06 사용자 "둘 다 고쳐줘 · 놓치지 않게") ──
+#   개장 1분 뒤 시장가는 호가 간격이 넓은 얇은 종목에서 정규장 시가보다 1.3~3.6% 비싸게 샀다(18건 중 3건 — VYLR·SVRN·FLNC, 평균은 +0.17%).
+#   미장 1분봉 2024~: 개장 30분 뒤 가격 ÷ 시가 평균 +0.02%(거래대금 어느 쪽이든) — 기다리는 비용은 거의 없다.
+#   매도·매수 1호가 간격 ≤ US_SPREAD% 면 지금처럼 시장가. 넓으면(호가를 모르면) 현재가 지정가 → 개장 +9분 새 현재가 +0.5% → +19분 +1%
+#   → +29분 시장가(놓치지 않는다). 다시 낼 땐 취소가 끝난 것만(이중 매수 막기), 남은 수량만.
+US_SPREAD = 0.5
+US_LADDER = ((9, 0.5), (19, 1.0), (29, None))
+
+
+def us_px(p):
+    return f"{p:.2f}" if p >= 1 else f"{p:.4f}"
+
+
+def us_book(t):
+    r = tget("/api/v1/orderbook", symbol=t) or {}
+    a = (r.get("asks") or [{}])[0].get("price"); b = (r.get("bids") or [{}])[0].get("price")
+    return (float(a) if a else None), (float(b) if b else None)
+
+
+def us_ladder(Lg, placed, S, fx):
+    for mins, up in US_LADDER:
+        lad = [o for o in placed if o.get("lad") and not o.get("lad_done")]
+        if not lad: return
+        sleep_until(S["start"] + dt.timedelta(minutes=mins), "미장 단계 지정가 개장 +%d분" % mins)
+        for o in lad:
+            o["lad_done"] = True
+            try: apply_detail(o, detail(o["oid"], o["t"], o["qty"]))
+            except TossErr as ex:
+                log("단계 지정가 조회 실패", o["t"], ex); o["lad_done"] = False; continue
+            if o.get("status") == "FILLED": continue
+            try:
+                call("POST", "/api/v1/orders/%s/cancel" % o["oid"], acct=True, body={}); o["canceled"] = True
+            except TossErr as ex:
+                log("단계 지정가 취소 안 됨(%s)" % ex.code, o["t"])
+            try: apply_detail(o, detail(o["oid"], o["t"], o["qty"]))
+            except TossErr: pass
+            left = int(float(o["qty"]) - (o.get("fq") or 0))
+            if o.get("status") == "FILLED" or left < 1: continue
+            if o.get("status") not in DONE:
+                log("단계 지정가: 취소가 확정 안 됨 — 다시 안 냄(이중 매수 막기)", o["t"], o.get("status")); continue
+            try: p = prices([o["t"]]).get(o["t"]) or o["ref"]
+            except TossErr: p = o["ref"]
+            n = sum(1 for z in placed if z["t"] == o["t"] and z["rid"] == o["rid"])
+            cid = re.sub(r"[^A-Za-z0-9_-]", "", o["cid"][:32] + "L%d" % n)[:36]
+            body = {"clientOrderId": cid, "symbol": o["t"], "side": "BUY", "quantity": str(left)}
+            body.update({"orderType": "LIMIT", "timeInForce": "DAY", "price": us_px(p * (1 + up / 100))} if up is not None else {"orderType": "MARKET"})
+            body = high_value(body, left * p * (fx or 0))
+            o2 = dict(side="BUY", mk="US", date=o["date"], rid=o["rid"], t=o["t"], name=o["name"], qty=left, cid=cid, at=now().isoformat(),
+                      ref=p, lad=up is not None, step=mins)
+            try:
+                ok = submit(Lg, o2, body)
+            except TossErr as ex:
+                log("단계 지정가 다시 내기 거부(%s)" % ex.code, o["t"]); continue
+            if ok:
+                o["replaced"] = True
+                placed.append(o2); log("단계 지정가 개장 +%d분:" % mins, o["t"], body.get("price") or "시장가", left, "주")
+
+
 # ── 매수 ───────────────────────────────────────────────────────────────
 def candidates(mk, F, ST, R, rank, today_keys):
     pos = [p for p in (ST.get("positions") or []) if p and p.get("code") and not p.get("sell")]
@@ -1101,7 +1159,17 @@ def buy(mk):
         cid = re.sub(r"[^A-Za-z0-9_-]", "", f"ab{S['date']}{rid}{t}")[:36]
         body = high_value({"clientOrderId": cid, "symbol": t, "side": "BUY", "orderType": "MARKET", "quantity": str(q)}, cost)
         if mk == "KR": body["timeInForce"] = "OPG"
-        o = dict(side="BUY", mk=mk, date=S["date"], rid=rid, t=t, name=info[0], qty=q, cid=cid, at=now().isoformat(), ref=px[t])
+        lad, spr = False, None
+        if mk == "US":                                                # 호가 간격이 넓으면 단계 지정가(위 US_LADDER)
+            try:
+                a_, b_ = us_book(t)
+                spr = round((a_ / b_ - 1) * 100, 2) if (a_ and b_) else None
+            except Exception as ex:
+                log("미장 호가 조회 실패", t, repr(ex)[:80])
+            if spr is None or spr > US_SPREAD:
+                lad = True
+                body.update(orderType="LIMIT", timeInForce="DAY", price=us_px(px[t]))
+        o = dict(side="BUY", mk=mk, date=S["date"], rid=rid, t=t, name=info[0], qty=q, cid=cid, at=now().isoformat(), ref=px[t], lad=lad, spread=spr)
         err = None
         try:
             ok = submit(Lg, o, body)
@@ -1138,7 +1206,7 @@ def buy(mk):
             skip.append((rid, t, info[0], "주문 결과 모름 — 다음 실행에서 확정")); room -= cost; continue
         placed.append(o); room -= cost
         if cash is not None: cash -= q * px[t]
-        log("매수 주문:", mk, rid, t, q, "주")
+        log("매수 주문:", mk, rid, t, q, "주", ("단계 지정가 %s(간격 %s%%)" % (body.get("price"), spr)) if lad else "")
         time.sleep(0.3)
     ov_o = None
     if ovp:
@@ -1146,6 +1214,8 @@ def buy(mk):
         except Exception as ex:
             log("지수 덮개 주문 실패:", repr(ex)[:200]); telegram("⚠ <b>[지수 덮개]</b> 주문 실패: %s" % str(ex)[:150])
     job.__exit__()
+    if mk == "US" and any(o.get("lad") for o in placed):
+        us_ladder(Lg, placed, S, fx)
     if placed or ov_o:
         sleep_until((S["start"] + dt.timedelta(seconds=90)) if mk == "KR" else now() + dt.timedelta(seconds=15), "체결 확인")
     wait_fills(placed)
@@ -1176,12 +1246,13 @@ def buy(mk):
         if mk == "KR":
             L.append("✅ [%s] %s %d주 @ %s원 = %s" % (R[o["rid"]][0], o["name"], int(o["fq"]), f"{o['ap']:,.0f}", won(o["fq"] * o["ap"])))
         else:
-            L.append("✅ [%s] %s(%s) %d주 @ $%s = $%s (≈%s)" % (R[o["rid"]][0], o["name"], o["t"], int(o["fq"]), f"{o['ap']:,.2f}", f"{o['fq']*o['ap']:,.0f}", won(o["fq"] * o["ap"] * fx)))
+            L.append("✅ [%s] %s(%s) %d주 @ $%s = $%s (≈%s)%s" % (R[o["rid"]][0], o["name"], o["t"], int(o["fq"]), f"{o['ap']:,.2f}", f"{o['fq']*o['ap']:,.0f}", won(o["fq"] * o["ap"] * fx),
+                                                               (" · 단계 지정가 개장 +%d분" % o["step"]) if o.get("step") else (" · 지정가(호가 간격 %s%%)" % o.get("spread")) if o.get("lad") else ""))
     for o in filled:
         if o["fq"] < float(o["qty"]):
             L.append("⚠ %s 일부 체결 %s/%s주" % (o["name"], _num(o["fq"]), o["qty"]))
     for o in placed:
-        if o not in filled:
+        if o not in filled and not o.get("replaced"):                 # 단계 지정가로 다시 낸 앞 주문은 빼고
             L.append("❌ [%s] %s 미체결(%s)" % (R[o["rid"]][0], o["name"], o.get("status") or "확인 못 함, 다음 실행에서 확정"))
     if skip:
         L.append("못 산 것 %d건: " % len(skip) + " · ".join("[%s] %s(%s)" % (R[r][0] if r in R else r, n_, w) for r, t, n_, w in skip[:8]) + (" …" if len(skip) > 8 else ""))

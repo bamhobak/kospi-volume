@@ -47,6 +47,16 @@ def mult(rel):
 COST = 0.23
 
 
+# 11-06 지정가 상한(사용자 "둘 다 고쳐줘") — 매도 1호가가 08:40 신호가보다 튀어 있으면 그대로 샀다(11-05 토비스 10,670 → 10,890, +2.06%).
+#   지정가 = min(매도 1호가, 08:40 가격 +0.5%) 를 호가 단위로 내림. A4(nxt_shadow.LIVE_*)와 같은 장치.
+LIM_UP = 0.5
+
+
+def tick_floor(p):
+    t = 1 if p < 2000 else 5 if p < 5000 else 10 if p < 20000 else 50 if p < 50000 else 100 if p < 200000 else 500 if p < 500000 else 1000
+    return int(p // t * t)
+
+
 def log(*a):
     s = time.strftime("%Y-%m-%d %H:%M:%S ") + " ".join(str(x) for x in a)
     try:
@@ -204,7 +214,8 @@ def morning():
         rows += [("0841", x["t"], "A", i, p_, v_) for i, (p_, v_) in enumerate(a)] + [("0841", x["t"], "B", i, p_, v_) for i, (p_, v_) in enumerate(b)]
         if not a:
             skip.append((x["name"], "매도 호가 없음")); continue
-        lim = int(a[0][0]); x["ask"] = lim; x["ask_vol"] = a[0][1]
+        x["ask"] = int(a[0][0]); x["ask_vol"] = a[0][1]
+        lim = tick_floor(min(a[0][0], x["p"] * (1 + LIM_UP / 100))); x["lim"] = lim
         k = mult(x["rel"]); x["mult"] = k
         if D.DAY_QTY: q = D.DAY_QTY * k
         else:
@@ -216,7 +227,7 @@ def morning():
             q = math.floor(bp / lim)
             if q < 1: skip.append((x["name"], "매수가능 부족")); continue
         cid = re.sub(r"[^A-Za-z0-9_-]", "", "dn%s%s" % (today, x["t"]))[:36]
-        o = dict(side="BUY", date=today, t=x["t"], name=x["name"], qty=q, cid=cid, rid=RID, lim=lim, pc=x["yc"], rel=x["rel"], at=AT.now().isoformat())
+        o = dict(side="BUY", date=today, t=x["t"], name=x["name"], qty=q, cid=cid, rid=RID, lim=lim, ask=x["ask"], p40=x["p"], pc=x["yc"], rel=x["rel"], at=AT.now().isoformat())
         body = {"clientOrderId": cid, "symbol": x["t"], "side": "BUY", "orderType": "LIMIT", "timeInForce": "DAY", "price": str(lim), "quantity": str(q)}
         try:
             ok = AT.submit(Lg, o, body, D._led_save)
