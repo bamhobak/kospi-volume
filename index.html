@@ -913,7 +913,9 @@ const SWING_FILTERS=FILTERS.slice();
    후보는 장전 08:52 에 이 PC 의 day_alert.py 가 골라 Supabase '__day__' 에 둔다(오늘 갭은 장 전에만 알 수 있어 사이트 표로는 못 고른다). */
 let DAYST=null;
 let NXST=null;   /* [NXT 장전 되돌림](T5) 후보 — 서버 nxt_pre.py 가 08:40 에 Supabase '__nxtpre__' 에 둔다(2026-11-03) */
-const nxpCand=t=>{const d=new Date(Date.now()+9*3600e3).toISOString().slice(0,10).replace(/-/g,'');
+/* 11-06 사용자: 09:00 KRX 시가에 다 팔고 끝나는 규칙인데 안 사진 후보가 하루 종일 매수 대기로 남았다 → 09:00 지나면 숨김 */
+const nxpCand=t=>{const n=new Date(Date.now()+9*3600e3),d=n.toISOString().slice(0,10).replace(/-/g,'');
+  if(n.getUTCHours()>=9)return null;
   return (NXST&&NXST.date===d&&(NXST.cand||[]).find(x=>x.t===t))||null};
 let NXAST=null;  /* [NXT 장후 빠진 종목](T6) — 서버 nxt_shadow.py 가 19:50 에 Supabase '__nxt__' 에 둔다 */
 /* 11-04 사용자: 어제 후보가 다음 날 아침에도 매수 대기로 남았다 → 다음 날 09:00(KRX 시가 매도) 지나면 숨김 ·
