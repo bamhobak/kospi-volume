@@ -354,8 +354,12 @@ def high_value(body, amount_krw):
     return body
 
 
+DEFINITE = {"opposite-pending-order-exists"}   # 11-06: 같은 종목에 반대 방향 주문이 걸려 있어 거절 — 분명한 거부(전엔 409 라 '모름'으로 35초씩 다시 냈다)
+
+
 def _unknown(ex):
     """주문 결과를 알 수 없는 오류인가 — 5xx·409·시간 초과·깨진 응답은 토스에 들어갔을 수 있다. 그 밖의 4xx 는 분명한 거부."""
+    if ex.code in DEFINITE: return False
     return ex.status is None or ex.status == 0 or ex.status in (408, 409, 425) or (ex.status or 0) >= 500
 
 

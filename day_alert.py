@@ -645,9 +645,9 @@ def trade(L, today):
                 ok = AT.submit(Lg, o, body, _led_save)
         except AT.TossErr as ex:
             skip.append((x["name"] + ("" if rid == "T1" else "[%s]" % RNAME.get(rid, rid)), "주문 거부 " + str(ex.code or str(ex)[:100])))
-            if ex.code == "insufficient-buying-power":
+            if ex.code in ("insufficient-buying-power", "opposite-pending-order-exists"):   # 11-06: 같은 종목을 다른 데이 규칙(T5·T6)이 시가에 파는 중이라 못 산 몫도 가상으로
                 sh(want)
-                if bp is not None: bp = min(bp, px * 0.999)   # 이보다 비싼 건 건너뛴다
+                if ex.code == "insufficient-buying-power" and bp is not None: bp = min(bp, px * 0.999)   # 이보다 비싼 건 건너뛴다
             continue                                          # 시가 단일가를 놓치면 사지 않는다(09:05 만 늦어도 효과가 사라진다)
         if not ok:
             skip.append((x["name"], "주문 결과 모름 — 확정 대기")); continue
