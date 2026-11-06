@@ -858,7 +858,7 @@ const FILTERS=[
   {id:'P7',regime:'up',gate:'up60',name:'P7 · 외인 매집',mkt:'KOSPI',cond:'코스피 · **코스피 60일선 위** · 시총 1~10조 · 외국인 20일 ≥ 1% · 기관 60일 < 0.4% · 2개월 거래량 1년 평균의 100~150% · 20일 평균 거래대금 ≥ 30억 · 주가 ≥ 1,000원 · 52주 고점 -15% 이내 · **52주 저점 대비 70% 위** · 내부자 매수 있음',
    desc:'**코스피 종목** · **코스피 60일선 위**(상승·횡보장에서만 열립니다) · **시가총액 1~10조**(초대형주는 제외) · 20일 평균 거래대금 ≥ 30억 · 주가 ≥ 1,000원 · **외국인 20일 누적 순매수 ≥ 거래량의 1%** · **기관 60일 누적 순매수 < 거래량의 0.4%**(기관이 살수록 성적이 나빴습니다) · **최근 2개월 평균 거래량이 1년 평균의 100~150%**(평소 수준 근처 · 극단적으로 늘거나 줄면 제외) · **52주 고점 대비 -15% 이내** · **52주 저점 대비 +70% 이상**(바닥에서 이미 크게 오른 종목만) · **최근 60거래일 내 임원·주요주주 소유상황보고 1건 이상**(내부자가 움직인 종목만) · 최근 90일 내 유상증자·CB 공시 없음 · 우선주 제외',
    alloc:{pct:4.8},
-   rule:{hold:60,stop:null,target:null}, ruleText:'다음날 <em>시가 매수</em> · <em>60거래일</em> 보유 후 종가 매도 (손절·익절 <em>없음</em>)',
+   rule:{hold:60,stop:null,target:null}, ruleText:'다음날 <em>종가 매수</em> · <em>60거래일</em>째 <em>시가 매도</em> (손절·익절 <em>없음</em>) — 11-07 시점 변경: 종가 매수 +0.68%p·시가 매도 +0.60%p(2016~ 일봉)',
    stats:{n:80, perMonth:1.8, monthsActive:30, spanMonths:45, medPerActive:2, topMonth:'202602', topN:11, win:69, pf:4.53, avg:19.03, years:'**검증기간(2023~26) · 실거래 기준** · 2023 +17.5%(12건) / 2024 +15.7%(11건) / 2025 +14.5%(31건) / 2026 +26.5%(26건)  —  신호가 난 달은 **45개월 중 30개월**(난 달 기준 중앙 2건, 가장 많았던 달 2026-02 11건)  —  **기준구간(2016~26, 11년)** 167건 평균 +14.14% · 중앙값 +10.30% · 승률 62% · PF 3.69 · 최악 -36.9% · 월 신뢰구간 하한 +9.6%  —  **학습(2016~22)** 87건 +9.64%(승률 56%, CI하한 +3.6%)  —  참고 **스트레스(2005~15)** 112건 +5.85%(승률 54%) — 공매도·가격제한폭 제도가 지금과 달라 채택 근거로는 쓰지 않습니다'},
    fn:r=>r.mk==='KOSPI'&&!r.pref&&GATE.up60(raw.kospi)
         &&r.cap!=null&&r.cap>=10000&&r.cap<100000
@@ -884,7 +884,7 @@ const FILTERS=[
   {id:'D2',regime:'down',gate:'dn60',name:'D2 · 저PBR 낙폭',mkt:'KOSDAQ',cond:'코스닥 · **코스피 60일선 아래** · **PBR ≤ 0.8** · 20일 -10% 이하 · 당일 거래량 ≥ 20일 평균 2배 · 업종 60일 ≤ -10% · 기관 20일 ≥ 0% · 공매도 감소 · 거래대금 ≥ 5억 · 주가 ≥ 1,000원',
    desc:'**코스닥 종목** · **PBR ≤ 0.8**(DART 재무 기준 — 시가총액 ÷ 자본총계. 발행주식수·자본총계 모두 공시된 값만 사용) · 최근 20거래일 주가 **-10% 이하** · **당일 거래량 ≥ 직전 20일 평균의 2배** · **소속 업종 60일 수익률 -10% 이하** · **코스피 60일선 아래** · **기관 20일 누적 순매수 ≥ 0** · 공매도 비중 5일평균 < 20일평균 · 20일 평균 거래대금 ≥ 5억 · 주가 ≥ 1,000원 · 최근 90일 내 유상증자·CB 공시 없음 · 우선주 제외',
    alloc:{pct:6},
-   rule:{hold:40,stop:null,target:null}, ruleText:'다음날 <em>시가 매수</em> · <em>40거래일</em> 보유 후 종가 매도 (손절·익절 <em>없음</em>)',
+   rule:{hold:40,stop:null,target:null}, ruleText:'다음날 <em>시가 매수</em> · <em>40거래일</em>째 <em>시가 매도</em> (손절·익절 <em>없음</em>) — 11-07 시점 변경: 시가 매도 +0.66%p(2016~ 일봉)',
    stats:{n:27, perMonth:0.6, monthsActive:6, spanMonths:45, medPerActive:2, topMonth:'202408', topN:15, win:67, pf:2.53, avg:6.45, years:'**검증기간(2023~26) · 실거래 기준** · 2023 +13.9%(4건) / 2024 +5.2%(23건)  —  신호가 난 달은 **45개월 중 6개월**(난 달 기준 중앙 2건, 가장 많았던 달 2024-08 15건)  —  **기준구간(2016~26, 11년)** 154건 평균 +37.14% · 중앙값 +25.23% · 승률 84% · PF 19.29 · 최악 -97.5% · 월 신뢰구간 하한 +8.0%  —  **학습(2016~22)** 127건 +43.66%(승률 88%, CI하한 +8.7%)  —  참고 **스트레스(2005~15)** 39건 +6.98%(승률 56%) — 공매도·가격제한폭 제도가 지금과 달라 채택 근거로는 쓰지 않습니다  —  ⚠ **최악 -97.4% 는 데이터 오류가 아니라 실제 상장폐지입니다** — 2016-02-23 매수한 플렉스컴(065270)이 보유 중 거래정지·정리매매를 거쳐 2016-04-11 폐지됐습니다(1,595원 → 73원, 정리매매 7거래일). 저PBR·낙폭 조건은 부실기업을 같이 집으므로 **이 규칙은 폐지 위험을 안고 가는 규칙**입니다. 종목당 비중 5% 가 그 대비입니다'},
    fn:r=>r.mk==='KOSDAQ'&&!r.pref&&r.pbrd!=null&&r.pbrd<=0.8
         &&r.ret20!=null&&r.ret20<=-10&&r.vs1!=null&&r.vs1>=2
@@ -1521,6 +1521,8 @@ function dayFlow(id){
   return `<ol class="dflow" style="--n:${S.length}" aria-label="${codeOf(id)} 하루 진행">`+S.map(([a,b,ti,de,nx])=>{
       const c=!open||nx?'':hm>=b?'done':hm>=a?'now':'';
       return `<li class="${c}"><b><i></i>${nx?'다음 날 ':''}${a.slice(0,2)}:${a.slice(2)}</b><span>${ti}</span><small>${de}</small></li>`}).join('')+`</ol>`}
+/* 11-07 사용자 '후보 2 해줘'(research/timing_daily_1107.py): 매수일 종가에 사는 규칙·매도일 시가에 파는 규칙 — autotrade.py BUY_CLOSE·SELL_OPEN 과 같게 */
+const BUY_CLOSE_R=new Set(['P7']), SELL_OPEN_R=new Set(['P7','D2']);
 function renderCards(rows){
   const box=$('#cards');
   const head=items=>TMODE==='scalp'?(cur==='all'?'':dayFlow(cur)):cur!=='all'?'':waitTiles(items);   /* 2026-10-24 디자인 개편 · 11-05 데이 흐름은 규칙 탭에서만 */
@@ -1615,11 +1617,11 @@ function renderCards(rows){
       </div>
       <div><div class="why">${whyCells(r,f)}</div></div>
       <div class="plan">
-        <div class="st"><span class="k">매수</span><b>${f.id==='T6'?'19:51 NXT 장후':f.id==='T5'?'08:41 NXT 장전':f.id[0]==='T'?'오늘 시가(단일가)':'다음날 시가'}</b></div>
+        <div class="st"><span class="k">매수</span><b>${f.id==='T6'?'19:51 NXT 장후':f.id==='T5'?'08:41 NXT 장전':f.id[0]==='T'?'오늘 시가(단일가)':BUY_CLOSE_R.has(f.id)?'다음날 종가':'다음날 시가'}</b></div>
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         <div class="st"><span class="k">보유</span><b>${f.id==='T6'?'밤새':f.id[0]==='T'?'당일':hold+'거래일'}${f.rule.target?' · 익절 +'+f.rule.target+'%':''}</b></div>
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        <div class="st"><span class="k">매도</span><b>${f.id==='T6'?'다음 날 KRX 시가':f.id==='T5'?'KRX 시가(단일가)':f.id[0]==='T'?'오늘 종가(단일가)':hold+'일 뒤 종가'}</b></div>
+        <div class="st"><span class="k">매도</span><b>${f.id==='T6'?'다음 날 KRX 시가':f.id==='T5'?'KRX 시가(단일가)':f.id[0]==='T'?'오늘 종가(단일가)':hold+(SELL_OPEN_R.has(f.id)?'일째 시가':'일 뒤 종가')}</b></div>
         <div style="flex:none">${heldBy(r.ticker,f.id)
           ?`<button class="ghost" data-buy="${r.ticker}" data-rid="${f.id}" title="이미 보유 · 추가 매수 기록">추가 매수</button>`
           :`<button data-buy="${r.ticker}" data-rid="${f.id}" title="${codeOf(f.id)} 규칙으로 매수를 기록합니다 — 매도일도 이 규칙(${hold}거래일)으로 잡힙니다">매수 기록</button>`}</div>

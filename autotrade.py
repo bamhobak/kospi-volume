@@ -44,6 +44,12 @@ SWING_QTY = 1
 #   60일선 -3% 아래로 마감 → 다음날 시가에 매도(띠 안에서는 그대로). 금액 = 시드에서 자동 보유를 뺀 남은 돈의 50%(10-18 사용자, 처음 30%) · 테스트 동안은 SWING_QTY 주.
 #   계좌(2005~): 연 +15.4% → +18.2% · 낙폭 -12.4% → -14.3% · 수익 난 해 21/22 그대로. 스윙 매도(보유일)는 이 포지션을 건드리지 않는다(overlay=True).
 OVL_ID, OVL_SYM, OVL_NAME, OVL_MA, OVL_BAND, OVL_W = "IX1", "069500", "KODEX 200", 60, 3.0, 0.50   # 10-18 사용자: 30% → 50%
+# 2026-11-07 사용자 '후보 2 해줘'(research/timing_daily_1107.py · timing_cand_1107.py, 2016~ 일봉 학습·검증 둘 다 같은 쪽):
+#   [외인 매집](P7) 매수일 종가에 산다 +0.68%p(8/11해) · 매도일 시가에 판다 +0.60%p(8/11해) · [저PBR 낙폭](D2) 매도일 시가에 판다 +0.66%p(7/10해)
+#   종가 매수 = 15:15 'sell kr' 실행이 'buyclose kr' 를 따로 띄워 15:21 종가 단일가 시장가 · 시가 매도 = 08:35 'plan kr' 실행이 'sellopen kr' 을 띄워 08:51 OPG 시장가.
+#   시가에 못 판 몫은 그날 15:21 원래 매도(종가)가 받는다. 가상 보유(paper)는 원래대로 종가로 기록.
+BUY_CLOSE = {"P7"}
+SELL_OPEN = {"P7", "D2"}
 KST = dt.timezone(dt.timedelta(hours=9))
 DRY = "--dry" in sys.argv
 WAIT0 = "--wait0" in sys.argv
@@ -1062,13 +1068,18 @@ def ovl_record(o, S, info):
         telegram("📉 <b>[지수 덮개] 매도</b> %s %d주 @ %s원 (%+.1f%%)\n%s" % (OVL_NAME, int(o["fq"]), f"{o['ap']:,.0f}", r, why))
 
 
-def buy(mk):
+def buy(mk, at_close=False):
+    """at_close: 국장 BUY_CLOSE 규칙만 매수일 종가 단일가에(15:21 시장가) — 아침 실행은 그 규칙을 건너뛴다."""
     if not guard(): return
     S = session(mk)
     if not S:
         log(mk, "오늘 장 없음 — 건너뜀"); return
     n = now()
-    if mk == "KR":
+    if at_close:
+        if mk != "KR" or not (S["close_auction"] - dt.timedelta(minutes=30) <= n < S["end"] - dt.timedelta(minutes=2)):
+            log("국장 종가 단일가 근처 아님 — 종가 매수 건너뜀"); return
+        at = max(n, S["close_auction"] + dt.timedelta(seconds=60))
+    elif mk == "KR":
         if n >= S["start"]:
             log("국장 이미 개장 — 시가 매수 시각 지남, 건너뜀"); return
         at = max(n, S["open_auction"] + dt.timedelta(seconds=60))        # 장전 시가 단일가 접수 중(08:51)
@@ -1083,11 +1094,11 @@ def buy(mk):
     reconcile()
     safe_heal()
     ovp = ovi = None                                                  # [지수 덮개] — 국장 아침마다 판정(스윙 신호와 무관)
-    if mk == "KR":
+    if mk == "KR" and not at_close:
         try: ovp, ovi = ovl_plan(S, site_state())
         except Exception as ex:
             log("지수 덮개 판정 실패:", repr(ex)[:200]); telegram("⚠ <b>[지수 덮개]</b> 판정 실패: %s" % str(ex)[:150])
-    job = FileLock(OUT / ("job_buy_%s.lock" % mk), wait=900)            # 같은 작업이 겹쳐도 주문은 한 줄로 — 뒤 실행은 앞 실행이 적은 원장을 보고 건너뛴다
+    job = FileLock(OUT / ("job_buy%s_%s.lock" % ("c" if at_close else "", mk)), wait=900)   # 같은 작업이 겹쳐도 주문은 한 줄로 — 뒤 실행은 앞 실행이 적은 원장을 보고 건너뛴다
 
     def ovl_alone():
         if not ovp: return
@@ -1103,6 +1114,8 @@ def buy(mk):
         stale = "신호 기준일을 모른다"
     elif S.get("prev") and have < S["prev"]:
         stale = "신호가 묵었다 — 신호 %s · 직전 거래일 %s" % (have, S["prev"])
+    elif at_close and have >= S["date"]:                              # 종가 매수는 어제 신호를 오늘 종가에 — 오늘 신호면 하루 이르다
+        stale = "신호가 오늘 것 — 종가 매수는 어제 신호만(%s)" % have
     if stale:
         log(mk, "매수 안 함:", stale)
         telegram("⚠ <b>자동매매 %s 매수 안 함</b>\n%s — 묵은 신호" % ("국장" if mk == "KR" else "미장", stale))
@@ -1112,9 +1125,9 @@ def buy(mk):
     Lg = led()
     today_keys = {f"{o['rid']}:{o['t']}" for o in Lg["orders"] if o.get("side") == "BUY" and (o.get("date") == S["date"] or (o.get("date", "") >= SYNC_FROM and not o.get("closed")))}   # 안 맺어진 옛 주문도 다시 사지 않는다
     ST = site_state()
-    C = candidates(mk, F, ST, R, rank, today_keys)
+    C = [c for c in candidates(mk, F, ST, R, rank, today_keys) if (c[2] in BUY_CLOSE) == at_close]   # 종가 매수 규칙은 15:21 실행에서만
     if not C:
-        log(mk, "살 것 없음 · 신호일", have); ovl_alone(); return
+        log(mk, "살 것 없음%s · 신호일" % (" (종가 매수)" if at_close else ""), have); ovl_alone(); return
     syms = sorted({c[3] for c in C})
     nm = names(syms)
     fx = usdkrw() if mk == "US" else None
@@ -1122,7 +1135,7 @@ def buy(mk):
     tied = sum(float(p.get("price") or 0) * float(p.get("qty") or 0) * ((float(p.get("fx") or fx or 0)) if mk == "US" else 1)
                for p in (ST.get("positions") or []) if p.get("auto") and not p.get("sell") and mk_of(p.get("code")) == mk)
     room = SEED[mk] - tied
-    sleep_until(at, "국장 장전 시가 단일가" if mk == "KR" else "미장 개장+1분")
+    sleep_until(at, "국장 종가 단일가(종가 매수)" if at_close else "국장 장전 시가 단일가" if mk == "KR" else "미장 개장+1분")
     try: px = prices(syms)
     except TossErr as ex:                                             # 시세가 막혀도 덮개·알림은 간다
         px = {}; log("시세 조회 실패:", ex); telegram("⚠ 자동매매 %s 시세 조회 실패 — 오늘 신규 매수 건너뜀: %s" % (mk, str(ex)[:120]))
@@ -1162,7 +1175,7 @@ def buy(mk):
             skip.append((rid, t, info[0], "시드 %s 다 참" % won(SEED[mk]))); continue
         cid = re.sub(r"[^A-Za-z0-9_-]", "", f"ab{S['date']}{rid}{t}")[:36]
         body = high_value({"clientOrderId": cid, "symbol": t, "side": "BUY", "orderType": "MARKET", "quantity": str(q)}, cost)
-        if mk == "KR": body["timeInForce"] = "OPG"
+        if mk == "KR" and not at_close: body["timeInForce"] = "OPG"   # 종가 매수는 15:21 시장가(종가 단일가에 든다 — 국장 매도와 같은 방식)
         lad, spr = False, None
         if mk == "US":                                                # 호가 간격이 넓으면 단계 지정가(위 US_LADDER)
             try:
@@ -1179,7 +1192,7 @@ def buy(mk):
             ok = submit(Lg, o, body)
         except TossErr as ex:
             ok, err = False, ex
-            if mk == "KR" and ex.code in ("order-hours-closed", "order-type-not-allowed"):
+            if mk == "KR" and not at_close and ex.code in ("order-hours-closed", "order-type-not-allowed"):
                 # 장전 사전접수가 막히면 개장 직후 시장가로 — 시가 근처
                 log("OPG 거절(%s) — 개장 직후 시장가로" % ex.code)
                 sleep_until(S["start"] + dt.timedelta(seconds=20), "국장 개장 직후")
@@ -1221,7 +1234,7 @@ def buy(mk):
     if mk == "US" and any(o.get("lad") for o in placed):
         us_ladder(Lg, placed, S, fx)
     if placed or ov_o:
-        sleep_until((S["start"] + dt.timedelta(seconds=90)) if mk == "KR" else now() + dt.timedelta(seconds=15), "체결 확인")
+        sleep_until((S["end"] + dt.timedelta(seconds=90)) if at_close else (S["start"] + dt.timedelta(seconds=90)) if mk == "KR" else now() + dt.timedelta(seconds=15), "체결 확인")
     wait_fills(placed)
     if ov_o:
         try: ovl_record(ov_o, S, ovi)
@@ -1245,7 +1258,7 @@ def buy(mk):
     led_save(Lg)
     if filled:
         site_update(lambda P: (P.extend(dict(o["pos"]) for o in filled) or True), "%s 매수 %d건" % (mk, len(filled)))
-    L = ["🤖 <b>자동매매 %s 매수</b> %s/%s" % ("국장" if mk == "KR" else "미장", S["date"][4:6], S["date"][6:])]
+    L = ["🤖 <b>자동매매 %s 매수%s</b> %s/%s" % ("국장" if mk == "KR" else "미장", " (종가)" if at_close else "", S["date"][4:6], S["date"][6:])]
     for o in filled:
         if mk == "KR":
             L.append("✅ [%s] %s %d주 @ %s원 = %s" % (R[o["rid"]][0], o["name"], int(o["fq"]), f"{o['ap']:,.0f}", won(o["fq"] * o["ap"])))
@@ -1284,13 +1297,18 @@ def held_days(sym, buy_date, sess_date):
     return len([d for d in ds if buy_date <= d <= sess_date])
 
 
-def sell(mk):
+def sell(mk, at_open=False):
+    """at_open: 국장 SELL_OPEN 규칙 중 오늘 매도일인 것만 시가 단일가(OPG 시장가)로 — 못 판 몫은 그날 종가 실행이 받는다."""
     if not guard(): return
     S = session(mk)
     if not S:
         log(mk, "오늘 장 없음 — 건너뜀"); return
     n = now()
-    if mk == "KR":
+    if at_open:
+        if mk != "KR" or n >= S["start"]:
+            log("국장 이미 개장 — 시가 매도 건너뜀"); return
+        at = max(n, S["open_auction"] + dt.timedelta(seconds=60))
+    elif mk == "KR":
         if not (S["close_auction"] - dt.timedelta(minutes=30) <= n < S["end"] - dt.timedelta(minutes=2)):
             log("국장 종가 단일가 근처 아님 — 건너뜀"); return
         at = max(n, S["close_auction"] + dt.timedelta(seconds=60))
@@ -1306,6 +1324,8 @@ def sell(mk):
         mine = [p for p in (ST.get("positions") or []) if p.get("auto") and not p.get("sell") and not p.get("overlay") and mk_of(p.get("code")) == mk]   # 지수 덮개는 띠로 판다(ovl_*)
     except Exception as ex:                                           # 사이트가 막혀도 원장으로 판다
         log("사이트 못 읽음 — 원장으로:", repr(ex)[:150]); telegram("⚠ 사이트 못 읽음 — 원장 기준으로 매도 판단"); mine = ledger_positions(mk)
+    if at_open:
+        mine = [p for p in mine if (p.get("filters") or [None])[0] in SELL_OPEN and not p.get("paper")]
     Lg = led()
     open_sell = {o.get("posId") for o in Lg["orders"] if o.get("side") == "SELL" and o.get("date", "") >= SYNC_FROM and o.get("date") != S["date"] and not o.get("closed")}
     due, warn = [], []
@@ -1320,15 +1340,15 @@ def sell(mk):
             log("보유일 계산 실패", p["code"], ex); warn.append("%s 보유일 계산 실패" % p["code"]); continue
         log("보유", p["code"], rid, "%d/%d일" % (d, R[rid][1]) + (" (가상)" if p.get("paper") else ""))
         if d >= R[rid][1]: due.append((p, rid, d))
-    if warn:
+    if warn and not at_open:                                          # 시가 매도 실행은 경고를 종가 실행에 맡긴다(같은 경고 두 번)
         telegram("⚠ <b>자동매매 %s 매도 판단 못 한 것</b> %d건\n%s" % (mk, len(warn), " · ".join(warn[:10])))
     if not due:
-        log(mk, "오늘 팔 것 없음 (자동 보유 %d)" % len(mine)); return
+        log(mk, "오늘 팔 것 없음%s (자동 보유 %d)" % (" (시가 매도)" if at_open else "", len(mine))); return
     # 2026-10-16 사용자: 돈 없어 못 산 것을 '산 걸로' 넣은 가상 보유(paper)는 토스 주문 없이 그날 종가로 매도 기록만
     paper = [x for x in due if x[0].get("paper")]
     due = [x for x in due if not x[0].get("paper")]
-    sleep_until(at, "국장 종가 단일가" if mk == "KR" else "미장 LOC 접수")
-    job = FileLock(OUT / ("job_sell_%s.lock" % mk), wait=300)
+    sleep_until(at, "국장 시가 단일가(시가 매도)" if at_open else "국장 종가 단일가" if mk == "KR" else "미장 LOC 접수")
+    job = FileLock(OUT / ("job_sell%s_%s.lock" % ("o" if at_open else "", mk)), wait=300)
     job.__enter__()
     Lg = led()
     # 끝났는데 안 팔린 주문(접수 뒤 거절·취소)이나 일부만 팔린 주문은 다시 낸다 — 나머지는 이미 나간 것
@@ -1363,6 +1383,7 @@ def sell(mk):
         body = {"clientOrderId": cid, "symbol": p["code"], "side": "SELL", "quantity": str(q)}
         if mk == "KR":
             body["orderType"] = "MARKET"
+            if at_open: body["timeInForce"] = "OPG"
         else:
             ref = px.get(p["code"], float(p["price"]))
             body.update(orderType="LIMIT", timeInForce="CLS", price="%.2f" % (math.floor(ref * 80) / 100))   # 현재가의 80% — 종가가 그 위면 종가 체결
@@ -1388,8 +1409,17 @@ def sell(mk):
         time.sleep(0.3)
     job.__exit__()
     if placed:
-        sleep_until(S["end"] + dt.timedelta(seconds=90 if mk == "KR" else 150), "종가 체결 확인")
+        if at_open: sleep_until(S["start"] + dt.timedelta(seconds=90), "시가 체결 확인")
+        else: sleep_until(S["end"] + dt.timedelta(seconds=90 if mk == "KR" else 150), "종가 체결 확인")
     wait_fills([o for o, _ in placed])
+    if at_open:                                                       # 시가에 안 팔린 몫은 취소 — 그날 종가 실행이 다시 낸다(살아 있으면 종가 실행이 건너뛴다)
+        for o, _ in placed:
+            if o.get("status") and o["status"] not in DONE:
+                try:
+                    call("POST", "/api/v1/orders/%s/cancel" % o["oid"], acct=True, body={}); o["canceled"] = True
+                    apply_detail(o, detail(o["oid"], o["t"], o["qty"]))
+                except TossErr as ex:
+                    log("시가 매도 남은 몫 취소 실패(%s):" % ex.code, o["t"])
     led_save(Lg)                                                      # 체결부터 원장에 — 환율·사이트가 실패해도 안 사라진다
     fx = None
     if mk == "US":
@@ -1410,7 +1440,7 @@ def sell(mk):
             sold.append((o, p))
             if not whole: parted.append(o)
     led_save(Lg)
-    L = ["🤖 <b>자동매매 %s 매도</b> %s/%s" % ("국장" if mk == "KR" else "미장", S["date"][4:6], S["date"][6:])]
+    L = ["🤖 <b>자동매매 %s 매도%s</b> %s/%s" % ("국장" if mk == "KR" else "미장", " (시가)" if at_open else "", S["date"][4:6], S["date"][6:])]
     for o, p in sold:
         r = (o["ap"] / float(p["price"]) - 1) * 100
         bp_, sp_ = (f"{float(p['price']):,.0f}", f"{o['ap']:,.0f}") if mk == "KR" else ("$%.2f" % float(p["price"]), "$%.2f" % o["ap"])
@@ -1485,15 +1515,30 @@ if __name__ == "__main__":
             check()
         elif a[:1] == ["paper"] and len(a) >= 5:          # python autotrade.py paper kr 298040 P6 20261016
             paper_buy(a[1].upper(), a[2], a[3], a[4])
-        elif a[:1] in (["plan"], ["buy"], ["sell"]) and len(a) > 1 and a[1].lower() in ("kr", "us"):
+        elif a[:1] in (["plan"], ["buy"], ["sell"], ["sellopen"], ["buyclose"]) and len(a) > 1 and a[1].lower() in ("kr", "us"):
             if MODE != "live" and not DRY:
                 log("AUTOTRADE_MODE=%s — 주문하지 않는다(live 일 때만)" % MODE)
-            elif a[0] == "sell":
-                sell(a[1].upper())
+            elif a[0] == "sellopen":
+                sell(a[1].upper(), at_open=True)
+            elif a[0] == "buyclose":
+                buy(a[1].upper(), at_close=True)
             else:
-                buy(a[1].upper())
+                # 2026-11-07: 국장은 시가 매도(SELL_OPEN)·종가 매수(BUY_CLOSE)를 따로 띄운다 — 같은 시각에 주문을 내야 해서 한 줄로 못 돈다(예약 작업은 그대로)
+                if a[1].lower() == "kr" and (SELL_OPEN if a[0] != "sell" else BUY_CLOSE):
+                    import subprocess
+                    sub = "sellopen" if a[0] != "sell" else "buyclose"
+                    try:
+                        subprocess.Popen([sys.executable, str(Path(__file__).resolve()), sub, "kr"] + [x for x in sys.argv[1:] if x.startswith("--")],
+                                         cwd=str(BASE), creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                        log("따로 띄움:", sub, "kr")
+                    except Exception as ex:
+                        log("따로 띄우기 실패:", sub, repr(ex)[:150]); telegram("⚠ 자동매매 %s 못 띄움: %s" % (sub, str(ex)[:120]))
+                if a[0] == "sell":
+                    sell(a[1].upper())
+                else:
+                    buy(a[1].upper())
         else:
-            log("사용법: python autotrade.py check | plan kr|us | sell kr|us  [--dry] [--wait0]")
+            log("사용법: python autotrade.py check | plan kr|us | sell kr|us | sellopen kr | buyclose kr  [--dry] [--wait0]")
     except (Exception, SystemExit) as ex:
         log("실패:", repr(ex)[:500])
         telegram("⚠ <b>자동매매 실패</b>: %s" % (str(ex)[:300]))
