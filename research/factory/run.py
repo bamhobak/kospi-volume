@@ -74,6 +74,11 @@ def night():
     import lab, answer, evolve, harvest, health
     try: health.deadman()
     except Exception as ex: C.log("점검기 감시 실패:", repr(ex)[:200])
+    try:                                             # 공시 시각(KIND) 어제·오늘 — 2026-11-07 자료 보강 ②
+        import subprocess
+        subprocess.run([sys.executable, str(C.BASE / "collect_kind_time.py"), "daily"], cwd=str(C.BASE), timeout=900,
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except Exception as ex: C.log("공시 시각 매일 실패:", repr(ex)[:200])
     from verdict import trial_count
     t0 = time.time()
     rep = ["# 규칙 공장 밤 보고 · %s" % time.strftime("%Y-%m-%d %H:%M"), ""]
