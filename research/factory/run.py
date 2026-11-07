@@ -18,10 +18,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import common as C
 
 
+def tape(part, day):
+    """실매매 대상 촘촘 녹화(tape.py)를 따로 띄운다 — 예약 작업 추가 없이(2026-11-07)."""
+    import subprocess
+    try:
+        subprocess.Popen([sys.executable, str(Path(__file__).resolve().parent / "tape.py"), part, day],
+                         cwd=str(C.BASE), creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except Exception as ex:
+        C.log("촘촘 녹화 못 띄움:", repr(ex)[:200])
+
+
 def morning():
     day, prev = C.kr_session()
     if not day:
         C.log("국장 휴장 — 아침 쉼"); return
+    tape("am", day)
     import transfer, auction
     try:
         transfer.morning(day)
@@ -34,6 +45,7 @@ def close():
     day, prev = C.kr_session()
     if not day:
         C.log("국장 휴장 — 마감 녹화 쉼"); return
+    tape("pm", day)
     import auction
     auction.close(day)
 
