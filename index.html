@@ -54,7 +54,7 @@ button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--t
 #status .sgrp b.pos{color:var(--up)}#status .sgrp b.neg{color:var(--dn)}
 #status .sgrp b.off{color:var(--dim);font-weight:400}
 .mkt{display:inline-flex;align-items:center;gap:6px;padding:0 2px;font-weight:700;font-size:13px;white-space:nowrap;font-family:'IBM Plex Mono','IBM Plex Sans KR',ui-monospace,monospace;font-variant-numeric:tabular-nums}
-.mkt.up{color:#f87171}.mkt.dn{color:#60a5fa}
+.mkt.up{color:var(--up)}.mkt.dn{color:var(--dn)}
 .mkt small{font-weight:400;opacity:.8}
 .chk{display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);border-radius:0;padding:7px 10px;cursor:pointer;white-space:nowrap}
 .chk input{accent-color:var(--acc);width:15px;height:15px;margin:0}
@@ -72,28 +72,28 @@ button.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--t
 .s-item b{display:block;color:var(--acc);font-size:12px;line-height:1.25;font-family:'IBM Plex Mono','IBM Plex Sans KR',ui-monospace,monospace;font-variant-numeric:tabular-nums}.s-item small{color:var(--mut);font-size:9px}
 .themes{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
 .thtag{background:var(--panel2);border:1px solid var(--line);border-radius:0;padding:3px 8px;font-size:11px;color:var(--mut)}
-.thtag.sector{border-color:var(--acc);color:var(--acc)}.thtag.up{border-color:#f8717155;color:#f87171}
+.thtag.sector{border-color:var(--acc);color:var(--acc)}.thtag.up{border-color:color-mix(in srgb,var(--up) 33%,transparent);color:var(--up)}
 .thtag b{font-weight:700}
 .tag.kq{background:var(--ind)}.tag.bo{background:var(--bth)}.tag.us{background:var(--usc)}
 .tag{display:inline-block;min-width:20px;text-align:center;background:var(--acc);color:#0a0b0e;border-radius:0;padding:1px 6px;font-size:11px;font-weight:700;margin-right:3px}
 button.mini{padding:3px 8px;font-size:11px;border-radius:0}
-.tabs button.pos-tab{border-color:#f8717155;color:#f87171}.tabs button.pos-tab.on{background:#f87171;border-color:#f87171;color:#0a0b0e}
+.tabs button.pos-tab{border-color:color-mix(in srgb,var(--up) 33%,transparent);color:var(--up)}.tabs button.pos-tab.on{background:var(--up);border-color:var(--up);color:#0a0b0e}
 .tabs{display:flex;gap:6px;flex-wrap:wrap}.tabs button{background:var(--panel2);border:1px solid var(--line);color:var(--mut);font-weight:600;padding:7px 12px}
 .tabs button.on{background:var(--acc);border-color:var(--acc);color:#0a0b0e}
-.tabs button.mk-kp{border-color:#a78bfa55;color:#a78bfa}
+.tabs button.mk-kp{border-color:color-mix(in srgb,var(--acc) 33%,transparent);color:var(--acc)}
 .tabs button.mk-kp.on{background:var(--acc);border-color:var(--acc);color:#0a0b0e}
-.tabs button.mk-kq{border-color:#fbbf2455;color:#fbbf24}
+.tabs button.mk-kq{border-color:color-mix(in srgb,var(--ind) 33%,transparent);color:var(--ind)}
 .tabs button.mk-kq.on{background:var(--ind);border-color:var(--ind);color:#0a0b0e}
 .brk{flex-basis:100%;height:0;margin:0}
 .mkleg{display:flex;gap:10px;align-items:center;font-size:11px;color:var(--mut);margin-left:2px}
 .mkleg i{display:inline-block;width:9px;height:9px;border-radius:0;margin-right:4px;vertical-align:-1px}
 .mkleg i.kp{background:var(--acc)}.mkleg i.kq{background:var(--ind)}
 .kqtag{color:var(--ind);font-weight:700}
-.tabs button.done-tab{border-color:#34d39955;color:#34d399}.tabs button.done-tab.on{background:var(--org);border-color:var(--org);color:#0a0b0e}
+.tabs button.done-tab{border-color:color-mix(in srgb,var(--org) 33%,transparent);color:var(--org)}.tabs button.done-tab.on{background:var(--org);border-color:var(--org);color:#0a0b0e}
 .tabs button.all-tab{opacity:.75;font-weight:500}.tabs button.all-tab.on{opacity:1;font-weight:700}.opts label{cursor:pointer}.opts input[type=checkbox]{width:14px;accent-color:var(--acc);vertical-align:-2px}.opts input{width:44px;min-width:0;padding:4px 6px;font-size:12px;text-align:right;flex:none}
 td.sc{color:#99a0ac}
-.rule{margin:12px 16px 0;padding:10px 14px;border:1px solid #f8717144;background:#f871710f;border-radius:0;font-size:13px;line-height:1.6}
-.rule b{color:#f87171;margin-right:8px}.rule em{font-style:normal;color:var(--txt);font-weight:700}.rule small{display:block;color:var(--mut);font-size:11px}
+.rule{margin:12px 16px 0;padding:10px 14px;border:1px solid color-mix(in srgb,var(--up) 27%,transparent);background:color-mix(in srgb,var(--up) 6%,transparent);border-radius:0;font-size:13px;line-height:1.6}
+.rule b{color:var(--up);margin-right:8px}.rule em{font-style:normal;color:var(--txt);font-weight:700}.rule small{display:block;color:var(--mut);font-size:11px}
 /* 좁은 화면에서 데스크톱 배치를 보면 헤더가 한 줄에 안 들어간다. nowrap + 고정높이면
    요약(보유·매수금액·수익률)이 오른쪽으로 밀려나 화면 밖으로 사라진다(2026-09-12 신고).
    넘치면 다음 줄로 내려가게 하고, 넓을 때는 margin-left:auto 로 예전처럼 오른쪽에 붙인다. */
@@ -292,11 +292,11 @@ td.name{font-weight:600}td .code{color:var(--mut);font-size:11px;font-weight:400
 .askbox button.ok{background:var(--acc);border-color:var(--acc);color:#12131a;font-weight:600}
 .pos{color:var(--up)}.neg{color:var(--dn)}
 /* 매도일 임박 — 가까울수록 진해진다. 손익색과 겹치지 않게 초록만 쓴다. */
-.sd2{color:#4ade80;opacity:.5}
-.sd1{color:#4ade80}
+.sd2{color:var(--bth);opacity:.5}
+.sd1{color:var(--bth)}
 .sd0{color:#22c55e;font-weight:700;background:rgba(34,197,94,.16);padding:1px 6px;border-radius:2px}
 .pct{font-size:11px;opacity:.85;margin-left:3px}
-.hot{background:#f8717122;color:#f87171;border-radius:0;padding:2px 6px;font-weight:600}
+.hot{background:color-mix(in srgb,var(--up) 13%,transparent);color:var(--up);border-radius:0;padding:2px 6px;font-weight:600}
 /* 상세 패널은 기본으로 숨긴다 — 목록의 '상세' 버튼이 새 창(?detail=코드)으로 띄운다 */
 .side{display:none;padding:16px;flex-direction:column;gap:12px;overflow:auto}
 body.detail header,body.detail .rail,body.detail #fdesc,body.detail .rule,
@@ -451,6 +451,7 @@ button.prim{background:var(--acc);border:1px solid var(--acc);color:#0a0b0e;font
    되돌리려면 이 칸을 지우고 글꼴 이름(IBM Plex ↔ Noto Sans KR·JetBrains Mono)과 --selbg 를 되돌리면 된다. */
 :root{--bg:#0B0D12;--panel:#12151C;--panel2:#181C25;--line:#242A35;--txt:#E8ECF2;--mut:#A0A8B6;--dim:#7A8394;--faint:#5E6676;
   --acc:#F5A524;--acc2:#F5C26B;--up:#FF6166;--dn:#5B9BFF;--ind:#B79CFF;--usc:#34D3C0;
+  --org:#62D394;--bth:#B5D86A;--frg:#F08BD3;/* 11-10: 개편 때 빠져 Tailwind 기본값(34d399·4ade80·e879f9)으로 남던 셋 — 기관·완료 / 공통(A) 규칙 / 외국인 */
   --selbg:#241F1C;/* 고른 줄·칩 — 불투명이어야 고정 첫 칸에 옆 글자가 안 비친다(10-02 신고) */--hi:#1B2030}
 body{font-size:13.5px}
 button{border-radius:8px;color:#1A1206}
@@ -3088,7 +3089,7 @@ function showUS(code){
    +kv('20일 변동성',r.vol20==null?'-':r.vol20.toFixed(2)+'%')
    +kv('20일 고저폭',r.hl20==null?'-':r.hl20.toFixed(1)+'%')
    +kv('20일선 위 비율',r.above20==null?'-':Math.round(r.above20)+'%')+`</div>`
-   +`<div class="legend"><span><i style="background:#a78bfa"></i>거래량</span>`
+   +`<div class="legend"><span><i style="background:var(--acc)"></i>거래량</span>`
    +`<span style="margin-left:auto">최근 ${(r.vols||[]).length}거래일</span></div>`
    +`<div class="chart"><canvas id="c1"></canvas></div>`
    +`<div class="sub" style="margin-top:10px;color:var(--mut);font-size:12px">`
@@ -3138,8 +3139,8 @@ async function showStock(code){
     return (row.up||tags)?`<div class="themes">${row.up?`<span class="thtag sector">${row.up}</span>`:''}${tags}</div>`:''})()}</div><div style="display:flex;gap:6px;flex:none;align-items:flex-start">${(()=>{const hp=heldPos(d.ticker);
     return `<button class="ghost mini" id="buyhere" title="${hp?'이미 보유 · 추가 매수 기록':'직접 매수 기록'}">${hp?'추가 매수':'매수'}</button>`})()}<button class="ghost mini" id="close">닫기</button></div></div>
   <div class="kpi"><div><small>최근 거래량</small><b>${kor(L.volume)}</b></div><div><small>개인 누적(${rows.length}일)</small><b class="${cls(sum('indiv'))}">${kor(sum('indiv'),1)}</b></div><div><small>기관 누적</small><b class="${cls(sum('organ'))}">${kor(sum('organ'),1)}</b></div><div><small>외국인 누적</small><b class="${cls(sum('frgn'))}">${kor(sum('frgn'),1)}</b></div></div>
-  <div class="legend"><span><i style="background:#a78bfa"></i>거래량</span><span><i style="background:#eef1f6"></i>종가</span></div><div class="chart"><canvas id="c1"></canvas></div>
-  <div class="legend"><span><i style="background:var(--ind)"></i>개인</span><span><i style="background:var(--org)"></i>기관</span><span><i style="background:var(--frg)"></i>외국인</span><span style="margin-left:auto">일별 순매수</span></div><div class="chart"><canvas id="c2"></canvas></div>
+  <div class="legend"><span><i style="background:var(--acc)"></i>거래량</span><span><i style="background:#eef1f6"></i>종가</span></div><div class="chart"><canvas id="c1"></canvas></div>
+  <div class="legend"><span><i style="background:var(--acc2)"></i>개인</span><span><i style="background:var(--org)"></i>기관</span><span><i style="background:var(--frg)"></i>외국인</span><span style="margin-left:auto">일별 순매수</span></div><div class="chart"><canvas id="c2"></canvas></div>
   <div class="legend"><span style="margin-left:auto">누적 순매수</span></div><div class="chart"><canvas id="c3"></canvas></div>`;
   $('#side').classList.add('open');$('#close').onclick=()=>$('#side').classList.remove('open');
   {const bb=$('#buyhere');
@@ -3147,14 +3148,15 @@ async function showStock(code){
      addPosition(d.ticker,d.name,row?row.close:(L?L.close:0))};}
   if(!window.Chart)await chartReady();                    /* 차트 라이브러리를 막지 않고 받으므로(10-13) 아직이면 기다린다 */
   charts.forEach(c=>c.destroy());charts=[];
+  const cv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();   // 11-10: 차트 색도 사이트 색 변수에서(범례와 같게)
   const grid={color:'#2A303C'},tick={color:'#A0A8B6',font:{size:10}};
   const base={responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.dataset.label==='종가'?c.raw.toLocaleString():kor(c.raw,1)}`}}},scales:{x:{grid:{display:false},ticks:{...tick,maxTicksLimit:8}}}};
   charts.push(new Chart($('#c1'),{data:{labels,datasets:[{type:'bar',label:'거래량',data:rows.map(r=>r.volume),backgroundColor:'#F5A52488',yAxisID:'y',borderRadius:3},{type:'line',label:'종가',data:rows.map(r=>r.close),borderColor:'#E8ECF2',borderWidth:2,pointRadius:2,yAxisID:'y2',tension:.3}]},
     options:{...base,scales:{...base.scales,y:{grid,ticks:{...tick,callback:v=>kor(v)}},y2:{position:'right',grid:{display:false},ticks:{...tick,callback:v=>v.toLocaleString()}}}}}));
   const ds=(k,label,c)=>({label,data:rows.map(r=>r[k]),backgroundColor:c,borderColor:c});
-  charts.push(new Chart($('#c2'),{type:'bar',data:{labels,datasets:[ds('indiv','개인','#fbbf24'),ds('organ','기관','#34d399'),ds('frgn','외국인','#e879f9')]},options:{...base,scales:{...base.scales,y:{grid,ticks:{...tick,callback:v=>kor(v,1)}}}}}));
+  charts.push(new Chart($('#c2'),{type:'bar',data:{labels,datasets:[ds('indiv','개인',cv('--acc2')),ds('organ','기관',cv('--org')),ds('frgn','외국인',cv('--frg'))]},options:{...base,scales:{...base.scales,y:{grid,ticks:{...tick,callback:v=>kor(v,1)}}}}}));
   const cum=k=>{let a=0;return rows.map(r=>a+=(r[k]||0))};
-  charts.push(new Chart($('#c3'),{type:'line',data:{labels,datasets:[{label:'개인',data:cum('indiv'),borderColor:'#fbbf24',tension:.3,pointRadius:1},{label:'기관',data:cum('organ'),borderColor:'#34d399',tension:.3,pointRadius:1},{label:'외국인',data:cum('frgn'),borderColor:'#e879f9',tension:.3,pointRadius:1}]},options:{...base,scales:{...base.scales,y:{grid,ticks:{...tick,callback:v=>kor(v,1)}}}}}));
+  charts.push(new Chart($('#c3'),{type:'line',data:{labels,datasets:[{label:'개인',data:cum('indiv'),borderColor:cv('--acc2'),tension:.3,pointRadius:1},{label:'기관',data:cum('organ'),borderColor:cv('--org'),tension:.3,pointRadius:1},{label:'외국인',data:cum('frgn'),borderColor:cv('--frg'),tension:.3,pointRadius:1}]},options:{...base,scales:{...base.scales,y:{grid,ticks:{...tick,callback:v=>kor(v,1)}}}}}));
 }
 
 
