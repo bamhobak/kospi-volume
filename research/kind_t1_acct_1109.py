@@ -68,7 +68,8 @@ def run(eg, em, eq, mode, cap, Q=0.40, R=-0.5, thr=-1.5, mmax=3.0):
     W["k"] = W.disc.astype(int) if mode == "last" else 0
     W = W.sort_values(["date", "k", "rgap"]); W["cum"] = W.groupby("date").amt.cumsum(); W = W[W.cum <= cap]
     p = W.amt / W.a20 * 100
-    W["pnl"] = W.amt * fill(p) * (W.oc - imp(p) + 0.05) / 100
+    W["inv"] = W.amt * fill(p)
+    W["pnl"] = W.inv * (W.oc - imp(p) + 0.05) / 100
     return W
 
 
@@ -78,7 +79,10 @@ def summ(W):
     ys = W.groupby(W.date.str[:4]).pnl.sum() / 1e4
     dd = W.groupby("date").pnl.sum().cumsum() / 1e4
     return dict(n=len(W) / yrs(W), per=W.oc.mean(), tr=W[tr].pnl.sum() / 1e4 / yrs(W[tr]), te=W[te].pnl.sum() / 1e4 / yrs(W[te]),
-                worst=ys.loc["2016":"2025"].min(), mdd=(dd - dd.cummax()).min(), dshare=W.disc.mean() * 100)
+                worst=ys.loc["2016":"2025"].min(), mdd=(dd - dd.cummax()).min(), dshare=W.disc.mean() * 100,
+                inv_te=W[te].inv.sum() / 1e8 / yrs(W[te]), day_te=W[te].groupby("date").inv.sum().mean() / 1e4,
+                dmax_te=W[te].groupby("date").inv.sum().quantile(0.95) / 1e4, roi_te=W[te].pnl.sum() / W[te].inv.sum() * 100,
+                dinv_te=W[te & W.disc].inv.sum() / max(W[te].inv.sum(), 1) * 100)
 
 
 MODES = (("base", "그대로(지금)"), ("drop", "공시 있음 빼기"), ("half", "공시 있음 0.5배"), ("last", "한도 찰 때 공시 있음 맨 뒤로"))
@@ -90,12 +94,12 @@ for sd in (1, 2, 3, 4, 5):
         for cp in CAPS: acc[(m, cp)].append(summ(run(eg, em, eq, m, cp)))
     print("시드", sd, flush=True)
 L = ["# [갭 하락 조용주] 갭 구간 공시 — 계좌 실측(실전 과정 흉내, 시드 5개 평균) · 2026-11-09", "",
-     "| 하루 한도 | 방법 | 연 건수 | 건당 % | 공시 있음 비중 | **학습 연 손익(만)** | **검증 연 손익(만)** | 최악의 해 | 최대 낙폭(만) |", "|---|---|---|---|---|---|---|---|---|"]
+     "| 하루 한도 | 방법 | 연 건수 | 공시 있음 건수 비중 | 공시 있음 금액 비중(검증) | 학습 연 손익(만) | **검증 연 손익(만)** | **검증 연 매수 총액(억)** | 매수한 날 평균 투입(만) | 상위 5% 날 투입(만) | 투입 대비 수익 | 최대 낙폭(만) |", "|---|---|---|---|---|---|---|---|---|---|---|---|"]
 for cp in CAPS:
     for m, nm in MODES:
         d = pd.DataFrame(acc[(m, cp)]).mean()
-        L.append("| %d천만 | %s | %.0f | %+.2f | %.1f%% | **%+.0f** | **%+.0f** | %+.0f | %+.0f |" % (cp / 1e7, nm, d.n, d.per, d.dshare, d.tr, d.te, d.worst, d.mdd))
+        L.append("| %d천만 | %s | %.0f | %.1f%% | %.1f%% | %+.0f | **%+.0f** | **%.1f** | %.0f | %.0f | %+.2f%% | %+.0f |" % (cp / 1e7, nm, d.n, d.dshare, d.dinv_te, d.tr, d.te, d.inv_te, d.day_te, d.dmax_te, d.roi_te, d.mdd))
 L.append(""); L.append("(칸 %d)" % (len(MODES) * len(CAPS)))
 print("\n".join(L))
-log_trials("kind_t1_acct_1109", len(MODES) * len(CAPS))
+pass  # 같은 칸 다시 잼(투입 금액 열만 추가) — 칸 수 안 늘림
 open("research/reports/kind_t1_acct_1109.md", "w", encoding="utf-8").write("\n".join(L) + "\n")
