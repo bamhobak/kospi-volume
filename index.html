@@ -929,6 +929,15 @@ const kstToday=()=>{const d=new Date(Date.now()+9*3600e3);return d.toISOString()
 /* 2026-10-13: 시가가 지정가보다 높아 안 산 후보(skip)는 그날 사도 의미 없어 숨긴다 — day_alert 가 09:01 에 표시 */
 const dayCand=t=>(DAYST&&DAYST.date===kstToday()&&(DAYST.cand||[]).find(x=>x.t===t&&!x.skip))||null;
 /* 2026-10-13: 시가가 지나면(day_alert 09:01 closed) 그 규칙으로 실제로 산 종목만 남긴다 — 안 산 후보는 이유 무관하게 지금 사도 의미 없다 */
+/* 2026-11-09: 데이 후보 3종(__day__·__nxtpre__·__nxt__)을 다시 받는다 — 처음 열 때만 받아서 09:01 '닫힘' 뒤에도 열어 둔 화면엔 안 산 후보가 남았다.
+   받기 실패한 것은 이전 값 그대로. 바뀌었으면 true(부르는 쪽이 다시 그림). */
+async function pullCand(){
+  try{const r=await Promise.allSettled([rpc('kospi_state_get',{p_pin:'__day__'}),rpc('kospi_state_get',{p_pin:'__nxtpre__'}),rpc('kospi_state_get',{p_pin:'__nxt__'})]);
+    const was=JSON.stringify([DAYST,NXST,NXAST]);
+    if(r[0].status==='fulfilled')DAYST=r[0].value;
+    if(r[1].status==='fulfilled')NXST=r[1].value;
+    if(r[2].status==='fulfilled')NXAST=r[2].value;
+    return was!==JSON.stringify([DAYST,NXST,NXAST])}catch(e){return false}}
 const dayWait=(t,rid)=>{const c=dayCand(t);if(!c)return false;return !DAYST.closed||(c.rules||[]).includes(rid)};
 const SCALP_FILTERS=[
   {id:'T1',regime:'both',gate:'always',name:'A1 · 갭 하락 조용주',mkt:'BOTH',
@@ -2537,6 +2546,8 @@ async function load(){
     const fast=!!(RT.on&&RT.ws);
     /* 실시간이 아니면 평소 10분 · 장 시간에 보유 탭을 보고 있으면 2분(2026-10-06 — F5 를 눌러야 바뀐다는 신고) */
     const every=(rtWindow()&&cur==='pos')?2:10;
+    /* 2026-11-09: 데이 후보도 2분마다 새로 받는다 — 09:01 '닫힘'(안 산 후보 숨김)이 열어 둔 화면엔 안 보였다. 바뀐 때만 다시 그림 */
+    if(LVTICK%2===0&&await pullCand())render();
     if(!fast&&LVTICK%every!==0)return;
     await pullLive(); mktBadge(); LVSEEN=Date.now();
     if(fast)rtPaint();
@@ -2549,7 +2560,9 @@ async function load(){
     LVSEEN=Date.now();
     /* 보유 목록도 새로 받는다 — 다른 기기·자동매매가 적은 기록이 이 탭에 안 보이던 문제(2026-11-01) */
     try{const was=JSON.stringify([POS,POS_S]);await pullRemote();await pullLive();mktBadge();
-      if(RT.on&&RT.ws&&was===JSON.stringify([POS,POS_S]))rtPaint();else if(cur==='pos'||cur==='done')render()}catch(e){}});
+      const cc=await pullCand();                                   /* 데이 후보도(2026-11-09) */
+      if(cc)render();
+      else if(RT.on&&RT.ws&&was===JSON.stringify([POS,POS_S]))rtPaint();else if(cur==='pos'||cur==='done')render()}catch(e){}});
   /* 실시간 토글 — 저장된 값으로 되살리고, 장이 열리면 붙고 닫히면 놓는다 */
   try{RT.on=localStorage.getItem('rt_on')==='1'}catch(e){}
   if(isMobile())RT.on=false;        /* 모바일은 토글 자체를 안 띄운다 — 붙지도 않는다 */
