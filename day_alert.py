@@ -264,6 +264,42 @@ def bad_news(tickers, prev, today):
         log("악재 공시 조회 실패:", repr(ex)[:200]); return None
 
 
+# ── 갭 구간 공시 빼기(2026-11-09 사용자 "빼기로 하자" · H0395 research/kind_filter_1109.py·kind_t1_acct_1109.py) ──
+#   [갭 하락 조용주] 후보 중 갭 구간(전 거래일 15:30 뒤 ~ 오늘 08:50 전)에 KIND 공시(아무 공시)가 있는 종목은 안 산다.
+#   2016~ 건당 학습 +0.35 vs 없음 +0.80 · 검증 +0.26 vs +0.64 · 계좌(한도 5천만) 검증 연 +219 → +246만, 매수 총액 -14%.
+#   KIND 는 KRX 라 저속·순차(collect_kind_time 이 1.2초 간격). 받은 건 kind_time.db 에도 쌓인다. 실패하면 거르지 않고 산다 + 알림.
+#   끄기: .env KIND_FILTER=0
+def kind_prefetch(prev, today, only_today=False):
+    """KIND 하루치 받기 — only_today 면 오늘만(08:50:30), 아니면 전 거래일 + 그 사이 휴일(최대 6일). 성공하면 True."""
+    import collect_kind_time as KT
+    if only_today: days = [today]
+    else:
+        d0 = dt.date(int(prev[:4]), int(prev[4:6]), int(prev[6:])); d1 = dt.date(int(today[:4]), int(today[4:6]), int(today[6:]))
+        days = [(d0 + dt.timedelta(days=i)).strftime("%Y%m%d") for i in range(min((d1 - d0).days, 6))]
+    try:
+        c = KT.db()
+        n = {d: KT.one_day(c, d) for d in days}
+        c.close()
+        log("공시 시각 받음:", n); return True
+    except Exception as ex:
+        log("공시 시각 받기 실패:", days, repr(ex)[:200]); return False
+
+
+def kind_disc(tickers, prev, today):
+    """갭 구간 공시가 있는 종목 {티커: 공시 제목}. 자료가 없으면 None."""
+    import sqlite3
+    try:
+        c = sqlite3.connect(BASE / "data" / "dart" / "kind_time.db", timeout=30)
+        rows = c.execute("SELECT kcode, title FROM kind WHERE market IN ('유가증권','코스닥') AND ((day = ? AND hm > '1530') OR (day > ? AND day < ?) "
+                         "OR (day = ? AND hm < '0850')) ORDER BY dt", (prev, prev, today, today)).fetchall()
+        c.close()
+    except Exception as ex:
+        log("공시 시각 읽기 실패:", repr(ex)[:200]); return None
+    k5 = {}
+    for kc, ti in rows: k5.setdefault(kc, ti)
+    return {t: k5[t[:5]] for t in tickers if t[:5] in k5}
+
+
 def floor_tick(p):
     t = kr_tick(p)
     return int(math.floor(p / t) * t)
@@ -300,6 +336,17 @@ def morning():
     # 2026-10-11 T3(H0313): 짝 미장으로 본 예상 갭 — 08:52 전에 계산해 둔다(미장 일봉 56종목·수 초)
     up = us_pred(today)
     log("짝 미장 예상 갭 %d종목 · %.1f%%↓ %d" % (len(up), T3_CUT, sum(1 for k in pre if k in tiny and up.get(k, 0) <= T3_CUT)))
+    kf = env().get("KIND_FILTER", "1") != "0"
+    kres = {}
+    def _kind_job():                                           # 따로 돈다 — KIND 가 느려도 08:52 매수가 밀리지 않게(08:51:45 까지 못 끝내면 거르기 없이 산다)
+        ok = kind_prefetch(prev, today)                        # 전 거래일 장후·휴일 공시
+        w0 = (dt.datetime.now(KST).replace(hour=8, minute=50, second=30, microsecond=0) - dt.datetime.now(KST)).total_seconds()
+        if w0 > 0: time.sleep(w0)
+        kres["ok"] = kind_prefetch(prev, today, only_today=True) and ok   # 오늘 장전 공시(08:50 까지)
+    kth = None
+    if kf:
+        import threading
+        kth = threading.Thread(target=_kind_job, daemon=True); kth.start()
     # 08:52 까지 기다렸다 예상 시가 — NXT 장전 체결가(08:50 마감) + 장전 단일가 호가
     at = dt.datetime.now(KST).replace(hour=8, minute=52, second=0, microsecond=0)
     w = (at - dt.datetime.now(KST)).total_seconds()
@@ -389,13 +436,25 @@ def morning():
         log("악재 공시로 뺌:", dropped)
     elif bn is None and deep:
         telegram("⚠ 데이: 악재 공시 확인 실패(DART) %d종목 — 그대로 매수" % len(deep))
+    kdrop = []
+    if kf and L:                                                       # 갭 구간 공시 빼기(H0395) — [갭 하락 조용주] 후보만(T4 는 안 잼)
+        if kth is not None:
+            kth.join(max(0.0, (dt.datetime.now(KST).replace(hour=8, minute=51, second=45, microsecond=0) - dt.datetime.now(KST)).total_seconds()))
+        kok = bool(kres.get("ok"))
+        kd = kind_disc({x["t"] for x in L}, prev, today) if kok else None
+        if kd is None:
+            telegram("⚠ 데이: 갭 구간 공시 확인 실패(KIND) — 그대로 매수")
+        elif kd:
+            kdrop = [(x["name"], kd[x["t"]]) for x in L if x["t"] in kd]
+            L = [x for x in L if x["t"] not in kd]
+            log("갭 구간 공시로 뺌:", kdrop)
     log("T4 나스닥 %s(%s) · 덜 반영 %d종목 · 고른 것 %d(겹침 %d) · 넓은 판 기록 %d" % (
         "%+.2f%%" % nas if nas is not None else "모름", nas_src, len(res), len(u_sel), len(u_sel) - len(U), len(u_wide)))
     snap = dict(date=today, prev=prev, made=dt.datetime.now(KST).strftime("%H:%M"), rule=RULE, n_uni=len(uni), n_gap=len(gap), mgap=round(mg, 2),
                 cut=round(sorted(gap.values())[max(int(len(gap) * 0.10) - 1, 0)], 2) if gap else None,
                 src_n={"NXT": sum(1 for s in src.values() if s == "NXT"), "호가": sum(1 for s in src.values() if s == "호가")}, cand=L + U,
                 n_base=len(base_c), kup=kup, thr=thr, nas=(round(nas, 2) if nas is not None else None), nas_src=nas_src,
-                u_sel=u_sel, u_wide=u_wide,
+                u_sel=u_sel, u_wide=u_wide, kind_drop=kdrop,
                 all={s: dict(gap=round(gap[s], 3), src=src[s], pre=s in pre, tiny=s in tiny, t1u=s in t1u) for s in gap})
     (OUT / ("snap_%s.json" % today)).write_text(json.dumps(snap, ensure_ascii=False), encoding="utf-8")
     try:
@@ -430,6 +489,8 @@ def morning():
             body.append("· 🇺🇸 %s(%s) 예상 갭 %+.1f%% · 짝 예상 %+.1f%% · 더 빠짐 %+.1f%%p · 지정가 %s원" % (x["name"], x["t"], x["gap"], x["up"], x["res"], f"{x['lim']:,}"))
     if near:
         body.append("⛔ 예상 시가가 하한가 근처(%g%% 이하)라 안 삼: " % NOBUY_GAP + " · ".join("%s(%+.1f%%)" % z for z in near[:5]))
+    if kdrop:
+        body.append("📰 갭 구간 공시가 있어 안 삼 %d: " % len(kdrop) + " · ".join("%s(%s)" % (n_, r_[:18]) for n_, r_ in kdrop[:6]))
     if dropped:
         body.append("⛔ 시장 대비 -10%%p 넘게 빠졌는데 악재 공시가 있어 안 삼: " + " · ".join("%s(%s)" % (n_, r_[:20]) for n_, r_ in dropped[:5]))
     body.append("갭 하위 10%% 조용한 종목 %d개 · 후보 %d%s" % (len(base_c), len(L), " — 오늘은 안 산다" if not L else ""))
