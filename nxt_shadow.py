@@ -369,7 +369,7 @@ def live_buy(snap):
     done = {o["t"] for o in Lg["orders"] if o.get("date") == d and o.get("side") == "BUY" and o.get("rid") == RID}
     try: nm = {k: v[0] for k, v in AT.names([x["t"] for x in snap["live"]]).items()}
     except Exception: nm = {}
-    placed, skip = [], []
+    placed, skip, paper = [], [], []
     left = LIVE_ACCT                                       # 깊은 순으로 계좌 3천만까지(실전 금액 모드)
     for x in snap["live"]:
         if x["t"] in done: continue
@@ -387,16 +387,21 @@ def live_buy(snap):
             q = math.floor(amt / lim)
         if q < 1:
             skip.append((name, "1주가 너무 비쌈")); continue
+        q0 = q
         if bp is not None and q * lim > bp:
             q = math.floor(bp / lim)
-            if q < 1: skip.append((name, "매수가능 부족")); continue
+            if q < 1:
+                skip.append((name, "매수가능 부족")); paper.append(dict(t=x["t"], name=name, qty=q0, lim=lim, ask=a)); continue
+            paper.append(dict(t=x["t"], name=name, qty=q0 - q, lim=lim, ask=a))      # 줄인 나머지
         cid = re.sub(r"[^A-Za-z0-9_-]", "", "da%s%s" % (d, x["t"]))[:36]
         o = dict(side="BUY", date=d, t=x["t"], name=name, qty=q, cid=cid, rid=RID, lim=lim, ask=a, pc=x.get("krx"), ah=x.get("ah"), rel=x.get("rel"), dayr=x.get("dayr"), at=AT.now().isoformat())
         try:
             ok = AT.submit(Lg, o, {"clientOrderId": cid, "symbol": x["t"], "side": "BUY", "orderType": "LIMIT", "timeInForce": "DAY",
                                    "price": str(lim), "quantity": str(q)}, D._led_save)
         except AT.TossErr as ex:
-            skip.append((name, "주문 거부 " + str(ex.code or str(ex)[:80]))); continue
+            skip.append((name, "주문 거부 " + str(ex.code or str(ex)[:80])))
+            if ex.code == "insufficient-buying-power": paper.append(dict(t=x["t"], name=name, qty=q, lim=lim, ask=a))
+            continue
         if not ok:
             skip.append((name, "주문 결과 모름 — 확정 대기")); continue
         placed.append(o)
@@ -427,15 +432,78 @@ def live_buy(snap):
     D._led_save(Lg)
     if got:
         D.scalp_update(lambda P: (P.extend(dict(o["pos"]) for o in got) or True), "데이 [%s] 매수 %d건" % (RNAME, len(got)))
+    try: pf = paper_buy(d, paper)
+    except Exception as ex:
+        pf = []; log("T6 가상 매수 오류", repr(ex)[:200])
     try:                                                   # 11-04: 사이트 매수 대기엔 실제로 산 것만(안 산 후보는 19:59 뒤 숨김)
         f_ = OUT / ("pick_%s.json" % d); sn = jload(f_) or snap
-        sn["bought"] = sorted({o["t"] for o in got}); jsave(f_, sn); publish("19:59 매수")
+        sn["bought"] = sorted({o["t"] for o in got} | {x["t"] for x in pf}); jsave(f_, sn); publish("19:59 매수")
     except Exception as ex: log("T6 산 것 표시 실패", repr(ex)[:120])
     L = ["🌙 <b>[%s] 매수</b> %s/%s 19:51 · 시장 장후 %+.1f%%" % (RNAME, d[4:6], d[6:], snap.get("mkt") or 0)]
     L += ["✅ %s %d주 @ %s (장후 %+.1f%%)" % (o["name"], int(o["fq"]), f"{o['ap']:,.0f}", o.get("ah") or 0) for o in got]
     L += ["❌ %s 미체결" % o["name"] for o in placed if o not in got]
     if skip: L.append("못 낸 것: " + " · ".join("%s(%s)" % z for z in skip[:6]))
+    if paper: L.append("🧾 가상 매수: " + (" · ".join("%s %d주 @ %s" % (x["name"], x["qty"], f"{x['lim']:,.0f}") for x in pf) or "없음")
+                       + ("" if len(pf) == len(paper) else " (호가가 지정가 위라 안 사졌을 것 %d건)" % (len(paper) - len(pf))))
     telegram("\n".join(L))
+
+
+# ── 가상 매매(2026-11-09 사용자: 돈 모자라 못 산 [NXT 장후 빠진 종목]도 데이 규칙처럼 가상 매수·매도) ──
+#   live_buy 가 '매수가능 부족'(통째로·줄인 나머지·토스 거절)으로 못 낸 몫 → data/nxt/paper_날짜.json
+#   사짐 판정 = 19:51 매도 1호가 ≤ 지정가(실주문과 같은 값) · 매수가 = 지정가 · 사이트 데이 보유에 paper=True(토스 주문 없음)
+#   paper_sell: 다음 거래일 시가 뒤 KRX 시가 단일가로 매도 기록(실제 T6 매도와 같은 값). 실제 매도는 원장만 보므로 가상 보유를 안 판다.
+def paper_buy(d, X):
+    import day_alert as D
+    if not X: return []
+    for x in X: x["fill"] = bool(x.get("ask") and x["ask"] <= x["lim"])
+    f = OUT / ("paper_%s.json" % d)
+    jsave(f, (jload(f) or []) + X)
+    F = [x for x in X if x["fill"]]
+
+    def add(P):
+        have = {(p.get("code"), str(p.get("date"))) for p in P if isinstance(p, dict) and p.get("paper") and RID in (p.get("filters") or [])}
+        n = 0
+        for i, x in enumerate(F):
+            if (x["t"], d) in have: continue
+            P.append({"id": int(time.time() * 1000) + 700 + i, "code": x["t"], "name": x["name"], "date": d, "price": x["lim"],
+                      "qty": int(x["qty"]), "filters": [RID], "auto": True, "day": True, "paper": True})
+            n += 1
+        return n > 0
+    if F: D.scalp_update(add, "데이 [%s] 가상 매수 %d건(돈 모자라 못 낸 몫)" % (RNAME, len(F)))
+    log("T6 가상 매수: 못 낸 몫 %d건 중 사짐 %d건" % (len(X), len(F)))
+    return F
+
+
+def paper_sell():
+    import day_alert as D
+    d = today()
+    S = AT.session("KR")
+    if not S or S["date"] != d: return
+    mine = lambda p: isinstance(p, dict) and p.get("paper") and RID in (p.get("filters") or []) and not p.get("sell") and str(p.get("date") or "") < d
+    todo = sorted({p["code"] for p in (AT.site_raw().get("positions_scalp") or []) if mine(p)})
+    if not todo: return
+    AT.sleep_until(S["start"] + dt.timedelta(seconds=90), "T6 가상 시가 매도")
+    opn = {}
+    for t in todo:
+        try: opn[t] = D.krx_open(t, d, late=True)
+        except Exception as ex: log("T6 가상 매도 시가 못 받음", t, repr(ex)[:100])
+        time.sleep(0.2)
+    opn = {k: v for k, v in opn.items() if v}
+    if not opn:
+        telegram("⚠ [%s] 가상 보유 %d건 시가 못 받음 — 다음 실행 때 다시" % (RNAME, len(todo))); return
+    R = []
+
+    def mark(P):
+        R.clear()
+        for p in P:
+            if mine(p) and opn.get(p.get("code")):
+                p["sell"] = opn[p["code"]]; p["sellDate"] = d
+                R.append((p.get("name") or p["code"], float(p["price"]), p["sell"], (p["sell"] / float(p["price"]) - 1) * 100 - COST))
+        return bool(R)
+    D.scalp_update(mark, "데이 [%s] 가상 시가 매도" % RNAME)
+    if R:
+        telegram("🧾 <b>[%s] 가상 시가 매도</b> %d건 평균 <b>%+.2f%%</b>\n" % (RNAME, len(R), sum(r[3] for r in R) / len(R)) +
+                 "\n".join("· %s %s → %s %+.2f%%" % (n, f"{a:,.0f}", f"{b:,.0f}", r) for n, a, b, r in R))
 
 
 def live_sell():
@@ -498,6 +566,14 @@ def do_sellopen():
     try: live_sell()
     except Exception as ex:
         log("T6 매도 오류", repr(ex)[:300]); telegram("⚠ [%s] 시가 매도 오류: %s" % (RNAME, repr(ex)[:200]))
+    try: test_sell()
+    except Exception as ex: log("시험 1주 매도 오류", repr(ex)[:300])
+    try: paper_sell()                                      # 시가 뒤까지 기다리므로 맨 끝에
+    except Exception as ex:
+        log("T6 가상 매도 오류", repr(ex)[:300]); telegram("⚠ [%s] 가상 시가 매도 오류: %s" % (RNAME, repr(ex)[:200]))
+
+
+def test_sell():
     r = jload(OUT / "test_order.json")
     if not r or r.get("sold") or not r.get("filled"): return
     if (AT.OUT / "STOP").exists(): log("STOP — 시험 1주 매도 안 함"); return
