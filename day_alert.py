@@ -457,18 +457,7 @@ def scalp_update(mutate, why):
     """사이트 데이 보유 목록(positions_scalp)을 읽고 고쳐 쓴다 — 스윙 목록(positions)은 건드리지 않는다.
     사이트가 막혀도 매매를 멈추지 않는다 — 실패는 알리고, 원장이 있으니 day_sync 가 되살린다."""
     try:
-        for att in range(3):
-            d = AT.site_raw()
-            pos = d.get("positions_scalp") if isinstance(d.get("positions_scalp"), list) else []
-            if not mutate(pos): return False
-            d["positions_scalp"] = pos; d["updated"] = int(time.time() * 1000)
-            if AT.DRY:
-                log("사이트 쓰기(보내지 않음):", why); return True
-            AT.rpc("kospi_state_set", {"p_pin": AT._sb["pin"], "p_data": d})
-            if AT.site_state().get("updated") == d["updated"]:
-                log("사이트 기록:", why); return True
-            time.sleep(1)
-        log("⚠ 사이트 기록 실패:", why); telegram("⚠ 데이 사이트 기록 실패: %s" % why)
+        return AT.state_update("positions_scalp", mutate, why)   # 11-09: 스윙 쪽과 같은 잠금·다시 하기(서로 덮어쓰지 않게)
     except Exception as ex:
         log("⚠ 사이트 기록 실패:", why, repr(ex)[:150]); telegram("⚠ 데이 사이트 기록 실패: %s" % why)
     return False

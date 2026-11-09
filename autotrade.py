@@ -524,22 +524,50 @@ def site_raw():
     return d
 
 
-def site_update(mutate, why):
-    """보유 목록을 읽고 고쳐서 다시 쓴다(다른 칸은 그대로). 사이트와 같은 방식으로 updated = ms."""
+SITE_LOCK = OUT / "site_state.lock"      # 사이트 상태(보유·데이 보유)를 고쳐 쓰는 모든 서버 프로그램이 같이 잡는다
+
+
+def _dedupe(before, pos):
+    """고친 뒤 같은 id 가 원래보다 많아졌으면 늘어난 몫을 뺀다 — 앞 시도가 실제론 써졌는데 확인만 어긋났을 때 다시 넣어 두 번 되는 것 막기."""
+    cnt = {}
+    for p in before: cnt[p] = cnt.get(p, 0) + 1
+    seen, out = {}, []
+    for p in pos:
+        k = p.get("id") if isinstance(p, dict) else None
+        if k is not None:
+            seen[k] = seen.get(k, 0) + 1
+            if seen[k] > max(cnt.get(k, 0), 1): continue
+        out.append(p)
+    return out
+
+
+def state_update(key, mutate, why):
+    """사이트 상태의 한 칸(positions·positions_scalp)을 읽고 고쳐서 다시 쓴다(다른 칸은 그대로). updated = ms.
+    2026-11-09: 09:01 스윙 매수 확인·데이 체결 확인·시가 매도 확인이 동시에 읽고-고치고-써서 확인이 3번 다 어긋남 → 스윙 9건이 사이트에서 빠짐.
+    → 서버 안 쓰는 쪽 전부 같은 파일 잠금(SITE_LOCK) 안에서 하고, 어긋나면 간격을 늘려 6번까지. 브라우저 저장과 겹치는 것만 남는다."""
     _sbinit()
-    for att in range(3):
-        d = site_raw()
-        pos = d.get("positions") if isinstance(d.get("positions"), list) else []
-        if not mutate(pos):
-            return False
-        d["positions"] = pos; d["updated"] = int(time.time() * 1000)
-        if DRY:
-            log("사이트 쓰기(보내지 않음):", why, "· 보유", len([p for p in pos if not p.get("sell")])); return True
-        rpc("kospi_state_set", {"p_pin": _sb["pin"], "p_data": d})
-        if site_state().get("updated") == d["updated"]:
-            log("사이트 기록:", why); return True
-        time.sleep(1)
+    with FileLock(SITE_LOCK, wait=180.0):
+        for att in range(6):
+            d = site_raw()
+            pos = d.get(key) if isinstance(d.get(key), list) else []
+            before = [p.get("id") for p in pos if isinstance(p, dict) and p.get("id") is not None]
+            if not mutate(pos):
+                return False
+            pos = _dedupe(before, pos)
+            d[key] = pos; d["updated"] = int(time.time() * 1000)
+            if DRY:
+                log("사이트 쓰기(보내지 않음):", why, "· 보유", len([p for p in pos if not p.get("sell")])); return True
+            rpc("kospi_state_set", {"p_pin": _sb["pin"], "p_data": d})
+            if site_state().get("updated") == d["updated"]:
+                log("사이트 기록:", why, "(%d번째)" % (att + 1) if att else ""); return True
+            log("사이트 기록 어긋남 — 다시(%d):" % (att + 1), why)
+            time.sleep(1.5 * (att + 1))
     raise RuntimeError("사이트 기록 실패: " + why)
+
+
+def site_update(mutate, why):
+    """스윙 보유 목록(positions)을 고쳐 쓴다."""
+    return state_update("positions", mutate, why)
 
 
 def rules():
