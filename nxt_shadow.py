@@ -597,16 +597,17 @@ def do_review():
         review_one(pd_, d)
 
 
-def review_one(pd_, d):
+def review_one(pd_, d, groups=("picks", "big", "live"), force=False):
+    """11-10 사용자: 실전 T6 와 같은 목록('live')도 같이 채점 — force 면 이미 채점한 날도 groups 만 다시 붙인다(되돌아 채우기)."""
     snap = jload(OUT / ("pick_%s.json" % pd_))
-    if not snap or snap.get("reviewed"): return
+    if not snap or (snap.get("reviewed") and not force): return
     S = AT.session("KR") if d == today() else None
     late_open = bool(S) and S["start"].strftime("%H%M") != "0900"     # 수능일 — 09:12 엔 시가가 없다
     first, upto = (1001, "1006") if late_open or d in M.LATE_OPEN else (901, "0903")
     rows, opn = [], {}
     nopen = 0
     wall = lambda x, k: "호가없음" if not x.get("ask") else "벽부족"
-    for grp in ("picks", "big"):
+    for grp in groups:
         for x in snap.get(grp) or []:
             if x["t"] not in opn:
                 try:
@@ -624,7 +625,7 @@ def review_one(pd_, d):
                         + [(r_(x.get("p%d" % sz)) if x.get("p%d" % sz) else (wall(x, sz) if o else "")) for sz in SIZES]
                         + sum(([x.get("amt%d" % cp), (r_(x.get("pd%d" % cp)) if x.get("pd%d" % cp) else (wall(x, cp) if (o and x.get("amt%d" % cp)) else ""))] for cp in DYN_CAPS), []) + [x.get("val10"), x.get("ask10")]
                         + sum(([x.get("wa_" + a), r_(x.get("pw_" + a)) if x.get("pw_" + a) else ((wall(x, a) if x.get("wa_" + a, 0) >= 30e4 else "") if o else "")] for a in TUNED), []))
-    n_pick = len(snap.get("picks") or []) + len(snap.get("big") or [])
+    n_pick = sum(len(snap.get(g) or []) for g in groups)
     if n_pick and nopen == n_pick:                         # 전부 시가가 없으면 아직 안 열린 것 — 채점 끝으로 치지 않는다(다음 실행이 다시 본다)
         log("review %s → %s: 시가가 하나도 없음 — 미룸" % (pd_, d))
         if d < today(): telegram("⚠ NXT 채점 못 함 %s → %s 시가 없음" % (pd_, d))
@@ -640,7 +641,8 @@ def review_one(pd_, d):
                             + sum((["amt_%s" % a, "r_wall_%s" % a] for a in TUNED), []))
         cw.writerows(rows)
     snap["reviewed"] = d; jsave(OUT / ("pick_%s.json" % pd_), snap)
-    log("review %s → %s: %d종목" % (pd_, d, len(rows)))
+    log("review %s → %s: %d종목%s" % (pd_, d, len(rows), " (되돌아 채우기 %s)" % "·".join(groups) if force else ""))
+    if force: return
     publish("다음 날 시가 채점")
     if d != today(): return
     t = jload(OUT / "test_order.json")
@@ -737,10 +739,15 @@ def do_report(send=True):
         n = len(v); m = sum(x for x, _ in v) / n; w = sum(1 for x, _ in v if x > 0) / n * 100
         tot = sum(x / 100 * a for x, a in v if a) / 1e4 if amtcol else None
         return n, m, w, tot
-    for grp, gl in (("picks", "상위 절반"), ("big", "대형 200")):
+    LIVE0 = "20261104"                                     # 11-10 사용자: 실전 시작(11-04 저녁 고름~) 이후 성적을 따로
+    for grp, gl in (("live", "실전 목록(T6 과 같은 고르기)"), ("picks", "상위 절반"), ("big", "대형 200")):
         G = [r for r in rows if r["grp"] == grp]
         if not G: continue
-        md += ["## %s (%d건)" % (gl, len(G)), "", "| 방식 | 건수 | 건당 | 승률 | 합계 |", "|---|---|---|---|---|"]
+        gd = sorted({r["pick_day"] for r in G})
+        md += ["## %s (%d건 · 고른 날 %s~%s)" % (gl, len(G), gd[0], gd[-1]), "", "| 방식 | 건수 | 건당 | 승률 | 합계 |", "|---|---|---|---|---|"]
+        Gl = [r for r in G if r["pick_day"] >= LIVE0]
+        sl = summ(Gl, "r_ask") if Gl else None
+        if sl: md[len(md) - 2:len(md) - 2] = ["실전 시작(%s) 이후: %d건 · 매도 1호가 건당 %+.2f%% · 승률 %.0f%%" % (LIVE0, sl[0], sl[1], sl[2]), ""]
         best = []
         for lab, col, ac in (("매도 1호가", "r_ask", None), ("매수 1호가(체결 때만)", "r_bid", None), ("10분 평균가", "r_vwap", None), ("10분 최고가", "r_high", None),
                              ("100만 호가 타기", "r_100만", None), ("300만", "r_300만", None), ("500만", "r_500만", None), ("1000만", "r_1000만", None),
