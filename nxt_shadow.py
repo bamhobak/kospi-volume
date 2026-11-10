@@ -167,6 +167,10 @@ def bars(s, day, upto):
 
 def do_close():
     if not trading_today(): log("close: 장 없는 날"); return
+    try:                                                   # 11-10: 늦게 끝나는 날(수능일 16:30)엔 15:36 이 장중 — 장 끝 +6분까지 기다렸다 종가를 적는다
+        w = (AT.session("KR")["end"] + dt.timedelta(minutes=6) - dt.datetime.now(KST)).total_seconds()
+        if 0 < w < 3 * 3600: log("close: 장 끝 +6분까지 기다림 %.0f초" % w); time.sleep(w)
+    except Exception as ex: log("close: 장 끝 시각 못 받음", repr(ex)[:100])
     U, asof, BIG = universe()
     px = prices(U)
     cl = {s: p for s, (p, ts) in px.items() if ts[:10].replace("-", "") == today()}
@@ -187,8 +191,10 @@ def do_pick():
     if w > 0: log("19:50 까지 기다림 %.0f초" % w); time.sleep(w)
     px = prices(sorted(C))
     ah = {}
+    try: ahfrom = (AT.session("KR")["end"] + dt.timedelta(minutes=11)).strftime("%H:%M")     # 평소 15:41 · 수능일 16:41
+    except Exception: ahfrom = "15:41"
     for s, (p, ts) in px.items():
-        if s in C and ts[:10].replace("-", "") == d and ts[11:16] >= "15:41":       # 오늘 장후에 체결된 종목만(= NXT 거래)
+        if s in C and ts[:10].replace("-", "") == d and ts[11:16] >= ahfrom:       # 오늘 장후에 체결된 종목만(= NXT 거래)
             ah[s] = (p / C[s] - 1) * 100
     if len(ah) < 30:
         log("pick: 장후 시세 종목 %d — 너무 적음" % len(ah)); telegram("⚠ NXT 그림자: 장후 시세 종목 %d개뿐" % len(ah)); return
@@ -507,16 +513,18 @@ def paper_sell():
 
 
 def live_sell():
-    """다음 거래일 08:50:30 — 직전 거래일 이전에 T6 로 사서 아직 안 판 몫을 KRX 시가 단일가(OPG) 시장가로."""
+    """다음 거래일 개장 9분 30초 전(평소 08:50:30) — 직전 거래일 이전에 T6 로 사서 아직 안 판 몫을 KRX 시가 단일가(OPG) 시장가로."""
     import day_alert as D
     d = today()
     if (AT.OUT / "STOP").exists():
         log("STOP — T6 매도 안 함(이월 매도도 STOP 을 본다)"); return
     S = AT.session("KR")
     if not S or S["date"] != d: return
-    at = dt.datetime.now(KST).replace(hour=8, minute=50, second=30, microsecond=0)
+    at = S["start"] - dt.timedelta(minutes=9, seconds=30)   # 11-10: 개장 9분 30초 전(평소 08:50:30 · 수능일 10시 개장이면 09:50:30) — 전엔 08:50:30 고정
     w = (at - dt.datetime.now(KST)).total_seconds()
-    if w > 0: time.sleep(w)
+    if w > 0:
+        if w > 600: log("T6 시가 매도: 개장 %s — %s 까지 기다림" % (S["start"].strftime("%H:%M"), at.strftime("%H:%M:%S")))
+        time.sleep(w)
     Lg = D._led()
     sold = {}
     for o in Lg["orders"]:
