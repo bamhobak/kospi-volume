@@ -192,7 +192,8 @@ def check():
         for r in rows:
             if r["date"] in ds: by[r["src"]].append(r)
         for src, rs_ in by.items():
-            if len({r["date"] for r in rs_}) == 2 and all(r["tried"] > 0 and r["ok"] == 0 for r in rs_):
+            # 11-10: 받기는 됐는데 글이 짧은 것(short — 뽐뿌는 공시 봇 글이 대부분)은 막힌 게 아니다 → 짧은 글 뺀 시도가 있을 때만
+            if len({r["date"] for r in rs_}) == 2 and all(r["tried"] - r.get("short", 0) > 0 and r["ok"] == 0 for r in rs_):
                 bad("⚠", "수집처 '%s' 두 밤 연속 본문 0건(시도 %d) — 막혔거나 화면 구조가 바뀜" % (src, sum(r["tried"] for r in rs_)))
     try:
         import pace
@@ -250,7 +251,7 @@ def _quality(bad, ok, day, A):
         if nan("a_eq") > 20: bad("⚠", "%s 장전 예상 갭(a_eq) 빈칸 %.0f%% — 녹화·계산 확인" % (day, nan("a_eq")))
         e = U.a_err.abs().median()
         if e == e:
-            if e > 1.0: bad("⚠", "%s 장전 예상 갭이 실제 갭과 중앙 %.2f%%p 어긋남(0.3 안팎 정상) — 균형가격 계산·녹화 시각 확인" % (day, e))
+            if e > 1.0: bad("⚠", "%s 장전 예상 갭 오차 중앙 %.2f%%p(평소 0.5 안팎, 시장 갭 %+.1f%% — 크게 출렁인 날은 커짐)" % (day, e, U.gap.median()))
             else: ok.append("장전 예상 갭 오차 중앙 %.2f%%p" % e)
     Z = U[["tr_pred", "gap"]].dropna()
     if len(Z) > 300:
