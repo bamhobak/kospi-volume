@@ -32,6 +32,9 @@ RID = "T5"
 RNAME = "NXT 장전 되돌림"
 REL = -3.0                 # 시장(NXT 종목 장전 중앙) 대비 %p 이하
 CUM_MAX = 1_019_060_000    # 08:01~08:40 장전 누적 거래대금 상한(원) — 학습 2025 신호(-3%p↓) 하위 1/3 경계(pmrev5)
+RANK_MAX = 5               # 2026-11-10 사용자 승인: 그날 NXT 전 종목 중 시장 대비 가장 많이 빠진 순위 5 안만 산다(두꺼운 종목도 순위에 넣어 센다)
+#   연구(pmrev5 369일, research/reports 없음 — 기억 review-1110): 순위 1 +3.13% · 2~3 +1.66 · 4~6 +0.49 · 7~10 +0.49 · 11↑ +0.1(붐비는 날이든 아니든 순위가 가른다).
+#   지금 649건 +1.08 → 순위 5 안 328건 +1.88(2025 +1.62/2026 +2.05). 계단×100만 연 손익 그대로(+422만)·필요 자금 최대 2,549→605만·최악의 날 -53→-14만. 되돌리려면 999.
 PRE_MAX = 30.0             # |어제 종가 대비| 30% 넘는 값은 버린다(연구와 같게)
 FRESH = (8, 35)            # 신호가 = 08:35 이후 체결만(연구: 5분 안 체결)
 SIG_AT, BUY_AT, BUY_END, SELL_AT = (8, 40, 1), (8, 41, 0), (8, 46, 0), (8, 50, 30)
@@ -174,24 +177,27 @@ def morning():
         D.telegram("⚠ [%s] 08:40 장전 체결 종목 %d개뿐 — 오늘 쉼" % (RNAME, len(px))); return
     pres = sorted(v[1] for v in px.values())
     mpre = pres[len(pres) // 2]
+    rk = {s: i + 1 for i, s in enumerate(sorted(px, key=lambda s: px[s][1]))}      # 그날 순위(1 = 가장 많이 빠짐) — 전 종목 기준
     watch = sorted([s for s, v in px.items() if v[1] - mpre <= WATCH_REL], key=lambda s: px[s][1] - mpre)
     C = []
     for s in watch:
         rel = px[s][1] - mpre
-        x = dict(t=s, name=NM.get(s, s), yc=YC[s], p=px[s][0], pre=round(px[s][1], 2), rel=round(rel, 2))
+        x = dict(t=s, name=NM.get(s, s), yc=YC[s], p=px[s][0], pre=round(px[s][1], 2), rel=round(rel, 2), rank=rk[s])
         if rel <= REL:
             try:
                 B = pm_bars(s, today, "0840")
                 x["cum"] = round(sum(r[4] * r[5] for r in B)); x["nbar"] = sum(1 for r in B if r[5] > 0)
             except Exception as ex:
                 log("장전 봉 못 받음", s, repr(ex)[:80])
-        x["pick"] = bool(rel <= REL and x.get("cum") is not None and x["cum"] <= CUM_MAX)
+        x["pick0"] = bool(rel <= REL and x.get("cum") is not None and x["cum"] <= CUM_MAX)      # 11-10 전 규칙(비교용으로 남긴다)
+        x["pick"] = bool(x["pick0"] and rk[s] <= RANK_MAX)
         C.append(x)
     P = [x for x in C if x["pick"]]
     snap = dict(date=today, made=AT.now().strftime("%H:%M:%S"), rule=RNAME, rid=RID, n_nxt=len(YC), n_fresh=len(px), mpre=round(mpre, 2),
-                rel=REL, cum_max=CUM_MAX, cand=C)
+                rel=REL, cum_max=CUM_MAX, rank_max=RANK_MAX, cand=C)
     jsave(OUT / ("snap_%s.json" % today), snap); publish(snap)
-    log("08:40 시장 장전 %+.2f%% · 체결 %d종목 · -2%%p↓ %d · -3%%p↓ %d · 고른 것 %d" % (mpre, len(px), len(C), sum(1 for x in C if x["rel"] <= REL), len(P)))
+    log("08:40 시장 장전 %+.2f%% · 체결 %d종목 · -2%%p↓ %d · -3%%p↓ %d · 옛 규칙이면 %d · 고른 것(순위 %d 안) %d" % (
+        mpre, len(px), len(C), sum(1 for x in C if x["rel"] <= REL), sum(1 for x in C if x["pick0"]), RANK_MAX, len(P)))
     rows = []
     live = D.env().get("DAY_MODE", "notify") == "live"
     if not P:
