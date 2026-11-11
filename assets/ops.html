@@ -87,9 +87,9 @@ function secPrereg(P){
 
 function secAudit(A){
   if(!A||!A.all)return card('audit','실전-연구 대조','','16:50','<div class="body"><div class="empty">자료 없음</div></div>');
-  const t=X=>tbl(['규칙','왕복','실전 건당','연구 건당','차이','살 때 더 냄','팔 때 덜 받음','연구 조건 밖'],X.map(r=>`<tr><td>[${esc(r.rule)}]</td><td class="mono">${r.n}</td><td>${pct(r.live)}</td><td>${pct(r.research)}</td><td>${pct(r.gap,2,'%p')}</td><td>${pct(r.slip_buy)}</td><td>${pct(r.slip_sell)}</td><td class="mono">${r.out==null?'<span class="dim">-</span>':`<span class="${r.out>20?'pos':''}">${r.out}%</span> <span class="dim">${esc(r.out_n)}</span>`}</td></tr>`));
+  const t=X=>tbl(['규칙','왕복','실전 건당','연구 건당','차이','살 때 유리(+)','팔 때 유리(+)','연구 조건 밖'],X.map(r=>`<tr><td>[${esc(r.rule)}]</td><td class="mono">${r.n}</td><td>${pct(r.live)}</td><td>${pct(r.research)}</td><td>${pct(r.gap,2,'%p')}</td><td>${pct(r.slip_buy)}</td><td>${pct(r.slip_sell)}</td><td class="mono">${r.out==null?'<span class="dim">-</span>':`<span class="${r.out>20?'pos':''}">${r.out}%</span> <span class="dim">${esc(r.out_n)}</span>`}</td></tr>`));
   const d=(A.daily||[]).map(r=>`<tr><td class="mono">${dd(r.d)}</td><td class="mono">${r.n}</td><td>${pct(r.live)}</td><td>${pct(r.research)}</td></tr>`);
-  return card('audit','실전-연구 대조','실제로 사고판 값과 연구가 가정한 값(KRX 시가·종가, 매도 1호가)을 왕복마다 비교. 최근 5거래일 차이 -0.3%p 아래 · [갭하락] 조건 밖 20% 넘음 · 지정가 체결 어긋남이면 텔레그램.','매일 16:50',
+  return card('audit','실전-연구 대조','실제로 사고판 값과 연구가 가정한 값(KRX 시가·종가, 매도 1호가)을 왕복마다 비교. 유리(+) = 연구가 가정한 값보다 싸게 샀다·비싸게 팔았다. 최근 5거래일 차이 -0.3%p 아래 · [갭하락] 조건 밖 20% 넘음 · 지정가 체결 어긋남이면 텔레그램.','매일 16:50',
     `<div class="body"><div class="muted" style="margin-bottom:6px">최근 5거래일</div>${t(A.last5)}<div class="muted" style="margin:12px 0 6px">전체 ${dd(A.first)}~${dd(A.lastday)}</div>${t(A.all)}</div>
      <details><summary>날짜별(최근 10일)</summary><div class="dbody">${tbl(['매도일','왕복','실전','연구'],d)}</div></details>`)}
 

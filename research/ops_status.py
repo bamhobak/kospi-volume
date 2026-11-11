@@ -114,7 +114,7 @@ def audit():
         for rid, z in Z.groupby("rid"):
             ic = z.in_cond.dropna()
             out.append(dict(rule=rn.get(rid, rid), n=int(len(z)), live=round(float(z.live.mean()), 2), research=round(float(z.research.mean()), 2),
-                            gap=round(float(z.gap.mean()), 2), slip_buy=round(float(z.slip_buy.mean()), 2), slip_sell=round(float(z.slip_sell.mean()), 2),
+                            gap=round(float(z.gap.mean()), 2), slip_buy=round(float(-z.slip_buy.mean()), 2), slip_sell=round(float(-z.slip_sell.mean()), 2),   # + = 연구보다 유리
                             out=(round(float((ic == 0).mean() * 100)) if len(ic) else None), out_n="%d/%d" % (int((ic == 0).sum()), len(ic)) if len(ic) else ""))
         return out
     days = sorted(A.sell_day.unique())

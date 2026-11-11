@@ -153,12 +153,15 @@ def alerts(A, today, miss):
     msg = []
     for rid, z in R.groupby("rid"):
         if len(z) >= 3 and z.gap.mean() < GAP_WARN:
-            msg.append("[%s] 최근 %d일 %d건 실전 %+.2f%% · 연구 %+.2f%% · 차이 %+.2f%%p(살 때 %+.2f · 팔 때 %+.2f)" % (
+            msg.append("[%s] 최근 %d일 %d건 실전 %+.2f%% · 연구 %+.2f%% · 차이 %+.2f%%p(연구보다 유리: 살 때 %+.2f · 팔 때 %+.2f)" % (
                 RNAME.get(rid, rid), len(days), len(z), z.live.mean(), z.research.mean(), z.gap.mean(), -z.slip_buy.mean(), -z.slip_sell.mean()))
     t1 = R[R.rid.isin(T1F) & R.in_cond.notna()]
     if len(t1) >= 3:
         oc = float((t1.in_cond == 0).mean() * 100)
         if oc > OUT_WARN: msg.append("[갭하락] 최근 %d일 연구 조건 밖 체결 %.0f%% (%d/%d)" % (len(days), oc, int((t1.in_cond == 0).sum()), len(t1)))
+    late = A[(A.sell_day == today) & A.rid.isin(["T5", "T6"]) & (A.slip_sell.abs() > 0.3)]
+    if len(late): msg.append("[%s] 시가 매도가 KRX 시가와 다르게 체결 %d건(시가에 안 팔림?): %s" % (
+        "·".join(sorted({RNAME.get(r, r) for r in late.rid})), len(late), ", ".join(late.name.astype(str)[:5])))
     odd = A[(A.sell_day == today) & (A.fill_odd == 1)]
     if len(odd): msg.append("[갭하락] 시가가 지정가 위인데 사짐 %d건: %s" % (len(odd), ", ".join(odd.name.astype(str)[:5])))
     if miss: msg.append("[갭하락] 시가가 지정가 아래인데 안 사짐 %d건: %s" % (len(miss), ", ".join(m["name"] for m in miss[:5])))
@@ -166,12 +169,12 @@ def alerts(A, today, miss):
 
 
 def report(A):
-    print("| 규칙 | 왕복 | 실전 건당 | 연구 건당 | 차이 | 살 때 더 냄 | 팔 때 덜 받음 | 조건 밖 |")
+    print("| 규칙 | 왕복 | 실전 건당 | 연구 건당 | 차이 | 살 때 유리(+) | 팔 때 유리(+) | 조건 밖 |")
     print("|---|---|---|---|---|---|---|---|")
     for rid, z in A.groupby("rid"):
         ic = z.in_cond.dropna()
         print("| [%s] | %d | %+.2f%% | %+.2f%% | %+.2f%%p | %+.2f%% | %+.2f%% | %s |" % (
-            RNAME.get(rid, rid), len(z), z.live.mean(), z.research.mean(), z.gap.mean(), z.slip_buy.mean(), z.slip_sell.mean(),
+            RNAME.get(rid, rid), len(z), z.live.mean(), z.research.mean(), z.gap.mean(), -z.slip_buy.mean(), -z.slip_sell.mean(),
             ("%.0f%% (%d/%d)" % ((ic == 0).mean() * 100, int((ic == 0).sum()), len(ic))) if len(ic) else "-"))
 
 
