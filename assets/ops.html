@@ -1,11 +1,11 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>자동 현황</title>
+<title>점검 현황</title>
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
 <script src="sb.js"></script>
-<!-- 자동 현황(2026-11-12 사용자 "자동으로 돌아가고 체크하는 것들 … 세세하게 그러나 보기 쉽게"). 서버 research/ops_status.py 가 30분마다 Supabase '__ops__' 에 쓴다. -->
+<!-- 점검 현황(2026-11-12 사용자 "자동으로 돌아가고 체크하는 것들 … 세세하게 그러나 보기 쉽게"). 서버 research/ops_status.py 가 30분마다 Supabase '__ops__' 에 쓴다. -->
 <style>
 :root{--bg:#0B0D12;--panel:#12151C;--panel2:#181C25;--line:#242A35;--txt:#E8ECF2;--mut:#A0A8B6;--dim:#7A8394;--acc:#F5A524;--up:#FF6166;--dn:#5B9BFF;--ind:#F5C26B;--ok:#34D3C0}
 *{box-sizing:border-box}
@@ -53,7 +53,7 @@ summary::before{content:'▸ ';color:var(--dim)}details[open] summary::before{co
 .kv div{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px}.kv small{display:block;color:var(--mut);font-size:11px}.kv b{font-size:15px}
 @media (max-width:640px){header{padding:10px 12px}main{padding:12px 12px 70px}.ch .when{margin-left:0}.strip{grid-template-columns:repeat(3,1fr)}.si{padding:8px 10px}.si b{font-size:17px}}
 </style></head><body>
-<header><a href="./">← 선별기</a><h1><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F5A524" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>자동 현황</h1><span class="up" id="upd">불러오는 중…</span></header>
+<header><a href="./">← 선별기</a><h1><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F5A524" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>점검 현황</h1><span class="up" id="upd">불러오는 중…</span></header>
 <main>
   <div class="strip" id="strip"></div>
   <nav class="toc" id="toc"></nav>

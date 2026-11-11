@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""자동 현황 페이지 자료 — 2026-11-12 사용자 "자동으로 돌아가고 체크하는 것들 … 버튼 하나 만들어서 세세하게 그러나 보기 쉽게".
-30분마다(예약 \\BamhobakFactory\\OpsStatus) 서버에 흩어진 자동 작업 상태를 모아 Supabase '__ops__' 에 올린다 → 사이트 ops.html(자동 현황).
+"""점검 현황 페이지 자료 — 2026-11-12 사용자 "자동으로 돌아가고 체크하는 것들 … 버튼 하나 만들어서 세세하게 그러나 보기 쉽게".
+30분마다(예약 \\BamhobakFactory\\OpsStatus) 서버에 흩어진 자동 작업 상태를 모아 Supabase '__ops__' 에 올린다 → 사이트 ops.html(점검 현황).
   작업표: \\Bamhobak* 예약 작업 전부 + 연구 수집 — 마지막 실행·결과·다음 실행 · 하는 일 한 줄
   시스템별: 사전 등록 판정 · 실전-연구 대조 · 검토관 · 밤 연구 일꾼 · 녹화 넓히기 · 밤 과거 받기 · 체결 손해 · 아침 브리핑 · 점검기(스스로 고친 것) · 공장 그림자
 읽기만 한다(주문·파일 고치기 없음).  python research/ops_status.py [dry]
@@ -216,7 +216,7 @@ def build():
 def main(dry=False):
     J = build()
     s = json.dumps(J, ensure_ascii=False, default=str)
-    print(time.strftime("%Y-%m-%d %H:%M"), "자동 현황 %.0fKB · 작업 %d · 오류 %s" % (len(s) / 1e3, len(J.get("tasks") or []), J.get("err")), flush=True)
+    print(time.strftime("%Y-%m-%d %H:%M"), "점검 현황 %.0fKB · 작업 %d · 오류 %s" % (len(s) / 1e3, len(J.get("tasks") or []), J.get("err")), flush=True)
     if dry:
         print(s[:3000]); return
     import board
