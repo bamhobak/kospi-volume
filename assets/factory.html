@@ -92,7 +92,7 @@ h2{font-size:15px;color:var(--txt);margin:28px 0 10px}
 #shd td.r,#shd th.r{text-align:right}#shd .st{font-size:11px;padding:1px 7px;border-radius:5px;background:rgba(245,165,36,.14);color:#F5C26B}#shd .st.c{background:rgba(91,155,255,.14);color:#9CC2FF}
 #shd details summary{padding:6px 0;color:var(--mut)}
 #nxt .gp{font-size:11px;padding:1px 7px;border-radius:5px;background:rgba(160,168,182,.14);color:#C9D0DB}#nxt .gp.big{background:rgba(52,211,192,.14);color:#5FE0D0}
-/* 그림자 테스트 중 — [갭 하락 조용주] 하루 위 3개(H0362) · 서버 day_top3.py 가 '__t1top3__' 에 5분마다(10-25 사용자) — 모양은 #nxt 와 같게 */
+/* 그림자 테스트 중 — [갭하락] 하루 위 3개(H0362) · 서버 day_top3.py 가 '__t1top3__' 에 5분마다(10-25 사용자) — 모양은 #nxt 와 같게 */
 #t1x{margin-bottom:22px;border:1px solid rgba(245,165,36,.45);border-radius:14px;background:var(--panel);overflow:hidden}
 #t1x .nh{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:14px 18px;border-bottom:1px solid var(--line)}
 #t1x .nh b{font-size:16px}#t1x .tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(245,165,36,.14);color:#F5C26B}
@@ -186,7 +186,7 @@ async function loadNxt(){let N=null;try{N=await rpc('kospi_state_get',{p_pin:'__
   const C=N.cum||{};const cumT=(g,lab)=>(C[g]||[]).length?`<div class="tw" style="margin-bottom:10px"><table><tr><th>${lab} · 매수 방식</th><th class="r">건수</th><th class="r">건당(비용 뒤)</th><th class="r">승률</th><th class="r">합계</th></tr>`
     +C[g].map(c=>`<tr><td>${esc(c.k)}</td><td class="r mono">${c.n}</td><td class="r mono">${pct(c.avg)}</td><td class="r mono">${c.win}%</td><td class="r mono">${c.tot==null?'-':(c.tot>0?'+':'')+c.tot.toLocaleString()+'만'}</td></tr>`).join('')+`</table></div>`:'';
   const T=N.test;const test=T&&T.date?`<div class="sec" style="border-top:1px solid var(--line)"><h3>1주 실주문 시험(NXT 장후 지정가)</h3><span class="mono">${esc(T.date)} ${esc(T.t)}</span> · ${T.error?`<span class="neg">거절 — ${esc(T.error).slice(0,160)}</span>`:`${esc(T.status||'-')} · 지정가 ${won(T.limit)}원 · 체결 ${T.filled||0}주 @ ${won(T.avg)}원${T.sell_avg?` → 다음 날 시가 ${won(T.sell_avg)}원 (${pct((T.sell_avg/T.avg-1)*100)}, 비용 전)`:T.sold?' → 시가 매도 주문함':''}`}</div>`:'';
-  box.innerHTML=`<div class="nh"><span class="tag">그림자 테스트 중</span><b>NXT 장후 빠진 종목 → 다음 날 시가</b><span class="mono muted">${esc(N.hid||'')}</span><span class="muted" style="margin-left:auto">${esc(N.stage||'')} · 갱신 ${esc(N.updated)} · 누적 ${N.days||0}일</span></div>`
+  box.innerHTML=`<div class="nh"><span class="tag">그림자 테스트 중</span><b>장후 낙폭 → 다음 날 시가</b><span class="mono muted">${esc(N.hid||'')}</span><span class="muted" style="margin-left:auto">${esc(N.stage||'')} · 갱신 ${esc(N.updated)} · 누적 ${N.days||0}일</span></div>`
     +`<div class="rule">${esc(N.rule||'')}<br>대형 비교 무리: ${esc(N.big_rule||'')} · 돈은 안 든다(기록만)</div>`
     +`<div class="sec"><h3>${S.date?`${S.date.slice(4,6)}/${S.date.slice(6)} 고른 종목`:'고른 종목'}${S.n_nxt?` <span class="muted" style="font-weight:400">· 장후 거래 ${S.n_nxt}종목 · 시장 장후 ${pct(S.mkt)} · 후보 ${S.n_cand}</span>`:''}</h3>${pick}</div>`
     +((C.picks||C.big)?`<div class="sec" style="border-top:1px solid var(--line)"><h3>누적 성적</h3>${cumT('picks','상위 절반')}${cumT('big','대형 200')}</div>`:'')
@@ -208,7 +208,7 @@ async function loadT1x(){let N=null;try{N=await rpc('kospi_state_get',{p_pin:'__
   const R=N.recent||[];const cell=v=>v?`${pct(v.day)} <span class="muted">${v.nf}/${v.n}</span>`:'-';
   const rec=R.length?`<details><summary class="muted" style="padding:6px 0">날마다 보기 (${R.length}일)</summary><div class="tw"><table><tr><th>날</th><th class="r">시장 갭</th><th class="r">후보</th><th class="r">지금 그물</th><th class="r">위 3개</th><th class="r">위 5개</th></tr>`
     +R.map(d=>`<tr><td class="mono">${md(d.d)}${d.live?' <span class="muted">(장중)</span>':''}</td><td class="r mono">${pct(d.mg)}</td><td class="r mono">${d.n}</td><td class="r mono">${cell(d.all)}</td><td class="r mono">${cell(d.top3)}</td><td class="r mono">${cell(d.top5)}</td></tr>`).join('')+`</table></div><div class="muted" style="font-size:12px;margin-top:6px">칸 = 그날 예산 대비 수익 · 체결/무리 종목 수(안 사진 몫은 0으로 셈)</div></details>`:'';
-  box.innerHTML=`<div class="nh"><span class="tag">그림자 테스트 중</span><b>[갭 하락 조용주] 하루 위 3개만 사면?</b><span class="mono muted">${esc(N.hid||'')}</span><span class="muted" style="margin-left:auto">${esc(N.stage||'')} · 갱신 ${esc(N.updated)} · 누적 ${N.days||0}일</span></div>`
+  box.innerHTML=`<div class="nh"><span class="tag">그림자 테스트 중</span><b>[갭하락] 하루 위 3개만 사면?</b><span class="mono muted">${esc(N.hid||'')}</span><span class="muted" style="margin-left:auto">${esc(N.stage||'')} · 갱신 ${esc(N.updated)} · 누적 ${N.days||0}일</span></div>`
     +`<div class="rule">${esc(N.rule||'')}</div>`
     +`<div class="sec"><h3>${T?`${md(T.date)} 후보 ${T.n}종목`:'후보'}${T&&T.mg!=null?` <span class="muted" style="font-weight:400">· 시장 예상 갭 ${pct(T.mg)} · 노란 줄 = 위 3개</span>`:''}</h3>${pick}</div>`
     +(cum?`<div class="sec" style="border-top:1px solid var(--line)"><h3>누적 성적</h3>${cum}${rec}</div>`:'');

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""데이 [갭 하락 조용주] 실행 방법 실측기 (2026-10-14 사용자: "데이 규칙 각 50·100·200·300·500만원 매수·매도하는 걸로
+"""데이 [갭하락] 실행 방법 실측기 (2026-10-14 사용자: "데이 규칙 각 50·100·200·300·500만원 매수·매도하는 걸로
 어떤 매수 방법·매도 방법이 좋을지 계속 실측 테스트 — 나중에 금액 올릴 때 바로 적용하게").
 
 실제로 큰돈을 사고팔지 않고, **실제 호가창에 우리 주문을 더해 단일가 균형가격을 다시 계산**한다(녹화기 auction.eq_price).
@@ -102,7 +102,7 @@ def run(day, quiet=False):
         print("1분봉 파일 없음 — 건너뜀:", day); return []
     g = B.groupby("t")
     op, cl = g.o.first(), g.c.last()
-    cand = [x for x in snap.get("cand") or [] if x.get("t1", True) and x.get("lim") and x["t"] in op.index and op[x["t"]] <= x["lim"]]   # T4(미장 폭락) 후보는 빼고 [갭 하락 조용주]만
+    cand = [x for x in snap.get("cand") or [] if x.get("t1", True) and x.get("lim") and x["t"] in op.index and op[x["t"]] <= x["lim"]]   # T4(미장 폭락) 후보는 빼고 [갭하락]만
     T = [x["t"] for x in cand]
     am, am_src = _book(day, "am", T)
     pm, pm_src = _book(day, "pm", T)

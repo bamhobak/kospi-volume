@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""데이 첫 규칙 후보 [갭 하락 조용주] — **알림만**(실제 주문 없음) · 2026-10-03 (research H0285).
+"""데이 첫 규칙 후보 [갭하락] — **알림만**(실제 주문 없음) · 2026-10-03 (research H0285).
 
 규칙(일봉 2005~2026 실측, 비용 0.22% 뒤 하루 평균: 학습 16~22 +0.37% 7/7해 · 검증 23~ +0.39% 4/4해 · 05~15 +0.67% 11/11해):
   유니버스 = 국장 보통주 중 20일 평균 거래대금 상위 40%
@@ -47,11 +47,11 @@ PASS_ON, PASS_START, PASS_K, PASS_EVERY = True, "1430", 2, 120
 STOP_PCT = -29.0                                 # 10-19 사용자: 데이로 산 종목이 장중 전일 종가 대비 -29% 에 닿으면 바로 시장가 매도(하한가 묶임 피하기)
 DAY_MAX = None                                    # 하루 최대 종목 수 — None = 제한 없음(후보 전부 주문) · 10-13 10→20 · 10-19 20→50 · 10-21 사용자 제한 없앰: 실행 실측(종목당 100만 체결 89%)상 종목 수를 막을 이유가 없다
 COST = 0.23                                     # 토스 실제 왕복: 수수료 0.015×2 + 거래세 0.20 (index.html DEFFEE)
-RULE = "갭 하락 조용주"
-RNAME = {"T1": "갭 하락 조용주", "T2": "갭 하락 조용주 +", "T3": "갭 하락 조용주 ++", "T4": "미장 폭락 과잉 갭", "T5": "NXT 장전 되돌림", "T6": "NXT 장후 빠진 종목", "T7": "예상보다 낮게 열린 종목"}   # T5 = nxt_pre.py · T6 = nxt_shadow.py(11-03, 같은 원장)
+RULE = "갭하락"
+RNAME = {"T1": "갭하락", "T2": "갭하락+", "T3": "갭하락++", "T4": "미장 폭락", "T5": "장전 되돌림", "T6": "장후 낙폭", "T7": "예상 하회"}   # T5 = nxt_pre.py · T6 = nxt_shadow.py(11-03, 같은 원장)
 # 2026-10-18 T4(사용자 '둘 다 적용' · research H0352): 나스닥 전날 -2.5%↓ 인 날만 — 작은 종목(유니버스 아래 1/3) 중
 #   예상 갭 -2%↓ & 짝 미장으로 본 예상 갭보다 더 빠진 정도(덜 반영 = 갭 − 짝 예상)가 유니버스 하위 10% → 시가 단일가 지정가(어제 종가 -2%) → 종가.
-#   2016~22 1,285건 건당 +1.75% · 승률 69% · PF 2.99 / 2023~ 296건 +2.44% · 74% · PF 5.32 · 연 약 9일 · 그날 15종목쯤. [갭 하락 조용주]와 겹치면 한 번만 산다.
+#   2016~22 1,285건 건당 +1.75% · 승률 69% · PF 2.99 / 2023~ 296건 +2.44% · 74% · PF 5.32 · 연 약 9일 · 그날 15종목쯤. [갭하락]와 겹치면 한 번만 산다.
 U_NAS, U_GAP, U_RQ, U_MAX = -2.5, -2.0, 0.10, None   # U_MAX None = 제한 없음(10-21 사용자, 원래 20)
 U_LIQ = 1 / 2                                     # T4 크기 문턱 — 유니버스 거래대금 아래 1/2(10-21 사용자, 원래 1/3 · research/t1_uni2_1021.py: 새로 걸린 몫 학습 +1.43%·검증 +2.39%)
 W_NAS, W_GAP = -1.5, -3.0                          # 넓은 판(나스닥 -1.5%↓ · 갭 -3%↓) — 사지 않고 기록만(저녁 결과에 비교)
@@ -265,7 +265,7 @@ def bad_news(tickers, prev, today):
 
 
 # ── 갭 구간 공시 빼기(2026-11-09 사용자 "빼기로 하자" · H0395 research/kind_filter_1109.py·kind_t1_acct_1109.py) ──
-#   [갭 하락 조용주] 후보 중 갭 구간(전 거래일 15:30 뒤 ~ 오늘 08:50 전)에 KIND 공시(아무 공시)가 있는 종목은 안 산다.
+#   [갭하락] 후보 중 갭 구간(전 거래일 15:30 뒤 ~ 오늘 08:50 전)에 KIND 공시(아무 공시)가 있는 종목은 안 산다.
 #   2016~ 건당 학습 +0.35 vs 없음 +0.80 · 검증 +0.26 vs +0.64 · 계좌(한도 5천만) 검증 연 +219 → +246만, 매수 총액 -14%.
 #   KIND 는 KRX 라 저속·순차(collect_kind_time 이 1.2초 간격). 받은 건 kind_time.db 에도 쌓인다. 실패하면 거르지 않고 산다 + 알림.
 #   끄기: .env KIND_FILTER=0
@@ -328,7 +328,7 @@ def morning():
     # 2026-10-04 좁힘(사용자 '2번' · research H0291): 중소형 중 **더 작은 쪽(유니버스 거래대금 아래 1/3)** + 시장보다 2%p 이상 더 빠짐
     #   승률 55% → 학습 63.5% · 검증 63.9% · 건당 +1.19/+1.41% · 하루 1.4~1.8종목(신호 없는 날 약 40%)
     tiny = {k for k in uni if uliq[k] <= 1 / 3}                # 덤(T2·T3)은 이 안에서만
-    t1u = {k for k in uni if uliq[k] <= T1_LIQ}                # [갭 하락 조용주] 본체(11-03~ 2/3 · 10-21~ 4/9)
+    t1u = {k for k in uni if uliq[k] <= T1_LIQ}                # [갭하락] 본체(11-03~ 2/3 · 10-21~ 4/9)
     log("유니버스 %d · 중소형 %d · 조용(거래량 하위30%%) %d" % (len(uni), len(small), len(pre)))
     # 2026-10-06 T2(H0297): 어제 막판 1시간(14:00→종가) — 후보가 될 수 있는 조용한 작은 종목만 어제 1분봉을 받아 둔다(~70종목·10초)
     lh = yday_lasth([k for k in pre if k in tiny], prev)
@@ -401,7 +401,7 @@ def morning():
     if L:                                                                  # 거래대금 배율(10-21) — 그날 후보 중앙 대비
         md = sorted(x["a20"] for x in L)[len(L) // 2] or 1.0
         for x in L: x["lm"] = round(min(LIQ_HI, max(LIQ_LO, x["a20"] / md)), 2)
-    # ── T4 [미장 폭락 과잉 갭] ──
+    # ── T4 [미장 폭락] ──
     nas, nas_src = nasdaq_last(today)
     res = {s: gap[s] - up[s] for s in uni if s in gap and s in up}          # 덜 반영 = 예상 갭 − 짝 미장으로 본 예상 갭
     rq = pct_rank(res) if res else {}
@@ -412,7 +412,7 @@ def morning():
     U = []
     for s in u_sel[:U_MAX]:
         if s in have:
-            have[s]["u1"] = True; continue                                   # [갭 하락 조용주]와 겹치면 한 번만 산다
+            have[s]["u1"] = True; continue                                   # [갭하락]와 겹치면 한 번만 산다
         U.append(dict(t=s, name=s, gap=round(gap[s], 2), rel=round(gap[s] - mg, 2), vm=round(R[s]["vm"], 2), d5=round(R[s]["d5"], 2), d5low=False,
                       exp=exp[s], pc=R[s]["pc"], src=src[s], lim=floor_tick(R[s]["pc"] * (1 + U_GAP / 100)),
                       up=round(up[s], 2), res=round(res[s], 2), t1=False, u1=True))
@@ -437,7 +437,7 @@ def morning():
     elif bn is None and deep:
         telegram("⚠ 데이: 악재 공시 확인 실패(DART) %d종목 — 그대로 매수" % len(deep))
     kdrop = []
-    if kf and L:                                                       # 갭 구간 공시 빼기(H0395) — [갭 하락 조용주] 후보만(T4 는 안 잼)
+    if kf and L:                                                       # 갭 구간 공시 빼기(H0395) — [갭하락] 후보만(T4 는 안 잼)
         if kth is not None:
             kth.join(max(0.0, (dt.datetime.now(KST).replace(hour=8, minute=51, second=45, microsecond=0) - dt.datetime.now(KST)).total_seconds()))
         kok = bool(kres.get("ok"))
@@ -477,8 +477,8 @@ def morning():
     if len(L) > 15: body.append("… 외 %d" % (len(L) - 15))
     n2 = sum(1 for x in L if x.get("t2"))
     n3 = sum(1 for x in L if x.get("t3"))
-    if n2: body.append("⭐ = [갭 하락 조용주 +] 도 걸림(어제 14:00→종가 %.0f%%↓) — %d종목은 한 번 더 산다" % (T2_CUT, n2))
-    if n3: body.append("🌙 = [갭 하락 조용주 ++] 도 걸림(짝 미장으로 본 예상 갭 %.1f%%↓) — %d종목은 한 번 더 산다(⭐🌙 둘 다면 두 번 더)" % (T3_CUT, n3))
+    if n2: body.append("⭐ = [갭하락+] 도 걸림(어제 14:00→종가 %.0f%%↓) — %d종목은 한 번 더 산다" % (T2_CUT, n2))
+    if n3: body.append("🌙 = [갭하락++] 도 걸림(짝 미장으로 본 예상 갭 %.1f%%↓) — %d종목은 한 번 더 산다(⭐🌙 둘 다면 두 번 더)" % (T3_CUT, n3))
     body.append("후보 = 조용한 작은 종목 중 예상 갭 하위 %d%% · 시장보다 %g%%p↑ 더 빠질 것 → 실제로 %g%%p↑ 빠져 열린 것만 체결 (코스피 %s)" % (
         CAND_Q * 100, -CAND_REL, -LIMIT_THR, {True: "상승장", False: "하락장", None: "국면 모름"}[kup]))
     if nas is not None and nas <= W_NAS:
@@ -636,7 +636,7 @@ def extras(x):
 
 
 def order_list(L):
-    # 2026-10-18: T4 전용 후보(t1=False)는 T4 로 한 번만 — 덤(T2·T3)은 [갭 하락 조용주] 후보에만
+    # 2026-10-18: T4 전용 후보(t1=False)는 T4 로 한 번만 — 덤(T2·T3)은 [갭하락] 후보에만
     return [(x, "T1" if x.get("t1", True) else "T4") for x in L] + [(x, r) for x in L if x.get("t1", True) for r in extras(x)]
 
 
@@ -1080,7 +1080,7 @@ def carry_sell(today):
     try: site_sold = {p.get("id") for p in (AT.site_state().get("positions_scalp") or []) if p.get("sell")}
     except Exception: site_sold = set()
     open_sell = {z.get("posId") for z in Lg["orders"] if z.get("side") == "SELL" and z.get("date", "") >= AT.SYNC_FROM and not z.get("closed") and not z.get("passive")}
-    # 11-03 T6 [NXT 장후 빠진 종목]: 밤새 들고 와서 nxt_shadow.py 가 08:50:30 에 시가 매도를 낸다 — 그 주문이 있으면 조용히 넘긴다(못 냈으면 여기서 판다)
+    # 11-03 T6 [장후 낙폭]: 밤새 들고 와서 nxt_shadow.py 가 08:50:30 에 시가 매도를 낸다 — 그 주문이 있으면 조용히 넘긴다(못 냈으면 여기서 판다)
     t6_sent = {z.get("posId") for z in Lg["orders"] if z.get("side") == "SELL" and z.get("date") == today and z.get("rid") == "T6" and z.get("oid")}
     out = []
     for o in buys:

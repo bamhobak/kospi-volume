@@ -67,7 +67,7 @@ if _up.exists():
     for r in usrows: r['usvq'] = None
     for _i, r in enumerate(_liq): r['usvq'] = (_i + 1) / len(_liq)
     rows = rows + usrows
-    print('미장 %d종목 · 유동성 상위40%% %d · 조용한 신고가 진입 %d · S&P 60일선 위 %s'
+    print('미장 %d종목 · 유동성 상위40%% %d · 조용 신고가 진입 %d · S&P 60일선 위 %s'
           % (len(usrows), sum(1 for r in usrows if r['usliq']), sum(1 for r in usrows if r.get('nh5') and (r.get('remo') or 999) <= 100), us_reg.get('up60')))
 else:
     print('table_us.json 없음 — 미장 규칙은 건너뛴다')
@@ -78,7 +78,7 @@ def fwp(r):
 
 # 사이트 index.html 의 FILTERS 와 동일
 FILTERS = [
-    ("P1", "조용한 신고가 (코스피·40일 보유·트레일링 -8%)",
+    ("P1", "조용 신고가 (코스피·40일 보유·트레일링 -8%)",
      lambda r: r.get("mk") == "KOSPI" and not r["pref"]
      and r.get("fromhi") is not None and r["fromhi"] >= -10
      and r.get("a1") and r.get("a6") and r.get("aw")
@@ -122,7 +122,7 @@ FILTERS = [
      and kospi.get("up60") is False
      and (r.get("sr60") is not None and r["sr60"] <= -10)
      and r.get("srDown") is True and r.get("dilu") is not True and r.get("disc") is not True),
-    ("P4", "업종붕괴 이탈 (코스피·5일 보유·트레일링 -8%·하락장)",
+    ("P4", "업종붕괴 (코스피·5일 보유·트레일링 -8%·하락장)",
      lambda r: r.get("mk") == "KOSPI" and not r["pref"]
      and kospi.get("up60") is False
      and (r.get("sr60") is not None and r["sr60"] <= -20)
@@ -184,8 +184,8 @@ FILTERS = [
      and (r.get("c") or 0) >= 1000
      and r.get("dilu") is not True and r.get("disc") is not True
      and kospi.get("up60") is False),
-    # 자사주 신탁 급락 — bbt = 오늘 신호인 자사주취득 신탁계약 체결 공시(pipeline · data/disc_watch.csv) · 2026-10-02 채택(H0271)
-    ("P8", "자사주 신탁 급락 (공통·10일 보유)",
+    # 신탁 급락 — bbt = 오늘 신호인 자사주취득 신탁계약 체결 공시(pipeline · data/disc_watch.csv) · 2026-10-02 채택(H0271)
+    ("P8", "신탁 급락 (공통·10일 보유)",
      lambda r: not r["pref"] and r.get("bbt") is True
      and r.get("ret20") is not None and r["ret20"] <= -10
      and r.get("ret5") is not None and r["ret5"] <= -10),
@@ -212,7 +212,7 @@ FILTERS = [
     # bbd 는 마지막 보고 이후 달력일로, 화면 확인용이다.
     # 국내 A1 은 '결정 공시' 라는 사건이지만 이쪽은 '집행 중' 이라는 상태다.
     # ("N4") 2026-10-07 폐기(사용자 · research H0306 · us_drop2_acct.py) — 사이트 RETIRED 로 남김
-    ("N5", "잔잔한 급등주 (미장·60일 보유)",
+    ("N5", "잔잔 급등 (미장·60일 보유)",
      lambda r: r.get("mk") == "US" and not r.get("pref")
      and r.get("usliq") is True and (r.get("c") or 0) >= 3
      and r.get("qage") is not None and r["qage"] <= 3),
@@ -220,7 +220,7 @@ FILTERS = [
     # peadgap 은 **발표 다음 거래일**의 전일 대비 등락률이다(collect_us_daily.py 가 만든다).
     # peadage<=7 은 실적 자료를 주 1회만 받아 신호가 며칠 늦는 것을 흡수한다 —
     # 실측에서 D+7 까지는 성적이 사실상 같았다(us_pead_delay.py).
-    ("N6", "실적 서프라이즈 (미장·60일 보유)",
+    ("N6", "실적 깜짝 (미장·60일 보유)",
      lambda r: r.get("mk") == "US" and not r.get("pref")
      and r.get("usliq") is True and (r.get("c") or 0) >= 3
      and r.get("peadq") is not None and r["peadq"] >= 0.7
