@@ -145,14 +145,25 @@ function secShadow(S){
   return card('shadow','공장 그림자','실시간 재료(과거 없음) 규칙을 실제로 사지 않고 앞으로 오는 날 성적만 적는다. 통과 = 20거래일·15건·시장 대비 t≥2·뒤집은 짝보다 나음·50만 체결 손해 뒤 하루 손익 > 0.','매일 저녁',
     `<div class="body">${rows.length?tbl(['id','규칙','날 수','건당','시장 대비','뒤집은 짝','50만 하루','100만 하루'],rows):'<div class="empty">그림자 없음</div>'}</div>`)}
 
+function secDoctor(J){
+  const li=(a,f)=>a&&a.length?`<ul class="list">${a.map(f).join('')}</ul>`:'<div class="dim">없음</div>';
+  const body=!J||!J.at?'<div class="empty">아직 안 돎 — 매일 10:20·17:40</div>':
+    `<div class="kv"><div><small>마지막 점검</small><b class="mono">${esc(J.at)}</b></div><div><small>상태</small><b>${J.ok?'<span style="color:var(--ok)">정상</span>':'<span class="pos">문제 있음</span>'}</b></div><div><small>방식</small><b>${J.mode==='fix'?'고치기까지':'보고만'}</b></div><div><small>selftest</small><b>${J.selftest===false?'<span class="pos">실패</span>':'통과'}</b></div></div>
+     <div class="pre" style="margin-bottom:10px">${esc(J.summary||'')}</div>
+     <div class="muted">찾은 문제</div>${li(J.found,x=>`<li><b>${esc(x.what)}</b> — ${esc(x.why||'')} <span class="dim">${esc(x.where||'')}</span></li>`)}
+     <div class="muted" style="margin-top:8px">고친 것</div>${li(J.fixed,x=>`<li><b>${esc(x.what)}</b> — ${esc(x.how||'')} <span class="dim">${esc(x.check||'')} ${esc(x.commit||'')}</span></li>`)}
+     <div class="muted" style="margin-top:8px">정해 줘야 할 것 · 고칠 방법</div>${li(J.user,x=>`<li><b>${esc(x.what)}</b> — ${esc(x.why||'')}${x.suggest?`<div class="dim">→ ${esc(x.suggest)}</div>`:''}</li>`)}
+     ${J.reverted&&J.reverted.length?`<div class="pos" style="margin-top:8px">손대면 안 되는 파일을 바꿔서 되돌림: ${esc(J.reverted.join(', '))}</div>`:''}`;
+  return card('doctor','점검 의사','이 페이지 전체를 클로드가 매일 훑어 고장·조용한 고장(결과 파일 안 생김·날짜 묵음·숫자 이상)을 찾고 원인을 로그로 확인한다. 지금은 보고만 — 고칠 방법까지 적어 두면 클로드 창에서 "고쳐줘"로 고친다. 매매 코드·사이트·원장은 어떤 경우에도 안 건드림.','매일 10:20 · 17:40',
+    `<div class="body">${body}</div>${J&&J.checked&&J.checked.length?`<details><summary>정상 확인 ${J.checked.length}개</summary><div class="dbody">${li(J.checked,x=>`<li>${esc(x)}</li>`)}</div></details>`:''}`)}
 function render(D){
   const T=D.tasks||[];const cnt=k=>T.filter(t=>t.state===k).length;
   const H=D.health||{};const pr=(D.prereg||[]).filter(x=>x.status==='open'||x.status==='extended').length;
   $('#strip').innerHTML=[['예약 작업',T.length,''],['정상',cnt('정상'),'g'],['오류',cnt('오류'),cnt('오류')?'r':''],['꺼짐',cnt('꺼짐'),''],['오늘 점검 문제',(H.problems||[]).length,(H.problems||[]).length?'y':''],['스스로 고침',(H.fixed||[]).length,''],['판정 기다림',pr,'']]
     .map(([k,v,c])=>`<div class="si"><b class="${c==='g'?'':c==='r'?'pos':''}" style="${c==='g'?'color:var(--ok)':c==='y'?'color:var(--ind)':''}">${v}</b><small>${k}</small></div>`).join('');
-  const secs=[['tasks','예약 작업'],['prereg','사전 등록 판정'],['audit','실전-연구 대조'],['shadow','공장 그림자'],['redteam','검토관'],['nightlab','밤 연구 일꾼'],['health','점검기'],['brief','아침 브리핑'],['rec','녹화'],['fill','밤 과거 받기'],['impact','체결 손해']];
+  const secs=[['doctor','점검 의사'],['tasks','예약 작업'],['prereg','사전 등록 판정'],['audit','실전-연구 대조'],['shadow','공장 그림자'],['redteam','검토관'],['nightlab','밤 연구 일꾼'],['health','점검기'],['brief','아침 브리핑'],['rec','녹화'],['fill','밤 과거 받기'],['impact','체결 손해']];
   $('#toc').innerHTML=secs.map(([i,n])=>`<a href="#${i}">${n}</a>`).join('');
-  $('#root').innerHTML=secTasks(T)+secPrereg(D.prereg)+secAudit(D.audit)+secShadow(D.shadow)+secRed(D.redteam)+secLab(D.nightlab)+secHealth(D.health)+secBrief(D.brief)+secRec(D.rec)+secFill(D.nightfill)+secImpact(D.impact)
+  $('#root').innerHTML=secDoctor(D.doctor)+secTasks(T)+secPrereg(D.prereg)+secAudit(D.audit)+secShadow(D.shadow)+secRed(D.redteam)+secLab(D.nightlab)+secHealth(D.health)+secBrief(D.brief)+secRec(D.rec)+secFill(D.nightfill)+secImpact(D.impact)
     +(D.err?`<div class="dim">모으기 실패: ${esc(JSON.stringify(D.err))}</div>`:'');
   $('#upd').textContent='서버 갱신 '+(D.made||'-').slice(5)+' · 30분마다';
 }

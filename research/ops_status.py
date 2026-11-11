@@ -56,6 +56,7 @@ TASK_INFO = {
     "\\BamhobakFactory\\Night": ("규칙 공장", "AI 수집·깔때기·진화기·밤 보고서·후보 페이지"),
     "\\BamhobakFactory\\HealM1": ("점검", "점검기가 예약한 1분봉 다시 받기(한 번짜리)"),
     "\\BamhobakFactory\\OpsStatus": ("점검", "이 페이지 자료 올리기(30분마다)"),
+    "\\BamhobakFactory\\OpsDoctor": ("점검", "점검 의사 — 이 페이지를 클로드가 훑어 고장 찾기(지금은 보고만)"),
     "\\kospi-volume-research-daily": ("자료 모으기", "투자자 수급·연구 자료(20:30)"),
     "\\BamhobakInsiderDaily": ("자료 모으기", "내부자 거래 수집"),
 }
@@ -204,10 +205,15 @@ def nightfill():
     return [dict(id=k, name=names.get(k, k), **{kk: v.get(kk) for kk in ("total", "left", "rate_per_s", "eta_hours", "rows", "updated")}) for k, v in s.items() if isinstance(v, dict)]
 
 
+def doctor():
+    j = jl(D / "ops_doctor" / "last.json", {}) or {}
+    return {k: j.get(k) for k in ("at", "ok", "summary", "found", "fixed", "user", "checked", "mode", "selftest", "reverted")} if j else {}
+
+
 def build():
     out = dict(made=time.strftime("%Y-%m-%d %H:%M"))
     for k, fn in (("tasks", tasks), ("prereg", prereg), ("audit", audit), ("redteam", redteam), ("nightlab", nightlab), ("rec", opentick),
-                  ("impact", impact), ("health", health), ("brief", brief), ("shadow", shadow), ("nightfill", nightfill)):
+                  ("impact", impact), ("health", health), ("brief", brief), ("shadow", shadow), ("nightfill", nightfill), ("doctor", doctor)):
         try: out[k] = fn()
         except Exception as ex: out[k] = None; out.setdefault("err", {})[k] = repr(ex)[:200]
     return out
