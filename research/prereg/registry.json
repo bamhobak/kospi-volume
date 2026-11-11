@@ -1,0 +1,17 @@
+{
+ "_설명": "사전 등록 판정 목록(2026-11-12) — research/prereg/judge.py 가 매일 21:10 읽어서 날 수가 차면 판정하고 텔레그램 한 줄. 합격선은 결과 보기 전에 정한 것 — 고치지 말 것(고치면 'changed' 에 날짜·이유).",
+ "items": [
+  {"id": "H0366", "name": "NXT 장후 그림자(예전 조건 picks) 20일 판정", "doc": "research/reports/prereg_1031.md",
+   "check": "nxt_ah", "start": "20261026", "need": 20, "status": "open"},
+  {"id": "H0362", "name": "[갭하락] 하루 위 3개 그림자", "doc": "research/reports/prereg_1031.md",
+   "check": null, "start": "20261102", "need": 60, "status": "closed", "why": "2026-11-12 사용자 그림자 중단(DayTop3 끔) — 돈 시뮬에서 위 3개가 더 나빴음"},
+  {"id": "A5T", "name": "[예상 하회] 조인 판(a_err≥3·갭≤-2%) 새 날 판정", "doc": "research/reports/prereg_a5_1112.md",
+   "check": "a5_tight", "start": "20261112", "need": 20, "extend": 30, "status": "open"},
+  {"id": "T1C", "name": "[갭하락] 그물 고친 뒤(11-11~) 연구 조건 밖 체결 비율", "doc": "audit_live.py (data/audit/live.csv)",
+   "check": "t1_cond", "start": "20261111", "need": 10, "status": "open",
+   "rule": "10거래일(실전 왕복 있는 날) 뒤 조건 밖 ≤ 20% 합격 · > 20% 면 그물·지정가 다시 보기. 2026-11-12 등록 — 등록 때 본 값: 11-11 하루 2/4"},
+  {"id": "T5R", "name": "[장전 되돌림] 순위 4 안만(RANK_MAX=4, 11-11~) 실전 왕복 성적", "doc": "data/audit/live.csv",
+   "check": "t5_rank", "start": "20261111", "need": 20, "status": "open",
+   "rule": "20거래일 뒤 실전 왕복 ≥ 10건이고 연구 기준(매도 1호가→KRX 시가) 건당 > 0 이면 유지, ≤ 0 이면 규칙 다시 보기. 2026-11-12 등록 — 등록 때 본 값: 11-11 전 실전 19건 연구 기준 -1.74%"}
+ ]
+}

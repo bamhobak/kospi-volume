@@ -267,17 +267,28 @@ def _quality(bad, ok, day, A):
 
 def run():
     today, trading, prev, P, ok = check()
+    fixed = []
+    try:                                      # 2026-11-12 ⑩ 알려진 처방 먼저(heal.py) — 바로 풀리는 건 다시 점검해서 남은 것만 알린다
+        import heal
+        fixed, again = heal.heal(P)
+        if again: today, trading, prev, P, ok = check()
+        later = {s for s, r in fixed if not r.startswith("🔧 실패")}
+        P = [(lv, s + (" → " + next(r for s2, r in fixed if s2 == s) if s in later else "")) for lv, s in P]
+    except Exception as ex:
+        C.log("고치기 실패:", repr(ex)[:300])
     lines = ["# 공장 점검 %s (%s · 전 거래일 %s)" % (today, "거래일" if trading else "휴장", prev), ""]
-    lines += ["## 문제 %d개" % len(P), ""] + ["- %s %s" % p for p in P] + ["", "## 정상 확인", ""] + ["- " + s for s in ok]
+    lines += ["## 문제 %d개" % len(P), ""] + ["- %s %s" % p for p in P] + ["", "## 스스로 고친 것", ""] + ["- %s — %s" % f for f in fixed]
+    lines += ["", "## 정상 확인", ""] + ["- " + s for s in ok]
     (HD / ("%s.md" % today)).write_text("\n".join(lines) + "\n", encoding="utf-8")
     H = pd.read_csv(HCSV, dtype={"date": str}) if HCSV.exists() else pd.DataFrame(columns=["date", "n", "crit", "first"])
-    H = pd.concat([H[H.date != today], pd.DataFrame([[today, len(P), sum(p[0] == "🚨" for p in P), P[0][1][:80] if P else ""]], columns=H.columns)])
+    H = pd.concat([H[H.date != today], pd.DataFrame([dict(date=today, n=len(P), crit=sum(p[0] == "🚨" for p in P), first=P[0][1][:80] if P else "", fix=len(fixed))])], ignore_index=True)
     H.to_csv(HCSV, index=False, encoding="utf-8-sig")
     if P:
         C.tg("🩺 <b>공장 점검 %s/%s — 문제 %d개</b>\n" % (today[4:6], today[6:], len(P)) + "\n".join("%s %s" % p for p in P[:12]))
     elif C.now().weekday() == 0:
         w = H.tail(7)
-        C.tg("🩺 공장 점검 주간: 지난 %d번 중 문제 없음 %d번 · 녹화·전이표·정답지·밤 작업 정상" % (len(w), int((w.n.astype(int) == 0).sum())))
+        nf = int(pd.to_numeric(w.get("fix"), errors="coerce").fillna(0).sum()) if "fix" in w else 0
+        C.tg("🩺 공장 점검 주간: 지난 %d번 중 문제 없음 %d번%s" % (len(w), int((w.n.astype(int) == 0).sum()), (" · 스스로 고침 %d번" % nf) if nf else ""))
     C.log("점검: 문제 %d · 정상 %d" % (len(P), len(ok)))
     return P, ok
 

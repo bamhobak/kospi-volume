@@ -1,0 +1,5 @@
+[
+ {"id": "m1_gap", "kind": "m1_gap", "desc": "1분봉 빈 거래일 메우기", "enabled": true, "recurring": true},
+ {"id": "nxt_pre", "kind": "nxt_pre", "desc": "NXT 장전 1분봉 2025-03~ (NXT 종목 전부)", "out": "bf_nxt_pre", "enabled": true},
+ {"id": "nxt_ah", "kind": "nxt_ah", "desc": "NXT 장후 1분봉 2025-03~ (NXT 종목 전부)", "out": "bf_nxt_ah", "enabled": true}
+]

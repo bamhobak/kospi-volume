@@ -24,7 +24,21 @@ TRF = C.DATA / "shadow_trades.csv"
 MKF = C.DATA / "shadow_mkt.csv"
 MIN_DAYS, MIN_N, MIN_EX_T = 20, 15, 2.0
 AMTS = (50e4, 100e4)                              # 체결 손해 볼 때 한 건 금액(원) — 통과·그만은 50만(실전 시작 크기) 기준, 100만은 같이 보임(11-12 사용자)
-IMP_A, IMP_B, FILL_C = 0.143, 1.321, 3.0          # t1_size_liq_1021 실측 맞춤(11-12) — 사고·파는 손해 합 %, 체결률
+IMP_A, IMP_B, FILL_C = 0.143, 1.321, 3.0          # t1_size_liq_1021 실측 맞춤(11-12) — 사고·파는 손해 합 %, 체결률 · impact_fit.json 없을 때 기본값
+IMPF = C.DATA / "impact_fit.json"                 # 매일 17:10 research/impact_refit.py 가 다시 맞춤(use = 단일가 규칙, cont = 장중 매수 m*)
+
+
+def impact(mode):
+    """(a, b, c) — 단일가에 사고파는 규칙(oc·on·sw)은 use, 장중 시장가로 사는 규칙(m10c·m14c)은 cont(호가 사다리, 약 2배)."""
+    try:
+        import json
+        J = json.loads(IMPF.read_text(encoding="utf-8"))
+        u = J["use"]; c = float(u.get("c", FILL_C))
+        if mode.startswith("m") and J.get("cont", {}).get("a") is not None:
+            return float(J["cont"]["a"]), float(J["cont"]["b"]), c
+        return float(u["a"]), float(u["b"]), c
+    except Exception:
+        return IMP_A, IMP_B, FILL_C
 LAG = {"oc": 0, "on": 1, "m10c": 0, "m14c": 0, "sw5": 4, "sw10": 9, "sw20": 19, "sw40": 39, "sw60": 59}   # 오늘 저녁에 성적이 확정되는 매수일 = 오늘에서 몇 거래일 전
 
 
@@ -51,14 +65,15 @@ def liq_fill(T, A):
     return T
 
 
-def net_money(T, nd, amt):
+def net_money(T, nd, amt, mode="oc"):
     """100만씩 샀다고 치고 체결 손해 뺀 → (건당 순 %, 하루 손익 원 — 거래 없는 날 0 포함)."""
     if T is None or not len(T) or "amt20" not in T.columns: return None, None
     a = T.amt20.astype(float) * 1e8
     if a.isna().all(): return None, None
     a = a.fillna(a.median())
     pp = amt / a * 100
-    loss = np.maximum(0, IMP_A + IMP_B * np.sqrt(pp)); fill = 1 / (1 + FILL_C * pp)
+    ia, ib, ic = impact(mode)
+    loss = np.maximum(0, ia + ib * np.sqrt(pp)); fill = 1 / (1 + ic * pp)
     net = T.ret.astype(float) - loss
     return float((net * fill).sum() / fill.sum()), float((amt * fill * net / 100).sum() / max(nd, 1))
 
@@ -108,7 +123,7 @@ def judge(x, L, allT, M, dates):
     e = excess(T, M, x["mode"]) or {}
     tw = twin_of(x, L)
     te = excess(allT[allT.id == tw["id"]], M, tw["mode"]) if tw is not None else None
-    nr5, pnl5 = net_money(T, nd, AMTS[0]); nr, pnl = net_money(T, nd, AMTS[1])
+    nr5, pnl5 = net_money(T, nd, AMTS[0], x["mode"]); nr, pnl = net_money(T, nd, AMTS[1], x["mode"])
     f = x["fwd"] = dict(n=int(len(T)), days=nd, mean=float(T.ret.mean()), win=float((T.ret > 0).mean() * 100), ready=nd >= MIN_DAYS, **e,
                         twin=tw["id"] if tw is not None else None, twin_ex=(te or {}).get("ex"), net50=nr5, pnl50=pnl5, net=nr, pnl=pnl)
     beat_twin = f["twin_ex"] is None or (f.get("ex") is not None and f["ex"] > f["twin_ex"])
