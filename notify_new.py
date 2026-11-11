@@ -327,6 +327,19 @@ else:
     streaks = {f"{fid}:{t}": prev_stk.get(f"{fid}:{t}", 0) + 1
                for fid, ts in hits.items() for t in ts}
 info = {r["t"]: r for r in rows}
+# 2026-11-12 사용자 '③ 고쳐놔줘': 같은 규칙 안 매수 순서 — research/rule_order_1112.py 가 근거를 찾은 규칙만(data/rule_order.json adopted).
+#   값이 작은 것부터 산다(asc=false 면 부호를 뒤집어 넣음). 자동매매 candidates() 가 같은 순위·같은 연속 일수 안에서 이 값으로 줄 세운다.
+try:
+    ORD = {k: v for k, v in json.loads((BASE / "data" / "rule_order.json").read_text(encoding="utf-8")).items() if isinstance(v, dict) and v.get("adopted")}
+except Exception:
+    ORD = {}
+order = {}
+for _fid, _ts in cur.items():
+    _o = ORD.get(_fid)
+    if not _o: continue
+    for _t in _ts:
+        _v = (info.get(_t) or {}).get(_o["field"])
+        if isinstance(_v, (int, float)): order["%s:%s" % (_fid, _t)] = round(float(_v) * (1 if _o["asc"] else -1), 4)
 
 # 알림에는 **종목명을 싣지 않는다**(2026-09-10 사용자 요청). 규칙에 뭐가 걸렸는지는
 # 사이트에서 보고, 알림은 '볼 것이 생겼다' 만 알린다. 몇 건이든 **한 통**만 보낸다.
@@ -346,7 +359,7 @@ else:
     print("신규 편입 없음:", {k: len(v) for k, v in cur.items()})
 if DRY: print("--dry — 기준 목록을 저장하지 않는다")
 else:
-    rpc("kospi_state_set", {"p_pin": "__filters__", "p_data": {"filters": cur, "streaks": streaks,
+    rpc("kospi_state_set", {"p_pin": "__filters__", "p_data": {"filters": cur, "streaks": streaks, "order": order,
                                                               "date": last_date, "usasof": us_asof,
                                                               "updated": now_kst.strftime("%Y-%m-%d %H:%M")}})
 print("저장:", {k: len(v) for k, v in cur.items()}, "held", len(held),

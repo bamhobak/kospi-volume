@@ -1027,7 +1027,8 @@ def candidates(mk, F, ST, R, rank, today_keys):
             if toss_us and t not in toss_us:
                 log("토스에 없는 미장 종목이라 건너뜀:", rid, t); continue
             C.append((rank.get(rid, 99), streak.get(f"{rid}:{t}", 1), rid, t))
-    return sorted(C)
+    od = F.get("order") or {}                                         # 11-12 ③ 같은 규칙 안 순서(notify_new → data/rule_order.json, 근거 있는 규칙만) — 없으면 종목 코드 순
+    return sorted(C, key=lambda c: (c[0], c[1], od.get(f"{c[2]}:{c[3]}", 0.0), c[3]))
 
 
 def _toss_us():
