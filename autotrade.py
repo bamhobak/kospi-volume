@@ -577,9 +577,42 @@ def rules():
     for m in re.finditer(r"\{id:'([NPD]\d+)'(.*?)stats:\{(.*?)\}", s, re.S):
         rid, body, st = m.groups()
         h = re.search(r"hold:(\d+)", body); a = re.search(r"avg:([-\d.]+)", st); nm = re.search(r"name:'([^']*)'", body)
+        pr = re.search(r"\bpri:([-\d.]+)", body)                       # 11-12 같은 기준(2016~ 건당 ÷ 보유일, data/rule_pri.json) — 없으면 예전 avg ÷ hold
         if h and a and rid not in R:
-            R[rid] = ((nm.group(1).split(" · ")[-1] if nm else rid), int(h.group(1)), float(a.group(1)) / int(h.group(1)))
+            R[rid] = ((nm.group(1).split(" · ")[-1] if nm else rid), int(h.group(1)), float(pr.group(1)) if pr else float(a.group(1)) / int(h.group(1)))
     return R
+
+
+def day_pri():
+    """데이 [갭하락](T1) 하루당 기대 — 08:53 데이 주문보다 순위 낮은 스윙은 그 몫 돈을 남긴다(11-12 사용자 '② 고쳐놔줘')."""
+    s = (BASE / "index.html").read_text(encoding="utf-8")
+    m = re.search(r"\{id:'T1'[^\n]*?\bpri:([-\d.]+)", s)
+    return float(m.group(1)) if m else None
+
+
+def day_reserve():
+    """08:53 데이 [갭하락] 계열(T1~T4)이 지정가로 묶을 돈 어림 — 최근 20거래일 원장의 그날 주문 합(lim × 주수) 중앙값.
+    실금액 모드(day_alert DAY_QTY = None)면 최소 '그날 주문 수 중앙 × DAY_BASE × 1.5'. 데이 실주문이 꺼져 있으면 0."""
+    try:
+        env = {}
+        for l in (BASE / ".env").read_text(encoding="utf-8").splitlines():
+            if "=" in l and not l.strip().startswith("#"): k, v = l.split("=", 1); env[k.strip()] = v.strip()
+        if env.get("DAY_MODE", "notify") != "live": return 0.0, "데이 실주문 꺼짐"
+        L = json.loads((BASE / "data" / "day" / "ledger.json").read_text(encoding="utf-8"))["orders"]
+        by = {}
+        for o in L:
+            if o.get("side") == "BUY" and o.get("rid") in ("T1", "T2", "T3", "T4") and o.get("lim"):
+                d = by.setdefault(o["date"], [0.0, 0]); d[0] += float(o["lim"]) * float(o.get("qty") or 1); d[1] += 1
+        ds = sorted(by)[-20:]
+        if not ds: return 0.0, "데이 주문 기록 없음"
+        amt = sorted(by[d][0] for d in ds)[len(ds) // 2]; cnt = sorted(by[d][1] for d in ds)[len(ds) // 2]
+        src = (BASE / "day_alert.py").read_text(encoding="utf-8")
+        qty = re.search(r"^DAY_QTY\s*=\s*(\S+)", src, re.M); base = re.search(r"^DAY_BASE\s*=\s*([\d_]+)", src, re.M)
+        if qty and qty.group(1) == "None" and base:
+            amt = max(amt, cnt * float(base.group(1).replace("_", "")) * 1.5)
+        return float(amt), "최근 %d일 중앙 %d건" % (len(ds), cnt)
+    except Exception as ex:
+        return 0.0, "어림 실패 %s" % repr(ex)[:80]
 
 
 def mk_of(t):
@@ -1172,6 +1205,10 @@ def buy(mk, at_close=False):
     try: cash = buying_power("KRW" if mk == "KR" else "USD") if not DRY else float("inf")
     except TossErr as ex: cash = None; log("매수가능 조회 실패", ex)
     placed, skip, stop_reason = [], [], None
+    # 11-12 ② 08:51 국장 스윙 주문은 08:53 데이 [갭하락] 보다 먼저 돈을 잡는다 — 순위(하루당 기대)가 [갭하락]보다 낮은 스윙은 그 몫을 남기고 산다
+    dpri = day_pri() if mk == "KR" and not at_close else None
+    res_left, res_why = day_reserve() if dpri is not None else (0.0, "")
+    reserved = False
     job.__enter__()
     Lg = led()                                                        # 잠금 안에서 다시 읽는다 — 겹친 실행이 낸 주문을 본다
     today_keys = {f"{o['rid']}:{o['t']}" for o in Lg["orders"] if o.get("side") == "BUY" and o.get("date") == S["date"]}
@@ -1193,9 +1230,12 @@ def buy(mk, at_close=False):
                 q = 1
             if q < 1:
                 skip.append((rid, t, info[0], "1주가 %s원 초과" % won(PER[mk] * 2))); continue
+        if res_left > 0 and cash is not None and R[rid][2] < dpri:
+            cash = max(0.0, cash - res_left); reserved = True
+            log("데이 [갭하락] 몫 %s 남김(%s) — %s 부터 순위가 그보다 낮음" % (won(res_left), res_why, rid)); res_left = 0
         if cash is not None and q * px[t] > cash:
             if px[t] > cash:
-                skip.append((rid, t, info[0], "매수가능 부족(1주도 못 삼)")); continue
+                skip.append((rid, t, info[0], "매수가능 부족(1주도 못 삼)" + (" · 데이 [갭하락] 몫 남김" if reserved else ""))); continue
             q2 = math.floor(cash / px[t]) if not SWING_QTY else 1          # 테스트(1주) 땐 전처럼, 실전 금액이면 살 수 있는 만큼
             log("매수가능 부족 — 줄임:", rid, t, "%d→%d주" % (q, q2)); q = q2
         cost = q * px[t] * (fx if mk == "US" else 1)
