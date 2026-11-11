@@ -75,7 +75,9 @@ def main(dry=False):
     if (AT.OUT / "STOP").exists(): lines.append("⛔ 자동매매 STOP 켜짐")
     msg = "\n".join(lines)
     print(msg)
-    if not dry: D.telegram(msg)
+    if not dry:
+        D.telegram(msg)
+        (BASE / "data" / "day" / "brief_last.json").write_text(json.dumps({"at": AT.now().strftime("%Y-%m-%d %H:%M"), "text": msg}, ensure_ascii=False), encoding="utf-8")   # 자동 현황 페이지가 읽는다
 
 
 if __name__ == "__main__":

@@ -129,11 +129,21 @@ def judge(x, L, allT, M, dates):
     beat_twin = f["twin_ex"] is None or (f.get("ex") is not None and f["ex"] > f["twin_ex"])
     if (x["status"] == "shadow" and nd >= MIN_DAYS and len(T) >= MIN_N and f["mean"] > 0 and f["win"] >= 50
             and (f.get("ex") or 0) > 0 and (f.get("ex_t") or 0) >= MIN_EX_T and beat_twin and (f.get("pnl50") or 0) > 0):
+        RT = None
+        try:                                      # 11-12 적대적 검토관(redteam.py) — '막음'이면 통과로 안 올린다
+            import redteam
+            RT = redteam.review_spec(x, L, allT, M, dates)
+        except Exception as ex:
+            C.log("그림자: 검토관 실패", x["id"], repr(ex)[:200])
+        if RT is not None and RT.get("verdict") == "막음":
+            f["redteam"] = "막음"
+            return None
         x["status"] = "propose"
-        return "🧪 <b>공장 그림자 통과</b> %s %s\n%s\n%d거래일 %d건 건당 %+.2f%% · 승률 %.0f%% · 시장 대비 %+.2f%%p(t %.1f · 플러스 날 %d/%d)%s\n체결 손해 뒤 50만씩 건당 %+.2f%% · 하루 %+.1f만 / 100만씩 건당 %+.2f%% · 하루 %+.1f만\n과거 학습 %s / 검증 %s\n→ 1주 실전으로 올릴지 정해줘(자동 주문 안 함)" % (
+        msg = ("🧪 <b>공장 그림자 통과</b> %s %s\n%s\n%d거래일 %d건 건당 %+.2f%% · 승률 %.0f%% · 시장 대비 %+.2f%%p(t %.1f · 플러스 날 %d/%d)%s\n체결 손해 뒤 50만씩 건당 %+.2f%% · 하루 %+.1f만 / 100만씩 건당 %+.2f%% · 하루 %+.1f만\n과거 학습 %s / 검증 %s\n→ 1주 실전으로 올릴지 정해줘(자동 주문 안 함)" % (
             x["id"], x.get("name", ""), x.get("desc", ""), nd, len(T), f["mean"], f["win"], f["ex"], f["ex_t"], f["ex_pos"], f["ex_days"],
             (" · 뒤집은 짝 %s %+.2f%%p" % (f["twin"], f["twin_ex"])) if f["twin_ex"] is not None else "", f["net50"], f["pnl50"] / 1e4, f["net"] or 0.0, (f["pnl"] or 0.0) / 1e4,
-            lab.fmt_s((x.get("res") or {}).get("tr")), lab.fmt_s((x.get("res") or {}).get("va")))
+            lab.fmt_s((x.get("res") or {}).get("tr")), lab.fmt_s((x.get("res") or {}).get("va"))))
+        return msg + ("\n" + redteam.tg_line(RT) if RT is not None else "")
     if x["status"] == "shadow" and nd >= 2 * MIN_DAYS and (f["mean"] < 0 or (f.get("ex") is not None and f["ex"] <= 0) or (f.get("pnl50") is not None and f["pnl50"] < 0)):   # 검토·채택은 사람이 정한다 — 자동으로 내리지 않음
         x["status"] = "retired"; x["why"] = (x.get("why") or "") + " · 그림자 %d거래일 건당 %+.2f%% · 시장 대비 %s → 그만" % (
             nd, f["mean"], ("%+.2f%%p" % f["ex"]) if f.get("ex") is not None else "-")
