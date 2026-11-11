@@ -36,6 +36,8 @@ RANK_MAX = 4               # 2026-11-10 사용자 승인(처음 5 → 같은 날
 #   연구(pmrev5 369일, research/reports 없음 — 기억 review-1110): 순위 1 +3.13% · 2~3 +1.66 · 4~6 +0.49 · 7~10 +0.49 · 11↑ +0.1(붐비는 날이든 아니든 순위가 가른다).
 #   낱 순위: 1위 +3.13 · 2위 +2.00 · 3위 +1.24 · 4위 +0.63 · 5위 +0.48(금액으론 연 -2만) · 6위 +0.28. 지금 649건 +1.08 → 순위 4 안 292건 +2.06(승 66%).
 #   계단×100만 연 +422 → +424만·필요 자금 최대 2,549→600만·최악의 날 -53→-14만. 되돌리려면 999.
+CROWD_MAX = 10             # 2026-11-12 사용자 '넣어줘': 그날 규칙 신호(-3%p·얇음)가 10개↑ 면 쉰다 — 업종·시장째 빠지는 날은 안 되돌아온다.
+#   research/t5_recheck_1112.py: 과거 242 신호 날 중 10개↑ 8일 날 바구니 +0.01 · 순위 4 안 돈 연 +259→+262만 · 실전 뒤 손해 날(11-06 47·11-09 10·11-10 13) 전부 그런 날. 되돌리려면 9999.
 PRE_MAX = 30.0             # |어제 종가 대비| 30% 넘는 값은 버린다(연구와 같게)
 FRESH = (8, 35)            # 신호가 = 08:35 이후 체결만(연구: 5분 안 체결)
 SIG_AT, BUY_AT, BUY_END, SELL_AT = (8, 40, 1), (8, 41, 0), (8, 46, 0), (8, 50, 30)
@@ -193,12 +195,19 @@ def morning():
         x["pick0"] = bool(rel <= REL and x.get("cum") is not None and x["cum"] <= CUM_MAX)      # 11-10 전 규칙(비교용으로 남긴다)
         x["pick"] = bool(x["pick0"] and rk[s] <= RANK_MAX)
         C.append(x)
+    nsig = sum(1 for x in C if x["pick0"])
+    crowd = nsig >= CROWD_MAX
+    if crowd:                                                               # 붐비는 날 — 아무것도 안 산다(가상도 없음)
+        for x in C: x["pick"] = False
     P = [x for x in C if x["pick"]]
     snap = dict(date=today, made=AT.now().strftime("%H:%M:%S"), rule=RNAME, rid=RID, n_nxt=len(YC), n_fresh=len(px), mpre=round(mpre, 2),
-                rel=REL, cum_max=CUM_MAX, rank_max=RANK_MAX, cand=C)
+                rel=REL, cum_max=CUM_MAX, rank_max=RANK_MAX, crowd_max=CROWD_MAX, nsig=nsig, crowd=crowd, cand=C)
     jsave(OUT / ("snap_%s.json" % today), snap); publish(snap)
     log("08:40 시장 장전 %+.2f%% · 체결 %d종목 · -2%%p↓ %d · -3%%p↓ %d · 옛 규칙이면 %d · 고른 것(순위 %d 안) %d" % (
         mpre, len(px), len(C), sum(1 for x in C if x["rel"] <= REL), sum(1 for x in C if x["pick0"]), RANK_MAX, len(P)))
+    if crowd:
+        log("신호 %d개(%d↑) — 붐비는 날, 오늘 쉼" % (nsig, CROWD_MAX))
+        D.telegram("🌄 [%s] 신호 %d개 — 붐비는 날, 쉼" % (RNAME, nsig))
     rows = []
     live = D.env().get("DAY_MODE", "notify") == "live"
     if not P:
