@@ -25,6 +25,13 @@ import day_alert as D
 RID, RNAME = "T7", "예상 하회"
 TOP = 0.10                     # a_err 상위 10%(F1659 와 같게)
 DECIDE = 12                    # 시가 뒤 이만큼(초) 기다렸다가 지금가로 고른다
+TIGHT_AERR, TIGHT_GAP = 3.0, -2.0   # 조인 판(11-12 사전 등록, research/reports/prereg_a5_1112.md) — 채점만, 고르기는 그대로
+
+
+def tight(z):
+    """조인 판에 드는가: a_err ≥ 3%p · 고를 때 가격이 어제 종가보다 2%↓."""
+    try: return float(z["aerr"]) >= TIGHT_AERR and (float(z["p"]) / float(z["pc"]) - 1) * 100 <= TIGHT_GAP
+    except (KeyError, TypeError, ValueError, ZeroDivisionError): return False
 
 
 def log(*a):
@@ -93,7 +100,7 @@ def morning():
         if not live or (bp is not None and bp < r.p * q * 1.02):
             paper.append(dict(rec, why="돈 모자람" if live else "실매수 꺼짐")); continue
         cid = "da7%s%s" % (today, r.t)
-        o = dict(side="BUY", date=today, t=r.t, name=name, qty=q, cid=cid, rid=RID, pc=r.pc, aerr=round(r.aerr, 3), at=AT.now().isoformat())
+        o = dict(side="BUY", date=today, t=r.t, name=name, qty=q, cid=cid, rid=RID, pc=r.pc, p=r.p, aerr=round(r.aerr, 3), at=AT.now().isoformat())
         body = {"clientOrderId": cid, "symbol": r.t, "side": "BUY", "orderType": "MARKET", "timeInForce": "DAY", "quantity": str(q)}
         try:
             ok = AT.submit(Lg, o, body, D._led_save)
@@ -123,9 +130,11 @@ def morning():
         return n > 0
     if paper: D.scalp_update(add, "데이 [%s] 가상 매수 %d건" % (RNAME, len(paper)))
     (OUT / ("aerr_%s.json" % today)).write_text(json.dumps({"date": today, "n_uni": len(R), "cut": round(float(P.aerr.min()), 3),
-        "real": [dict(t=o["t"], name=o["name"], fq=o.get("fq"), ap=o.get("ap"), aerr=o.get("aerr")) for o in got], "paper": paper}, ensure_ascii=False), encoding="utf-8")
+        "open": {r.t: r.p for r in R.itertuples()},                     # 고를 때 전 종목 지금가 — 같은 날 시장 평균(대조) 채점용
+        "real": [dict(t=o["t"], name=o["name"], fq=o.get("fq"), ap=o.get("ap"), aerr=o.get("aerr"), p=o.get("p"), pc=o.get("pc")) for o in got], "paper": paper}, ensure_ascii=False), encoding="utf-8")
     log("실매수 %d · 미체결 %d · 가상 %d" % (len(got), len(placed) - len(got), len(paper)))
-    D.telegram("🔻 <b>[%s]</b> %s/%s %d종목 · 실매수 %d · 가상 %d" % (RNAME, today[4:6], today[6:], len(P), len(got), len(paper)))
+    nt = sum(tight(dict(aerr=r.aerr, p=r.p, pc=r.pc)) for r in P.itertuples())
+    D.telegram("🔻 <b>[%s]</b> %s/%s %d종목 · 실매수 %d · 가상 %d · 조임 %d" % (RNAME, today[4:6], today[6:], len(P), len(got), len(paper), nt))
 
 
 def close():
@@ -149,16 +158,21 @@ def close():
     rr = [(cl[z["t"]] / z["ap"] - 1) * 100 - D.COST for z in J.get("real") or [] if cl.get(z["t"]) and z.get("ap")]
     allr = rr + rp
     if not allr: return
-    line = "🔻 [%s] 결과 %s/%s %d건 %+.2f%% · 상승 %d/%d (실매수 %d건 %s · 가상 %d건 %s)" % (
+    rt = [(cl[z["t"]] / float(z.get("ap") or z["p"]) - 1) * 100 - D.COST for z in (J.get("real") or []) + (J.get("paper") or [])
+          if tight(z) and cl.get(z["t"]) and (z.get("ap") or z.get("p"))]
+    line = "🔻 [%s] 결과 %s/%s %d건 %+.2f%% · 상승 %d/%d (실매수 %d건 %s · 가상 %d건 %s) · 조임 %d건 %s" % (
         RNAME, today[4:6], today[6:], len(allr), np.mean(allr), sum(r > 0 for r in allr), len(allr),
-        len(rr), ("%+.2f%%" % np.mean(rr)) if rr else "-", len(rp), ("%+.2f%%" % np.mean(rp)) if rp else "-")
+        len(rr), ("%+.2f%%" % np.mean(rr)) if rr else "-", len(rp), ("%+.2f%%" % np.mean(rp)) if rp else "-",
+        len(rt), ("%+.2f%%" % np.mean(rt)) if rt else "-")
     D.telegram(line); log(line)
     lf = OUT / "aerr_log.csv"; new = not lf.exists()
     with open(lf, "a", newline="", encoding="utf-8-sig") as fh:
         w = csv.writer(fh)
-        if new: w.writerow(["날짜", "건수", "평균(비용 뒤)", "승률", "실매수 건수", "실매수 평균", "가상 건수", "가상 평균"])
+        if new: w.writerow(["날짜", "건수", "평균(비용 뒤)", "승률", "실매수 건수", "실매수 평균", "가상 건수", "가상 평균", "조임 건수", "조임 평균", "시장 평균"])
+        mk = [(cl[t] / px - 1) * 100 - D.COST for t, px in (J.get("open") or {}).items() if cl.get(t) and px]
         w.writerow([today, len(allr), round(float(np.mean(allr)), 3), round(sum(r > 0 for r in allr) / len(allr) * 100), len(rr),
-                    round(float(np.mean(rr)), 3) if rr else "", len(rp), round(float(np.mean(rp)), 3) if rp else ""])
+                    round(float(np.mean(rr)), 3) if rr else "", len(rp), round(float(np.mean(rp)), 3) if rp else "",
+                    len(rt), round(float(np.mean(rt)), 3) if rt else "", round(float(np.mean(mk)), 3) if mk else ""])
 
 
 if __name__ == "__main__":
