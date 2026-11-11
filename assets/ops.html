@@ -154,7 +154,7 @@ function secDoctor(J){
      <div class="muted" style="margin-top:8px">고친 것</div>${li(J.fixed,x=>`<li><b>${esc(x.what)}</b> — ${esc(x.how||'')} <span class="dim">${esc(x.check||'')} ${esc(x.commit||'')}</span></li>`)}
      <div class="muted" style="margin-top:8px">정해 줘야 할 것 · 고칠 방법</div>${li(J.user,x=>`<li><b>${esc(x.what)}</b> — ${esc(x.why||'')}${x.suggest?`<div class="dim">→ ${esc(x.suggest)}</div>`:''}</li>`)}
      ${J.reverted&&J.reverted.length?`<div class="pos" style="margin-top:8px">손대면 안 되는 파일을 바꿔서 되돌림: ${esc(J.reverted.join(', '))}</div>`:''}`;
-  return card('doctor','점검 의사','이 페이지 전체를 클로드가 매일 훑어 고장·조용한 고장(결과 파일 안 생김·날짜 묵음·숫자 이상)을 찾고 원인을 로그로 확인한다. 지금은 보고만 — 고칠 방법까지 적어 두면 클로드 창에서 "고쳐줘"로 고친다. 매매 코드·사이트·원장은 어떤 경우에도 안 건드림.','매일 10:20 · 17:40',
+  return card('doctor','점검 의사','이 페이지 전체를 클로드가 매일 훑어 고장·조용한 고장(결과 파일 안 생김·날짜 묵음·숫자 이상)을 찾고 원인을 로그로 확인한다. 고치기 모드(11-12~)면 연구·점검·수집 코드와 매매 아닌 작업은 직접 고치고, 그 밖은 고칠 방법을 적어 둔다(방식 칸). 매매 코드·사이트·원장·비밀은 어떤 경우에도 안 건드림 — 바뀌면 실행기가 되돌린다.','매일 10:20 · 17:40',
     `<div class="body">${body}</div>${J&&J.checked&&J.checked.length?`<details><summary>정상 확인 ${J.checked.length}개</summary><div class="dbody">${li(J.checked,x=>`<li>${esc(x)}</li>`)}</div></details>`:''}`)}
 function render(D){
   const T=D.tasks||[];const cnt=k=>T.filter(t=>t.state===k).length;

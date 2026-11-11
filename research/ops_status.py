@@ -56,7 +56,7 @@ TASK_INFO = {
     "\\BamhobakFactory\\Night": ("규칙 공장", "AI 수집·깔때기·진화기·밤 보고서·후보 페이지"),
     "\\BamhobakFactory\\HealM1": ("점검", "점검기가 예약한 1분봉 다시 받기(한 번짜리)"),
     "\\BamhobakFactory\\OpsStatus": ("점검", "이 페이지 자료 올리기(30분마다)"),
-    "\\BamhobakFactory\\OpsDoctor": ("점검", "점검 의사 — 이 페이지를 클로드가 훑어 고장 찾기(지금은 보고만)"),
+    "\\BamhobakFactory\\OpsDoctor": ("점검", "점검 의사 — 이 페이지를 클로드가 훑어 고장 찾고 고치기(data/ops_doctor/FIX_ON 있으면 고치기 모드)"),
     "\\kospi-volume-research-daily": ("자료 모으기", "투자자 수급·연구 자료(20:30)"),
     "\\BamhobakInsiderDaily": ("자료 모으기", "내부자 거래 수집"),
 }
