@@ -2124,7 +2124,7 @@ async function renderPositions(){
         +`<span><span class="k">동일</span><span class="${sg(avg)}">${avg>0?'+':''}${avg.toFixed(2)}%</span></span>`
         +`<span><span class="k">금액</span><span class="${sg(wavg)}">${wavg==null?'—':(wavg>0?'+':'')+wavg.toFixed(2)+'%'}</span></span>`
         +`<span><span class="k">수익금</span><span class="${sg(sum)}">${sum?kor(sum,1)+'원':'—'}</span></span>`
-        +`<span><span class="k">승률</span><span>${win.toFixed(0)}% <span class="k">(${rs.filter(x=>x>0).length}/${rs.length})</span></span></span>`
+        +`<span title="이긴 건 ${rs.filter(x=>x>0).length} / 전체 ${rs.length}"><span class="k">승률</span><span>${win.toFixed(0)}%</span></span>`
         +`<span><span class="k">PF</span><span class="${pfv==null?'':pfv>=1?'pos':'neg'}">${pfv==null?'—':pfv===Infinity?'∞':pfv.toFixed(2)}</span></span></div>`};
     /* 칩도 레일과 같은 순서로 — 목록에 없는 옛 규칙(P0 등)은 뒤에 */
     const ordIds=orderedAll().map(f=>f.id);
@@ -2193,7 +2193,7 @@ async function renderPositions(){
       +`<span><span class="k">동일</span><span class="${sg(m.avg)}">${m.avg==null?'—':(m.avg>0?'+':'')+m.avg.toFixed(2)+'%'}</span></span>`
       +`<span><span class="k">수익률</span><span class="${sg(m.ret)}">${m.inv?(m.ret>0?'+':'')+m.ret.toFixed(2)+'%':'—'}</span></span>`
       +`<span><span class="k">평가손익</span><span class="${sg(m.pnl)}">${m.inv?amt(m.pnl,1):'—'}</span></span>`
-      +`<span title="지금 판다면(비용 뒤) 수익인 종목 비율"><span class="k">승률</span><span>${m.win==null?'—':m.win.toFixed(0)+'% <span class="k">('+m.nwin+'/'+m.navg+')</span>'}</span></span>`
+      +`<span title="지금 판다면(비용 뒤) 수익인 종목 비율${m.win==null?'':' — 수익 '+m.nwin+' / 전체 '+m.navg}"><span class="k">승률</span><span>${m.win==null?'—':m.win.toFixed(0)+'%'}</span></span>`
       +`<span title="지금 기준 PF — 수익 중인 종목 수익률 합 ÷ 손실 중인 종목 손실률 합(1 보다 크면 번 쪽이 큼)"><span class="k">PF</span><span class="${m.pf==null?'':m.pf>=1?'pos':'neg'}">${m.pf==null?'—':m.pf===Infinity?'∞':m.pf.toFixed(2)}</span></span>`
       /* 현재가를 아직 못 받은 건이 있으면 **말해 준다** — 일부만 반영된 합계를 전부인 척
          보여주면 안 된다. 미장 표가 도착하면 사라진다. */
