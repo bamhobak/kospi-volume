@@ -1,0 +1,45 @@
+C:\vscode\kospi-volume\research\a5_proxy_1112.py:60: FutureWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby to silence this warning.
+  rho = A.groupby("d").apply(lambda g: g[k].rank().corr(g["eq"].rank())).mean()
+C:\vscode\kospi-volume\research\a5_proxy_1112.py:60: FutureWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby to silence this warning.
+  rho = A.groupby("d").apply(lambda g: g[k].rank().corr(g["eq"].rank())).mean()
+C:\vscode\kospi-volume\research\a5_proxy_1112.py:60: FutureWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby to silence this warning.
+  rho = A.groupby("d").apply(lambda g: g[k].rank().corr(g["eq"].rank())).mean()
+그림자 기간 23일(20261012~20261111) · NXT 장전 체결 있는 종목-일 15145 · 하루 658종목
+
+시장(이 종목들) 시가→종가 평균 -0.29%
+
+| 신호 | 건당 | 승률 | 날 바구니 − 시장 | 플러스 날 | 실전(eq) 상위 10%와 겹침 | eq 와 순위 상관 |
+|---|---|---|---|---|---|---|
+| eq | +0.36% | 53% | +0.67%p | 20/23 | 100% | 1.00 |
+| n850 | +0.01% | 50% | +0.33%p | 14/23 | 45% | 0.65 |
+| n800 | -0.18% | 48% | +0.14%p | 13/23 | 28% | 0.38 |
+
+하위 10%(뒤집은 쪽) 확인:
+  eq 하위 10% 건당 -0.83% · 날 바구니 − 시장 -0.51%p
+  n850 하위 10% 건당 -1.26% · 날 바구니 − 시장 -0.95%p
+  n800 하위 10% 건당 -0.76% · 날 바구니 − 시장 -0.45%p
+
+날짜별 날 바구니 − 시장 (eq / n850 / n800)
+  20261012 -0.80 / -0.09 / -0.31
+  20261013 +0.79 / +0.47 / +0.04
+  20261014 +0.01 / -0.44 / +0.16
+  20261015 -0.03 / -1.46 / -1.28
+  20261016 +1.81 / +1.44 / +0.39
+  20261019 +0.21 / +2.40 / +3.01
+  20261020 +0.96 / +0.42 / -0.86
+  20261021 +0.27 / +0.03 / +0.45
+  20261022 -0.01 / -0.77 / -0.56
+  20261023 +1.37 / +0.69 / +0.72
+  20261026 +0.27 / -0.04 / -0.73
+  20261027 +0.42 / +0.38 / +0.22
+  20261028 +0.60 / +0.50 / +0.56
+  20261029 +0.40 / -0.55 / +0.19
+  20261030 +0.38 / -1.90 / -1.85
+  20261102 +0.36 / +1.16 / +0.85
+  20261103 +0.72 / -0.95 / -0.77
+  20261104 +0.81 / +0.49 / -0.04
+  20261105 +1.30 / -1.93 / -2.92
+  20261106 +0.83 / +2.43 / +3.05
+  20261109 +2.84 / +3.32 / +2.04
+  20261110 +0.92 / +1.43 / +0.97
+  20261111 +0.87 / +0.57 / -0.12
