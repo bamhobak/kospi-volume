@@ -30,6 +30,8 @@ TASK_INFO = {
     "\\BamhobakDay\\AuditLive": ("점검", "실전-연구 대조 감사관(원장 왕복 vs 연구 가정가)"),
     "\\BamhobakDay\\AerrMorning": ("데이 매매", "[예상 하회] 매수(11-12 뺌 — 꺼둠)"),
     "\\BamhobakDay\\AerrClose": ("데이 매매", "[예상 하회] 가상 매도(11-12 뺌 — 꺼둠)"),
+    "\\BamhobakDay\\CrmapMorning": ("데이 매매", "[반대매매] 07:35 후보 계산 → 08:45 1주 지정가(어제 종가 -1%) → 시가 미체결 취소"),
+    "\\BamhobakDay\\CrmapClose": ("데이 매매", "[반대매매] 가상 매수·매도와 결과 한 줄"),
     "\\BamhobakNxt\\Pick": ("데이 매매", "[장후 낙폭] 19:50 고르기·19:51 NXT 장후 지정가 매수"),
     "\\BamhobakNxt\\Fill": ("데이 매매", "[장후 낙폭] 19:59 못 산 주문 취소·체결 확인"),
     "\\BamhobakNxt\\Close": ("데이 매매", "[장후 낙폭] 마감 처리"),
@@ -108,7 +110,7 @@ def audit():
     f = D / "audit" / "live.csv"
     if not f.exists(): return {}
     A = pd.read_csv(f, dtype={"buy_day": str, "sell_day": str, "t": str})
-    rn = {"T1": "갭하락", "T2": "갭하락+", "T3": "갭하락++", "T4": "미장 폭락", "T5": "장전 되돌림", "T6": "장후 낙폭"}
+    rn = {"T1": "갭하락", "T2": "갭하락+", "T3": "갭하락++", "T4": "미장 폭락", "T5": "장전 되돌림", "T6": "장후 낙폭", "T8": "반대매매"}
 
     def tab(Z):
         out = []
