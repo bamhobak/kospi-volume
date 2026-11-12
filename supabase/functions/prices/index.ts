@@ -57,6 +57,7 @@ const RULES: Record<string, { stop: number | null; trail?: number | null; target
   P6: { stop: null, target: null, hold: 5 },
   P7: { stop: null, target: null, hold: 60 },
   P8: { stop: null, target: null, hold: 10 },   // [신탁 급락] — 공통 (2026-10-02)
+  P9: { stop: null, target: null, hold: 7 },    // [반대매매] — 공통 (2026-11-12, 서버 day_crmap.py 가 산다 · 7거래일째 종가)
   D1: { stop: null, target: null, hold: 20 },
   D2: { stop: null, target: null, hold: 40 },
   N1: { stop: null, target: null, hold: 40 },   // [상승장 신고가] — 미장 전용
@@ -73,7 +74,7 @@ const LEGACY: Record<string, string> = { "1": "P0", "2": "P2", "3": "P3", "4": "
 // 알림에는 내부 id 대신 이름을 쓴다 — 화면의 번호는 사용자가 순서를 바꾸면 달라지기 때문
 const RNAME: Record<string, string> = {
   P1: "조용 신고가", P2: "조정매집", P3: "폭락반등", P4: "업종붕괴",
-  P5: "자사주 낙폭", P6: "깊은 이격", P7: "외인 매집", P8: "신탁 급락",
+  P5: "자사주 낙폭", P6: "깊은 이격", P7: "외인 매집", P8: "신탁 급락", P9: "반대매매",
   D1: "낙폭과대", D2: "저PBR 낙폭", P0: "옛 상승초입(폐기)",
   N1: "상승장 신고가",
   N2: "낙폭과대", N3: "저PBR 낙폭", N4: "자사주 낙폭", N5: "잔잔 급등",
