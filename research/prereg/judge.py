@@ -97,7 +97,29 @@ def t5_rank(it):
     return ("pass", txt + " → 유지", num) if z.research.mean() > 0 else ("fail", txt + " → 규칙 다시 보기", num)
 
 
-CHECKS = {"nxt_ah": nxt_ah, "a5_tight": a5_tight, "t1_cond": t1_cond, "t5_rank": t5_rank}
+def league(it):
+    """LG1 — 대량 그림자 리그(research/league/league.py, 2026-11-12 사용자 '5번'): 새 날 채점 뒤 후보마다 픽 있는 날 NEED 일 차면
+    날 바구니 평균 > 0 & DSR(N = 후보 수) ≥ 0.9 합격. 한 후보라도 합격이면 pass, 전부 날 수 찼는데 없으면 fail."""
+    import subprocess
+    py = str(Path(sys.executable).with_name("python.exe"))
+    r = subprocess.run([py, "-X", "utf8", str(RES / "league" / "league.py"), "run"], cwd=str(BASE), capture_output=True, text=True, timeout=2400,
+                       creationflags=0x08000000)
+    if r.returncode != 0: return "wait", "리그 채점 실패 " + (r.stderr or "")[-150:], {}
+    sys.path.insert(0, str(RES / "league"))
+    import league as LGM
+    S = LGM.status()
+    if not S: return "wait", "픽 아직 없음", {}
+    full = [x for x in S if x["days"] >= LGM.NEED]
+    win = [x for x in full if x["mean"] > 0 and (x["dsr"] or 0) >= 0.9]
+    best = max(S, key=lambda x: (x["days"] >= 5, x["mean"] if x["mean"] == x["mean"] else -9))
+    num = dict(cands=len(S), full=len(full), win=[x["id"] for x in win], best=best)
+    txt = "후보 %d · 날 수 찬 것 %d · 가장 나은 %s 날 %d 평균 %+.2f" % (len(S), len(full), best["id"], best["days"], best["mean"] if best["mean"] == best["mean"] else 0)
+    if win: return "pass", txt + " → 합격 " + ", ".join(x["id"] for x in win[:3]), num
+    if len(full) == len(S): return "fail", txt + " → 전부 탈락", num
+    return "wait", txt, num
+
+
+CHECKS = {"nxt_ah": nxt_ah, "a5_tight": a5_tight, "t1_cond": t1_cond, "t5_rank": t5_rank, "league": league}
 
 
 def main(dry=False):
