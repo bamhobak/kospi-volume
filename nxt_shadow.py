@@ -58,7 +58,7 @@ TEST_FLAG = OUT / "first_test_done"
 #   장후 등락 = 19:50 가격 ÷ 오늘 KRX 종가 - 1(시장 평균 안 뺌) · 낮 등락 = 오늘 KRX 종가 ÷ 전 거래일 KRX 종가 - 1, ±1% 이내면 뺌
 #   시장 -1% 쉼·19:41~50 1천만 조건 없음 — 대신 금액 = min(500만, 19:41~50 거래대금 10%), 30만 미만이면 안 삼 · 깊은 순으로 계좌 3천만까지
 #   지정가 = min(매도 1호가, 19:50 가격 +0.5%, KRX 종가 -2.5%) 를 호가 단위로 내림 — 값이 튄 뒤 쫓아 사거나 되돌아온 걸 사지 않게
-LIVE_AH, LIVE_DAY, LIVE_K, LIVE_CAP, LIVE_ACCT, LIVE_MIN, LIVE_N = -2.5, 1.0, 0.10, 5_000_000, 30_000_000, 300_000, 40
+LIVE_AH, LIVE_DAY, LIVE_K, LIVE_CAP, LIVE_ACCT, LIVE_MIN, LIVE_N = -2.5, 1.0, 0.10, 5_000_000, 50_000_000, 300_000, 40   # LIVE_ACCT 11-13 사용자 '실전할 때 5천만'(3천만 → 5천만, research/t6_cap_1113: 달 평균 +186→+232만·중앙 그대로·최악의 날 -124→-214만) — 실전 금액 모드(DAY_QTY None)에서만 쓰임
 
 
 def tick_floor(p):
@@ -376,7 +376,7 @@ def live_buy(snap):
     try: nm = {k: v[0] for k, v in AT.names([x["t"] for x in snap["live"]]).items()}
     except Exception: nm = {}
     placed, skip, paper = [], [], []
-    left = LIVE_ACCT                                       # 깊은 순으로 계좌 3천만까지(실전 금액 모드)
+    left = LIVE_ACCT                                       # 깊은 순으로 계좌 5천만까지(실전 금액 모드)
     for x in snap["live"]:
         if x["t"] in done: continue
         name = nm.get(x["t"], x["t"])
