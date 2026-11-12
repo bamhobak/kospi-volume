@@ -377,8 +377,9 @@ def review():
     ra = [x["ret"] for x in pk if x.get("ret") is not None]
     wide = [x["r_vw"] for x in snap.get("cand") or [] if not x.get("pick") and x.get("r_vw") != ""]
     avg = lambda L: sum(L) / len(L) if L else float("nan")
-    D.telegram("📊 [%s] %s/%s 고른 %d · VWAP 기준 %+.2f%% · 실제 %s · 안 고른 -2%%p↓ %d개 %+.2f%%" % (
-        RNAME, today[4:6], today[6:], len(pk), avg(rv), ("%+.2f%%(%d건)" % (avg(ra), len(ra))) if ra else "-", len(wide), avg(wide)))
+    pc = lambda L: ("%+.2f%%" % avg(L)) if L else "-"                 # 0건이면 nan 대신 '-'(11-12 '+nan%' 로 찍힘)
+    D.telegram("📊 [%s] %s/%s 고른 %d · VWAP 기준 %s · 실제 %s · 안 고른 -2%%p↓ %d개 %s" % (
+        RNAME, today[4:6], today[6:], len(pk), pc(rv), ("%+.2f%%(%d건)" % (avg(ra), len(ra))) if ra else "-", len(wide), pc(wide)))
     log("채점 %d줄" % len(rows))
 
 
