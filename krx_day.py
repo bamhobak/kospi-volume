@@ -35,6 +35,7 @@ def collect(day):
         X = stock.get_market_ohlcv(day, market=mk); time.sleep(2)         # KRX 정규장 공식값(11-04 삼성 종가 218,000 — 네이버·종목별 추이의 221,500 은 NXT 통합)
         px = X.rename(columns={"시가": "o", "고가": "h", "저가": "l", "종가": "c", "거래량": "v"})
         px = px[px.v > 0]
+        if px.empty: continue                                            # 휴장(주말·공휴일) — 수급 표가 비어 KeyError 로 죽던 것(11-07·08)
         F = {}
         for col, names in INV:
             s = None
@@ -58,6 +59,8 @@ def collect(day):
 def publish(day=None, keep=3):
     day = day or dt.datetime.now().strftime("%Y%m%d")
     rows = collect(day)
+    if not rows:
+        print("KRX 휴장(거래 0종목) — 건너뜀", day); return
     if len(rows) < 1500: raise RuntimeError("KRX 하루 자료가 너무 적다: %d종목(휴장?)" % len(rows))
     cur = KC._rpc("kospi_state_get", {"p_pin": PIN}) or {}
     days = cur.get("days") if isinstance(cur.get("days"), dict) else {}
