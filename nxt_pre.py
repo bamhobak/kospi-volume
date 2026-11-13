@@ -38,6 +38,10 @@ RANK_MAX = 4               # 2026-11-10 사용자 승인(처음 5 → 같은 날
 #   계단×100만 연 +422 → +424만·필요 자금 최대 2,549→600만·최악의 날 -53→-14만. 되돌리려면 999.
 CROWD_MAX = 10             # 2026-11-12 사용자 '넣어줘': 그날 규칙 신호(-3%p·얇음)가 10개↑ 면 쉰다 — 업종·시장째 빠지는 날은 안 되돌아온다.
 #   research/t5_recheck_1112.py: 과거 242 신호 날 중 10개↑ 8일 날 바구니 +0.01 · 순위 4 안 돈 연 +259→+262만 · 실전 뒤 손해 날(11-06 47·11-09 10·11-10 13) 전부 그런 날. 되돌리려면 9999.
+AH_MAX = 1.5               # 2026-11-14 사용자 '1.5 고': 어제 장후 움직임(KRX 종가 → 통합 종가)이 +1.5% 넘는 종목은 뺀다 — 장전 '하락'이 장후 상승을 도로 내준 것뿐.
+#   research/t5_why_1114·t5_ah_1114·t5_money_1114: 안정기 장후별 단조(-1↓ +3.72 … +2~4 +1.23 · +4↑ -1.59), 10-09 뒤 규칙 거래 62% 가 장후 +1%↑(전엔 25%).
+#   100만×계단·√충격 412일: 지금 판 +733만(승 65%·최악의 날 -14만) → +1.5 빼기 +748만(승 71%·건당 +2.03→+2.45·최악 -6만). 신호 수(붐비는 날)도 뺀 뒤로 센다(연구와 같게).
+#   어제 KRX 종가가 없는 종목(1분봉 파일 없음)은 거르지 않는다(연구도 장후 모르면 0). 되돌리려면 999.
 PRE_MAX = 30.0             # |어제 종가 대비| 30% 넘는 값은 버린다(연구와 같게)
 FRESH = (8, 35)            # 신호가 = 08:35 이후 체결만(연구: 5분 안 체결)
 SIG_AT, BUY_AT, BUY_END, SELL_AT = (8, 40, 1), (8, 41, 0), (8, 46, 0), (8, 50, 30)
@@ -164,6 +168,11 @@ def morning():
     log("NXT 종목 %d · 어제(%s) 통합 종가 %d · %.0f초" % (len(NM), prev, len(YC), time.time() - t0))
     if len(YC) < 200:
         D.telegram("⚠ [%s] 어제 종가 %d종목뿐 — 오늘 쉼" % (RNAME, len(YC))); return
+    try: KC = D.krx_closes(prev)                          # 어제 KRX 종가(1분봉 파일 마지막 봉) — 장후 움직임 = 통합 종가 ÷ 이것
+    except Exception as ex: KC = {}; log("어제 KRX 종가 읽기 실패:", repr(ex)[:120])
+    log("어제 KRX 종가 %d종목" % len(KC))
+    if len(KC) < 200:
+        D.telegram("⚠ [%s] 어제 KRX 종가 %d종목뿐 — 오늘은 장후 거르개 없이" % (RNAME, len(KC)))
     AT.sleep_until(at(*SIG_AT), "신호 08:40")
     syms = sorted(YC); px = {}
     fresh = at(*FRESH)
@@ -192,19 +201,23 @@ def morning():
                 x["cum"] = round(sum(r[4] * r[5] for r in B)); x["nbar"] = sum(1 for r in B if r[5] > 0)
             except Exception as ex:
                 log("장전 봉 못 받음", s, repr(ex)[:80])
+        x["ah"] = round((YC[s] / KC[s] - 1) * 100, 2) if KC.get(s) else None
         x["pick0"] = bool(rel <= REL and x.get("cum") is not None and x["cum"] <= CUM_MAX)      # 11-10 전 규칙(비교용으로 남긴다)
-        x["pick"] = bool(x["pick0"] and rk[s] <= RANK_MAX)
+        x["ah_out"] = bool(x["pick0"] and x["ah"] is not None and x["ah"] > AH_MAX)            # 11-14 장후 거르개로 빠짐
+        x["pick"] = bool(x["pick0"] and not x["ah_out"] and rk[s] <= RANK_MAX)
         C.append(x)
-    nsig = sum(1 for x in C if x["pick0"])
+    nsig = sum(1 for x in C if x["pick0"] and not x["ah_out"])
     crowd = nsig >= CROWD_MAX
     if crowd:                                                               # 붐비는 날 — 아무것도 안 산다(가상도 없음)
         for x in C: x["pick"] = False
     P = [x for x in C if x["pick"]]
     snap = dict(date=today, made=AT.now().strftime("%H:%M:%S"), rule=RNAME, rid=RID, n_nxt=len(YC), n_fresh=len(px), mpre=round(mpre, 2),
-                rel=REL, cum_max=CUM_MAX, rank_max=RANK_MAX, crowd_max=CROWD_MAX, nsig=nsig, crowd=crowd, cand=C)
+                rel=REL, cum_max=CUM_MAX, rank_max=RANK_MAX, crowd_max=CROWD_MAX, ah_max=AH_MAX, n_krx=len(KC), nsig=nsig, crowd=crowd, cand=C)
     jsave(OUT / ("snap_%s.json" % today), snap); publish(snap)
-    log("08:40 시장 장전 %+.2f%% · 체결 %d종목 · -2%%p↓ %d · -3%%p↓ %d · 옛 규칙이면 %d · 고른 것(순위 %d 안) %d" % (
-        mpre, len(px), len(C), sum(1 for x in C if x["rel"] <= REL), sum(1 for x in C if x["pick0"]), RANK_MAX, len(P)))
+    log("08:40 시장 장전 %+.2f%% · 체결 %d종목 · -2%%p↓ %d · -3%%p↓ %d · 옛 규칙이면 %d · 장후 +%.1f%%↑ 뺌 %d%s · 고른 것(순위 %d 안) %d" % (
+        mpre, len(px), len(C), sum(1 for x in C if x["rel"] <= REL), sum(1 for x in C if x["pick0"]), AH_MAX, sum(1 for x in C if x["ah_out"]),
+        "(%s)" % ", ".join("%s %+.1f" % (x["name"], x["ah"]) for x in C if x["ah_out"] and x["rank"] <= RANK_MAX) if any(x["ah_out"] and x["rank"] <= RANK_MAX for x in C) else "",
+        RANK_MAX, len(P)))
     if crowd:
         log("신호 %d개(%d↑) — 붐비는 날, 오늘 쉼" % (nsig, CROWD_MAX))
         D.telegram("🌄 [%s] 신호 %d개 — 붐비는 날, 쉼" % (RNAME, nsig))
