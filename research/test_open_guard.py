@@ -1,10 +1,12 @@
-"""day_alert.open_guard 가짜 시험(2026-10-26 사용자 "후보 많아질 걸 미리 대비") — python research/test_open_guard.py [종목 수] — 토스 호출 없이 M.get(시세·1분봉)·AT.call(취소)을 바꿔 끼운다(실주문 없음).
+"""day_alert.open_guard 가짜 시험(2026-10-26 · 11-13 빠른 취소: 시가 ≤ 지정가 주문 취소는 already-filled 로 거절 사용자 "후보 많아질 걸 미리 대비") — python research/test_open_guard.py [종목 수] — 토스 호출 없이 M.get(시세·1분봉)·AT.call(취소)을 바꿔 끼운다(실주문 없음).
 N종목 · 시가 단일가는 t=T_OPEN 초에 한꺼번에 찍힘(실제처럼) · 종목마다 그 뒤 0~8초에 다음 체결(시세 시각이 09:00:05 를 넘어감)
 · 1분봉 09:01 봉은 시가 뒤 0~2초에 나타남 · 5% 확률로 429 · 3종목은 거래 없음."""
 import sys, time, random, threading, datetime as dt
 sys.path.insert(0, r"C:\vscode\kospi-volume"); sys.path.insert(0, r"C:\temp\dg")
+import day_alert as DA                                        # 11-13: day_alert 를 먼저 — autotrade 가 저장소 경로를 sys.path 맨 앞에 넣어 C:	emp\dg 시험본을 가렸다
 import autotrade as AT
-import day_alert as DA
+from pathlib import Path
+DA.LOG = Path(r"C:	emp	est_open_guard.log")                 # 진짜 data/day/run.log 를 더럽히지 않는다
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 120
 T_OPEN = 1.0
 AT.DRY = False
@@ -39,7 +41,11 @@ def fake_get(path, **q):
 CT = []
 def fake_call(method, path, acct=False, body=None, **q):
     with lock: calls["cancel"] += 1; CT.append(time.time() - t0 - T_OPEN)
-    AT._pace(); return {}
+    AT._pace()
+    oid = path.split("/")[4]                                    # 11-13: 시가 ≤ 지정가면 시가에 사진 것 — 토스는 취소를 '이미 체결'로 거절
+    s = oid.split("-")[0]
+    if s in S and S[s]["op"] <= 1000: raise AT.TossErr("가짜 이미 체결", code="already-filled")
+    return {}
 DA.M.get = fake_get
 AT.call = fake_call
 placed = []
@@ -55,5 +61,6 @@ wrong_open = [o["oid"] for o in placed if "open" in o and o["open"] != S[o["t"]]
 print("종목 %d · 주문 %d · 걸린 %.1f초 · 시세 묶음 %d번 · 1분봉 %d번 · 취소 %d번 · 취소 %d / 해야 할 것 %d · 시가 못 본 주문 %d(거래 없는 3종목 몫 %d) · 시가 틀림 %d" % (
     N, len(placed), el, calls["prices"], calls["candles"], calls["cancel"], len(canc), len(should),
     sum(1 for o in placed if "open" not in o), sum(1 for o in placed if S[o["t"]]["dead"]), len(wrong_open)))
+print("불러온 판:", DA.__file__)
 print("잘못 취소:", [o["oid"] for o in canc if o not in should][:5], "· 놓친 취소:", [o["oid"] for o in should if o not in canc][:5])
 print("취소 시각(시가 뒤 초): 처음 %.1f · 중앙 %.1f · 마지막 %.1f" % (min(CT), sorted(CT)[len(CT) // 2], max(CT)) if CT else "취소 없음")
