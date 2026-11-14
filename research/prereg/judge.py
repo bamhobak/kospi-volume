@@ -119,7 +119,35 @@ def league(it):
     return "wait", txt, num
 
 
-CHECKS = {"nxt_ah": nxt_ah, "a5_tight": a5_tight, "t1_cond": t1_cond, "t5_rank": t5_rank, "league": league}
+def t5_ah(it):
+    """T5AH — [장전 되돌림] 장후 1.5% 거르개(nxt_pre.AH_MAX, 11-16~) 뒤 연구 정의 성적(data/nxtpre/log.csv '고름'=1 의 'VWAP 기준 수익').
+    실전은 1주 시험이라 체결이 적어 연구 정의로 본다. 거르개로 뺀 종목(snap ah_out)의 같은 성적도 같이 적는다(거르개 확인용).
+    합격선(11-14 결과 보기 전): need 거래일 뒤 고른 종목 ≥ 5건 & 건당 > +0.5% → pass(계속 · 실금액 검토 가능) ·
+    건당 ≤ 0 → fail(1주 시험 중단 제안) · 그 사이 → extend 날까지 연장."""
+    ds = m1_days(it["start"])
+    lim = it["extend"] if it.get("status") == "extended" and it.get("extend") else it["need"]
+    if len(ds) < lim: return "wait", "거래일 %d/%d" % (len(ds), lim), {}
+    ds = ds[:lim]
+    L = pd.read_csv(BASE / "data" / "nxtpre" / "log.csv", encoding="utf-8-sig", dtype={"날짜": str, "종목": str})
+    L = L[L["날짜"].isin(ds)].copy(); L["r"] = pd.to_numeric(L["VWAP 기준 수익"], errors="coerce")
+    pk = L[pd.to_numeric(L["고름"], errors="coerce") == 1].dropna(subset=["r"])
+    out = []
+    for d in ds:
+        f = BASE / "data" / "nxtpre" / ("snap_%s.json" % d)
+        if f.exists():
+            S = json.loads(f.read_text(encoding="utf-8"))
+            out += [(d, x["t"]) for x in S.get("cand") or [] if x.get("ah_out")]
+    ao = L[L.set_index(["날짜", "종목"]).index.isin(out)].dropna(subset=["r"])
+    num = dict(days=lim, n=int(len(pk)), mean=round(float(pk.r.mean()), 3) if len(pk) else None,
+               n_out=int(len(ao)), mean_out=round(float(ao.r.mean()), 3) if len(ao) else None)
+    txt = "%d거래일 고른 %d건 건당 %s · 장후로 뺀 %d건 %s" % (lim, len(pk), ("%+.2f%%" % pk.r.mean()) if len(pk) else "-", len(ao), ("%+.2f%%" % ao.r.mean()) if len(ao) else "-")
+    if len(pk) >= 5 and pk.r.mean() > 0.5: return "pass", txt + " → 계속(실금액 검토 가능)", num
+    if len(pk) >= 5 and pk.r.mean() <= 0: return "fail", txt + " → 1주 시험 중단 제안", num
+    if it.get("status") == "open" and it.get("extend"): return "extend", txt + " → %d거래일까지 연장" % it["extend"], num
+    return "fail", txt + " → 표본 부족·애매 — 중단 제안", num
+
+
+CHECKS = {"nxt_ah": nxt_ah, "a5_tight": a5_tight, "t1_cond": t1_cond, "t5_rank": t5_rank, "league": league, "t5_ah": t5_ah}
 
 
 def main(dry=False):
