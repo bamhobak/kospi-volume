@@ -36,7 +36,7 @@ if sys.stdout is not None:
     except Exception: pass
 
 PER = {"KR": 1_500_000, "US": 1_000_000}      # 규칙 하나당(원) — 2026-10-03 사용자: 국장 150만·미장 100만
-SEED = {"KR": 50_000_000, "US": 50_000_000}   # 시장별 시드(원) — 자동매매가 들고 있는 매수금(미장은 그때 환율) + 오늘 살 것 ≤ 시드
+SEED = {"KR": 50_000_000, "US": 0}            # 2026-11-15 사용자 "미장 시드는 일단 5천만 빼줘, 나중에 다시 정하자" → 0 = 미장 새 매수 쉼(들고 있는 건 규칙대로 판다) · 시장별 시드(원) — 자동매매가 들고 있는 매수금(미장은 그때 환율) + 오늘 살 것 ≤ 시드
 # 하루 최대 매수 건수는 없앴다(2026-11-02 사용자 "하루상한 없애줘" — 11-02 미장 [저PBR 낙폭] 9건 중 티커 알파벳 순 4건이 잘림). 시드·매수가능이 막는다.
 # 2026-10-15 사용자 "스윙도 일단 1주씩": 테스트 동안 신호마다 1주만(PER 금액 무시). 돈 제대로 넣을 때 None 으로 되돌린다.
 SWING_QTY = 1
@@ -1190,6 +1190,8 @@ def buy(mk, at_close=False):
     C = [c for c in candidates(mk, F, ST, R, rank, today_keys) if (c[2] in BUY_CLOSE) == at_close]   # 종가 매수 규칙은 15:21 실행에서만
     if not C:
         log(mk, "살 것 없음%s · 신호일" % (" (종가 매수)" if at_close else ""), have); ovl_alone(); return
+    if SEED[mk] <= 0:                                                   # 11-15 시드 0 = 새 매수 쉼(신호마다 '시드 다 참' 줄이 쌓이지 않게)
+        log(mk, "시드 0 — 신규 매수 쉼(신호 %d건 · %s)" % (len(C), ", ".join(sorted({c[2] for c in C})))); ovl_alone(); return
     syms = sorted({c[3] for c in C})
     nm = names(syms)
     fx = usdkrw() if mk == "US" else None
