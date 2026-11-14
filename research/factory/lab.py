@@ -12,6 +12,7 @@
   G1 학습   2016~22(외국인 재료면 2018~22) — 건수 150↑·60일↑ · 건당 평균 > 0 · 하루 평균 t ≥ 2 · 해마다 플러스 60%↑
   G2 검증   2023~(잠가 둔 구간 — G1 통과한 것만 연다) — 건당 평균 > 0 · 하루 t ≥ 1 · 해마다 플러스 절반↑ ·
             다중검정(공장에서 지금까지 돌린 명세 수로 Deflated Sharpe ≥ 0.90) · T1(갭 하락 조용주)과 겹침 50% 미만
+            + 11-14 gates.py(G1 에도 ⑪ 학습 거울): ⑨ 복권형 아님 · ⑪ 뒤집은 짝은 마이너스 · ⑤ 문턱 이웃도 같은 부호(고원) · ④ 같은 날 무작위 판 1,000번 중 상위 5%
   G3 그림자  G2 통과 → 실제로 사지 않고 앞으로 오는 날 성적을 매일 기록(fshadow) — 20거래일·15건 뒤 판정 → 텔레그램 '1주 실전?'
 판정은 자금 무제한·다 산다. 수익은 비용 뒤(oc·on 0.23% · sw 는 패널 비용).
 """
@@ -30,6 +31,7 @@ DSR_MIN = 0.90
 #  2026-10-11 사용자 "F0161 정도는 많이 나오잖아, 규칙으로 쓸 수 없잖아" — 검증 건당 이 값 미만이거나 중앙값이 0 이하면 검토로 안 올린다
 #  (종가 매수→다음날 시가 0.15~0.27%·중앙 마이너스 류가 검토 5건을 다 채웠음)
 VA_MIN = 0.5
+GATES = True                    # 2026-11-14 사용자 '차례차례 진행해줘' — gates.py 관문 4종(⑨분포 ⑪거울 ⑤이웃 ④가짜 달력)을 G2 에 붙임. False 면 옛 판정
 _U = None
 
 
@@ -403,6 +405,13 @@ def judge(spec, U=None, n_trials=None, mk="KR"):
         if sw and not (s["ex"] or 0) > 0: why.append("학습: 같은 날 아무 종목보다 %+.2f%%p(못 이김)" % (s["ex"] or 0))
     if why:
         R["why"] = " · ".join(why); return R
+    if GATES:                                                           # 11-14 ⑪ 거울을 학습에서 먼저 — research/reports/factory/regate2_1114: 학습 통과 200개 중
+        import sys as _sys, gates as GT                                 #   학습 거울 플러스 29개는 검증 플러스 0% · 나머지 171개는 87% → 검증 열기 전에 버림
+        m1 = R["mirror_tr"] = GT.mirror(_sys.modules[__name__], U, spec, (tr0, TR_[1]), mk)
+        if sw and m1.get("inv_ex") is not None and m1["inv_ex"] > 0:
+            R["why"] = "⑪ 학습에서 거울도 플러스 — 뒤집은 짝이 같은 날 아무 종목보다 %+.2f%%p" % m1["inv_ex"]; return R
+        if not sw and m1.get("inv_mean") is not None and m1["inv_n"] >= 40 and m1["inv_mean"] > 0:
+            R["why"] = "⑪ 학습에서 거울도 플러스 — 뒤집은 짝 학습 건당 %+.2f%%(비용 뒤)" % m1["inv_mean"]; return R
     R["stage"] = 1
     v = R["va"] = stats(seg(T, *VA_))
     n_tr = n_trials or max(trial_count("factory"), 1)
@@ -428,6 +437,11 @@ def judge(spec, U=None, n_trials=None, mk="KR"):
         if not H or H["n"] < 40: why.append("15:19 가격 재검 표본 부족(%s건)" % (H["n"] if H else 0))
         elif H["mean"] <= 0 or H["t"] < 1:
             why.append("종가 단일가 착시 — 15:19 가격으로 고르면 %s건 %+.2f%% · t %.1f" % (f"{H['n']:,}", H["mean"], H["t"]))
+    if not why and GATES:                                               # 2026-11-14 새 관문 4종(분포·거울·이웃·가짜 달력) — 통과 직전에만(비쌈)
+        import sys as _sys, gates as GT
+        G = GT.run_all(_sys.modules[__name__], U, spec, T, tr0, VA_, mk)
+        R["gates"] = {k: v for k, v in G.items() if k != "why"}
+        why += G["why"]
     if why:
         R["why"] = " · ".join(why); return R
     R["stage"] = 2
@@ -528,11 +542,11 @@ def process(L=None, limit=200):
             R = judge(x, U)
         except Exception as ex:
             x.update(status="error", why=repr(ex)[:200]); done.append(x); continue
-        x.update(stage=R["stage"], why=R["why"], res={k: R.get(k) for k in ("ref", "tr", "va", "dsr", "honest")}, judged=time.strftime("%Y-%m-%d %H:%M"))
+        x.update(stage=R["stage"], why=R["why"], res={k: R.get(k) for k in ("ref", "tr", "va", "dsr", "honest", "gates", "mirror_tr")}, judged=time.strftime("%Y-%m-%d %H:%M"))
         if us_ok(x):                                                    # 2026-10-10: 같은 명세를 미장에서도
             try:
                 R2 = judge(x, hist_us(), mk="US")
-                x.update(stage_us=R2["stage"], why_us=R2["why"], res_us={k: R2.get(k) for k in ("ref", "tr", "va", "dsr")})
+                x.update(stage_us=R2["stage"], why_us=R2["why"], res_us={k: R2.get(k) for k in ("ref", "tr", "va", "dsr", "gates")})
             except Exception as ex:
                 x.update(stage_us=None, why_us="미장 판정 오류 " + repr(ex)[:100])
         else:

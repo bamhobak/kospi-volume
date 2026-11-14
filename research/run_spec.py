@@ -14,6 +14,7 @@
     "holds": [5, 10, 20],                # 패널에 있는 n5 n10 n20 n40 n60 중에서
     "main_hold": 20,                     # 이웃·지연 검정에 쓸 보유기간
     "variants": [{"label": "낙폭 -3~-15", "cond": "..."}, ...],   # 이웃 칸 — 미리 적은 것만(2~8개)
+    "mirror": "(dn_n == 0) & (r5 >= 5) & (r5 <= 15)",  # 선택(11-14) — 뒤집은 짝. 검증에서 이것도 벌면 탈락
     "differs_from": "H0068 과 다른 점: ...",  # 0단계에서 비슷한 기각 기록이 걸릴 때 필수
     "features": ["sv_rto5", "q_pens20"]        # 보유 재료 붙이기 — 목록은 research/features.py DESC
   }
@@ -27,6 +28,7 @@
   2 학습 판정     학습(2016~22) 중앙 > 0 · 절삭 > 0 · 학습 CI > 0 · 연도 양수 60%↑
   3 이웃 칸       미리 적은 변형 중 절반 이상이 2단계를 통과
   4 검증·다중검정 검증(2023~) 중앙 > 0 · 최근 두 해 중앙 ≥ 0 · 진짜일 확률 ≥ 0.90(DSR_MIN) ·
+                  (11-14) ④ 같은 날 무작위 1,000판 중 상위 5% · ⑪ 명세에 mirror(뒤집은 짝 조건)가 있으면 그 검증 중앙 ≤ 0 ·
                   보유 40일↑ 칸은 같은 날 아무거나 산 중앙보다 높아야 함([[consec-5day]] 드리프트 착시)
   5 겹침          기존 규칙과 ±5일 겹침 50%↑ 이면 새 정보 아님
   통과 → 상태 '후보'. 채택·비중·자리는 **사람**이 정한다. 이 실행기는 사이트·portfolio.py·배포를 안 건드린다.
@@ -198,6 +200,8 @@ def evaluate(A, spec):
     conds = {"원안": eval(spec["cond"], g, env)}
     for v in spec.get("variants", []):
         conds[v["label"]] = eval(v["cond"], g, env)
+    if spec.get("mirror"):                           # 11-14 ⑪ 거울 — 명세에 적은 '뒤집은 짝' 조건(자유식이라 자동으로 못 뒤집음)
+        conds["거울"] = eval(spec["mirror"], g, env)
     return {k: pd.Series(v, index=A.index).fillna(False).astype(bool) for k, v in conds.items()}
 
 
@@ -373,7 +377,7 @@ def main(argv):
         # ── 3 이웃 ─────────────────────────────────────────────────
         if stage_fail is None:
             P(""); P("## 3 이웃 칸 (%d일)" % mh)
-            nb = [(k, c) for k, c in CD.items() if k != "원안"]
+            nb = [(k, c) for k, c in CD.items() if k not in ("원안", "거울")]
             if len(nb) < 2:
                 fail(3, "이웃 변형이 2개 미만 — 명세에 variants 를 미리 적을 것")
             else:
@@ -401,6 +405,26 @@ def main(argv):
             if not (len(va) >= 20 and va.r.median() > 0): why.append("검증 중앙 ≤ 0")
             if any(v < 0 for v in recent.values()): why.append("최근 해 음수")
             if not (dsr >= DSR_MIN): why.append("다중검정 미달(%.3f < %.2f)" % (dsr, DSR_MIN))
+            # ④ 가짜 달력(11-14) — 검증 구간에서 같은 날 같은 개수를 유니버스에서 아무렇게나 뽑은 판 1,000번 중 몇 등인가
+            cc = "n%d" % mh
+            V = A.loc[uni & (A.date >= VA0), ["date", cc]].dropna()
+            vr = V[cc].to_numpy(float); pools = {d_: vr[ix] for d_, ix in V.groupby("date").indices.items()}
+            rng = np.random.default_rng(7); tot = np.zeros(1000); nn = 0
+            for d_, kd in va.groupby("date").size().items():
+                pl = pools.get(d_)
+                if pl is None or not len(pl): continue
+                tot += pl[rng.integers(0, len(pl), size=(1000, kd))].sum(1); nn += kd
+            if nn:
+                null = tot / nn; pct = float((null < va.r.mean()).mean())
+                P("- ④ 가짜 달력: 검증 평균 %+.2f vs 같은 날 무작위 1,000판 평균 %+.2f (상위 5%% 선 %+.2f) → %.1f%% 자리" % (va.r.mean(), null.mean(), np.quantile(null, 0.95), pct * 100))
+                if pct < 0.95: why.append("가짜 달력 상위 %.0f%%(무작위와 구별 안 됨)" % ((1 - pct) * 100))
+            # ⑪ 거울(11-14) — 명세에 mirror 를 적었을 때만. 뒤집은 쪽도 검증 중앙 플러스면 재료가 아니라 변동성·흐름
+            if "거울" in CD:
+                Ym = J.run(CD["거울"], mh); vm = Ym[Ym.date >= VA0]
+                P("- ⑪ 거울: 검증 n %d · 중앙 %s" % (len(vm), ("%+.2f" % vm.r.median()) if len(vm) else "-"))
+                if len(vm) >= 20 and vm.r.median() > 0: why.append("거울도 플러스(뒤집은 짝 검증 중앙 %+.2f)" % vm.r.median())
+            else:
+                P("- ⑪ 거울: 명세에 mirror 없음 — 안 잼(뒤집은 짝 조건을 mirror 에 적으면 같이 잰다)")
             for h in holds:
                 if h >= 40:
                     z = RES[h][RES[h].date >= TR0]

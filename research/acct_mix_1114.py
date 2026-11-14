@@ -59,9 +59,14 @@ def main():
     T6, T5, _ = A.load(); T1 = N.t1_wide()
     days = sorted(set(T1.date) | set(T5.d) | set(T6.d1)); days = [d for d in days if A.D0 <= d <= A.D1]
     T6g, T5g = {d: g for d, g in T6.groupby("d1")}, {d: g for d, g in T5.groupby("d")}
-    SW = pickle.load(open(r"C:\temp\kp\mix_swing.pkl", "rb")); P9 = pickle.load(open(r"C:\temp\kp\mix_p9.pkl", "rb"))
+    CAPS = [float(x) * 1e8 for x in sys.argv[1:]] or [1e8, 2e8]
+    SW = {"win": {}, "long": {}}
+    import glob as _g
+    for f in _g.glob(r"C:\temp\kp\mix_swing*.pkl"):
+        z = pickle.load(open(f, "rb")); SW["win"].update(z["win"]); SW["long"].update(z["long"])
+    P9 = pickle.load(open(r"C:\temp\kp\mix_p9.pkl", "rb"))
     nd = len(days); yrs = nd / 250
-    P("# 1억·2억 계좌 — 규칙 활용법 비교 (%s~%s · %d거래일 · 값 만원)" % (days[0], days[-1], nd)); P("")
+    P("# %s 계좌 — 규칙 활용법 비교 (%s~%s · %d거래일 · 값 만원)" % ("·".join("%g억" % (c / 1e8) for c in CAPS), days[0], days[-1], nd)); P("")
 
     def swing(C, m):
         if m == 0: return np.zeros(nd), np.zeros(nd)
@@ -79,7 +84,8 @@ def main():
             if r.sell <= days[-1]: pnl[b] += r.pnl
         return np.cumsum(pnl), lock
 
-    DAYCFG = {"없음": None, "지금 실전(T6 5천만)": (30e4, 100e4, 5000e4, 500e4, 0.10), "큰 판(T6 1억·1,500만·T5 200만)": (30e4, 200e4, 1e8, 1500e4, 0.10)}
+    DAYCFG = {"없음": None, "지금 실전(T6 5천만)": (30e4, 100e4, 5000e4, 500e4, 0.10), "큰 판(T6 1억·1,500만·T5 200만)": (30e4, 200e4, 1e8, 1500e4, 0.10),
+              "더 큰 판(T6 1.5억·2,000만·T5 300만)": (30e4, 300e4, 1.5e8, 2000e4, 0.10)}
 
     def evals(C, m, pkey, dkey):
         sp, sl = swing(C, m); pp, pl = p9(pkey)
@@ -102,9 +108,23 @@ def main():
 
     HD = ("| 활용법 | 합계(창 전체) | 1년 % (CMA 포함) | 스윙 / P9 / 데이 / CMA | 데이 몫 T6·T5·T1 | 달 중앙 | 최악의 달 | 플러스 달 | 최대 낙폭(매일 평가) | 스윙+P9 묶인 돈 평균 | 데이 쓸 돈 1천만↓ 날 |\n"
           "|---|---|---|---|---|---|---|---|---|---|---|")
-    for C in (1e8, 2e8):
+    for C in CAPS:
         P("\n## 계좌 %d억\n" % (C / 1e8)); P(HD)
         pk = (200e4, 5e7)
+        if C >= 3e8:                                           # 11-14 사용자 "3억 5억이 자본금이라면"
+            BIG, BIG2, pk1, pk3 = "큰 판(T6 1억·1,500만·T5 200만)", "더 큰 판(T6 1.5억·2,000만·T5 300만)", (200e4, 1e8), (300e4, 1e8)
+            L = [("데이만 · 큰 판", 0, None, BIG), ("데이만 · 더 큰 판", 0, None, BIG2), ("스윙만 ×1(지금 비중)", 1.0, None, "없음"),
+                 ("[반대매매] 하루 1억 + 데이 더 큰 판 (스윙 없음)", 0, pk1, BIG2)]
+            for m in (0.5, 1.0, 1.5, 2.0):
+                L.append(("스윙 ×%g + [반대매매] 하루 1억 + 데이 큰 판" % m, m, pk1, BIG))
+                L.append(("스윙 ×%g + [반대매매] 하루 1억 + 데이 더 큰 판" % m, m, pk1, BIG2))
+            L += [("스윙 ×1 + [반대매매] 300만·하루 1억 + 데이 더 큰 판", 1.0, pk3, BIG2),
+                  ("스윙 ×1.5 + [반대매매] 300만·하루 1억 + 데이 더 큰 판", 1.5, pk3, BIG2)]
+            for lab, m, pkey, dkey in L:
+                r = evals(C, m, pkey, dkey)
+                P("| %s | **%+.0f** | %+.1f%% | %+.0f / %+.0f / %+.0f / %+.0f | %+.0f·%+.0f·%+.0f | %+.0f | %+.0f | %.0f%% | %.1f%% | %.0f | %.0f%% |" % (
+                    lab, r["tot"] + r["cma"], r["yr"], r["sw"], r["p9"], r["day"], r["cma"], r["d6"], r["d5"], r["d1"], r["med"], r["worst"], r["pos"], r["mdd"], r["lock"], r["short"]))
+            continue
         L = [("데이만 · 지금 실전", 0, None, "지금 실전(T6 5천만)"), ("데이만 · 큰 판", 0, None, "큰 판(T6 1억·1,500만·T5 200만)"),
              ("스윙만 ×1(지금 비중)", 1.0, None, "없음"), ("스윙 ×1 + [반대매매]", 1.0, pk, "없음"),
              ("[반대매매] + 데이 큰 판 (스윙 없음)", 0, pk, "큰 판(T6 1억·1,500만·T5 200만)"),
@@ -122,12 +142,13 @@ def main():
                 lab, r["tot"] + r["cma"], r["yr"], r["sw"], r["p9"], r["day"], r["cma"], r["d6"], r["d5"], r["d1"], r["med"], r["worst"], r["pos"], r["mdd"], r["lock"], r["short"]))
     P("\n## 참고 — 스윙 혼자 긴 기간(2016-01~2026-10, 같은 체결 손해, 복리)\n")
     P("| 계좌 | 배율 | 끝 배수 | 2016~22 연 | 2023~ 연 | 최대 낙폭 |"); P("|---|---|---|---|---|---|")
-    for (C, m), r in SW["long"].items():
-        x = pd.Series(r["nav"], index=r["d"])
+    for (C, m), r in sorted(SW["long"].items()):
+        if C not in CAPS: continue
+        x =pd.Series(r["nav"], index=r["d"])
         a = x[x.index <= "20221231"]; b = x[x.index >= "20221229"]
         ya = (a.iloc[-1] / a.iloc[0]) ** (250 / len(a)) - 1; yb = (b.iloc[-1] / b.iloc[0]) ** (250 / len(b)) - 1
         P("| %d억 | ×%.1f | %.1f배 | %+.1f%% | %+.1f%% | %.1f%% |" % (C / 1e8, m, x.iloc[-1] / C, ya * 100, yb * 100, (x / x.cummax() - 1).min() * 100))
-    (ROOT / "reports" / "acct_mix_1114.md").write_text("\n".join(OUT), encoding="utf-8")
+    (ROOT / "reports" / ("acct_mix_1114.md" if CAPS == [1e8, 2e8] else "acct_mix_1114_%s.md" % "_".join("%g" % (c / 1e8) for c in CAPS))).write_text("\n".join(OUT), encoding="utf-8")
 
 
 if __name__ == "__main__":

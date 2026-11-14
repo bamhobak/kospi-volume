@@ -10,8 +10,40 @@ import numpy as np, pandas as pd
 BASE = Path(__file__).resolve().parent.parent
 os.chdir(BASE); sys.path.insert(0, str(BASE))
 t0 = time.time()
+import threading
+def _rss():
+    import ctypes, ctypes.wintypes as W
+    class PMC(ctypes.Structure):
+        _fields_ = [("cb", W.DWORD), ("PageFaultCount", W.DWORD)] + [(n, ctypes.c_size_t) for n in (
+            "PeakWorkingSetSize", "WorkingSetSize", "QuotaPeakPagedPoolUsage", "QuotaPagedPoolUsage", "QuotaPeakNonPagedPoolUsage",
+            "QuotaNonPagedPoolUsage", "PagefileUsage", "PeakPagefileUsage")]
+    k32, ps = ctypes.windll.kernel32, ctypes.windll.psapi
+    k32.GetCurrentProcess.restype = ctypes.c_void_p
+    ps.GetProcessMemoryInfo.argtypes = [ctypes.c_void_p, ctypes.POINTER(PMC), W.DWORD]
+    c = PMC(); c.cb = ctypes.sizeof(c); ps.GetProcessMemoryInfo(k32.GetCurrentProcess(), ctypes.byref(c), c.cb)
+    return c.WorkingSetSize
+PEAK = [0]
+def _guard():                                                          # RAM 규칙(하나당 6GB) — 넘으면 스스로 멈춘다(밖에서 강제 종료가 막혀 있음)
+    while True:
+        r = _rss(); PEAK[0] = max(PEAK[0], r)
+        if r > 6.5e9:
+            sys.__stdout__.write("메모리 %.1fGB — 규칙 넘어 스스로 멈춤 (%.1f분)\n" % (r / 1e9, (time.time() - t0) / 60)); sys.__stdout__.flush(); os._exit(3)
+        time.sleep(0.5)
+threading.Thread(target=_guard, daemon=True).start()
+if (BASE / "data" / "slim" / "panel_kq.pkl").exists():               # 11-14 가는 패널(research/slim_panels.py) — 통째 패널은 16.8GB
+    os.environ.setdefault("PANEL_KP", "slim/panel_kp.pkl"); os.environ.setdefault("PANEL_KQ", "slim/panel_kq.pkl")
+CAPS = [float(x) * 1e8 for x in sys.argv[1:]] or [1e8, 2e8]
+TAG = "" if CAPS == [1e8, 2e8] else "_" + "_".join("%g" % (c / 1e8) for c in CAPS)
+sys.argv = sys.argv[:1]                                               # portfolio.py 가 인자를 자기 옵션으로 읽고 조용히 끝남(11-14)
 src = (BASE / "portfolio.py").read_text(encoding="utf-8").split("# @@ANALYSIS")[0]
-ns = {"__file__": str(BASE / "portfolio.py"), "__name__": "x"}
+_OLD_CR = '''    _M = _K.merge(_CR[["date","ticker","cr_chg20"]], on=["ticker","date"], how="left")
+    assert len(_M) == _n
+    _K["cr_chg20"] = _M.cr_chg20.values'''
+_NEW_CR = '''    _M = None                                                    # (mix_swing 11-14) merge 는 패널 통째 복사 → 메모리 두 배. 같은 값을 색인으로
+    _K["cr_chg20"] = _CR.drop_duplicates(["ticker","date"]).set_index(["ticker","date"]).cr_chg20.reindex(pd.MultiIndex.from_arrays([_K.ticker.values, _K.date.values])).values'''
+assert src.count(_OLD_CR) == 1, "portfolio.py 신용 병합 줄이 바뀜 — mix_swing 고칠 것"
+src = src.replace(_OLD_CR, _NEW_CR)
+ns ={"__file__": str(BASE / "portfolio.py"), "__name__": "x"}
 _real = sys.stdout; sys.stdout = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
 exec(compile(src, "portfolio.py", "exec"), ns)
 sys.stdout = _real; sys.stdout.reconfigure(encoding="utf-8")
@@ -59,16 +91,16 @@ def sim(C, m, d0, d1):
 
 D0, D1 = "20250401", "20261008"
 OUT = {}
-for C in (1e8, 2e8):
+for C in CAPS:
     for m in (0.5, 1.0, 1.5, 2.0):
         r = sim(C, m, D0, D1); OUT[(C, m)] = r
         x = r["nav"]; print("%d억 ×%.1f: 끝 %.0f만(%+.1f%%) · 낙폭 %.1f%% · 묶인 돈 평균 %.0f만 · 최대 %.0f만 · %d건 · %.1f분" % (
             C / 1e8, m, x[-1] / 1e4, (x[-1] / C - 1) * 100, (x / np.maximum.accumulate(x) - 1).min() * 100, r["inv"].mean() / 1e4, r["inv"].max() / 1e4, r["nb"], (time.time() - t0) / 60), flush=True)
 LONG = {}
-for C in (1e8, 2e8):
+for C in CAPS:
     for m in (1.0, 1.5, 2.0):
         r = sim(C, m, "20160101", D1); LONG[(C, m)] = r
         print("2016~ %d억 ×%.1f 끝 %.1f배 %.1f분" % (C / 1e8, m, r["nav"][-1] / C, (time.time() - t0) / 60), flush=True)
 # 0배(스윙 없음) 참고용 = 묶인 돈 0
-pickle.dump(dict(win=OUT, long=LONG), open(r"C:\temp\kp\mix_swing.pkl", "wb"))
-print("끝 %.1f분" % ((time.time() - t0) / 60))
+pickle.dump(dict(win=OUT, long=LONG), open(r"C:\temp\kp\mix_swing%s.pkl" % TAG, "wb"))
+print("끝 %.1f분 · 최대 메모리 %.1fGB" % ((time.time() - t0) / 60, PEAK[0] / 1e9))
