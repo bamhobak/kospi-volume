@@ -576,6 +576,7 @@ header h1 svg{flex:none}
 .dseg button:first-child,.dq button:first-child{border-radius:8px 0 0 8px}
 .dseg button:last-child,.dq button:last-child{border-radius:0 8px 8px 0}
 .dper input[type=date]{border-radius:8px}
+.dper input.dpn{flex:0 0 auto;width:72px;padding:6px 8px;font-size:12px;border-radius:8px;font-family:'IBM Plex Mono','IBM Plex Sans KR',monospace;color-scheme:dark}
 /* 기간 — 같은 기간 지수와 내 성적을 막대로 */
 .didx{display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:12px 2px 4px;font-size:12.5px}
 .dbar{display:grid;grid-template-columns:150px minmax(0,1fr) 76px;align-items:center;gap:12px}
@@ -1447,9 +1448,9 @@ let showInfo=false;let showWhy=false;let rowLimit=100;let rowTotal=0;let query='
 /* 완료 탭 기간 필터(2026-10-22 요청) — 매수일·매도일 중 고른 날짜가 그 기간에 든 건만. */
 /* 기간 설정 — 10-23 사용자: 바꾼 값을 기억하지 않는다. 사이트를 새로 열면 늘 '전체 기간'(완료 탭 매도일 기준) 으로 시작.
    (10-22 에 이 기기에 기억하게 했던 값은 지운다) */
-let DPER={b:'sell',f:'',t:''};
+let DPER={b:'sell',f:'',t:'',n:0};   /* n = 최근 N건(0=안 씀, 11-15) */
 const DPER_SAVE=()=>{};
-let PPER={b:'buy',f:'',t:''};   /* 보유 탭 기간(매수일 기준) */
+let PPER={b:'buy',f:'',t:'',n:0};   /* 보유 탭 기간(매수일 기준) */
 const PPER_SAVE=()=>{};
 try{localStorage.removeItem('doneper');localStorage.removeItem('posper')}catch(e){}
 let PPEROPEN=false;
@@ -2040,30 +2041,41 @@ function perParts(P,o){
   const ds=(o.list||[]).map(o.dOf).filter(Boolean).sort();
   const fromD=pf||ds[0]||'', toD=pt||(o.toNow?perYmd(new Date()).replace(/-/g,''):ds[ds.length-1])||'';
   const bl=o.basis?(P.b==='buy'?'매수':'매도'):'매수';
-  const on=!!(P.f||P.t);
-  const btn=`<button class="dperbtn ${on?'on':''} ${o.open?'open':''}" id="dperbtn">${on?bl+' '+(P.f?perMd(pf):'처음')+'~'+(P.t?perMd(pt):'끝'):'기간'} ${o.open?'▴':'▾'}</button>`;
+  const on=!!(P.f||P.t||P.n);
+  /* 11-15 요청 — 버튼 이름 '기간' → '검색', 날짜 대신 '최근 N건'(고른 날짜 기준 최근 순)으로도 거른다. 날짜와 건수는 둘 중 하나만 */
+  const btn=`<button class="dperbtn ${on?'on':''} ${o.open?'open':''}" id="dperbtn">${P.n?'최근 '+P.n+'건':on?bl+' '+(P.f?perMd(pf):'처음')+'~'+(P.t?perMd(pt):'끝'):'검색'} ${o.open?'▴':'▾'}</button>`;
   if(!o.open)return{btn,box:''};
+  const NQ=[5,10,20,50,100];
   const ctl=`<div class="dper">`
     +(o.basis?`<span class="dseg"><button data-pb="buy" class="${P.b==='buy'?'on':''}">매수일</button><button data-pb="sell" class="${P.b==='sell'?'on':''}">매도일</button></span>`:`<span class="k">매수일</span>`)
     +`<input type="date" id="dpf" value="${P.f}" aria-label="시작일"><span class="k">~</span><input type="date" id="dpt" value="${P.t}" aria-label="끝일">`
     +`<span class="dq"><button data-pq="1">오늘</button><button data-pq="7">7일</button><button data-pq="30">30일</button><button data-pq="m0">이번 달</button><button data-pq="m1">지난 달</button>`
-    +`<button data-pq="x" class="${on?'':'on'}">전체 기간</button></span></div>`;
+    +`<button data-pq="x" class="${on?'':'on'}">전체</button></span></div>`
+    +`<div class="dper"><span class="k">최근</span><span class="dq">${NQ.map(n=>`<button data-pn="${n}" class="${P.n===n?'on':''}">${n}건</button>`).join('')}</span>`
+    +`<input type="number" id="dpn" class="dpn" min="1" step="1" inputmode="numeric" placeholder="직접" value="${P.n&&!NQ.includes(P.n)?P.n:''}" aria-label="최근 건수"><span class="k">건</span></div>`;
   /* 2026-10-24 디자인 개편 — 같은 기간 지수 등락을 막대로, 맨 위에 내 성적(동일가중, o.mine) */
   const iv=perIx(o.selK,o.selF).map(s=>[PER_IXN[s],perIdxPct(s,fromD,toD),0]);
   if(o.mine!=null&&isFinite(o.mine))iv.unshift([o.toNow?'내 보유 (동일가중)':'내 거래 (동일가중)',o.mine,1]);
   const mx=Math.max(1,...iv.map(x=>Math.abs(x[1]||0)));
-  const idx=!fromD?'':`<div class="didx"><span class="k">${bl}일 기준 ${perMd(fromD)} ~ ${perMd(toD)} · 같은 기간 지수와 비교</span>`
+  const idx=!fromD?'':`<div class="didx"><span class="k">${bl}일 기준 ${P.n?'최근 '+P.n+'건 · ':''}${perMd(fromD)} ~ ${perMd(toD)} · 같은 기간 지수와 비교</span>`
     +iv.map(([l,v,me])=>`<div class="dbar${me?' me':''}"><span class="dl">${l}</span><span class="dt"><i class="${v!=null&&v<0?'n':''}" style="width:${v==null?0:Math.max(2,Math.abs(v)/mx*100).toFixed(0)}%"></i></span>`
       +`<span class="dv ${v==null?'':v>0?'pos':v<0?'neg':''}">${v==null?(IDXH===false?'…':'—'):(v>0?'+':'')+v.toFixed(2)+'%'}</span></div>`).join('')+`</div>`;
   return{btn,box:`<div class="dperbox">${ctl}${idx}</div>`}}
+/* 최근 N건 — 고른 날짜(완료: 매수일/매도일 · 보유: 매수일) 늦은 순으로 N건만 남긴다. 원래 순서는 그대로 둔다. 같은 날이면 목록 뒤쪽을 최근으로 */
+function perCut(P,l,dOf){
+  if(!P.n||!l||l.length<=P.n)return l;
+  const keep=new Set(l.map((p,i)=>[p,i,dOf(p)]).sort((a,b)=>a[2]<b[2]?1:a[2]>b[2]?-1:b[1]-a[1]).slice(0,P.n).map(x=>x[0]));
+  return l.filter(p=>keep.has(p))}
 function perWire(P,save,toggle){
   const bt=$('#dperbtn');if(bt)bt.onclick=toggle;
   document.querySelectorAll('[data-pb]').forEach(el=>el.onclick=()=>{P.b=el.dataset.pb;save();render()});
   const f=$('#dpf'),t=$('#dpt');
-  if(f)f.onchange=()=>{P.f=f.value;save();render()};
-  if(t)t.onchange=()=>{P.t=t.value;save();render()};
+  if(f)f.onchange=()=>{P.f=f.value;P.n=0;save();render()};
+  if(t)t.onchange=()=>{P.t=t.value;P.n=0;save();render()};
+  document.querySelectorAll('[data-pn]').forEach(el=>el.onclick=()=>{const n=+el.dataset.pn;P.n=P.n===n?0:n;P.f='';P.t='';save();render()});
+  const ni=$('#dpn');if(ni)ni.onchange=()=>{const n=Math.floor(+ni.value);P.n=n>0?n:0;if(P.n){P.f='';P.t=''}save();render()};
   document.querySelectorAll('[data-pq]').forEach(el=>el.onclick=()=>{
-    const q=el.dataset.pq,n=new Date();
+    const q=el.dataset.pq,n=new Date();P.n=0;
     if(q==='x'){P.f='';P.t=''}
     else if(q==='m0'){P.f=perYmd(new Date(n.getFullYear(),n.getMonth(),1));P.t=perYmd(n)}
     else if(q==='m1'){P.f=perYmd(new Date(n.getFullYear(),n.getMonth()-1,1));P.t=perYmd(new Date(n.getFullYear(),n.getMonth(),0))}
@@ -2096,11 +2108,11 @@ async function renderPositions(){
     if(pf||pt)ps=ps.filter(p=>{const d=dOf(p);return d&&(!pf||d>=pf)&&(!pt||d<=pt)});
     /* 수익률·수익금 모두 **비용 차감 후**다. 백테스트 숫자도 비용을 뺀 값이라 그래야 나란히 놓인다.
        수익금은 수익률에서 그대로 환산해 둘이 어긋나지 않게 한다. */
-    const all=ps,
+    const all=perCut(DPER,ps,dOf),     /* 최근 N건 — '전체'는 전체에서 N건, 규칙·묶음 칩은 각자 안에서 N건 */
           ret=p=>(costSell(p)/costBuy(p)-1)*100,
           pnl=p=>(costSell(p)-costBuy(p))*(p.qty||0);
     const by={};
-    all.forEach(p=>{const k=rid(p);(by[k]=by[k]||[]).push(p)});
+    ps.forEach(p=>{const k=rid(p);(by[k]=by[k]||[]).push(p)});
     /* 수익률을 두 가지로 나눠 보여준다(2026-09-09 사용자 요청).
        · 동일가중 — 건별 수익률의 단순 평균. **규칙 자체의 성적**이다. 얼마를 넣었는지와
          무관하므로 백테스트 숫자(전부 같은 비중을 전제)와 나란히 비교할 수 있다.
@@ -2143,9 +2155,10 @@ async function renderPositions(){
     const keys=Object.keys(by).sort((x,y)=>{
       const a_=ordIds.indexOf(normId(x)),b_=ordIds.indexOf(normId(y));
       return (a_<0?99:a_)-(b_<0?99:b_)||String(x).localeCompare(String(y))});
-    MKG.forEach(k=>{const l=all.filter(p=>inMk(k,p));if(l.length)by[k]=l});
-    addFam(by,all,doneRule);
-    const chips=[chip('전체',all,doneRule===null)].concat(mkChips(all,(k,l)=>chip(k,l,doneRule===k)),
+    MKG.forEach(k=>{const l=ps.filter(p=>inMk(k,p));if(l.length)by[k]=l});
+    addFam(by,ps,doneRule);
+    Object.keys(by).forEach(k=>{by[k]=perCut(DPER,by[k],dOf)});
+    const chips=[chip('전체',all,doneRule===null)].concat(mkChips(ps,(k,l)=>chip(k,by[k]||l,doneRule===k)),
       keys.map(k=>chip(k,by[k],selOn(doneRule,k)))).join('');
     const selK=doneRule&&by[doneRule]?doneRule:'전체';
     /* 기간 설정·지수 등락 — 완료·보유 탭 공용(perParts/perWire). 요약 줄 맨 오른쪽 [기간] 버튼으로 펼친다 */
@@ -2159,6 +2172,7 @@ async function renderPositions(){
     document.querySelectorAll('.dchip').forEach(el=>el.onclick=()=>{
       doneRule=el.dataset.r==='전체'?null:nextSel(doneRule,el.dataset.r);render()});
     if(doneRule)ps=ps.filter(p=>inSel(doneRule,p));
+    ps=perCut(DPER,ps,dOf);
   }else{
     const dOfP=p=>String(p.date||'').replace(/-/g,'');
     {const f_=PPER.f.replace(/-/g,''),t_=PPER.t.replace(/-/g,'');
@@ -2166,14 +2180,15 @@ async function renderPositions(){
     /* 보유 탭에도 규칙 칩을 둔다(2026-09-12 사용자 요청). 규칙이 14개라 표에 섞여 있으면
        '이 규칙으로 뭘 들고 있나 · 자리가 남았나 · 지금 벌고 있나' 를 한눈에 못 본다.
        고르면 **표를 그 규칙만으로 바꾼다** — 오른쪽에 따로 띄우면 좁은 화면에서 둘 다 못 읽는다. */
-    const all=ps, by={};
-    all.forEach(p=>{const k=rid(p);(by[k]=by[k]||[]).push(p)});
+    const all=perCut(PPER,ps,dOfP), by={};     /* 최근 N건(매수일 늦은 순) — 칩마다 각자 안에서 N건 */
+    ps.forEach(p=>{const k=rid(p);(by[k]=by[k]||[]).push(p)});
     const ordIds=orderedAll().map(f=>f.id);
     const keys=Object.keys(by).sort((x,y)=>{
       const a_=ordIds.indexOf(normId(x)),b_=ordIds.indexOf(normId(y));
       return (a_<0?99:a_)-(b_<0?99:b_)||String(x).localeCompare(String(y))});
-    MKG.forEach(k=>{const l=all.filter(p=>inMk(k,p));if(l.length)by[k]=l});
-    addFam(by,all,posRule);
+    MKG.forEach(k=>{const l=ps.filter(p=>inMk(k,p));if(l.length)by[k]=l});
+    addFam(by,ps,posRule);
+    Object.keys(by).forEach(k=>{by[k]=perCut(PPER,by[k],dOfP)});
     if(posRule&&!by[posRule])posRule=null;          /* 마지막 한 종목을 팔면 그 칩이 사라진다 */
     const chip=(k,list,on)=>{
       const f=(k==='전체'||MKG.includes(k))?null:fOf(k), kq=(k==='전체'||MKG.includes(k))?'grp':f&&mkCls(f.mkt);
@@ -2219,15 +2234,16 @@ async function renderPositions(){
     STATPAINT=()=>{const el=document.querySelector('#pchips .dstat');if(el&&cur==='pos'){el.outerHTML=statB();const bt=$('#dperbtn');if(bt)bt.onclick=togP}};
     const box=$('#pchips');
     if(box){
-      box.style.display=(all.length||PPER.f||PPER.t)?'':'none';
+      box.style.display=(all.length||PPER.f||PPER.t||PPER.n)?'':'none';
       box.innerHTML=`<div class="dsum">`
-        +[chip('전체',all,posRule===null)].concat(mkChips(all,(k,l)=>chip(k,l,posRule===k)),keys.map(k=>chip(k,by[k],selOn(posRule,k)))).join('')
+        +[chip('전체',all,posRule===null)].concat(mkChips(ps,(k,l)=>chip(k,by[k]||l,posRule===k)),keys.map(k=>chip(k,by[k],selOn(posRule,k)))).join('')
         +`</div>`+stat+ppP().box;
       perWire(PPER,PPER_SAVE,togP);
       box.querySelectorAll('.dchip').forEach(el=>el.onclick=()=>{
         posRule=el.dataset.pr==='전체'?null:nextSel(posRule,el.dataset.pr);render()});
     }
     if(posRule)ps=ps.filter(p=>inSel(posRule,p));
+    ps=perCut(PPER,ps,dOfP);
   }
   const live=LIVE;   /* 시세는 맨 위에서 맞췄다 — 탭 전환마다 새로 받지 않는다(접속 시와 10분 주기에만 갱신) */
   await pullStreaks();
