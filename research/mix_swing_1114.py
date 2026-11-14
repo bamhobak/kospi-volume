@@ -21,7 +21,7 @@ def _rss():
     c = PMC(); c.cb = ctypes.sizeof(c); ps.GetProcessMemoryInfo(ctypes.c_void_p(-1), ctypes.byref(c), c.cb)
     return c.WorkingSetSize
 PEAK = [0]
-MEMLIM = float(os.environ.get("MIX_MEM_GB", "10")) * 1e9               # 11-14 사용자 "10gb 허용"(전 6GB)
+MEMLIM = float(os.environ.get("MIX_MEM_GB", "16")) * 1e9               # 11-14 사용자 "10gb 허용"(전 6GB)
 def _guard():                                                          # RAM 규칙(하나당 6GB) — 넘으면 스스로 멈춘다(밖에서 강제 종료가 막혀 있음)
     while True:
         r = _rss(); PEAK[0] = max(PEAK[0], r)

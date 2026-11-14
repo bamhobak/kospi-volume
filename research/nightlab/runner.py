@@ -43,7 +43,7 @@ RUNS = ST / "runs.jsonl"
 BUSY = ST / ".busy"
 WIN_START, WIN_END, HARD_END = (22, 30), (6, 30), (7, 30)
 FACTORY_GAP = ((1, 20), (1, 55))
-FREE_MIN_GB, MEM_MAX_GB = 8.0, 10.0           # 11-14 사용자 "10gb 허용 · 다 해줘" — 6 → 10GB
+FREE_MIN_GB, MEM_MAX_GB = 20.0, 16.0          # 11-15 사용자 '기본 메모리를 늘려줘' — 10 → 16GB, 시작은 남은 램 20GB↑ ·           # 11-14 사용자 "10gb 허용 · 다 해줘" — 6 → 10GB
 GUARD = ["*.py", "index.html", "assets/*", "research/factory/*.py", "supabase/functions/*/*.ts", ".github/workflows/*.yml"]
 # kind=ask 로 AI 가 쓴 코드에 있으면 안 되는 것 — 주문·돈·네트워크·지우기·실전 모듈·비밀
 DENY = [r"\bautotrade\b", r"\bday_alert\b", r"\bnxt_pre\b", r"\bnxt_shadow\b", r"\bday_aerr\b", r"\btoss\b", r"/orders", r"\bsubmit\s*\(",
@@ -210,7 +210,7 @@ ASK_SYS = """너는 한국 주식 연구 스크립트를 쓰는 일꾼이다. �
   "trades": OUT_DIR 안 parquet 경로(칼럼 date·ticker·ret·amt20(억원)), "mkt": OUT_DIR 안 parquet(date·mkt)}.
   맨 위에 OUT_JSON = Path(os.environ["NIGHTLAB_OUT"]); OUT_DIR = Path(os.environ["NIGHTLAB_DIR"]). **파일 쓰기는 OUT_JSON·OUT_DIR(또는 그걸로 만든 변수)로만.**
 - metrics 에는 반드시 합격선 키 %(keys)s 를 넣는다.
-- 금지: 네트워크·주문·subprocess·파일 지우기·eval/exec·다른 모듈 import(numpy·pandas·json·math·pathlib·glob·os.environ 읽기만 됨). 램 9GB 안.
+- 금지: 네트워크·주문·subprocess·파일 지우기·eval/exec·다른 모듈 import(numpy·pandas·json·math·pathlib·glob·os.environ 읽기만 됨). 램 15GB 안.
 """
 
 

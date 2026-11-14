@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """연구 스크립트를 메모리 감시 안에서 돌린다(2026-11-14 · 사용자 '10gb 허용' — 원격 강제 종료가 막혀 있어 스스로 멈추게).
-    python research/memguard.py [--gb 10] 스크립트.py 인자...
+    python research/memguard.py [--gb 16] 스크립트.py 인자...
 WorkingSet 이 한도를 넘으면 메시지를 남기고 즉시 끝낸다(종료 코드 3). 끝날 때 최대 메모리를 알려 준다."""
 import ctypes, ctypes.wintypes as W, os, runpy, sys, threading, time
 
@@ -21,7 +21,7 @@ def rss():
 
 
 args = sys.argv[1:]
-lim = 10.0
+lim = 16.0                                   # 11-15 사용자 '기본 메모리를 늘려줘' — 10 → 16GB(서버 32GB · 시작 전 남은 램 20GB↑)
 if args[:1] == ["--gb"]: lim = float(args[1]); args = args[2:]
 t0 = time.time()
 
