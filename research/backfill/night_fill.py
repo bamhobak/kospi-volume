@@ -5,6 +5,8 @@
   nxt_pre  NXT 장전 1분봉(08:01~08:51) 2025-03-04~어제 · NXT 거래 종목 전부 → research/cache/bf_nxt_pre/(bars_*·done_*.parquet)
            이미 받은 표본(C:/temp/kp/pm_parts·pm_parts2 done)은 건너뜀
   nxt_ah   NXT 장후 1분봉(16:41~20:00) 같은 기간·같은 종목 → research/cache/bf_nxt_ah/ · research/cache/ah_m1.parquet 에 있는 (종목, 날)은 건너뜀
+  krx_ah   KRX 시간외 1분봉(15:31~18:00) · NXT 아닌 종목 전부 → research/cache/bf_krx_ah/ (11-15 [장후 낙폭] 형제 [시간외 단일가 낙폭] 연구)
+           토스에 2026-09 중순부터만 남아 있음(그 전 날은 15:30 까지만) → jobs.json from=20260901 · recurring(매일 밤 새 날 이어 받기 — 오래된 날이 지워지기 전에)
   m1_gap   data/m1/KR/day 빈 거래일(첫 파일 뒤·어제까지) 메우기 → 같은 폴더(빠진 날만, 있는 파일은 안 건드림)
 지키는 것:
   · 받는 시간 20:10~07:30 만 — 07:30 이 되면 묶음 단위로 저장하고 멈춤(다음 밤 이어받기 = done 파일).
@@ -119,6 +121,11 @@ def nxt_tickers():
     return sorted(k for k, v in J.items() if v.get("nxt"))
 
 
+def non_nxt_tickers():
+    J = json.loads((CACHE / "toss_nxt_kr.json").read_text(encoding="utf-8"))
+    return sorted(k for k, v in J.items() if not v.get("nxt"))
+
+
 def done_of(folder):
     s = set()
     for f in glob.glob(str(folder / "done_*.parquet")):
@@ -152,10 +159,14 @@ def fetch_ah(t, d):
     return bars_between(t, d, "%s-%s-%sT20:01:00.000+09:00" % (d[:4], d[4:6], d[6:]), 200, 1641, 2000)
 
 
+def fetch_kah(t, d):                                                     # 11-15 KRX 시간외(NXT 아닌 종목) — 정규장 끝 동시호가 뒤 15:31~18:00
+    return bars_between(t, d, "%s-%s-%sT18:01:00.000+09:00" % (d[:4], d[4:6], d[6:]), 160, 1531, 1800)
+
+
 # ── 일감: (종목, 날) 묶음 받기 ──────────────────────────────────────────
-def pairs_job(job, fetch, skip, test=False):
+def pairs_job(job, fetch, skip, test=False, tick=None):
     out = CACHE / job["out"]; out.mkdir(parents=True, exist_ok=True)
-    tick, days = nxt_tickers(), kr_days()
+    tick, days = (tick or nxt_tickers()), [d for d in kr_days() if d >= job.get("from", "")]
     done = done_of(out) | skip
     todo = [(t, d) for d in days for t in tick if (t, d) not in done]
     rnd = random.Random(7); order = days[:]; rnd.shuffle(order); rk = {d: i for i, d in enumerate(order)}
@@ -233,7 +244,11 @@ def job_m1_gap(job, test=False):
     return "done"
 
 
-RUN = {"nxt_pre": job_nxt_pre, "nxt_ah": job_nxt_ah, "m1_gap": job_m1_gap}
+def job_krx_ah(job, test=False):
+    return pairs_job(job, fetch_kah, set(), test, tick=non_nxt_tickers())
+
+
+RUN = {"nxt_pre": job_nxt_pre, "nxt_ah": job_nxt_ah, "m1_gap": job_m1_gap, "krx_ah": job_krx_ah}
 
 
 def run(test=False):
