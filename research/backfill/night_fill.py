@@ -7,6 +7,9 @@
   nxt_ah   NXT 장후 1분봉(16:41~20:00) 같은 기간·같은 종목 → research/cache/bf_nxt_ah/ · research/cache/ah_m1.parquet 에 있는 (종목, 날)은 건너뜀
   krx_ah   KRX 시간외 1분봉(15:31~18:00) · NXT 아닌 종목 전부 → research/cache/bf_krx_ah/ (11-15 [장후 낙폭] 형제 [시간외 단일가 낙폭] 연구)
            토스에 2026-09 중순부터만 남아 있음(그 전 날은 15:30 까지만) → jobs.json from=20260901 · recurring(매일 밤 새 날 이어 받기 — 오래된 날이 지워지기 전에)
+  us_pre   (11-15) 미장 [장전 얇은 갭하락] — research/cache/us_gap_pairs.parquet 의 (종목, 미국 거래일) · 06:41~10:00 ET 1분봉 → research/cache/bf_us_pre/
+  us_on    (11-15) 미장 [주간거래 낙폭] — research/cache/us_on_pairs.parquet · 그 거래일 앞 밤 주간거래 00:41~04:00 ET 1분봉 → research/cache/bf_us_on/
+           (둘 다 봉 시각을 미국 동부 시각 hm 으로 저장 · 목록 파일 날짜를 무작위 순서로 받음)
   m1_gap   data/m1/KR/day 빈 거래일(첫 파일 뒤·어제까지) 메우기 → 같은 폴더(빠진 날만, 있는 파일은 안 건드림)
 지키는 것:
   · 받는 시간 20:10~07:30 만 — 07:30 이 되면 묶음 단위로 저장하고 멈춤(다음 밤 이어받기 = done 파일).
@@ -164,11 +167,41 @@ def fetch_kah(t, d):                                                     # 11-15
 
 
 # ── 일감: (종목, 날) 묶음 받기 ──────────────────────────────────────────
-def pairs_job(job, fetch, skip, test=False, tick=None):
+def bars_et(sym, d, before, count, lo, hi, dset):
+    """미장 — 토스 봉 시각(KST)을 미국 동부 시각으로 바꿔 (날짜 ∈ dset, lo ≤ hm ≤ hi) 만. 저장 d 는 목록의 미국 거래일."""
+    from zoneinfo import ZoneInfo
+    ny = ZoneInfo("America/New_York"); out = []
+    for x in candles(sym, before, count):
+        e = dt.datetime.fromisoformat(x["timestamp"]).astimezone(ny)
+        hm = e.hour * 100 + e.minute
+        if e.strftime("%Y%m%d") in dset and lo <= hm <= hi:
+            out.append((sym, d, hm, float(x["openPrice"]), float(x["highPrice"]), float(x["lowPrice"]), float(x["closePrice"]), float(x["volume"])))
+    return out
+
+
+def _et(d, hhmm):
+    """미국 거래일 d 의 동부 시각 hh:mm 을 토스 before 문자열로(서머타임 반영)."""
+    from zoneinfo import ZoneInfo
+    t = dt.datetime(int(d[:4]), int(d[4:6]), int(d[6:]), int(hhmm[:2]), int(hhmm[2:]), tzinfo=ZoneInfo("America/New_York"))
+    return t.isoformat(timespec="milliseconds")
+
+
+def fetch_us_pre(t, d):                                                  # 장전 06:41~ + 개장 30분(10:00) — 한 번에 200봉
+    return bars_et(t, d, _et(d, "1001"), 200, 641, 1000, {d})
+
+
+def fetch_us_on(t, d):                                                   # 그 거래일 앞 밤 주간거래 끝 3시간 20분(00:41~04:00 ET)
+    return bars_et(t, d, _et(d, "0401"), 200, 41, 400, {d})
+
+
+def pairs_job(job, fetch, skip, test=False, tick=None, pairs=None):
     out = CACHE / job["out"]; out.mkdir(parents=True, exist_ok=True)
-    tick, days = (tick or nxt_tickers()), [d for d in kr_days() if d >= job.get("from", "")]
     done = done_of(out) | skip
-    todo = [(t, d) for d in days for t in tick if (t, d) not in done]
+    if pairs is not None:                                                # (11-15) 목록 파일 일감 — (종목, 날) 이 정해져 있음
+        days = sorted({d for _, d in pairs}); todo = [(t, d) for t, d in pairs if (t, d) not in done]
+    else:
+        tick, days = (tick or nxt_tickers()), [d for d in kr_days() if d >= job.get("from", "")]
+        todo = [(t, d) for d in days for t in tick if (t, d) not in done]
     rnd = random.Random(7); order = days[:]; rnd.shuffle(order); rk = {d: i for i, d in enumerate(order)}
     todo.sort(key=lambda z: (rk[z[1]], z[0]))                               # 날을 무작위 순서로 — 덜 받아도 고른 표본
     total = len(todo) + len(done_of(out))
@@ -248,7 +281,19 @@ def job_krx_ah(job, test=False):
     return pairs_job(job, fetch_kah, set(), test, tick=non_nxt_tickers())
 
 
-RUN = {"nxt_pre": job_nxt_pre, "nxt_ah": job_nxt_ah, "m1_gap": job_m1_gap, "krx_ah": job_krx_ah}
+def _pairs_file(job):
+    z = pd.read_parquet(CACHE / job["pairs"]); return list(zip(z.t.astype(str), z.d.astype(str)))
+
+
+def job_us_pre(job, test=False):
+    return pairs_job(job, fetch_us_pre, set(), test, pairs=_pairs_file(job))
+
+
+def job_us_on(job, test=False):
+    return pairs_job(job, fetch_us_on, set(), test, pairs=_pairs_file(job))
+
+
+RUN = {"nxt_pre": job_nxt_pre, "nxt_ah": job_nxt_ah, "m1_gap": job_m1_gap, "krx_ah": job_krx_ah, "us_pre": job_us_pre, "us_on": job_us_on}
 
 
 def run(test=False):

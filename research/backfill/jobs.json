@@ -28,5 +28,21 @@
   "enabled": true,
   "from": "20260914",
   "recurring": true
+ },
+ {
+  "id": "us_pre",
+  "kind": "us_pre",
+  "desc": "미장 장전 얇은 갭하락 — 소형주 갭 -2%↓ 날 06:41~10:00 ET 1분봉 2022-06~",
+  "pairs": "us_gap_pairs.parquet",
+  "out": "bf_us_pre",
+  "enabled": true
+ },
+ {
+  "id": "us_on",
+  "kind": "us_on",
+  "desc": "미장 주간거래 낙폭 — 거래대금 상위 1,000 주간거래 00:41~04:00 ET 1분봉 2022-06~",
+  "pairs": "us_on_pairs.parquet",
+  "out": "bf_us_on",
+  "enabled": true
  }
 ]

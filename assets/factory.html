@@ -249,13 +249,13 @@ async function loadCol(){let J=null;try{J=await rpc('kospi_state_get',{p_pin:'__
   const its=J.items.filter(x=>!x.err).map(x=>{const G=x.goals||[];const top=G.length?G[G.length-1].goal:1;
     const w=v=>Math.min(100,Math.max(0,v/top*100)).toFixed(1);
     const bf=x.backfill;const catching=bf&&bf.catching;
-    const now=`쌓인 거래일 <b>${x.have}</b>일`+(x.first?` <span class="muted">(${ymd(x.first)} ~ ${ymd(x.last)})</span>`:'')
-      +(catching?` · <span class="muted">밀린 날 받는 중 — 남은 ${(bf.left||0).toLocaleString()}쌍 · 약 ${bf.eta_h??'-'}시간(밤 20:10~07:30만 받음) → 받기 끝나면 <b>${x.expect}</b>일</span>`:'');
+    const pr=x.unit==='쌍';const now=`${x.unit_lab||'쌓인 거래일'} <b>${(x.have||0).toLocaleString()}</b>${pr?'쌍':'일'}`+(x.first?` <span class="muted">(${ymd(x.first)} ~ ${ymd(x.last)})</span>`:'')
+      +(pr&&bf?` · <span class="muted">전체 ${(bf.total||0).toLocaleString()}쌍 · 남은 약 ${bf.eta_h??'-'}시간(밤 20:10~07:30만 받음 · 앞 일감 다음 차례)</span>`:'')+(catching?` · <span class="muted">밀린 날 받는 중 — 남은 ${(bf.left||0).toLocaleString()}쌍 · 약 ${bf.eta_h??'-'}시간(밤 20:10~07:30만 받음) → 받기 끝나면 <b>${x.expect}</b>일</span>`:'');
     const bar=`<div class="bar"><i class="ex" style="width:${w(x.expect||0)}%"></i><i style="width:${w(x.have)}%"></i>${G.slice(0,-1).map(g=>`<s style="left:${w(g.goal)}%"></s>`).join('')}</div>`;
-    const gl=`<div class="gl">${G.map(g=>`<span>${esc(g.lab)} · ${g.goal}거래일 → ${g.done?'<span class="ok">도달</span>':`<b>약 ${ymd(g.eta)}</b>`}</span>`).join('')}</div>`;
+    const gl=`<div class="gl">${G.map(g=>`<span>${esc(g.lab)} · ${g.goal.toLocaleString()}${pr?'쌍':'거래일'} → ${g.done?'<span class="ok">도달</span>':`<b>약 ${ymd(g.eta)}</b>`}</span>`).join('')}</div>`;
     return `<div class="it"><h3>${esc(x.id)} · ${esc(x.name)} <span class="muted" style="font-weight:400">· ${esc(x.parent||'')}</span></h3>`
       +`<div class="sub">${esc(x.what||'')}<br>${esc(x.how||'')}</div><div style="font-size:13px">${now}</div>${bar}${gl}</div>`}).join('');
-  box.innerHTML=`<div class="nh"><span class="tag">자료 모으는 중</span><b>자료가 쌓여야 시험할 수 있는 가설 ${J.items.length}개</b><span class="muted" style="margin-left:auto">갱신 ${esc(J.updated||'')} · 예상 날짜는 거래일로 셈(대략)</span></div>`+its;
+  box.innerHTML=`<div class="nh"><span class="tag">자료 모으는 중</span><b>자료가 쌓여야(받아야) 시험할 수 있는 가설 ${J.items.length}개</b><span class="muted" style="margin-left:auto">갱신 ${esc(J.updated||'')} · 예상 날짜는 거래일로 셈(대략)</span></div>`+its;
   box.style.display=''}
 loadCol();
 </script></body></html>

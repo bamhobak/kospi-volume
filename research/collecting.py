@@ -80,9 +80,80 @@ def kis_exp():
                 goals=stage(have, last, [("1차 보기", 20), ("판정", 60)]))
 
 
+RATE_DEF, WIN = 3.0, ((20, 10), (7, 30))       # 밤 받기 초당(실측 3.0~3.9) · 받는 시간 20:10~07:30
+
+
+def _done_n(out):
+    fs = glob.glob(str(CACHE / out / "done_*.parquet"))
+    return sum(len(pd.read_parquet(f, columns=["t"])) for f in fs) if fs else 0
+
+
+def queue():
+    """밤 받기 줄(jobs.json 순서) — 일감마다 (전체, 받은 것, 남은 것). 남은 것 = 상태 파일 left, 없으면 목록 − 받은 것."""
+    J = json.loads((BASE / "research" / "backfill" / "jobs.json").read_text(encoding="utf-8"))
+    st = {}
+    try: st = json.loads((BASE / "data" / "backfill" / "state.json").read_text(encoding="utf-8"))
+    except Exception: pass
+    Q = []
+    for j in J:
+        if not j.get("enabled", True) or not j.get("out") or st.get(j["id"], {}).get("finished"): continue
+        done = _done_n(j["out"]); s = st.get(j["id"], {})
+        if j.get("pairs"): total = len(pd.read_parquet(CACHE / j["pairs"], columns=["t"]))
+        else: total = int(s.get("total") or done)
+        left = max(0, total - done) if j.get("pairs") or not s.get("left") else int(s["left"])
+        Q.append(dict(id=j["id"], total=total, done=done, left=left, rate=float(s.get("rate_per_s") or RATE_DEF)))
+    return Q
+
+
+def at_after(sec):
+    """지금부터 받는 시간만 sec 초 흘렀을 때의 시각(밤 20:10~07:30 만 셈)."""
+    t = dt.datetime.now(); left = sec
+    while left > 0:
+        a = t.replace(hour=WIN[0][0], minute=WIN[0][1], second=0, microsecond=0)
+        if t.hour * 60 + t.minute < WIN[1][0] * 60 + WIN[1][1]: a -= dt.timedelta(days=1)   # 새벽이면 어젯밤 창
+        b = a + dt.timedelta(hours=11, minutes=20)
+        if t < a: t = a
+        if t >= b: t = a + dt.timedelta(days=1); continue
+        use = min(left, (b - t).total_seconds()); t += dt.timedelta(seconds=use); left -= use
+        if left > 0: t = a + dt.timedelta(days=1)
+    return t
+
+
+def fetch_item(hid, name, parent, what, how, job, marks):
+    """과거 자료를 밤에 받는 가설 — 받은 쌍·목표(전체의 몇 %)·예상 날짜(앞 일감 남은 것까지 줄 서서)."""
+    Q = queue(); ahead = 0.0; me = None
+    for q in Q:
+        if q["id"] == job: me = q; break
+        ahead += q["left"] / max(q["rate"], 0.5)
+    if me is None:
+        return dict(id=hid, name=name, parent=parent, what=what, how=how, unit="쌍", unit_lab="받은 종목·날", have=0, expect=0, goals=[], err="일감 없음")
+    G = []
+    for lab, f in marks:
+        need = max(0, int(f * me["total"]) - me["done"])
+        G.append(dict(lab=lab, goal=int(f * me["total"]), done=need == 0,
+                      eta=None if need == 0 else at_after(ahead + need / max(me["rate"], 0.5)).strftime("%Y%m%d")))
+    first = at_after(ahead + 1).strftime("%Y-%m-%d %H:%M") if me["done"] == 0 else None
+    return dict(id=hid, name=name, parent=parent, what=what, how=how + (" · 앞 일감 끝나고 %s 무렵 시작" % first if first else ""),
+                unit="쌍", unit_lab="받은 종목·날", have=me["done"], expect=me["done"], first=None, last=None, partial=0,
+                backfill=dict(left=me["left"], total=me["total"], eta_h=round(me["left"] / max(me["rate"], 0.5) / 3600, 1), rate=me["rate"], catching=False),
+                goals=G)
+
+
+def us_pre():
+    return fetch_item("H0420", "[미장 장전 얇은 갭하락]", "[갭하락]·[장전 되돌림] 미장판",
+                      "소형주(20일 거래대금 $0.5M~$30M)가 개장 갭 -2%↓ 로 연 날의 06:41~10:00 ET 1분봉 · 2022-06~",
+                      "밤 과거 받기 — 다 받으면 바로 학습(2022-06~2024)·검증(2025~) 판정", "us_pre", [("다 받음 → 판정", 1.0)])
+
+
+def us_on():
+    return fetch_item("H0421", "[주간거래 낙폭]", "[장후 낙폭] 미장판",
+                      "거래대금 상위 1,000 종목의 한국 낮 주간거래(00:41~04:00 ET) 1분봉 · 토스에 2023-02 부터",
+                      "밤 과거 받기 — 날짜를 무작위 순서로 받으니 30% 받으면 표본으로 1차 보기", "us_on", [("1차 보기(30%)", 0.3), ("다 받음 → 판정", 1.0)])
+
+
 def build():
     items = []
-    for fn in (krx_ah, kis_exp):
+    for fn in (krx_ah, kis_exp, us_pre, us_on):
         try: items.append(fn())
         except Exception as ex: items.append(dict(id=fn.__name__, name=fn.__name__, err=repr(ex)[:200]))
     return dict(updated=time.strftime("%Y-%m-%d %H:%M"), items=items)
