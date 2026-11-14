@@ -9,7 +9,7 @@
 사전 등록: `add` 할 때 research/reports/nightlab/<id>_prereg.md 를 쓰고 그 sha 를 목록에 적는다 → 돌리기 전에 다시 대 보고 다르면 안 돌린다
           (결과 보고 합격선 옮기기 차단). 가설·합격선 없는 항목은 안 돌린다.
 돌리기(night, 예약 22:35): 22:30~06:30 안에서만 · 06:30 넘기면 죽임(07:30 전 반드시 끝) · 01:20~01:55 공장 밤 작업 시간엔 새로 안 띄움
-  · 한 번에 하나 · 띄우기 전 남은 램 8GB↑ · 돌리는 동안 6GB(mem_gb) 넘으면 죽임 · 실전 코드(루트 *.py·index.html·assets·research/factory·
+  · 한 번에 하나 · 띄우기 전 남은 램 8GB↑ · 돌리는 동안 10GB(mem_gb, 11-14 전엔 6GB) 넘으면 죽임 · 실전 코드(루트 *.py·index.html·assets·research/factory·
   supabase·.github) 사진 찍어 두고 끝나면 대 보고 바뀌었으면 되돌리고 바로 알림.
   · 결과 계약: 스크립트는 환경변수 NIGHTLAB_OUT(json 경로)에 {"metrics":{..}, "trades": parquet 경로?, "twin":?, "mkt":?, "mode","sel","table"} 를 쓴다.
   · 합격선은 스크립트가 낸 metrics 로만 기계가 판정 → 거래가 있으면 적대적 검토관(research/factory/redteam.py) → **합격 & 검토관 '막음' 아님 = '후보'**.
@@ -43,7 +43,7 @@ RUNS = ST / "runs.jsonl"
 BUSY = ST / ".busy"
 WIN_START, WIN_END, HARD_END = (22, 30), (6, 30), (7, 30)
 FACTORY_GAP = ((1, 20), (1, 55))
-FREE_MIN_GB, MEM_MAX_GB = 8.0, 6.0
+FREE_MIN_GB, MEM_MAX_GB = 8.0, 10.0           # 11-14 사용자 "10gb 허용 · 다 해줘" — 6 → 10GB
 GUARD = ["*.py", "index.html", "assets/*", "research/factory/*.py", "supabase/functions/*/*.ts", ".github/workflows/*.yml"]
 # kind=ask 로 AI 가 쓴 코드에 있으면 안 되는 것 — 주문·돈·네트워크·지우기·실전 모듈·비밀
 DENY = [r"\bautotrade\b", r"\bday_alert\b", r"\bnxt_pre\b", r"\bnxt_shadow\b", r"\bday_aerr\b", r"\btoss\b", r"/orders", r"\bsubmit\s*\(",
@@ -210,7 +210,7 @@ ASK_SYS = """너는 한국 주식 연구 스크립트를 쓰는 일꾼이다. �
   "trades": OUT_DIR 안 parquet 경로(칼럼 date·ticker·ret·amt20(억원)), "mkt": OUT_DIR 안 parquet(date·mkt)}.
   맨 위에 OUT_JSON = Path(os.environ["NIGHTLAB_OUT"]); OUT_DIR = Path(os.environ["NIGHTLAB_DIR"]). **파일 쓰기는 OUT_JSON·OUT_DIR(또는 그걸로 만든 변수)로만.**
 - metrics 에는 반드시 합격선 키 %(keys)s 를 넣는다.
-- 금지: 네트워크·주문·subprocess·파일 지우기·eval/exec·다른 모듈 import(numpy·pandas·json·math·pathlib·glob·os.environ 읽기만 됨). 램 5GB 안.
+- 금지: 네트워크·주문·subprocess·파일 지우기·eval/exec·다른 모듈 import(numpy·pandas·json·math·pathlib·glob·os.environ 읽기만 됨). 램 9GB 안.
 """
 
 
