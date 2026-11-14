@@ -74,6 +74,36 @@ def px_pass(M, syms, tag, day):
     return rows
 
 
+# 2026-11-14 사용자 '1 2 3 다 적용'(2번): [장전 되돌림] 효율화 가설 'NXT 장전이 KRX 예상체결가를 따라간다' 확인용.
+#   토스 호가는 NXT 장전 중(~08:50) NXT 호가라(08:42 호가 가운데 vs NXT 체결 |차| 중앙 0.12%) KRX 예상체결가가 안 남았다 →
+#   KIS '주식현재가 호가/예상체결'(FHKST01010200, 시장 J=KRX)로 08:40:30 · 08:45:30 에 그날 NXT 장전 체결이 있는 종목 전부의 KRX 예상체결가를 찍는다.
+#   저장 KR_YYYYMMDD_kisexp.parquet(tag·ticker·kexp 예상체결가·kvol 예상 거래량·kpr 현재가 칸). 토스와 다른 API 라 토스 한도와 안 겹침, 초당 12회.
+KIS_AT = [(8, 40, 30), (8, 45, 30)]
+KIS_RATE = 12.0
+
+
+def kis_pass(syms, tag, path):
+    rows, bad, t0 = [], 0, time.time()
+    try:
+        import sys as _s; _s.path.insert(0, str(C.BASE)); import kis
+    except Exception as ex:
+        C.log("KIS 불러오기 실패:", repr(ex)[:120]); return
+    for s in syms:
+        t1 = time.time()
+        try:
+            st, js, _ = kis.call("/uapi/domestic-stock/v1/quotations/inquire-asking-price-exp-ccn", "FHKST01010200",
+                                 {"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": s})
+            o = (js or {}).get("output2") or {}
+            if st == 200 and str(js.get("rt_cd")) == "0":
+                rows.append((tag, s, float(o.get("antc_cnpr") or 0), float(o.get("antc_vol") or 0), float(o.get("stck_prpr") or 0)))
+            else: bad += 1
+        except Exception: bad += 1
+        w = 1 / KIS_RATE - (time.time() - t1)
+        if w > 0: time.sleep(w)
+    _save(path, rows, ["tag", "ticker", "kexp", "kvol", "kpr"])
+    C.log("KIS 예상체결 %s %d종목(실패 %d) · %.0f초" % (tag, len(rows), bad, time.time() - t0))
+
+
 def _save(path, rows, cols):
     if not rows: return
     D = pd.DataFrame(rows, columns=cols)
@@ -96,10 +126,18 @@ def morning(day):
     fn = AD / ("KR_%s_amnxt.parquet" % day)
     plan = [C.at(*t) for t in AM]
     plan2 = [C.at(*t) for t in AM_NXT]
+    plan3 = [C.at(*t) for t in KIS_AT]
+    fk = AD / ("KR_%s_kisexp.parquet" % day)
+    import threading
     traded, inU = set(), set(U)
     end = C.at(8, 59, 40)
     with C.Busy("rec"):
         while C.now() < end:
+            if plan3 and C.now() >= plan3[0]:                              # KIS 는 따로 실(토스 녹화를 막지 않게)
+                plan3.pop(0)
+                if traded:
+                    threading.Thread(target=kis_pass, args=(sorted(traded), C.now().strftime("%H%M%S"), fk), daemon=True).start()
+                continue
             if plan2 and C.now() >= plan2[0]:
                 plan2.pop(0)
                 thin = sorted(traded - inU)
@@ -125,7 +163,7 @@ def morning(day):
                 rx = px_pass(M, ALL, C.now().strftime("%H%M%S"), day)
                 traded |= {r[1] for r in rx if r[4]}
                 _save(fx, rx, ["tag", "ticker", "price", "ts", "today"])
-            nx = min([p for p in plan] + [p for p in plan2] + [C.now().replace(second=0, microsecond=0) + dt.timedelta(minutes=1)])
+            nx = min([p for p in plan] + [p for p in plan2] + [p for p in plan3] + [C.now().replace(second=0, microsecond=0) + dt.timedelta(minutes=1)])
             C.sleep_until(nx)
     C.log("장전 녹화 끝")
 
