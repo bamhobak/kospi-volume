@@ -54,6 +54,7 @@ TASK_INFO = {
     "\\BamhobakFactory\\Evening": ("규칙 공장", "정답지 역추적·그림자 성적"),
     "\\BamhobakFactory\\ImpactRefit": ("점검", "체결 손해 모형 다시 맞추기(호가 사다리)"),
     "\\BamhobakFactory\\Prereg": ("점검", "사전 등록 자동 판정"),
+    "\\BamhobakFactory\\DecayWatch": ("점검", "규칙 효율화 감시 17:40 — 데이 규칙 최근 성적이 과거 하위 25%·10% 면 알림(research/decay_watch.py)"),
     "\\BamhobakFactory\\PanelDaily": ("자료 모으기", "연구 패널 매일 잇기"),
     "\\BamhobakFactory\\Night": ("규칙 공장", "AI 수집·깔때기·진화기·밤 보고서·후보 페이지"),
     "\\BamhobakFactory\\HealM1": ("점검", "점검기가 예약한 1분봉 다시 받기(한 번짜리)"),
