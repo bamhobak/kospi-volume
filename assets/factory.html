@@ -91,6 +91,17 @@ h2{font-size:15px;color:var(--txt);margin:28px 0 10px}
 #shd .sec{padding:12px 18px;border-bottom:1px solid var(--line)}#shd .sec:last-child{border-bottom:0}#shd .sec h3{margin:0 0 8px;font-size:13.5px}
 #shd td.r,#shd th.r{text-align:right}#shd .st{font-size:11px;padding:1px 7px;border-radius:5px;background:rgba(245,165,36,.14);color:#F5C26B}#shd .st.c{background:rgba(91,155,255,.14);color:#9CC2FF}
 #shd details summary{padding:6px 0;color:var(--mut)}
+/* 자료 모으는 중 — 자료가 쌓여야 시험할 수 있는 가설(등록부 '보류') · 서버 research/collecting.py 가 '__collect__' 에 30분마다(11-15 사용자) */
+#col{margin-bottom:22px;border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow:hidden}
+#col .nh{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:14px 18px;border-bottom:1px solid var(--line)}#col .nh b{font-size:16px}
+#col .tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(91,155,255,.14);color:#9CC2FF}
+#col .it{padding:14px 18px;border-bottom:1px solid var(--line)}#col .it:last-child{border-bottom:0}
+#col .it h3{margin:0 0 4px;font-size:14px}#col .it .sub{font-size:12px;color:var(--mut);margin-bottom:10px;line-height:1.5}
+#col .bar{position:relative;height:8px;border-radius:99px;background:rgba(160,168,182,.16);overflow:hidden;margin:6px 0 10px}
+#col .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:#5B9BFF}#col .bar i.ex{background:rgba(91,155,255,.35)}
+#col .bar s{position:absolute;top:-2px;bottom:-2px;width:2px;background:#F5C26B}
+#col .gl{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:12.5px}#col .gl b{font-family:'IBM Plex Mono',monospace}
+#col .ok{color:#5FE0D0}
 #nxt .gp{font-size:11px;padding:1px 7px;border-radius:5px;background:rgba(160,168,182,.14);color:#C9D0DB}#nxt .gp.big{background:rgba(52,211,192,.14);color:#5FE0D0}
 /* 그림자 테스트 중 — [갭하락] 하루 위 3개(H0362) · 서버 day_top3.py 가 '__t1top3__' 에 5분마다(10-25 사용자) — 모양은 #nxt 와 같게 */
 #t1x{margin-bottom:22px;border:1px solid rgba(245,165,36,.45);border-radius:14px;background:var(--panel);overflow:hidden}
@@ -107,6 +118,7 @@ h2{font-size:15px;color:var(--txt);margin:28px 0 10px}
   <section id="nxt" style="display:none"></section>
   <section id="t1x" style="display:none"></section>
   <section id="shd" style="display:none"></section>
+  <section id="col" style="display:none"></section>
   <div class="strip" id="strip"></div>
   <p class="note">공장이 매일 밤 찾은 규칙 중 <b>학습(2016~22)·잠가 둔 검증(2023~)·다중검정</b>을 통과한 것만 여기 올라온다. 수익은 전부 <b>비용 뒤 건당</b>. 조정 후보 칸을 고를 땐 검증 칸만 좋은 것보다 참고·학습 칸도 같이 좋은 걸로 — 여러 칸을 보고 고르는 것도 운이 섞인다. 채택·조정은 클로드 창에서 "F0035 채택"처럼 말하면 된다.</p>
   <div id="cands"></div>
@@ -230,4 +242,20 @@ async function loadShd(){let J=null;try{const r=await fetch('data/shadow.json?'+
   box.innerHTML=`<div class="nh"><span class="tag">그림자 기록 중</span><b>${(J.rules||[]).length?'그림자 규칙':'등록부 그림자·후보 가설'}</b><span class="muted" style="margin-left:auto">기준 ${md(J.asof)}${(J.rules||[]).length?' · 사지 않고 신호만 적는다 — 산 값 = 신호일 종가':''}</span></div>`+rules+hy;
   box.style.display=''}
 loadShd();
+/* 자료 모으는 중(11-15 사용자 "자료 모으는 중 추가해줘 · 얼마나 걸리고 언제쯤 마무리될지도") — '__collect__' (research/collecting.py, 30분마다) */
+async function loadCol(){let J=null;try{J=await rpc('kospi_state_get',{p_pin:'__collect__'})}catch(e){}
+  const box=$('#col');if(!J||!(J.items||[]).length){box.style.display='none';return}
+  const ymd=d=>d?d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6):'-';
+  const its=J.items.filter(x=>!x.err).map(x=>{const G=x.goals||[];const top=G.length?G[G.length-1].goal:1;
+    const w=v=>Math.min(100,Math.max(0,v/top*100)).toFixed(1);
+    const bf=x.backfill;const catching=bf&&bf.catching;
+    const now=`쌓인 거래일 <b>${x.have}</b>일`+(x.first?` <span class="muted">(${ymd(x.first)} ~ ${ymd(x.last)})</span>`:'')
+      +(catching?` · <span class="muted">밀린 날 받는 중 — 남은 ${(bf.left||0).toLocaleString()}쌍 · 약 ${bf.eta_h??'-'}시간(밤 20:10~07:30만 받음) → 받기 끝나면 <b>${x.expect}</b>일</span>`:'');
+    const bar=`<div class="bar"><i class="ex" style="width:${w(x.expect||0)}%"></i><i style="width:${w(x.have)}%"></i>${G.slice(0,-1).map(g=>`<s style="left:${w(g.goal)}%"></s>`).join('')}</div>`;
+    const gl=`<div class="gl">${G.map(g=>`<span>${esc(g.lab)} · ${g.goal}거래일 → ${g.done?'<span class="ok">도달</span>':`<b>약 ${ymd(g.eta)}</b>`}</span>`).join('')}</div>`;
+    return `<div class="it"><h3>${esc(x.id)} · ${esc(x.name)} <span class="muted" style="font-weight:400">· ${esc(x.parent||'')}</span></h3>`
+      +`<div class="sub">${esc(x.what||'')}<br>${esc(x.how||'')}</div><div style="font-size:13px">${now}</div>${bar}${gl}</div>`}).join('');
+  box.innerHTML=`<div class="nh"><span class="tag">자료 모으는 중</span><b>자료가 쌓여야 시험할 수 있는 가설 ${J.items.length}개</b><span class="muted" style="margin-left:auto">갱신 ${esc(J.updated||'')} · 예상 날짜는 거래일로 셈(대략)</span></div>`+its;
+  box.style.display=''}
+loadCol();
 </script></body></html>

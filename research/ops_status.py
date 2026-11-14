@@ -231,6 +231,10 @@ def main(dry=False):
         print(s[:3000]); return
     import board
     board.supa_set("__ops__", json.loads(s))
+    try:                                                             # 11-15 규칙 후보 페이지 '자료 모으는 중' 칸(research/collecting.py) — 같은 30분 주기
+        import collecting; collecting.publish()
+    except Exception as ex:
+        print("자료 모으는 중 올리기 실패", repr(ex)[:200], flush=True)
 
 
 if __name__ == "__main__":

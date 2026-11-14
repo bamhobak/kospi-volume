@@ -23,10 +23,10 @@
  {
   "id": "krx_ah",
   "kind": "krx_ah",
-  "desc": "KRX 시간외 1분봉 15:31~18:00 2026-09~ 매일 이어 받기 (NXT 아닌 종목 전부)",
+  "desc": "KRX 시간외 1분봉 15:31~18:00 2026-09-14~ 매일 이어 받기 (NXT 아닌 종목 전부)",
   "out": "bf_krx_ah",
   "enabled": true,
-  "from": "20260901",
+  "from": "20260914",
   "recurring": true
  }
 ]
