@@ -10,7 +10,10 @@
   [장후 낙폭]    과거 = data/decay/base_T6.csv(nxt_full0_panel · 장후 -2.5%↓ · 낮 ±1% 빼기 · 19:51~20:00 VWAP→다음 날 시가) + 매일 = data/nxt/log.csv grp=picks 'r_vwap'
     python research/decay_watch.py            (매일 17:40 예약 \\BamhobakFactory\\DecayWatch)
     python research/decay_watch.py --build    (과거 바구니 base_T5·base_T6 한 번 만들기)
-    python research/decay_watch.py --quiet    (텔레그램 없이)"""
+    python research/decay_watch.py --quiet    (텔레그램 없이)
+    python research/decay_watch.py --swing    (11-14 넓힘: 스윙 9규칙 · [반대매매] — 매주 토 10:00 research/decay_weekly.bat 이 신호표를 새로 뽑은 뒤)
+  스윙 = C:/temp/kp/port_sig.pkl(portfolio.py 신호표, 청산 끝난 거래 · 비용 뒤) 최근 60건(전체)·20건(규칙별) · 알림은 '스윙 전체'만
+  [반대매매] = C:/temp/kp/mix_p9.pkl(2016~ 갭-3%·7일 · 200만 보수 체결) + data/day/crmap_hits.csv hit=1(시가 매수 → 7거래일째 종가, 비용 0.23) 최근 30건"""
 import json, sys, time
 from pathlib import Path
 import numpy as np, pandas as pd
@@ -20,8 +23,11 @@ LOG = OUT / "run.log"
 if sys.stdout is not None:
     try: sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception: pass
-W = {"T1": 60, "T5": 40, "T6": 60}
-NAME = {"T1": "갭하락", "T5": "장전 되돌림", "T6": "장후 낙폭"}
+W = {"T1": 60, "T5": 40, "T6": 60, "SW": 60, "P9": 30}
+NAME = {"T1": "갭하락", "T5": "장전 되돌림", "T6": "장후 낙폭", "SW": "스윙 9규칙 전체", "P9": "반대매매",
+        "P1": "조용한 신고가", "P2": "조정매집", "P3": "폭락반등", "P4": "스윙 P4(내부 번호)", "P5": "자사주 낙폭", "P6": "깊은 이격",
+        "P7": "외인 매집", "D1": "스윙 D1(내부 번호)", "D2": "저PBR 낙폭(코스닥)"}
+ALERT_SW = {"SW", "P9"}                    # 규칙별 스윙은 표에만(건수가 적어 알림이 시끄러움)
 WARN, CAUT, CAUT_RUN = 0.10, 0.25, 10
 COST = 0.23
 
@@ -68,6 +74,41 @@ def series():
     return S
 
 
+def series_swing():
+    import pickle
+    S = {}
+    f = Path(r"C:/temp/kp/port_sig.pkl")
+    if f.exists():
+        Z = pickle.load(open(f, "rb"))["S"]
+        Z = Z[Z.date.astype(str) >= "20160101"].copy(); Z["date"] = Z.date.astype(str)
+        Z["r"] = (Z.exit / Z.buy - 1) * 100 - Z.cost
+        Z = Z.sort_values("date")
+        S["SW"] = pd.Series(Z.r.values, index=Z.date.values)
+        for rid, g in Z.groupby("rid"): S[rid] = pd.Series(g.r.values, index=g.date.values)
+    else: log("스윙 신호표 없음 — 건너뜀")
+    f9 = Path(r"C:/temp/kp/mix_p9.pkl")
+    if f9.exists():
+        B = pickle.load(open(f9, "rb"))[(200e4, 5e7)].sort_values("date")
+        base = pd.Series(B.net.values, index=B.date.astype(str).values)
+        cur = pd.Series(dtype=float)
+        h = BASE / "data" / "day" / "crmap_hits.csv"
+        if h.exists():
+            Hh = pd.read_csv(h, dtype={"date": str, "t": str}); Hh = Hh[Hh.hit == 1]
+            if len(Hh):
+                PX = pd.read_pickle(BASE / "research" / "cache" / "factory_px.pkl")[["ticker", "date", "open", "close"]]
+                PX = PX[PX.date >= Hh.date.min()]; PX["ticker"] = PX.ticker.astype(str); PX["date"] = PX.date.astype(str)
+                cal = sorted(PX.date.unique()); rr = {}
+                for x in Hh.itertuples():
+                    if x.date not in cal: continue
+                    i = cal.index(x.date)
+                    if i + 6 >= len(cal): continue
+                    a = PX[(PX.ticker == x.t) & (PX.date == x.date)].open; b = PX[(PX.ticker == x.t) & (PX.date == cal[i + 6])].close
+                    if len(a) and len(b) and a.iloc[0] > 0: rr.setdefault(x.date, []).append((b.iloc[0] / a.iloc[0] - 1) * 100 - COST)
+                cur = pd.Series([v for d in sorted(rr) for v in rr[d]], index=[d for d in sorted(rr) for v in rr[d]])
+        S["P9"] = pd.concat([base[base.index < (cur.index.min() if len(cur) else "99999999")], cur])
+    return S
+
+
 def judge(s, w):
     s = s.dropna()
     if len(s) < w * 3: return None
@@ -82,19 +123,23 @@ def judge(s, w):
 def main():
     if "--build" in sys.argv: build(); return
     quiet = "--quiet" in sys.argv
-    S = series()
+    SWING = "--swing" in sys.argv
+    S = series_swing() if SWING else series()
     sf = OUT / "state.json"
     st0 = json.loads(sf.read_text(encoding="utf-8")) if sf.exists() else {}
     rows, msgs, st1 = [], [], {}
     for rid, s in S.items():
-        R = judge(s, W[rid])
+        w = W.get(rid, 20)
+        R = judge(s, w)
         if R is None: log(rid, "자료 부족"); continue
         p = st0.get(rid, {})
         run = (p.get("run", 0) + 1) if R["st"] != "정상" and p.get("last") != R["last"] else (p.get("run", 0) if R["st"] != "정상" else 0)
         alerted = p.get("alerted", False)
         nm = NAME[rid]
-        line = "[%s] 최근 %d신호일 %+.2f%% · 과거 %.0f%% 자리" % (nm, W[rid], R["cur"], R["pct"] * 100)
-        if R["st"] == "경고" and p.get("st") != "경고":
+        unit = "건" if SWING else "신호일"
+        line = "[%s] 최근 %d%s %+.2f%% · 과거 %.0f%% 자리" % (nm, w, unit, R["cur"], R["pct"] * 100)
+        if SWING and rid not in ALERT_SW: pass
+        elif R["st"] == "경고" and p.get("st") != "경고":
             msgs.append("📉 " + line + " — 경고"); alerted = True
         elif R["st"] == "주의" and run >= CAUT_RUN and not alerted:
             msgs.append("📉 " + line + " — 주의 %d신호일째" % run); alerted = True
@@ -104,15 +149,16 @@ def main():
         rows.append((rid, R))
         with open(OUT / "history.csv", "a", encoding="utf-8") as f:
             f.write("%s,%s,%s,%.4f,%.4f,%s,%d\n" % (time.strftime("%Y%m%d"), rid, R["last"], R["cur"], R["pct"], R["st"], run))
-    sf.write_text(json.dumps(st1, ensure_ascii=False, indent=1), encoding="utf-8")
-    md = ["# 규칙 효율화 감시 (%s)" % time.strftime("%Y-%m-%d %H:%M"), "",
-          "연구 정의 날 바구니(비용 뒤) · 최근 구간 평균이 과거 같은 길이 구간들 가운데 몇 % 자리인가 · 정상 ≥25% · 주의 <25% · 경고 <10%", "",
-          "| 규칙 | 최근 구간 | 최근 평균 | 과거 구간 중앙 · 하위 25% 선 | 자리 | 상태 | 주의 이어진 신호일 |", "|---|---|---|---|---|---|---|"]
+    st0.update(st1); sf.write_text(json.dumps(st0, ensure_ascii=False, indent=1), encoding="utf-8")
+    md = ["# 규칙 효율화 감시%s (%s)" % (" — 스윙·반대매매" if SWING else "", time.strftime("%Y-%m-%d %H:%M")), "",
+          ("거래 하나당(비용 뒤, 청산 끝난 것) · 최근 N건 평균이 과거 같은 길이 구간들 가운데 몇 % 자리인가 · 알림은 스윙 전체·반대매매만" if SWING else
+           "연구 정의 날 바구니(비용 뒤) · 최근 구간 평균이 과거 같은 길이 구간들 가운데 몇 % 자리인가") + " · 정상 ≥25% · 주의 <25% · 경고 <10%", "",
+          "| 규칙 | 최근 구간 | 최근 평균 | 과거 구간 중앙 · 하위 25% 선 | 자리 | 상태 | 주의 이어진 횟수 |", "|---|---|---|---|---|---|---|"]
     for rid, R in rows:
-        md.append("| [%s] | %s~%s (%d신호일) | %+.2f%% | %+.2f%% · %+.2f%% | %.0f%% | %s | %d |" % (NAME[rid], R["first"], R["last"], W[rid], R["cur"], R["p50"], R["p25"],
-                  R["pct"] * 100, R["st"], st1[rid]["run"]))
-    (BASE / "research" / "reports" / "decay_watch.md").write_text("\n".join(md), encoding="utf-8")
-    log("감시 끝 — " + " · ".join("%s %s(%.0f%%)" % (NAME[r], R["st"], R["pct"] * 100) for r, R in rows))
+        md.append("| [%s] | %s~%s (%d%s) | %+.2f%% | %+.2f%% · %+.2f%% | %.0f%% | %s | %d |" % (NAME.get(rid, rid), R["first"], R["last"], W.get(rid, 20), "건" if SWING else "신호일",
+                  R["cur"], R["p50"], R["p25"], R["pct"] * 100, R["st"], st1[rid]["run"]))
+    (BASE / "research" / "reports" / ("decay_watch_swing.md" if SWING else "decay_watch.md")).write_text("\n".join(md), encoding="utf-8")
+    log("감시 끝%s — " % (" 스윙" if SWING else "") + " · ".join("%s %s(%.0f%%)" % (NAME.get(r, r), R["st"], R["pct"] * 100) for r, R in rows))
     if msgs and not quiet:
         try:
             sys.path.insert(0, str(BASE)); import day_alert as D

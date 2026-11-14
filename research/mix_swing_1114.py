@@ -17,10 +17,8 @@ def _rss():
         _fields_ = [("cb", W.DWORD), ("PageFaultCount", W.DWORD)] + [(n, ctypes.c_size_t) for n in (
             "PeakWorkingSetSize", "WorkingSetSize", "QuotaPeakPagedPoolUsage", "QuotaPagedPoolUsage", "QuotaPeakNonPagedPoolUsage",
             "QuotaNonPagedPoolUsage", "PagefileUsage", "PeakPagefileUsage")]
-    k32, ps = ctypes.windll.kernel32, ctypes.windll.psapi
-    k32.GetCurrentProcess.restype = ctypes.c_void_p
-    ps.GetProcessMemoryInfo.argtypes = [ctypes.c_void_p, ctypes.POINTER(PMC), W.DWORD]
-    c = PMC(); c.cb = ctypes.sizeof(c); ps.GetProcessMemoryInfo(k32.GetCurrentProcess(), ctypes.byref(c), c.cb)
+    ps = ctypes.WinDLL("psapi")                                 # 공유 객체에 argtypes 안 걸기(memguard 와 부딪힘 11-14)
+    c = PMC(); c.cb = ctypes.sizeof(c); ps.GetProcessMemoryInfo(ctypes.c_void_p(-1), ctypes.byref(c), c.cb)
     return c.WorkingSetSize
 PEAK = [0]
 MEMLIM = float(os.environ.get("MIX_MEM_GB", "10")) * 1e9               # 11-14 사용자 "10gb 허용"(전 6GB)

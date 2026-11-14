@@ -11,13 +11,12 @@ class PMC(ctypes.Structure):
         "QuotaNonPagedPoolUsage", "PagefileUsage", "PeakPagefileUsage")]
 
 
-k32, ps = ctypes.windll.kernel32, ctypes.windll.psapi
-k32.GetCurrentProcess.restype = ctypes.c_void_p
-ps.GetProcessMemoryInfo.argtypes = [ctypes.c_void_p, ctypes.POINTER(PMC), W.DWORD]
+ps = ctypes.WinDLL("psapi")                                    # 공유 함수 객체에 argtypes 를 안 건다(돌리는 스크립트가 따로 걸면 부딪힘 — 11-14 mix_swing)
+HPROC = ctypes.c_void_p(-1)                                      # 현재 프로세스 가짜 핸들
 
 
 def rss():
-    c = PMC(); c.cb = ctypes.sizeof(c); ps.GetProcessMemoryInfo(k32.GetCurrentProcess(), ctypes.byref(c), c.cb)
+    c = PMC(); c.cb = ctypes.sizeof(c); ps.GetProcessMemoryInfo(HPROC, ctypes.byref(c), c.cb)
     return c.WorkingSetSize, c.PeakWorkingSetSize
 
 
@@ -38,7 +37,11 @@ def guard():
 
 threading.Thread(target=guard, daemon=True).start()
 sys.argv = args
+code = 0
 try:
     runpy.run_path(args[0], run_name="__main__")
+except SystemExit as ex:                                          # 스크립트의 sys.exit(n) 은 그 코드 그대로
+    code = ex.code if isinstance(ex.code, int) else (0 if ex.code is None else 1)
 finally:
     sys.__stdout__.write("[memguard] 최대 메모리 %.1fGB · %.1f분\n" % (rss()[1] / 1e9, (time.time() - t0) / 60)); sys.__stdout__.flush()
+sys.exit(code)
