@@ -23,10 +23,11 @@ def _rss():
     c = PMC(); c.cb = ctypes.sizeof(c); ps.GetProcessMemoryInfo(k32.GetCurrentProcess(), ctypes.byref(c), c.cb)
     return c.WorkingSetSize
 PEAK = [0]
+MEMLIM = float(os.environ.get("MIX_MEM_GB", "6.5")) * 1e9              # 11-14 사용자 "6gb 예외해줘" — 그때만 MIX_MEM_GB=10
 def _guard():                                                          # RAM 규칙(하나당 6GB) — 넘으면 스스로 멈춘다(밖에서 강제 종료가 막혀 있음)
     while True:
         r = _rss(); PEAK[0] = max(PEAK[0], r)
-        if r > 6.5e9:
+        if r > MEMLIM:
             sys.__stdout__.write("메모리 %.1fGB — 규칙 넘어 스스로 멈춤 (%.1f분)\n" % (r / 1e9, (time.time() - t0) / 60)); sys.__stdout__.flush(); os._exit(3)
         time.sleep(0.5)
 threading.Thread(target=_guard, daemon=True).start()
@@ -50,7 +51,10 @@ sys.stdout = _real; sys.stdout.reconfigure(encoding="utf-8")
 S, dates, KP, KQ = ns["S"], ns["dates"], ns["KP"], ns["KQ"]
 ND = len(dates); DI = {d: i for i, d in enumerate(dates)}
 print("재료 %.1f분 · 신호 %d · amt20 중앙 %.2f" % ((time.time() - t0) / 60, len(S), S.amt20.median()), flush=True)
-KB = pd.concat([KP[["ticker", "date", "close"]], KQ[["ticker", "date", "close"]]], ignore_index=True).drop_duplicates(["ticker", "date"])
+pickle.dump(dict(S=S[["date", "ticker", "rid", "hold", "pct", "mx", "buy", "exit", "cost", "amt20", "di"]].copy(), dates=list(dates)),
+            open(r"C:\temp\kp\port_sig.pkl", "wb"))                  # 11-14 스윙 손익 해부(anatomy_swing_1114)용 신호표 — 다음엔 portfolio 안 돌려도 됨
+if os.environ.get("MIX_DUMP_ONLY"): sys.exit(0)
+KB =pd.concat([KP[["ticker", "date", "close"]], KQ[["ticker", "date", "close"]]], ignore_index=True).drop_duplicates(["ticker", "date"])
 del ns
 TK = np.array(sorted(KB.ticker.unique())); TI = {t: i for i, t in enumerate(TK)}
 di_ = KB.date.map(DI).values; ti_ = KB.ticker.map(TI).values; okm = ~pd.isna(di_)
