@@ -212,7 +212,7 @@ def check():
     free = shutil.disk_usage(str(C.BASE)).free / 1e9
     if free < 20: bad("⚠", "G: 남은 공간 %.0fGB" % free)
     lg = C.LOG.read_text(encoding="utf-8", errors="replace").splitlines()[-3000:] if C.LOG.exists() else []
-    fails = [l for l in lg if l[:10].replace("-", "") in (today, y1) and "실패" in l and "자막 실패" not in l and "검색 실패" not in l]
+    fails = [l for l in lg if l[:10].replace("-", "") in (today, y1) and "실패" in l and "자막 실패" not in l and "검색 실패" not in l and "실패 0)" not in l]   # 11-15 "(실패 0)" 은 성공 기록
     if fails: bad("⚠", "공장 로그 실패 %d줄 — 첫 줄: %s" % (len(fails), fails[0][20:160]))
     return today, trading, prev, P, ok
 
