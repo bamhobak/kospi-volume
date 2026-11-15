@@ -191,9 +191,13 @@ def main(mode=""):
     miss = missed(today)
     msg = alerts(A, today, miss)
     print("%s 감사: 왕복 %d줄 갱신 · 경보 %d" % (today, len(rows), len(msg)), flush=True)
+    sent = OUT / "last_alert.txt"                                         # 11-15 사용자 '왜 계속 와': 주말·휴장엔 마지막 1분봉 날이 그대로라
+    if msg and sent.exists() and sent.read_text(encoding="utf-8").strip() == today:   # 같은 날(11/13) 경보를 토·일 또 보냄 → 한 날은 한 번만
+        print("%s 경보 이미 보냄 — 건너뜀" % today, flush=True); return
     if msg:
         import day_alert as D
         D.telegram("🔍 <b>실전-연구 대조</b> %s/%s\n%s" % (today[4:6], today[6:], "\n".join(msg)))
+        sent.write_text(today, encoding="utf-8")
 
 
 if __name__ == "__main__":
