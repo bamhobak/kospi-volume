@@ -13,16 +13,22 @@ sys.stdout.reconfigure(encoding="utf-8")
 import numpy as np, pandas as pd
 EX = ("x10", "x30", "x60", "xc"); PER = (("20221201", "20241231"), ("20250101", "20991231"))
 OUT = []; P = lambda s="": (OUT.append(s), print(s, flush=True))
-A = pd.read_parquet(r"C:\temp\kp\openplay\days.parquet", columns=["t", "d", "gap", "a20"] + list(EX))
+import os
+US = os.environ.get("MK") == "us"                # 미장(11-16): 업종 = data/us/tickers.csv Industry(지금 명단)
+if US: PER = (("20211201", "20241231"), ("20250101", "20991231"))
+A = pd.read_parquet(Path("C:/temp/kp") / ("openplay_us" if US else "openplay") / "days.parquet", columns=["t", "d", "gap", "a20"] + list(EX))
 mk = A.groupby("d")[list(EX)].mean()
-c = sqlite3.connect("file:" + str(BASE / "data" / "kospi.db") + "?mode=ro", uri=True)
-S = pd.read_sql("select kind, gid, gname, ticker t from sector where snap='20260828'", c)
+if US:
+    S = pd.read_csv(BASE / "data" / "us" / "tickers.csv").rename(columns={"Symbol": "t", "Industry": "gid"})[["t", "gid"]].dropna().assign(kind="upjong")
+else:
+    c = sqlite3.connect("file:" + str(BASE / "data" / "kospi.db") + "?mode=ro", uri=True)
+    S = pd.read_sql("select kind, gid, gname, ticker t from sector where snap='20260828'", c)
 t_ = lambda s: s.mean() / s.std(ddof=1) * math.sqrt(len(s)) if len(s) > 2 and s.std(ddof=1) > 0 else 0
 
 
 def study(kind, ko):
     G = S[S.kind == kind]
-    G = G[G.groupby("gid").t.transform("size").between(4, 60)]                    # 너무 큰 묶음(지주사·밸류업 등)은 테마로 안 봄
+    G = G[G.groupby("gid").t.transform("size").between(4, 400 if US else 60)]                  # 너무 큰 묶음(지주사·밸류업 등)은 테마로 안 봄
     X = A.merge(G[["gid", "t"]], on="t")
     g = X.groupby(["d", "gid"])
     X["n"] = g.t.transform("size"); X = X[X.n >= 4]
@@ -51,6 +57,9 @@ def study(kind, ko):
                 if cells: P("| %s | %s | %s | %s | %s |" % (dn, pn, x, cells[0], cells[1]))
 
 
-study("theme", "테마(2026-08-28 명단)")
-study("upjong", "업종(2026-08-28 명단, 73개)")
-(ROOT / "theme_gap_1116.out").write_text("\n".join(OUT), encoding="utf-8")
+if US:
+    study("upjong", "미장 업종(tickers.csv 지금 명단 · 1분봉 있는 종목)")
+else:
+    study("theme", "테마(2026-08-28 명단)")
+    study("upjong", "업종(2026-08-28 명단, 73개)")
+(ROOT / ("theme_gap_1116_us.out" if US else "theme_gap_1116.out")).write_text("\n".join(OUT), encoding="utf-8")

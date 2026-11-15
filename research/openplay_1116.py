@@ -16,17 +16,18 @@ ROOT = Path(__file__).resolve().parent; BASE = ROOT.parent
 sys.path[:0] = [str(ROOT), str(ROOT / "factory")]
 if sys.stdout is not None: sys.stdout.reconfigure(encoding="utf-8")
 import m10_1116 as M
-OUTD = Path("C:/temp/kp/openplay"); OUTD.mkdir(parents=True, exist_ok=True)
-COST = 0.28
+US = M.MK == "us"                              # MK=us 면 미장(장전·수급·호가 칸 없음)
+OUTD = Path("C:/temp/kp/openplay" + ("_us" if US else "")); OUTD.mkdir(parents=True, exist_ok=True)
+COST = M.COST
 EX = ("x10", "x30", "x60", "xc")
 
 
 def run():
-    files = sorted(glob.glob(str(BASE / "data" / "m1" / "KR" / "bf" / "*.parquet")))
+    files = sorted(glob.glob(str(BASE / "data" / "m1" / M.MDIR / "bf" / "*.parquet")))
     rows = []
     for fi, f in enumerate(files):
         t = Path(f).stem
-        if not t.endswith("0"): continue
+        if not US and not t.endswith("0"): continue
         try: days, O, Cf, V = M.load(f)
         except Exception: continue
         nD = len(days)
@@ -41,13 +42,14 @@ def run():
                           "pch": pc / phi, "pvr": pval / a20, "v1r": v1 / a20,
                           "x10": (Cf[:, 10] / op - 1) * 100 - COST, "x30": (Cf[:, 30] / op - 1) * 100 - COST,
                           "x60": (Cf[:, 60] / op - 1) * 100 - COST, "xc": (cl / op - 1) * 100 - COST})
-        E = E[(E.a20 >= 3e8) & (E.op >= 1000) & E.gap.notna() & (E.gap.abs() < 29.5)]
+        E = E[(E.a20 >= M.MINA) & (E.op >= M.MINP) & E.gap.notna() & (E.gap.abs() < (60 if US else 29.5))]
         rows.append(E)
         if fi % 400 == 0: print(fi, len(files), flush=True)
     A = pd.concat(rows, ignore_index=True)
     for x in EX: A[x] = A[x].where(A[x].abs() < 40).astype("float32")
     A.to_parquet(OUTD / "days.parquet", index=False)
     print("종목-일", len(A))
+    if US: return
     # NXT 장전 요약
     fs = glob.glob(str(BASE / "research" / "cache" / "bf_nxt_pre" / "bars_*.parquet")) + glob.glob(r"C:\temp\kp\pm_parts\bars_*.parquet") + \
          glob.glob(r"C:\temp\kp\pm_parts2\bars_*.parquet") + glob.glob(r"C:\temp\kp\pm_m1_1103.parquet")
@@ -80,7 +82,10 @@ def rep():
     A = pd.read_parquet(OUTD / "days.parquet")
     mk = A.groupby("d")[list(EX)].mean().rename(columns={x: "m_" + x for x in EX}).reset_index()
     A = A.merge(mk, on="d", how="left")
-    F = M.flows(); A = A.merge(F[["t", "d", "f1", "i1", "f5", "i5", "fstreak"]], on=["t", "d"], how="left")
+    if US:
+        for k_ in ("f1", "i1", "f5", "i5", "fstreak"): A[k_] = np.nan
+    else:
+        F = M.flows(); A = A.merge(F[["t", "d", "f1", "i1", "f5", "i5", "fstreak"]], on=["t", "d"], how="left")
     for k in ("f1", "i1", "f5", "i5"): A[k + "r"] = A[k] / A.a20 * 100
     A["f1rk"] = A.groupby("d").f1r.rank(ascending=False); A["gaprk"] = A.groupby("d").gap.rank(ascending=False)
     A["pvalrk"] = A.groupby("d").pvr.rank(ascending=False)
@@ -98,13 +103,14 @@ def rep():
                 c = lambda s: "%d·%d | %+.2f%% | %+.2f%% (%.1f) | %+.2f (%.1f)" % (s["n"], s["days"], s["mean"], s["dm"], s["t"], s["ex"], s["ext"])
                 flag = " ★" if r[0]["dm"] > 0 and r[1]["dm"] > 0 and r[0]["t"] >= 2 and r[1]["t"] >= 2 else ""
                 P("| %s%s | %s | %s | %s |" % (nm, flag, x, c(r[0]), c(r[1])))
-    PA = (("20221201", "20241231"), ("20250101", "20991231"))
+    PA = (("20211201" if US else "20221201", "20241231"), ("20250101", "20991231"))
+    BIG, MID = (1e8, 1e7) if US else (1e10, 2e9)
     table("A-1. 갭 크기(시가 ÷ 어제 종가)", A, [
         ("갭 +1~3%", lambda z: (z.gap >= 1) & (z.gap < 3)), ("갭 +3~6%", lambda z: (z.gap >= 3) & (z.gap < 6)), ("갭 +6~10%", lambda z: (z.gap >= 6) & (z.gap < 10)),
         ("갭 +10~15%", lambda z: (z.gap >= 10) & (z.gap < 15)), ("갭 +15%↑", lambda z: z.gap >= 15), ("그날 갭 상위 5종목", lambda z: (z.gaprk <= 5) & (z.gap >= 3)),
         ("갭 -3~-6% (거울)", lambda z: (z.gap <= -3) & (z.gap > -6)), ("갭 -6%↓ (거울)", lambda z: z.gap <= -6)], PA)
     table("A-2. 전날 흐름", A, [
-        ("전날 상한가(+29%↑)", lambda z: z.pret >= 29), ("전날 상한가 · 오늘 갭 +3~15%", lambda z: (z.pret >= 29) & (z.gap >= 3) & (z.gap < 15)),
+        ("전날 상한가(+29%↑·미장은 +30%↑ 급등)", lambda z: z.pret >= 29), ("전날 상한가 · 오늘 갭 +3~15%", lambda z: (z.pret >= 29) & (z.gap >= 3) & (z.gap < 15)),
         ("전날 +10~29%", lambda z: (z.pret >= 10) & (z.pret < 29)), ("전날 +10%↑ · 고가 마감(종가 ≥ 고가 99%)", lambda z: (z.pret >= 10) & (z.pch >= 0.99)),
         ("전날 +10%↑ · 고가 마감 · 오늘 갭 +3~10%", lambda z: (z.pret >= 10) & (z.pch >= 0.99) & (z.gap >= 3) & (z.gap < 10)),
         ("전날 +10%↑ · 윗꼬리(종가 < 고가 95%)", lambda z: (z.pret >= 10) & (z.pch < 0.95)),
@@ -116,8 +122,10 @@ def rep():
         ("외국인 3일↑ 연속 순매수 · 갭 +1~6%", lambda z: (z.fstreak >= 3) & (z.gap >= 1) & (z.gap < 6)), ("외국인 5일 순매수 5%↑ · 갭 +3~10%", lambda z: (z.f5r >= 5) & (z.gap >= 3) & (z.gap < 10)),
         ("전날 외국인 대량 순매도(-5%↓) · 갭 상승 +3%↑", lambda z: (z.f1r <= -5) & (z.gap >= 3))], PA)
     table("A-4. 종목 크기 × 갭 +3~10%", A, [
-        ("큰 종목(거래대금 100억↑)", lambda z: (z.a20 >= 1e10) & (z.gap >= 3) & (z.gap < 10)), ("중간(20~100억)", lambda z: (z.a20 >= 2e9) & (z.a20 < 1e10) & (z.gap >= 3) & (z.gap < 10)),
-        ("작은(20억↓)", lambda z: (z.a20 < 2e9) & (z.gap >= 3) & (z.gap < 10))], PA)
+        ("큰 종목(거래대금 100억↑·미장 1억달러↑)", lambda z: (z.a20 >= BIG) & (z.gap >= 3) & (z.gap < 10)), ("중간", lambda z: (z.a20 >= MID) & (z.a20 < BIG) & (z.gap >= 3) & (z.gap < 10)),
+        ("작은(20억↓·미장 1천만달러↓)", lambda z: (z.a20 < MID) & (z.gap >= 3) & (z.gap < 10))], PA)
+    if US:
+        (ROOT / "openplay_1116_us.out").write_text(chr(10).join(OUT), encoding="utf-8"); return
     # ── B NXT 장전 ──
     Pm = pd.read_parquet(OUTD / "pre.parquet")
     Bz = A.merge(Pm, on=["t", "d"], how="inner")
