@@ -162,7 +162,11 @@ def main():
     if msgs and not quiet:
         try:
             sys.path.insert(0, str(BASE)); import day_alert as D
-            D.telegram("🔍 효율화 감시\n" + "\n".join(msgs))
+            text = "🔍 효율화 감시\n" + "\n".join(msgs)
+            try:                                                          # 11-16 경보 판독관(tg_gate.py)
+                import tg_gate; go = tg_gate.ok(text, "decay_watch" + (" swing" if SWING else ""))
+            except Exception: go = True
+            if go: D.telegram(text)
         except Exception as ex: log("텔레그램 실패", repr(ex)[:150])
 
 

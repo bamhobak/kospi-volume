@@ -169,8 +169,13 @@ def main():
 
     if bad:
         say("→ 밀린 것 %d건" % len(bad))
-        telegram("⚠️ <b>연구용 수집이 밀렸다</b> (기준 %s)\n\n" % asof + "\n".join("· " + b for b in bad)
-                 + "\n\n복구: <code>python run_daily_research.py --days 25</code>")
+        text = ("⚠️ <b>연구용 수집이 밀렸다</b> (기준 %s)\n\n" % asof + "\n".join("· " + b for b in bad)
+                + "\n\n복구: <code>python run_daily_research.py --days 25</code>")
+        try:                                           # 11-16 경보 판독관 — 같은 밀림을 주말에 또 알리는 것 등은 막는다(판독이 안 되면 그대로 보냄)
+            import tg_gate; go = tg_gate.ok(text, "research_health")
+        except Exception: go = True
+        if go: telegram(text)
+        else: say("  판독관이 막음 — 텔레그램 안 보냄(점검 현황 페이지 '경보 판독관')")
         return 1
     say("→ 전부 최신")
     if ALWAYS:

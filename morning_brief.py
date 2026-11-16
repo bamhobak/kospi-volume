@@ -5,6 +5,7 @@
   · 어제 실전: 감사관(data/audit/live.csv) 끝난 왕복 건수·건당(실전/연구)
   · 매수 가능 금액(토스)
   · 밤 사이 판정·경보: 사전 등록 판정·밤 연구 일꾼 결과는 각자 보낸다 — 여기선 안 되풀이
+  · 막은 경보 N: 경보 판독관(tg_gate.py)이 지난 브리핑 뒤로 막은 수(있을 때만)
     python morning_brief.py [dry]
 """
 import datetime as dt, json, sys
@@ -73,6 +74,12 @@ def main(dry=False):
     try: lines.append("매수 가능 %.0f만" % (AT.buying_power("KRW") / 1e4))
     except Exception as ex: lines.append("매수 가능 금액 못 읽음")
     if (AT.OUT / "STOP").exists(): lines.append("⛔ 자동매매 STOP 켜짐")
+    try:                                               # 11-16 경보 판독관이 지난 브리핑 뒤로 막은 경보 — 뭐였는지는 점검 현황 페이지
+        import tg_gate
+        last = json.loads((BASE / "data" / "day" / "brief_last.json").read_text(encoding="utf-8")).get("at", "")
+        n = tg_gate.held_since(last)
+        if n: lines.append("막은 경보 %d(점검 현황)" % n)
+    except Exception: pass
     msg = "\n".join(lines)
     print(msg)
     if not dry:

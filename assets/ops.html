@@ -202,6 +202,17 @@ function secBrief(B){
   if(!B||!B.text)return sec('brief','아침 브리핑','아직 안 보냄','평일 08:35','<div class="empty">아직 안 보냄</div>');
   return sec('brief','아침 브리핑',esc(B.text.split('\n').slice(1,3).join(' · ')),tm(B.at),hint('장 시작 전 텔레그램 한 통.')+`<div class="pre">${esc(B.text)}</div>`)}
 
+function secGate(G){   /* 11-16 경보 판독관(tg_gate.py) — 막은 경보를 여기서 되짚어 볼 수 있게 */
+  if(!G)return '';
+  const R=G.rows||[],held=R.filter(r=>!r.sent),sent=R.filter(r=>r.sent);
+  const row=r=>`<tr><td class="mono">${tm(r.at)}</td><td>${esc(r.src)}</td>${clip(r.text)}${clip(r.why)}</tr>`;
+  return sec('gate','경보 판독관',G.on?`7일 경보 ${G.n} · 보냄 ${G.n-G.held} · 막음 ${G.held}`:'꺼짐','보내기 직전',
+    hint('점검·오류 경보를 보내기 전에 클로드가 읽는다. 문제 아님 · 같은 경보 되풀이 · 주말이라 당연한 것만 막고, 판독이 안 되면 그대로 보낸다. 매매 알림은 안 거친다.')
+    +(held.length?'<div class="sub">막은 경보</div>'+tbl(['때','출처','경보','막은 이유'],held.map(row)):'<div class="empty">막은 경보 없음</div>')
+    +(sent.length?more('gate-sent',`보낸 경보 ${sent.length}개`,tbl(['때','출처','경보','판단'],sent.map(row))):'')
+    +`<p class="hint" style="margin:8px 0 0">이달 판독 비용 $${(+G.usd||0).toFixed(2)}${G.err?` · 판독 못 해 그대로 보냄 ${G.err}`:''}</p>`,
+    G.held?bdg('y','막음 '+G.held):'')}
+
 function now(D){
   const T=D.tasks||[],H=D.health||{},J=D.doctor||{};const it=[];
   for(const t of T)if(t.state==='오류')it.push(['r','오류','tasks',`예약 작업 ${t.name} — ${t.last?t.last.slice(5)+' 실행 실패':'실행 실패'} · ${t.what||''}`]);
@@ -216,13 +227,13 @@ function now(D){
   const el=$('#now');el.className='now'+(it.length?' warn':'');
   el.innerHTML=`<h2>${it.length?`지금 볼 것 ${it.length}개`:'<span style="color:var(--ok)">전부 정상</span>'}</h2>`
     +(it.length?`<ul>${it.map(([k,l,to,s])=>`<li>${bdg(k,l)}<a href="#${to}"${to?` data-open="${to}"`:''}>${esc(s)}</a></li>`).join('')}</ul>`:'')
-    +`<div class="chips"><span>예약 작업 <b>${T.length}</b></span><span>정상 <b>${c('정상')}</b></span>${c('실행 중')?`<span>실행 중 <b>${c('실행 중')}</b></span>`:''}<span>오류 <b>${c('오류')}</b></span><span>스스로 고침 <b>${(H.fixed||[]).length+(J.fixed||[]).length}</b></span><span>판정 기다림 <b>${pr}</b></span></div>`}
+    +`<div class="chips"><span>예약 작업 <b>${T.length}</b></span><span>정상 <b>${c('정상')}</b></span>${c('실행 중')?`<span>실행 중 <b>${c('실행 중')}</b></span>`:''}<span>오류 <b>${c('오류')}</b></span><span>스스로 고침 <b>${(H.fixed||[]).length+(J.fixed||[]).length}</b></span><span>판정 기다림 <b>${pr}</b></span>${(D.gate||{}).held?`<span>막은 경보 <b>${D.gate.held}</b></span>`:''}</div>`}
 
 function render(D){
   now(D);
   $('#root').innerHTML='<h3 class="grp">점검</h3>'+secDoctor(D.doctor)+secHealth(D.health)+secTasks(D.tasks||[])
     +'<h3 class="grp">판정 · 성적</h3>'+secPrereg(D.prereg)+secAudit(D.audit)+secShadow(D.shadow)+secRed(D.redteam)+secLab(D.nightlab)
-    +'<h3 class="grp">자료 · 알림</h3>'+secRec(D.rec)+secFill(D.nightfill)+secImpact(D.impact)+secBrief(D.brief);
+    +'<h3 class="grp">자료 · 알림</h3>'+secRec(D.rec)+secFill(D.nightfill)+secImpact(D.impact)+secGate(D.gate)+secBrief(D.brief);
   $('#upd').textContent='서버 갱신 '+(D.made||'-').slice(5)+' · 30분마다';
 }
 async function load(){let D=null;try{D=await rpc('kospi_state_get',{p_pin:'__ops__'})}catch(e){}

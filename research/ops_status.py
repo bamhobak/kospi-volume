@@ -213,10 +213,21 @@ def doctor():
     return {k: j.get(k) for k in ("at", "ok", "summary", "found", "fixed", "user", "checked", "mode", "selftest", "reverted")} if j else {}
 
 
+def gate():
+    """경보 판독관(tg_gate.py) — 지난 7일 보냄·막음. 막은 경보를 페이지에서 되짚어 볼 수 있게."""
+    if str(BASE) not in sys.path: sys.path.append(str(BASE))
+    import tg_gate
+    H = tg_gate.history(days=7)
+    row = lambda x: dict(at=x["at"][:16], src=x.get("src", ""), text=(x.get("text") or "")[:400], sent=bool(x.get("sent")),
+                         why=" · ".join(s for s in (x.get("reason"), x.get("over"), x.get("err")) if s))
+    return dict(on=(tg_gate.env().get("TG_GATE") or "").lower() != "off", n=len(H), held=sum(1 for x in H if not x.get("sent")),
+                err=sum(1 for x in H if x.get("err")), usd=round(tg_gate.month_usd(), 3), rows=[row(x) for x in H[::-1][:30]])
+
+
 def build():
     out = dict(made=time.strftime("%Y-%m-%d %H:%M"))
     for k, fn in (("tasks", tasks), ("prereg", prereg), ("audit", audit), ("redteam", redteam), ("nightlab", nightlab), ("rec", opentick),
-                  ("impact", impact), ("health", health), ("brief", brief), ("shadow", shadow), ("nightfill", nightfill), ("doctor", doctor)):
+                  ("impact", impact), ("health", health), ("brief", brief), ("shadow", shadow), ("nightfill", nightfill), ("doctor", doctor), ("gate", gate)):
         try: out[k] = fn()
         except Exception as ex: out[k] = None; out.setdefault("err", {})[k] = repr(ex)[:200]
     return out

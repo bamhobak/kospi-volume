@@ -50,7 +50,10 @@ def tell(msg):
     try:
         sys.path.insert(0, str(BASE))
         import day_alert as D
-        D.telegram("⚠ 연구 패널 잇기: " + msg)
+        try:                                           # 11-16 경보 판독관(tg_gate.py)
+            import tg_gate; go = tg_gate.ok("⚠ 연구 패널 잇기: " + msg, "panel_daily")
+        except Exception: go = True
+        if go: D.telegram("⚠ 연구 패널 잇기: " + msg)
     except Exception as ex:
         log("텔레그램 못 보냄", repr(ex)[:120])
 

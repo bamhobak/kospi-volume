@@ -56,7 +56,14 @@ def env():
 
 
 def tg(text):
-    """텔레그램 — autotrade.tg_send(다시 하기·못 보낸 건 쌓아 두기)를 같이 쓴다. 4,000자 넘으면 자른다."""
+    """텔레그램 — autotrade.tg_send(다시 하기·못 보낸 건 쌓아 두기)를 같이 쓴다. 4,000자 넘으면 자른다.
+    11-16 경보 글(⚠·🚨·🩺 로 시작)은 판독관(tg_gate.py)을 먼저 거친다 — 막히면 안 보내고 run.log 와 점검 현황 페이지에만 남는다."""
+    try:
+        import tg_gate
+        if tg_gate.is_alarm(text) and not tg_gate.ok(text):
+            log("판독관이 막음:", text.replace("\n", " | ")[:300]); return
+    except Exception as ex:
+        log("판독관 실패(그대로 보냄):", repr(ex)[:200])
     try:
         import autotrade as AT
         e = env()

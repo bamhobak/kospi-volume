@@ -200,7 +200,11 @@ def main(mode=""):
         print("%s 경보 이미 보냄 — 건너뜀" % today, flush=True); return
     if msg:
         import day_alert as D
-        D.telegram("🔍 <b>실전-연구 대조</b> %s/%s\n%s" % (today[4:6], today[6:], "\n".join(msg)))
+        text = "🔍 <b>실전-연구 대조</b> %s/%s\n%s" % (today[4:6], today[6:], "\n".join(msg))
+        try:                                                              # 11-16 경보 판독관(tg_gate.py) — 판독이 안 되면 그대로 보냄
+            import tg_gate; go = tg_gate.ok(text, "audit_live")
+        except Exception: go = True
+        if go: D.telegram(text)
         sent.write_text(today, encoding="utf-8")
 
 
