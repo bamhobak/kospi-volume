@@ -25,6 +25,20 @@ INV = (("indiv", ("개인",)), ("organ", ("기관합계",)), ("frgn", ("외국�
 COLS = "mk(P/K),open,high,low,close,volume,indiv,organ,frgn,foreign_ratio"
 
 
+def _krx(fn, *a, col=None, tries=3):
+    """11-16 KRX 가 가끔 빈 응답(JSON 아님)을 줘서 pykrx 가 빈 표 → KeyError 로 14:10 refresh 가 통째로 죽음. 30초 쉬고 다시(최대 3번)."""
+    for k in range(tries):
+        try:
+            X = fn(*a)
+            if col is None or col in X.columns: return X[col] if col else X
+            err = "빈 표(%s 없음)" % col
+        except Exception as ex:
+            err = repr(ex)[:120]
+        print("  KRX 응답 이상 %s %s — %s" % (fn.__name__, a, err), "다시" if k < tries - 1 else "포기", flush=True)
+        if k < tries - 1: time.sleep(30)
+    raise RuntimeError("KRX %s %s 3번 실패" % (fn.__name__, a))
+
+
 def collect(day):
     for l in (BASE / ".env").read_text(encoding="utf-8").splitlines():
         if "=" in l and not l.startswith("#"):
@@ -32,7 +46,7 @@ def collect(day):
     from pykrx import stock
     rows = {}
     for mk in ("KOSPI", "KOSDAQ"):
-        X = stock.get_market_ohlcv(day, market=mk); time.sleep(2)         # KRX 정규장 공식값(11-04 삼성 종가 218,000 — 네이버·종목별 추이의 221,500 은 NXT 통합)
+        X = _krx(lambda d, m: stock.get_market_ohlcv(d, market=m), day, mk); time.sleep(2)         # KRX 정규장 공식값(11-04 삼성 종가 218,000 — 네이버·종목별 추이의 221,500 은 NXT 통합)
         px = X.rename(columns={"시가": "o", "고가": "h", "저가": "l", "종가": "c", "거래량": "v"})
         px = px[px.v > 0]
         if px.empty: continue                                            # 휴장(주말·공휴일) — 수급 표가 비어 KeyError 로 죽던 것(11-07·08)
@@ -40,7 +54,7 @@ def collect(day):
         for col, names in INV:
             s = None
             for nm in names:
-                x = stock.get_market_net_purchases_of_equities(day, day, mk, nm)["순매수거래량"]
+                x = _krx(stock.get_market_net_purchases_of_equities, day, day, mk, nm, col="순매수거래량")
                 s = x if s is None else s.add(x, fill_value=0)
                 time.sleep(2)                                            # KRX 는 저속·순차
             F[col] = s
@@ -74,8 +88,13 @@ def refresh():
     """지난 날들(오늘 뺀)을 확정치로 다시 — 다음 날 14:10."""
     cur = KC._rpc("kospi_state_get", {"p_pin": PIN}) or {}
     today = dt.datetime.now().strftime("%Y%m%d")
+    bad = []
     for d in sorted(cur.get("days") or {}):
-        if d < today: publish(d)
+        if d >= today: continue
+        try: publish(d)
+        except Exception as ex:                                          # 11-16 한 날 실패로 나머지 날까지 안 받던 것 — 그날은 지난 값 그대로 두고 계속
+            bad.append(d); print("⚠ KRX 다시 받기 실패 %s — 지난 값 그대로: %s" % (d, repr(ex)[:160]), flush=True)
+    if bad: raise RuntimeError("KRX 다시 받기 실패 %s" % bad)          # 점검 현황에 '오류'로 남게
 
 
 def apply(kospi_db, kosdaq_db):
