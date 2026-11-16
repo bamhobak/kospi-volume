@@ -466,6 +466,24 @@ header h1 span{color:var(--txt);font-weight:600}
 header h1 svg{flex:none}
 .fac-link{border-radius:8px;color:var(--txt);padding:8px 14px;font-size:12.5px;font-weight:500}
 .fac-link:hover{border-color:var(--acc);color:var(--acc2)}
+/* 2026-11-17 스마일지수(사용자) — -1억 = 0점 · 0원 = 50점 · +1억 = 100점. 실제 돈으로 사고판 것만(가상 뺌), 11-17 뒤 */
+.smile{display:inline-flex;align-items:center;gap:5px;flex:none;background:var(--panel2);border:1px solid var(--line);border-radius:999px;color:var(--txt);padding:5px 11px 5px 8px;font:inherit;font-size:13px;cursor:pointer}
+.smile .sf{font-size:17px;line-height:1}.smile b{font-family:'IBM Plex Mono',monospace;font-weight:600}
+.smile:hover{border-color:var(--acc)}
+#smilepop{position:fixed;z-index:60;top:58px;right:12px;width:min(330px,calc(100vw - 24px));background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 12px 40px rgba(0,0,0,.5);display:none}
+#smilepop.on{display:block}
+#smilepop .big{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+#smilepop .big .f{font-size:44px;line-height:1}
+#smilepop .big .n{font-family:'IBM Plex Mono',monospace;font-size:30px;font-weight:700}
+#smilepop .big .n small{font-size:13px;color:var(--mut);font-weight:400}
+#smilepop .bar{position:relative;height:10px;background:var(--panel2);border:1px solid var(--line);border-radius:99px;margin:6px 0 4px}
+#smilepop .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:linear-gradient(90deg,#5B9BFF,#F5A524,#34D3C0)}
+#smilepop .bar u{position:absolute;top:-4px;bottom:-4px;left:50%;width:1px;background:var(--mut)}
+#smilepop .ax{display:flex;justify-content:space-between;color:var(--dim);font-size:11px;margin-bottom:10px}
+#smilepop .row{display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid var(--line);font-size:13px}
+#smilepop .row span:first-child{color:var(--mut)}
+#smilepop .note{color:var(--dim);font-size:11.5px;margin-top:8px;line-height:1.5}
+@media(max-width:900px){header{column-gap:4px}.smile{margin-left:auto;padding:2px 5px 2px 3px;font-size:10.5px;gap:2px}.smile .sf{font-size:13px}.smile .dec{display:none}.smile~.fac-link{margin-left:0;padding:3px 4px;font-size:9.5px;letter-spacing:-.4px}}
 @media(max-width:900px){.fac-link{padding:3px 7px;font-size:10.5px;border-radius:6px}}   /* 11-12 사용자: 폰에서 [규칙 후보]·[점검 현황] 작게 — 위 개편 규칙(8px 14px)이 폰 규칙을 덮던 것 */
 .mktstate,.railstate{border-radius:6px}
 .tag{border-radius:5px;color:#12131a}
@@ -618,6 +636,7 @@ tr:hover td:first-child{background:linear-gradient(rgba(255,255,255,.025),rgba(2
   <span id="mktstate" class="mktstate"></span>
   <input id="q" type="search" placeholder="종목명·코드 검색" autocomplete="off">
   <button id="rtsw" class="rtsw" type="button" title="실시간 시세 — 꺼짐"></button>
+  <button id="smile" class="smile" type="button" title="스마일지수"><span class="sf">😭</span><b>0</b></button>
   <a href="factory.html" class="fac-link" title="규칙 공장이 찾은 후보(검증 통과) — 2026-10-10">규칙 후보</a>
   <a href="ops.html" class="fac-link ops-link" title="저절로 도는 작업·점검·판정 현황 — 2026-11-12">점검 현황</a>
   <div id="status">불러오는 중…</div>
@@ -2806,7 +2825,44 @@ function sumMoney(list,asIs){
    (2026-09-12 요청). 헤더의 #status 는 이제 비어 있다.
    ⚠ 레일은 10분 주기에 다시 그리지 않는다 — 그래서 **요소를 찾아 값만** 갈아 끼운다.
      레일이 접혀 있으면(모바일) 요소가 없으므로 없을 때를 대비한다. */
+/* ── 스마일지수(2026-11-17 사용자: "다시 웃을 수 있게 되는 날까지 천천히 복구 … -1억이 지금 0점, 0원이면 50점, 1억이면 100점") ──
+   지금 상태 = SMILE_BASE(-1억) + SMILE_START 뒤 규칙 매매로 실제 번 돈(스윙+데이, 국장+미장 원화 환산, 비용 뒤).
+   · 판 것: 매도일이 시작일 뒤인 것의 실현 손익  · 들고 있는 것: 시작일 뒤에 산 것의 평가 손익  · 가상 매매(paper)는 뺀다. */
+const SMILE_START='20261117', SMILE_BASE=-1e8, SMILE_SPAN=2e8;
+const SMILE_FACE=[[0,'😭'],[10,'😢'],[25,'😞'],[40,'😐'],[50,'🙂'],[65,'😊'],[80,'😄'],[100,'🤩']];
+function smileCalc(){
+  const all=(POS||[]).concat(POS_S||[]).filter(p=>p&&!p.paper&&p.price&&p.qty);
+  const dn=x=>String(x||'').replace(/-/g,'');
+  const fxB=p=>isUSCode(p.code)?(p.fx||usdkrw()||0):1, fxS=p=>isUSCode(p.code)?(p.sellFx||p.fx||usdkrw()||0):1;
+  let real=0,nReal=0;
+  all.filter(p=>p.sell&&dn(p.sellDate)>=SMILE_START).forEach(p=>{real+=(costSell(p)*fxS(p)-costBuy(p)*fxB(p))*p.qty;nReal++});
+  const open=all.filter(p=>!p.sell&&dn(p.date)>=SMILE_START);
+  let unreal=0;try{if(open.length)unreal=sumMoney(open,false).pnl||0}catch(e){}
+  const earned=real+unreal, state=SMILE_BASE+earned;
+  const score=(state-SMILE_BASE)/SMILE_SPAN*100;
+  return {real,unreal,earned,state,score,nReal,nOpen:open.length}}
+function smileFace(sc){let f=SMILE_FACE[0][1];for(const [t,e] of SMILE_FACE)if(sc>=t)f=e;return sc<0?'😭':f}
+function renderSmile(){
+  const b=$('#smile'); if(!b)return;
+  let m;try{m=smileCalc()}catch(e){return}
+  const sc=m.score, face=smileFace(sc), won=v=>(v>0?'+':v<0?'-':'')+kor(Math.abs(Math.round(v)))+'원';
+  b.innerHTML=`<span class="sf">${face}</span><b>${Math.floor(sc)}<span class="dec">.${Math.floor(sc*10)%10}</span></b>`;   /* 폰은 정수만(머리 한 줄에 맞추려고) */
+  b.title=`스마일지수 ${sc.toFixed(1)}점 · 지금 ${won(m.state)}`;
+  let pop=$('#smilepop'); if(!pop){pop=document.createElement('div');pop.id='smilepop';document.body.appendChild(pop);
+    b.addEventListener('click',e=>{e.stopPropagation();pop.classList.toggle('on')});
+    document.addEventListener('click',e=>{if(!pop.contains(e.target))pop.classList.remove('on')})}
+  const pct=Math.max(0,Math.min(100,sc)), to50=-m.state;
+  pop.innerHTML=`<div class="big"><span class="f">${face}</span><span class="n">${sc.toFixed(1)}<small> / 100 스마일지수</small></span></div>
+    <div class="bar"><i style="width:${pct}%"></i><u></u></div>
+    <div class="ax"><span>😭 0 · -1억</span><span>🙂 50 · 0원</span><span>🤩 100 · +1억</span></div>
+    <div class="row"><span>지금 상태</span><span class="${m.state>0?'pos':m.state<0?'neg':''}">${won(m.state)}</span></div>
+    <div class="row"><span>11/17 뒤 번 돈</span><span class="${m.earned>0?'pos':m.earned<0?'neg':''}">${won(m.earned)}</span></div>
+    <div class="row"><span>　판 것 ${m.nReal}건</span><span>${won(m.real)}</span></div>
+    <div class="row"><span>　들고 있는 것 ${m.nOpen}건(평가)</span><span>${won(m.unreal)}</span></div>
+    <div class="row"><span>${to50>0?'🙂 50점까지':'🤩 100점까지'}</span><span>${kor(Math.round(to50>0?to50:1e8-m.state))}원</span></div>
+    <div class="note">실제 돈으로 사고판 것만 셉니다(가상 매매 제외 · 비용 뒤 · 미장은 원화 환산). 1점 = 200만 원. 천천히.</div>`}
 function renderStatus(){
+  renderSmile();
   const st=$('#status'); if(st)st.innerHTML='';
   const lv=$('#lvtime');
   if(lv){lv.textContent=LIVE.updated?LIVE.updated.slice(5):'없음';
