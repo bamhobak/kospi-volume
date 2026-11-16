@@ -163,7 +163,9 @@ def alerts(A, today, miss):
     if len(late): msg.append("[%s] 시가 매도가 KRX 시가와 다르게 체결 %d건(시가에 안 팔림?): %s" % (
         "·".join(sorted({RNAME.get(r, r) for r in late.rid})), len(late), ", ".join(late.name.astype(str)[:5])))
     odd = A[(A.sell_day == today) & (A.fill_odd == 1)]
-    if len(odd): msg.append("[갭하락] 시가가 지정가 위인데 사짐 %d건: %s" % (len(odd), ", ".join(odd.name.astype(str)[:5])))
+    if len(odd):                                                              # 11-16 같은 종목을 T1·T2·T3 가 나눠 사면 이름이 세 번 찍힘(RF시스템즈) → 종목으로 묶음
+        nm = odd.name.astype(str).value_counts()
+        msg.append("[갭하락] 시가가 지정가 위인데 사짐 %d종목(%d주문): %s" % (len(nm), len(odd), ", ".join(k if v == 1 else "%s×%d" % (k, v) for k, v in list(nm.items())[:5])))
     if miss: msg.append("[갭하락] 시가가 지정가 아래인데 안 사짐 %d건: %s" % (len(miss), ", ".join(m["name"] for m in miss[:5])))
     return msg
 
