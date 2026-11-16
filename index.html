@@ -470,7 +470,7 @@ header h1 svg{flex:none}
 .smile{display:inline-flex;align-items:center;gap:5px;flex:none;background:var(--panel2);border:1px solid var(--line);border-radius:999px;color:var(--txt);padding:5px 11px 5px 8px;font:inherit;font-size:13px;cursor:pointer}
 .smile .sf{font-size:17px;line-height:1}.smile b{font-family:'IBM Plex Mono',monospace;font-weight:600}
 .smile:hover{border-color:var(--acc)}
-#smilepop{position:fixed;z-index:60;top:58px;right:12px;width:min(330px,calc(100vw - 24px));background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 12px 40px rgba(0,0,0,.5);display:none}
+#smilepop{position:fixed;z-index:60;top:58px;left:12px;width:min(330px,calc(100vw - 24px));background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 12px 40px rgba(0,0,0,.5);display:none}
 #smilepop.on{display:block}
 #smilepop .big{display:flex;align-items:center;gap:12px;margin-bottom:10px}
 #smilepop .big .f{font-size:44px;line-height:1}
@@ -483,7 +483,7 @@ header h1 svg{flex:none}
 #smilepop .row{display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid var(--line);font-size:13px}
 #smilepop .row span:first-child{color:var(--mut)}
 #smilepop .note{color:var(--dim);font-size:11.5px;margin-top:8px;line-height:1.5}
-@media(max-width:900px){header{column-gap:4px}.smile{margin-left:auto;padding:2px 5px 2px 3px;font-size:10.5px;gap:2px}.smile .sf{font-size:13px}.smile .dec{display:none}.smile~.fac-link{margin-left:0;padding:3px 4px;font-size:9.5px;letter-spacing:-.4px}}
+@media(max-width:900px){header{column-gap:4px}.smile{padding:2px 5px 2px 3px;font-size:10.5px;gap:2px}.smile .sf{font-size:13px}.smile .dec{display:none}.smile~.fac-link{padding:3px 4px;font-size:9.5px;letter-spacing:-.4px}}   /* 11-17 스마일지수는 맨 왼쪽(호박 아이콘 자리) — 폰은 제목이 숨어도 이 단추는 보인다 */
 @media(max-width:900px){.fac-link{padding:3px 7px;font-size:10.5px;border-radius:6px}}   /* 11-12 사용자: 폰에서 [규칙 후보]·[점검 현황] 작게 — 위 개편 규칙(8px 14px)이 폰 규칙을 덮던 것 */
 .mktstate,.railstate{border-radius:6px}
 .tag{border-radius:5px;color:#12131a}
@@ -631,12 +631,12 @@ tr:hover td:first-child{background:linear-gradient(rgba(255,255,255,.025),rgba(2
 @media(max-width:900px){.sig .plan{padding:8px 10px}}   /* 폰 — '.plan' 폰 규칙이 '.sig .plan' 에 밀려 안 먹던 것 */
 </style></head><body>
 <header>
-  <h1 id="home" title="첫 화면으로"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F5A524" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7c-4.6 0-8 2.7-8 6.6S7.4 20.5 12 20.5s8-3 8-6.9S16.6 7 12 7z"/><path d="M9.2 7.6c-1.3 2.2-1.3 10.4 0 12.5M14.8 7.6c1.3 2.2 1.3 10.4 0 12.5"/><path d="M12 7V4.2c1.4 0 2.6.6 3.2 1.6"/></svg>밤호박 <span>종목 선별기</span></h1>
+  <button id="smile" class="smile" type="button" title="스마일지수"><span class="sf">😭</span><b>0</b></button>
+  <h1 id="home" title="첫 화면으로">밤호박 <span>종목 선별기</span></h1>
   <span id="mkt" class="mkt"></span>
   <span id="mktstate" class="mktstate"></span>
   <input id="q" type="search" placeholder="종목명·코드 검색" autocomplete="off">
   <button id="rtsw" class="rtsw" type="button" title="실시간 시세 — 꺼짐"></button>
-  <button id="smile" class="smile" type="button" title="스마일지수"><span class="sf">😭</span><b>0</b></button>
   <a href="factory.html" class="fac-link" title="규칙 공장이 찾은 후보(검증 통과) — 2026-10-10">규칙 후보</a>
   <a href="ops.html" class="fac-link ops-link" title="저절로 도는 작업·점검·판정 현황 — 2026-11-12">점검 현황</a>
   <div id="status">불러오는 중…</div>
