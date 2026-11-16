@@ -103,6 +103,7 @@ def league(it):
     import subprocess
     py = str(Path(sys.executable).with_name("python.exe"))
     r = subprocess.run([py, "-X", "utf8", str(RES / "league" / "league.py"), "run"], cwd=str(BASE), capture_output=True, text=True, timeout=2400,
+                       encoding="utf-8", errors="replace",                # 자식은 -X utf8 로 쓰는데 부모가 cp949 로 읽어 읽기 스레드가 매일 죽던 것(11-13~15 judge.log)
                        creationflags=0x08000000)
     if r.returncode != 0: return "wait", "리그 채점 실패 " + (r.stderr or "")[-150:], {}
     sys.path.insert(0, str(RES / "league"))
