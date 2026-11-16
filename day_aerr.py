@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """⛔ 2026-11-12 뺌(사용자 "a5 규칙은 다시 빼자") — 녹화 23일로 다시 재니 그림자 3일만 좋았고 100만 실금액이면 손해(research/a5_tighten_1112.out).
-예약 작업 \BamhobakDay\AerrMorning·AerrClose 꺼 둠, 사이트 T7 칸 지움. 다시 쓰려면 둘 다 되살리기. 공장 그림자 F1659 는 계속 기록.
+예약 작업 \BamhobakDay\AerrMorning·AerrClose 11-16 삭제(사용자 '꺼진 건 아예 없애줘', XML 백업 C:/temp/task_bak), 사이트 T7 칸 지움. 다시 쓰려면 schtasks /create /xml 로 둘 다 되살리기. 공장 그림자 F1659 는 계속 기록.
 
 데이 규칙 T7 [예상 하회] — 2026-11-12 사용자 "f1659는 바로 규칙으로 넣어주고, 1주씩 사는 걸로 먼저, 돈 없더라도 가상 매수·매도".
 
