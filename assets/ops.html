@@ -138,15 +138,15 @@ function secPrereg(P){
     +(live.length?tbl(head,live.map(row)):'<div class="empty">진행 중인 것 없음</div>')
     +(rest.length?more('prereg-rest',`끝났거나 맡긴 것 ${rest.length}개`,tbl(head,rest.map(row))):''))}
 
-const auditFlags=A=>((A&&A.last5)||[]).flatMap(r=>[r.gap!=null&&r.gap<=-0.3?`[${r.rule}] 최근 5일 실전이 연구보다 ${(+r.gap).toFixed(2)}%p 나쁨`:null,r.out!=null&&r.out>20?`[${r.rule}] 최근 5일 연구 조건 밖 체결 ${r.out}% (${r.out_n})`:null]).filter(Boolean);
+const auditFlags=A=>((A&&A.last5)||[]).flatMap(r=>[r.gap!=null&&r.gap<=-0.3?`[${r.rule}] 최근 5일 실전이 연구보다 ${(+r.gap).toFixed(2)}%p 나쁨`:null,(r.out_x!==undefined?r.out_x:r.out)>20?`[${r.rule}] 최근 5일 연구 조건 밖 체결 ${r.out_x!==undefined?r.out_x:r.out}%${r.odd?' (장중 체결 '+r.odd+'건 빼고)':` (${r.out_n})`}`:null]).filter(Boolean);
 function secAudit(A){
   if(!A||!A.all)return sec('audit','실전-연구 대조','자료 없음','매일 16:50','<div class="empty">자료 없음</div>');
-  const short=X=>tbl(['규칙','왕복','실전 건당','연구 건당','차이','연구 조건 밖'],X.map(r=>`<tr><td>[${esc(r.rule)}]</td><td class="mono">${r.n}</td><td>${pct(r.live)}</td><td>${pct(r.research)}</td><td>${pct(r.gap,2,'%p')}</td><td class="mono">${r.out==null?'<span class="dim">-</span>':`<span class="${r.out>20?'pos':''}">${r.out}%</span> <span class="dim">${esc(r.out_n)}</span>`}</td></tr>`));
+  const short=X=>tbl(['규칙','왕복','실전 건당','연구 건당','차이','연구 조건 밖'],X.map(r=>`<tr><td>[${esc(r.rule)}]</td><td class="mono">${r.n}</td><td>${pct(r.live)}</td><td>${pct(r.research)}</td><td>${pct(r.gap,2,'%p')}</td><td class="mono">${r.out==null?'<span class="dim">-</span>':`<span class="${(r.out_x!==undefined?r.out_x:r.out)>20?'pos':''}">${r.out}%</span> <span class="dim">${esc(r.out_n)}${r.odd?' · 장중 체결 '+r.odd:''}</span>`}</td></tr>`));
   const full=X=>tbl(['규칙','왕복','실전 건당','연구 건당','차이','살 때 유리(+)','팔 때 유리(+)','연구 조건 밖'],X.map(r=>`<tr><td>[${esc(r.rule)}]</td><td class="mono">${r.n}</td><td>${pct(r.live)}</td><td>${pct(r.research)}</td><td>${pct(r.gap,2,'%p')}</td><td>${pct(r.slip_buy)}</td><td>${pct(r.slip_sell)}</td><td class="mono">${r.out==null?'<span class="dim">-</span>':`${r.out}% <span class="dim">${esc(r.out_n)}</span>`}</td></tr>`));
   const d=(A.daily||[]).map(r=>`<tr><td class="mono">${dd(r.d)}</td><td class="mono">${r.n}</td><td>${pct(r.live)}</td><td>${pct(r.research)}</td></tr>`);
   const fl=auditFlags(A);
   return sec('audit','실전-연구 대조','최근 5일 차이 '+(A.last5||[]).map(r=>`[${esc(r.rule)}] ${pct(r.gap,2,'%p')}`).join(' · '),'매일 16:50',
-    hint('차이 = 실제로 사고판 값 − 연구가 가정한 값. -0.3%p 아래거나 [갭하락] 조건 밖이 20%를 넘으면 텔레그램.')
+    hint('차이 = 실제로 사고판 값 − 연구가 가정한 값. -0.3%p 아래거나 [갭하락] 조건 밖이 20%를 넘으면 텔레그램(시가가 지정가 위인데 장중에 사진 건은 빼고 센다).')
     +`<div class="sub">최근 5거래일</div>${short(A.last5||[])}`
     +more('audit-all',`전체 기간 ${dd(A.first)}~${dd(A.lastday)} · 살 때·팔 때 나눠 보기`,full(A.all))
     +more('audit-daily','날짜별(최근 10일)',tbl(['매도일','왕복','실전','연구'],d)),
