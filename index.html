@@ -467,7 +467,7 @@ header h1 svg{flex:none}
 .fac-link{border-radius:8px;color:var(--txt);padding:8px 14px;font-size:12.5px;font-weight:500}
 .fac-link:hover{border-color:var(--acc);color:var(--acc2)}
 /* 2026-11-17 스마일지수(사용자) — -1억 = 0점 · 0원 = 50점 · +1억 = 100점. 실제 돈으로 사고판 것만(가상 뺌), 11-17 뒤 */
-.smile{display:inline-flex;align-items:center;gap:5px;flex:none;background:var(--panel2);border:1px solid var(--line);border-radius:999px;color:var(--txt);padding:5px 11px 5px 8px;font:inherit;font-size:13px;cursor:pointer}
+.smile{display:inline-flex;align-items:center;gap:5px;flex:none;background:var(--panel2);border:1px solid var(--line);border-radius:999px;color:var(--txt);padding:5px 8px;font:inherit;font-size:13px;cursor:pointer}
 .smile .sf{font-size:17px;line-height:1}.smile b{font-family:'IBM Plex Mono',monospace;font-weight:600}
 .smile:hover{border-color:var(--acc)}
 #smilepop{position:fixed;z-index:60;top:58px;left:12px;width:min(330px,calc(100vw - 24px));background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 12px 40px rgba(0,0,0,.5);display:none}
@@ -483,7 +483,7 @@ header h1 svg{flex:none}
 #smilepop .row{display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid var(--line);font-size:13px}
 #smilepop .row span:first-child{color:var(--mut)}
 #smilepop .note{color:var(--dim);font-size:11.5px;margin-top:8px;line-height:1.5}
-@media(max-width:900px){header{column-gap:4px}.smile{padding:2px 5px 2px 3px;font-size:10.5px;gap:2px}.smile .sf{font-size:13px}.smile .dec{display:none}.smile~.fac-link{padding:3px 4px;font-size:9.5px;letter-spacing:-.4px}}   /* 11-17 스마일지수는 맨 왼쪽(호박 아이콘 자리) — 폰은 제목이 숨어도 이 단추는 보인다 */
+@media(max-width:900px){header{column-gap:4px}.smile{padding:2px 4px;font-size:10.5px;gap:2px}.smile .sf{font-size:13px}.smile .dec{display:none}.smile~.fac-link{padding:3px 4px;font-size:9.5px;letter-spacing:-.4px}}   /* 11-17 스마일지수는 맨 왼쪽(호박 아이콘 자리) — 폰은 제목이 숨어도 이 단추는 보인다 */
 @media(max-width:900px){.fac-link{padding:3px 7px;font-size:10.5px;border-radius:6px}}   /* 11-12 사용자: 폰에서 [규칙 후보]·[점검 현황] 작게 — 위 개편 규칙(8px 14px)이 폰 규칙을 덮던 것 */
 .mktstate,.railstate{border-radius:6px}
 .tag{border-radius:5px;color:#12131a}
@@ -631,7 +631,7 @@ tr:hover td:first-child{background:linear-gradient(rgba(255,255,255,.025),rgba(2
 @media(max-width:900px){.sig .plan{padding:8px 10px}}   /* 폰 — '.plan' 폰 규칙이 '.sig .plan' 에 밀려 안 먹던 것 */
 </style></head><body>
 <header>
-  <button id="smile" class="smile" type="button" title="스마일지수"><span class="sf">😭</span><b>0</b></button>
+  <button id="smile" class="smile" type="button" title="스마일지수"><span class="sf">😭</span></button>
   <h1 id="home" title="첫 화면으로">밤호박 <span>종목 선별기</span></h1>
   <span id="mkt" class="mkt"></span>
   <span id="mktstate" class="mktstate"></span>
@@ -2846,8 +2846,8 @@ function renderSmile(){
   const b=$('#smile'); if(!b)return;
   let m;try{m=smileCalc()}catch(e){return}
   const sc=m.score, face=smileFace(sc), won=v=>(v>0?'+':v<0?'-':'')+kor(Math.abs(Math.round(v)))+'원';
-  b.innerHTML=`<span class="sf">${face}</span><b>${Math.floor(sc)}<span class="dec">.${Math.floor(sc*10)%10}</span></b>`;   /* 폰은 정수만(머리 한 줄에 맞추려고) */
-  b.title=`스마일지수 ${sc.toFixed(1)}점 · 지금 ${won(m.state)}`;
+  b.innerHTML=`<span class="sf">${face}</span>`;   /* 11-17 사용자: 메인엔 표정만(숫자는 눌러서 보기) */
+  b.title='스마일지수';
   let pop=$('#smilepop'); if(!pop){pop=document.createElement('div');pop.id='smilepop';document.body.appendChild(pop);
     b.addEventListener('click',e=>{e.stopPropagation();pop.classList.toggle('on')});
     document.addEventListener('click',e=>{if(!pop.contains(e.target))pop.classList.remove('on')})}
