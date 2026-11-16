@@ -102,7 +102,7 @@ function secDoctor(J){
     +((J.reverted||[]).length?`<div class="pos" style="margin-top:8px">손대면 안 되는 파일을 바꿔서 되돌림: ${esc(J.reverted.join(', '))}</div>`:'')
     +(J.selftest===false?'<div class="pos" style="margin-top:8px">selftest 실패</div>':'')
     +((J.checked||[]).length?more('doctor-ok',`확인한 것 ${J.checked.length}개`,li(J.checked)):'');
-  return sec('doctor','점검 의사',esc((J.summary||'').split(' — ')[0]),tm(J.at),body,J.ok?bdg('g','정상'):bdg('r','문제'))}
+  return sec('doctor','점검 의사',esc((J.summary||'').split(' — ')[0]),tm(J.at),body,J.ok?bdg('g',(J.fixed||[]).length?'고침 '+J.fixed.length:'정상'):bdg('r','문제'))}
 
 function secHealth(H){
   if(!H)return '';
@@ -206,7 +206,7 @@ function now(D){
   const T=D.tasks||[],H=D.health||{},J=D.doctor||{};const it=[];
   for(const t of T)if(t.state==='오류')it.push(['r','오류','tasks',`예약 작업 ${t.name} — ${t.last?t.last.slice(5)+' 실행 실패':'실행 실패'} · ${t.what||''}`]);
   for(const p of H.problems||[])it.push(['y','점검','health',String(p).replace(/^[⚠🚨\s]+/,'')]);
-  for(const x of J.found||[])it.push(['r','고장','doctor',`${x.what} — ${x.why||''}`]);
+  if(J.at&&!J.ok)for(const x of J.found||[])it.push(['r','고장','doctor',`${x.what} — ${x.why||''}`]);   /* 11-16 점검 의사가 찾아서 이미 고친 것(ok)은 볼 것이 아니다 — '스스로 고침' 숫자로만 */
   for(const x of J.user||[])it.push(['y','결정','doctor',`${x.what} — ${x.why||''}`]);
   if((J.reverted||[]).length)it.push(['r','되돌림','doctor','손대면 안 되는 파일을 바꿔서 되돌림: '+J.reverted.join(', ')]);
   for(const s of auditFlags(D.audit))it.push(['y','대조','audit',s]);
@@ -216,7 +216,7 @@ function now(D){
   const el=$('#now');el.className='now'+(it.length?' warn':'');
   el.innerHTML=`<h2>${it.length?`지금 볼 것 ${it.length}개`:'<span style="color:var(--ok)">전부 정상</span>'}</h2>`
     +(it.length?`<ul>${it.map(([k,l,to,s])=>`<li>${bdg(k,l)}<a href="#${to}"${to?` data-open="${to}"`:''}>${esc(s)}</a></li>`).join('')}</ul>`:'')
-    +`<div class="chips"><span>예약 작업 <b>${T.length}</b></span><span>정상 <b>${c('정상')}</b></span>${c('실행 중')?`<span>실행 중 <b>${c('실행 중')}</b></span>`:''}<span>오류 <b>${c('오류')}</b></span><span>스스로 고침 <b>${(H.fixed||[]).length}</b></span><span>판정 기다림 <b>${pr}</b></span></div>`}
+    +`<div class="chips"><span>예약 작업 <b>${T.length}</b></span><span>정상 <b>${c('정상')}</b></span>${c('실행 중')?`<span>실행 중 <b>${c('실행 중')}</b></span>`:''}<span>오류 <b>${c('오류')}</b></span><span>스스로 고침 <b>${(H.fixed||[]).length+(J.fixed||[]).length}</b></span><span>판정 기다림 <b>${pr}</b></span></div>`}
 
 function render(D){
   now(D);
