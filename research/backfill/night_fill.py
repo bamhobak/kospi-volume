@@ -314,7 +314,7 @@ def run(test=False):
             S = load_state(); st = S.setdefault(j["id"], {})
             if not st.get("finished"):
                 st["finished"] = dt.datetime.now().isoformat(timespec="seconds"); save_state(S)
-                tg("📦 과거 자료 받기 끝: %s · 봉 %s" % (j.get("desc", j["id"]), format(int(st.get("rows", 0)), ",")))
+                log("받기 끝", j["id"], "봉", int(st.get("rows", 0)))      # 2026-11-17 사용자: 끝 알림은 텔레그램 안 보냄(점검 현황에서 봄) — 오류·실패만 보냄
 
 
 def status():
