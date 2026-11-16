@@ -148,7 +148,27 @@ def t5_ah(it):
     return "fail", txt + " → 표본 부족·애매 — 중단 제안", num
 
 
-CHECKS = {"nxt_ah": nxt_ah, "a5_tight": a5_tight, "t1_cond": t1_cond, "t5_rank": t5_rank, "league": league, "t5_ah": t5_ah}
+def heat(it):
+    """P10 [단기과열 단일가] 1주 시험 — data/day/heat_hits.csv(day_heat.py close 가 적음). 조건 통과(ok=1) 후보 중 셋째 날 종가까지 채워진 것."""
+    f = BASE / "data" / "day" / "heat_hits.csv"
+    if not f.exists(): return "wait", "기록 없음", {}
+    H = pd.read_csv(f, dtype={"date": str, "t": str}); H = H[(H.date >= it["start"]) & H.r.notna()]
+    z, o = H[H.ok == 1], H[H.ok == 0]
+    if len(z) < it["need"]: return "wait", "조건 통과 %d/%d건 (조건 밖 %d건)" % (len(z), it["need"], len(o)), {}
+    z = z.sort_values("date").head(it["need"]); rl = z[z.real == 1]
+    live = ((rl.c3 / rl.ap - 1) * 100 - 0.23).mean() if len(rl) else float("nan")
+    num = dict(n=int(len(z)), mean=round(float(z.r.mean()), 2), win=round(float((z.r > 0).mean() * 100)), real=int(len(rl)), live=None if live != live else round(float(live), 2),
+               out_n=int(len(o)), out_mean=None if not len(o) else round(float(o.r.mean()), 2))
+    txt = "%d건 건당 %+.2f%% · 승률 %.0f%% · 실제 산 %d건 %s · 조건 밖 %d건 %s" % (len(z), z.r.mean(), (z.r > 0).mean() * 100, len(rl), "–" if live != live else "%+.2f%%" % live,
+                                                                 len(o), "–" if not len(o) else "%+.2f%%" % o.r.mean())
+    if z.r.mean() > 1.0 and (z.r > 0).mean() >= 0.5: return "pass", txt + " → 계속(실금액 검토 가능)", num
+    if z.r.mean() <= 0: return "fail", txt + " → 1주 시험 중단 제안", num
+    if it.get("extend") and it["need"] < it["extend"]:
+        it["need"] = it["extend"]; return "extend", txt + " → %d건까지 연장" % it["extend"], num
+    return "fail", txt + " → 연장 뒤에도 기준 미달, 중단 제안", num
+
+
+CHECKS = {"heat": heat, "nxt_ah": nxt_ah, "a5_tight": a5_tight, "t1_cond": t1_cond, "t5_rank": t5_rank, "league": league, "t5_ah": t5_ah}
 
 
 def main(dry=False):
