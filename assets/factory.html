@@ -5,257 +5,224 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
 <script src="sb.js"></script>
-<!-- 규칙 공장 후보 페이지(2026-10-10 사용자: "규칙 후보군 한 번에 볼 수 있게, 언제든"). 밤 작업(research/factory/board.py)이 Supabase '__factory__' 에 쓴다. -->
+<!-- 규칙 공장 후보 페이지(2026-10-10 사용자: "규칙 후보군 한 번에 볼 수 있게, 언제든"). 밤 작업(research/factory/board.py)이 Supabase '__factory__' 에 쓴다.
+     2026-11-16 사용자 "너무 길게 나열 … 사람이 보기 편하게 정리": 칸마다 한 줄 요약으로 접고(누르면 펼침), 긴 설명 글은 한 문장으로, 표는 꼭 볼 칸만.
+     [갭하락] 하루 위 3개 그림자(H0362) 칸은 11-12 중단·11-16 예약 작업 삭제로 뺌. -->
 <style>
-:root{--bg:#0a0b0e;--panel:#101217;--panel2:#171a21;--line:#272b34;--txt:#eef1f6;--mut:#858c99;--dim:#5b626d;--acc:#a78bfa;--up:#f87171;--dn:#60a5fa;--ind:#fbbf24;--ok:#4ade80}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--txt);font-family:'IBM Plex Sans KR',Pretendard,-apple-system,"Malgun Gothic",sans-serif;font-size:13px;line-height:1.5}
-.mono{font-family:'IBM Plex Mono','IBM Plex Sans KR',ui-monospace,monospace;font-variant-numeric:tabular-nums}
-header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
-header h1{font-size:16px;margin:0;font-weight:700}
-header a{color:var(--mut);text-decoration:none;border:1px solid var(--line);padding:5px 10px;background:var(--panel2)}
-header .up{margin-left:auto;color:var(--mut);font-size:12px}
-main{max-width:980px;margin:0 auto;padding:14px 16px 60px}
-.strip{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
-.si{background:var(--panel2);border:1px solid var(--line);padding:6px 12px;min-width:84px}
-.si b{display:block;font-size:15px;color:var(--acc)}.si small{color:var(--mut);font-size:11px}
-.note{color:var(--mut);font-size:12px;border-left:2px solid var(--line);padding:4px 10px;margin:0 0 14px}
-.card{background:var(--panel);border:1px solid var(--line);margin-bottom:14px}
-.ch{padding:12px 14px;border-bottom:1px solid var(--line)}
-.ch .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.id{font-weight:700;font-size:15px}
-.badge{font-size:11px;padding:2px 8px;border:1px solid var(--line);font-weight:600}
-.b-review{color:var(--ind);border-color:var(--ind)}.b-adopted{color:var(--ok);border-color:var(--ok)}.b-kind{color:var(--acc);border-color:var(--acc)}
-.desc{margin-top:6px;color:var(--txt);word-break:keep-all}
-.exp{margin-top:8px;padding:7px 10px;background:var(--panel2);border:1px solid var(--line);font-size:13px}.exp b{color:var(--txt)}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;padding:12px 14px}
-.kpi{background:var(--panel2);border:1px solid var(--line);padding:8px 10px}
-.kpi small{color:var(--mut);font-size:11px;display:block}
-.kpi b{font-size:16px}.kpi span{color:var(--mut);font-size:11px;display:block}
-.pos{color:var(--up)}.neg{color:var(--dn)}
-.yr{display:flex;align-items:flex-end;gap:3px;height:56px;padding:0 14px 4px}
-.yr div{flex:1;min-width:10px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%}
-.yr i{display:block;width:100%;}
-.yrl{display:flex;gap:3px;padding:0 14px 10px;color:var(--dim);font-size:10px}.yrl span{flex:1;min-width:10px;text-align:center}
-details{border-top:1px solid var(--line)}
-summary{cursor:pointer;padding:9px 14px;color:var(--mut);font-weight:600;list-style:none}
-summary::-webkit-details-marker{display:none}
-summary::before{content:'▸ ';color:var(--dim)}details[open] summary::before{content:'▾ '}
-.dbody{padding:0 14px 12px}
-.tw{overflow-x:auto;border:1px solid var(--line)}
-table{border-collapse:collapse;width:100%;font-size:12px}
-th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
-th{color:var(--mut);font-weight:600;background:var(--panel2);position:sticky;top:0}
-td.l{white-space:normal;min-width:180px}
-tr.base td{background:#151a14}
-.muted{color:var(--mut)}
-.src{color:var(--mut);font-size:12px;word-break:break-all}
-.src a{color:var(--acc)}
-.how{background:var(--panel2);border:1px solid var(--line);padding:8px 10px;margin-top:8px}
-h2{font-size:14px;margin:22px 0 8px;color:var(--mut);font-weight:600}
-.empty{color:var(--mut);padding:30px;text-align:center;border:1px dashed var(--line)}
-@media (max-width:600px){main{padding:10px 12px 60px}.kpis{grid-template-columns:1fr 1fr}}
-/* ════ 2026-10-24 디자인 개편 — 선별기 본 화면과 같은 테마(호박 주황 · IBM Plex · 둥근 모서리). 내용·배선은 그대로 ════ */
 :root{--bg:#0B0D12;--panel:#12151C;--panel2:#181C25;--line:#242A35;--txt:#E8ECF2;--mut:#A0A8B6;--dim:#7A8394;--acc:#F5A524;--up:#FF6166;--dn:#5B9BFF;--ind:#F5C26B;--ok:#34D3C0}
-body{font-size:13.5px}
-header{background:var(--bg);padding:12px 24px;gap:14px}
-header h1{font-size:20px;display:flex;align-items:center;gap:8px}
-header a{border-radius:8px;padding:8px 14px;background:var(--panel);color:var(--txt)}
-header a:hover{border-color:var(--acc);color:#F5C26B}
-main{max-width:1100px;padding:24px 24px 60px}
-.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
-.si{border-radius:10px;padding:12px 16px;background:var(--panel)}
-.si b{font-size:22px;color:var(--txt);font-family:'IBM Plex Mono','IBM Plex Sans KR',monospace}
-.note{border-left:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;line-height:1.65}
-.card{border-radius:14px;overflow:hidden}
-.ch{padding:16px 18px}
-.id{font-size:16px;color:#F5C26B}
-.badge{border-radius:999px;padding:3px 10px}
-.exp{border-radius:8px}
-.kpis{padding:14px 18px;gap:10px}
-.kpi{border-radius:10px;padding:10px 12px}
-.how{border-radius:8px}
-.tw{border-radius:10px}
-.empty{border-radius:12px}
-h2{font-size:15px;color:var(--txt);margin:28px 0 10px}
-/* 그림자 테스트 중 — NXT 장후(H0366) · 서버 nxt_shadow.py 가 Supabase '__nxt__' 에 단계마다 올린다(10-25 사용자) */
-#nxt{margin-bottom:22px;border:1px solid rgba(245,165,36,.45);border-radius:14px;background:var(--panel);overflow:hidden}
-#nxt .nh{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:14px 18px;border-bottom:1px solid var(--line)}
-#nxt .nh b{font-size:16px}#nxt .tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(245,165,36,.14);color:#F5C26B}
-#nxt .rule{padding:10px 18px;color:var(--mut);font-size:12.5px;line-height:1.6;border-bottom:1px solid var(--line)}
-#nxt .sec{padding:12px 18px}#nxt .sec h3{margin:0 0 8px;font-size:13.5px;color:var(--txt)}
-#nxt .tw{border-radius:10px}#nxt td.r,#nxt th.r{text-align:right}
-#shd{margin-bottom:22px;border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow:hidden}
-#shd .nh{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:14px 18px;border-bottom:1px solid var(--line)}#shd .nh b{font-size:16px}
-#shd .tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(160,168,182,.14);color:#C9D0DB}
-#shd .sec{padding:12px 18px;border-bottom:1px solid var(--line)}#shd .sec:last-child{border-bottom:0}#shd .sec h3{margin:0 0 8px;font-size:13.5px}
-#shd td.r,#shd th.r{text-align:right}#shd .st{font-size:11px;padding:1px 7px;border-radius:5px;background:rgba(245,165,36,.14);color:#F5C26B}#shd .st.c{background:rgba(91,155,255,.14);color:#9CC2FF}
-#shd details summary{padding:6px 0;color:var(--mut)}
-/* 자료 모으는 중 — 자료가 쌓여야 시험할 수 있는 가설(등록부 '보류') · 서버 research/collecting.py 가 '__collect__' 에 30분마다(11-15 사용자) */
-#col{margin-bottom:22px;border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow:hidden}
-#col .nh{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:14px 18px;border-bottom:1px solid var(--line)}#col .nh b{font-size:16px}
-#col .tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(91,155,255,.14);color:#9CC2FF}
-#col .it{padding:14px 18px;border-bottom:1px solid var(--line)}#col .it:last-child{border-bottom:0}
-#col .it h3{margin:0 0 4px;font-size:14px}#col .it .sub{font-size:12px;color:var(--mut);margin-bottom:10px;line-height:1.5}
-#col .bar{position:relative;height:8px;border-radius:99px;background:rgba(160,168,182,.16);overflow:hidden;margin:6px 0 10px}
-#col .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:#5B9BFF}#col .bar i.ex{background:rgba(91,155,255,.35)}
-#col .bar s{position:absolute;top:-2px;bottom:-2px;width:2px;background:#F5C26B}
-#col .gl{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:12.5px}#col .gl b{font-family:'IBM Plex Mono',monospace}
-#col .ok{color:#5FE0D0}
-#nxt .gp{font-size:11px;padding:1px 7px;border-radius:5px;background:rgba(160,168,182,.14);color:#C9D0DB}#nxt .gp.big{background:rgba(52,211,192,.14);color:#5FE0D0}
-/* 그림자 테스트 중 — [갭하락] 하루 위 3개(H0362) · 서버 day_top3.py 가 '__t1top3__' 에 5분마다(10-25 사용자) — 모양은 #nxt 와 같게 */
-#t1x{margin-bottom:22px;border:1px solid rgba(245,165,36,.45);border-radius:14px;background:var(--panel);overflow:hidden}
-#t1x .nh{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:14px 18px;border-bottom:1px solid var(--line)}
-#t1x .nh b{font-size:16px}#t1x .tag{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(245,165,36,.14);color:#F5C26B}
-#t1x .rule{padding:10px 18px;color:var(--mut);font-size:12.5px;line-height:1.6;border-bottom:1px solid var(--line)}
-#t1x .sec{padding:12px 18px}#t1x .sec h3{margin:0 0 8px;font-size:13.5px;color:var(--txt)}
-#t1x .tw{border-radius:10px}#t1x td.r,#t1x th.r{text-align:right}
-#t1x .gp{font-size:11px;padding:1px 7px;border-radius:5px;background:rgba(160,168,182,.14);color:#C9D0DB}#t1x .gp.big{background:rgba(245,165,36,.16);color:#F5C26B}
-#t1x tr.top td{background:rgba(245,165,36,.06)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:'IBM Plex Sans KR',Pretendard,-apple-system,"Malgun Gothic",sans-serif;font-size:13.5px;line-height:1.55}
+.mono{font-family:'IBM Plex Mono','IBM Plex Sans KR',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;padding:12px 24px;border-bottom:1px solid var(--line);background:var(--bg);flex-wrap:wrap}
+header h1{font-size:20px;margin:0;font-weight:700;display:flex;align-items:center;gap:8px}
+header a{color:var(--txt);text-decoration:none;border:1px solid var(--line);padding:8px 14px;background:var(--panel);border-radius:8px;font-size:12.5px}
+header a:hover{border-color:var(--acc);color:var(--ind)}
+header .up{margin-left:auto;color:var(--mut);font-size:12px}
+main{max-width:920px;margin:0 auto;padding:16px 16px 70px}
+.chips{display:flex;flex-wrap:wrap;gap:4px 16px;color:var(--mut);font-size:12.5px;margin:2px 2px 14px}
+.chips b{color:var(--txt);font-family:'IBM Plex Mono',monospace;font-weight:600}
+details.sec{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden;scroll-margin-top:70px}
+details.sec>summary{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;list-style:none}
+details.sec>summary::-webkit-details-marker,details.more>summary::-webkit-details-marker{display:none}
+details.sec>summary::before{content:'▸';color:var(--dim);width:10px;flex:none}
+details.sec[open]>summary::before{content:'▾'}
+details.sec[open]>summary{border-bottom:1px solid var(--line)}
+details.sec>summary:hover .t{color:var(--ind)}
+details.sec.cand{background:var(--panel2);margin:0 0 8px}
+.t{font-weight:700;font-size:14.5px;white-space:nowrap}
+.s{flex:1;min-width:0;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.w{color:var(--dim);font-size:12px;white-space:nowrap}
+.body{padding:12px 16px 14px}
+.hint{margin:0 0 10px;color:var(--mut);font-size:12.5px;word-break:keep-all}
+.sub{margin:12px 0 6px;color:var(--mut);font-size:12.5px;font-weight:600}.sub:first-child{margin-top:0}
+details.more{margin-top:6px}
+details.more>summary{cursor:pointer;color:var(--mut);font-weight:600;font-size:12.5px;padding:6px 0;list-style:none}
+details.more>summary::before{content:'▸ ';color:var(--dim)}details.more[open]>summary::before{content:'▾ '}
+details.more>summary:hover{color:var(--ind)}
+.badge{font-size:11px;padding:2px 8px;border:1px solid var(--line);border-radius:999px;font-weight:600;white-space:nowrap}
+.g{color:var(--ok);border-color:var(--ok)}.y{color:var(--ind);border-color:var(--ind)}.r{color:var(--up);border-color:var(--up)}.m{color:var(--dim)}.b{color:var(--dn);border-color:var(--dn)}
+.pos{color:var(--up)}.neg{color:var(--dn)}.muted{color:var(--mut)}.dim{color:var(--dim)}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;vertical-align:top}
+th{color:var(--mut);font-weight:600;background:var(--panel2)}
+td.ar,th.ar{text-align:right}
+td.l{white-space:normal;min-width:180px}
+tr:last-child td{border-bottom:none}
+tr.base td{background:rgba(52,211,192,.06)}
+td.clip{max-width:340px;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+td.clip.on{white-space:normal;min-width:240px;word-break:keep-all}
+.empty{color:var(--mut);padding:14px;text-align:center;border:1px dashed var(--line);border-radius:8px}
+.gp{font-size:11px;padding:1px 7px;border-radius:5px;background:rgba(160,168,182,.14);color:#C9D0DB}.gp.big{background:rgba(52,211,192,.14);color:#5FE0D0}
+/* 후보 카드 안 */
+.desc{margin:0 0 8px;word-break:keep-all}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:8px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.kpi small{color:var(--mut);font-size:11px;display:block}.kpi b{font-size:16px}.kpi>span{color:var(--mut);font-size:11px;display:block}
+.yr{display:flex;align-items:flex-end;gap:3px;height:56px;padding:0 0 4px}
+.yr div{flex:1;min-width:10px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%}.yr i{display:block;width:100%}
+.yrl{display:flex;gap:3px;padding:0 0 8px;color:var(--dim);font-size:10px}.yrl span{flex:1;min-width:10px;text-align:center}
+.src{color:var(--mut);font-size:12px;word-break:break-all;margin:6px 0}.src a{color:var(--acc)}
+.how{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+/* 자료 모으는 중 */
+.it{padding:10px 0;border-top:1px solid var(--line)}.it:first-of-type{border-top:0;padding-top:0}
+.ih{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}.ih b{font-size:13.5px}.ih .n{margin-left:auto}
+.cbar{position:relative;height:8px;border-radius:99px;background:rgba(160,168,182,.16);overflow:hidden;margin:7px 0}
+.cbar i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:#5B9BFF}.cbar i.ex{background:rgba(91,155,255,.35)}
+.cbar s{position:absolute;top:-2px;bottom:-2px;width:2px;background:#F5C26B}
+.gl{display:flex;flex-wrap:wrap;gap:2px 16px;font-size:12.5px;color:var(--mut)}.gl b{color:var(--txt);font-family:'IBM Plex Mono',monospace;font-weight:600}
+@media (max-width:640px){header{padding:10px 12px}main{padding:12px 12px 70px}
+  details.sec>summary{flex-wrap:wrap;gap:4px 10px}.s{flex-basis:100%;order:3;margin-left:20px}.w{margin-left:auto}td.clip{max-width:200px}.kpis{grid-template-columns:1fr 1fr}}
 </style></head><body>
 <header><a href="./">← 선별기</a><h1><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F5A524" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7c-4.6 0-8 2.7-8 6.6S7.4 20.5 12 20.5s8-3 8-6.9S16.6 7 12 7z"/><path d="M9.2 7.6c-1.3 2.2-1.3 10.4 0 12.5M14.8 7.6c1.3 2.2 1.3 10.4 0 12.5"/><path d="M12 7V4.2c1.4 0 2.6.6 3.2 1.6"/></svg>규칙 후보</h1><span class="up" id="upd">불러오는 중…</span></header>
 <main>
-  <section id="nxt" style="display:none"></section>
-  <section id="t1x" style="display:none"></section>
-  <section id="shd" style="display:none"></section>
-  <section id="col" style="display:none"></section>
-  <div class="strip" id="strip"></div>
-  <p class="note">공장이 매일 밤 찾은 규칙 중 <b>학습(2016~22)·잠가 둔 검증(2023~)·다중검정</b>을 통과한 것만 여기 올라온다. 수익은 전부 <b>비용 뒤 건당</b>. 조정 후보 칸을 고를 땐 검증 칸만 좋은 것보다 참고·학습 칸도 같이 좋은 걸로 — 여러 칸을 보고 고르는 것도 운이 섞인다. 채택·조정은 클로드 창에서 "F0035 채택"처럼 말하면 된다.</p>
-  <div id="cands"></div>
-  <h2 id="shh" style="display:none">실시간 재료 그림자(과거 없음 · 앞으로 성적만 · 20거래일 전엔 판정 안 함)</h2>
-  <div id="shadow"></div>
-  <h2>수집 기록 — 출처별·날짜별 건수 (제대로 가져오나 확인용)</h2>
-  <p class="note">찾음 = 검색·목록에 새로 뜬 글 · 읽음 = 본문 받기 성공 · 오류/쉼 = 받기 실패·속도 조절로 쉼 · 통과 = 1차 거르기(숫자 있는 매매 조건) · 번역 = 명세로 옮기기 · 명세 = 깔때기로 간 수. 하룻밤 읽기 몫은 출처별 — 유튜브는 언어 합쳐 30개(자막 요청이 몰리면 막혀서), 나머지 출처는 하나당 40개까지(새 글은 거의 다 읽힘). 몫에 못 든 글은 다음 밤으로. 번역은 하룻밤 25개까지 — 구독 방식(Claude Code), 통과했는데 못 옮긴 글은 다음 밤에 다시. 찾음보다 읽음이 적은 건 대부분 몫 때문이고, 내용이 별로라 빠진 건 "통과" 단계에서 걸러진 것.</p>
-  <div class="tw" id="cstat"></div>
-  <h2>수집처 — 어디서 · 어떻게</h2>
-  <div class="tw" id="cmeth"></div>
-  <h2>속도 조절 — 막힌 낌새가 보이면 그 사이트 간격을 2배로(3번이면 12시간 쉼), 5번 성공마다 20%씩 되돌림</h2>
-  <div class="tw" id="cpace"></div>
+  <div class="chips" id="chips"></div>
+  <div id="root"><div class="empty">불러오는 중…</div></div>
 </main>
 <script>
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const pct=(v,d=2)=>v==null?'-':`<span class="${v>0?'pos':v<0?'neg':''}">${v>0?'+':''}${(+v).toFixed(d)}%</span>`;
+const pct=(v,d=2,u='%')=>v==null||v!==v?'<span class="dim">-</span>':`<span class="mono ${v>0?'pos':v<0?'neg':''}">${v>0?'+':''}${(+v).toFixed(d)}${u}</span>`;
+const man=v=>v==null?'-':`<span class="mono ${v>0?'pos':v<0?'neg':''}">${v>0?'+':''}${(v/1e4).toFixed(1)}만</span>`;
+const md=d=>d&&d.length>=8?d.slice(4,6)+'/'+d.slice(6,8):'-';
+const YEAR=String(new Date().getFullYear());
+const day=d=>!d?'-':(d.slice(0,4)===YEAR?'':d.slice(0,4)+'-')+d.slice(4,6)+'-'+d.slice(6,8);
 const st=s=>s?`${pct(s.mean)} <span class="muted">· 승률 ${Math.round(s.win)}% · ${(+s.n).toLocaleString()}건${s.ex!=null?' · 초과 '+(s.ex>0?'+':'')+(+s.ex).toFixed(2):''}</span>`:'<span class="muted">-</span>';
 const kpi=(lab,s,extra='')=>`<div class="kpi"><small>${lab}</small>${s?`<b class="mono">${pct(s.mean)}</b><span>승률 ${Math.round(s.win)}%${s.pf!=null?` · PF ${(+s.pf).toFixed(2)}`:''} · ${(+s.n).toLocaleString()}건${s.ny?` · 플러스 해 ${s.ypos}/${s.ny}`:''}${s.ex!=null?` · 같은 날 아무 종목 대비 ${s.ex>0?'+':''}${(+s.ex).toFixed(2)}%p`:''}${extra}</span>`:'<b class="muted">-</b>'}</div>`;
 async function rpc(fn,body){const r=await fetch(`${SB.url}/rest/v1/rpc/${fn}`,{method:'POST',headers:{apikey:SB.key,Authorization:'Bearer '+SB.key,'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error(fn+' '+r.status);const t=await r.text();return t?JSON.parse(t):null}
+/* 펼쳐 둔 칸 — 다시 그려도 그대로. 새로 들어오면 접힌 채로 시작(검토 대기 후보가 있으면 그 칸만 펼침). */
+const OPEN=new Set();if(location.hash)OPEN.add(location.hash.slice(1));
+document.addEventListener('toggle',e=>{const d=e.target;if(!d.id)return;d.open?OPEN.add(d.id):OPEN.delete(d.id)},true);
+document.addEventListener('click',e=>{const c=e.target.closest('td.clip');if(c)c.classList.toggle('on')});
+function sec(id,t,s,w,html,b,cls){return `<details class="sec${cls?' '+cls:''}" id="${id}"${OPEN.has(id)?' open':''}><summary><span class="t">${t}</span>${b||''}<span class="s">${s||''}</span>${w?`<span class="w">${w}</span>`:''}</summary><div class="body">${html}</div></details>`}
+function more(id,label,html){return `<details class="more" id="${id}"${OPEN.has(id)?' open':''}><summary>${label}</summary>${html}</details>`}
+function tbl(head,rows){return `<div class="tw"><table><thead><tr>${head.map(h=>/^<th/.test(h)?h:`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`}
+const hint=s=>`<p class="hint">${s}</p>`;
+const bdg=(c,s)=>`<span class="badge ${c}">${s}</span>`;
+const clip=s=>`<td class="clip" title="누르면 전체">${esc(s)}</td>`;
+const R=h=>`<th class="ar">${h}</th>`;
+
+/* ── 검토 대기 후보 ── */
 function yearly(Y){if(!Y||!Y.length)return'';const mx=Math.max(...Y.map(y=>Math.abs(y[2])),.01);
   return `<div class="yr">${Y.map(([y,n,m])=>`<div title="${y} · ${n}건 · ${m>0?'+':''}${m.toFixed(2)}%"><i style="height:${Math.max(2,Math.abs(m)/mx*50)}px;background:${m>=0?'var(--up)':'var(--dn)'}"></i></div>`).join('')}</div>
   <div class="yrl">${Y.map(([y])=>`<span>${String(y).slice(2)}</span>`).join('')}</div>`}
-function card(d){const r=d.res||{};const stl={review:'검토 대기',adopted:'채택'}[d.status]||d.status;
+function cand(d){const r=d.res||{};const e=r.honest||r.va;const id='c-'+d.id;
   const src=/https?:\/\/\S+/.exec(d.source||'');
-  const mks=(d.pass_mk||[]).map(m=>`<span class="badge" style="color:${m==='US'?'#34D3C0':'#F5A524'};border-color:${m==='US'?'#34D3C0':'#F5A524'}">${m==='US'?'미장 통과':'국장 통과'}</span>`).join('');
-  return `<div class="card"><div class="ch"><div class="top"><span class="id mono">${esc(d.id)}</span><span class="badge b-${esc(d.status)}">${stl}</span><span class="badge b-kind">${esc(d.kind)}</span>${mks}<span class="muted">${esc(d.name)}</span></div>
-    <div class="desc">${esc(d.desc)}</div>
-    ${(()=>{const e=(d.res&&d.res.honest)||(d.res&&d.res.va);if(!e)return'';return `<div class="exp">예상 <span class="muted">(${d.res.honest?'15:19 가격으로 고른 ':''}검증 2023~ 실측 — 만들 때 안 본 구간)</span> · 승률 <b>${Math.round(e.win)}%</b> · 건당 <b>${pct(e.mean)}</b> · PF <b class="mono">${e.pf!=null?(+e.pf).toFixed(2):'-'}</b> · 신호 날 하루 ${d.perday}종목</div>`})()}</div>
-  <div class="kpis">${kpi('국장 참고 2010~15',r.ref)}${kpi('국장 학습 2016~22',r.tr)}${kpi('국장 검증 2023~',r.va)}${r.honest?kpi('15:19 가격으로 고르면(2023~)',r.honest):''}
-    <div class="kpi"><small>다중검정 · 빈도</small><b class="mono">${r.dsr!=null?(+r.dsr).toFixed(2):'-'}</b><span>신호 날 하루 ${d.perday}종목 · 신호 있는 날 ${d.dayshare}%</span></div></div>
-  ${d.res_us?`<div class="kpis" style="padding-top:0">${kpi('미장 학습 2016~22',d.res_us.tr)}${kpi('미장 검증 2023~',d.res_us.va)}<div class="kpi"><small>미장 판정</small><b>${(d.pass_mk||[]).includes('US')?'<span class="pos">통과</span>':'탈락'}</b><span>${esc(d.why_us||'')}</span></div></div>`:`<p class="src" style="padding:0 14px">미장: ${esc(d.why_us||'판정 전')}</p>`}
-  ${yearly(d.yearly)}
-  <details><summary>조정 후보 ${d.variants.length}개 — 조건 빼기·문턱 옮기기${d.kind==='스윙'?'·손절익절·보유기간':''}</summary><div class="dbody"><div class="tw"><table><tr><th>바꾼 것</th><th>참고 2010~15</th><th>학습 2016~22</th><th>검증 2023~</th></tr>
-    <tr class="base"><td class="l"><b>원안</b></td><td>${st(r.ref)}</td><td>${st(r.tr)}</td><td>${st(r.va)}</td></tr>
-    ${d.variants.map(v=>`<tr><td class="l">${esc(v.label)}</td><td>${st(v.ref)}</td><td>${st(v.tr)}</td><td>${st(v.va)}</td></tr>`).join('')}</table></div></div></details>
-  <details><summary>어디서 먹히나 — 종목 크기·시장 국면·비용</summary><div class="dbody"><div class="tw"><table><tr><th>나눔</th><th>학습 2016~22</th><th>검증 2023~</th></tr>
-    ${d.parts.map(p=>`<tr><td class="l">${esc(p.label)}</td><td>${st(p.tr)}</td><td>${st(p.va)}</td></tr>`).join('')}</table></div></div></details>
-  <details><summary>최근 신호 10개 · 겹침 · 형제</summary><div class="dbody">
-    ${d.overlap.length?`<p class="muted">${d.overlap.map(o=>`${esc(o.with)} 와 겹침 ${o.pct}%`).join(' · ')}</p>`:''}
-    ${d.siblings.length?`<p class="muted">형제(같은 규칙으로 묶음): ${d.siblings.map(esc).join(', ')}</p>`:''}
-    <div class="tw"><table><tr><th>날짜</th><th>종목</th><th>수익(비용 뒤)</th></tr>${d.recent.map(([dt,n,rr])=>`<tr><td class="mono">${dt.slice(0,4)}-${dt.slice(4,6)}-${dt.slice(6)}</td><td>${esc(n)}</td><td class="mono">${pct(rr)}</td></tr>`).join('')}</table></div></div></details>
-  <details><summary>실전이면 · 출처 · 못 옮긴 부분</summary><div class="dbody">
-    <div class="how">${esc(d.how)}</div>
-    <p class="src">출처: ${esc(d.origin)} · ${src?`<a href="${esc(src[0])}" target="_blank" rel="noopener">${esc((d.source||'').replace(src[0],'').trim()||src[0])}</a>`:esc(d.source)}</p>
-    ${d.approx?`<p class="src">근사한 부분: ${esc(d.approx)}</p>`:''}${d.untestable?`<p class="src">못 옮긴 부분: ${esc(d.untestable)}</p>`:''}
-    ${d.fwd&&d.fwd.n?`<p class="src">통과 뒤 앞으로 성적: ${d.fwd.n}건 ${pct(d.fwd.mean)} · 승률 ${Math.round(d.fwd.win)}% (${d.fwd.days}거래일)</p>`:`<p class="src">통과 뒤 앞으로 성적: 아직 없음(${esc(d.since||'')}부터 기록)</p>`}
-  </div></details></div>`}
-async function load(){let D=null;try{D=await rpc('kospi_state_get',{p_pin:'__factory__'})}catch(e){}
-  if(!D){$('#upd').textContent='아직 데이터 없음';$('#cands').innerHTML='<div class="empty">공장 밤 작업이 한 번 돌면 채워진다</div>';return}
-  $('#upd').textContent='갱신 '+D.updated;
-  const c=D.counts||{};const nR=(c.review||0),nA=(c.adopted||0);
-  $('#strip').innerHTML=[['검토 대기',nR],['채택',nA],['형제로 묶음',c.sibling||0],['지금까지 판정',Object.values(c).reduce((a,b)=>a+b,0)],['공장 누적 시험',(D.trials||0).toLocaleString()]]
-    .map(([l,v])=>`<div class="si"><b class="mono">${v}</b><small>${l}</small></div>`).join('')+`<div class="si" style="flex:1;min-width:220px"><small>클로드 크레딧</small><div class="muted" style="font-size:12px">${esc(D.usage||'')}</div></div>`;
-  $('#cands').innerHTML=(D.cands||[]).length?D.cands.map(card).join(''):'<div class="empty">지금은 검토 대기 후보가 없다</div>';
-  const S=D.shadow||[];if(S.length){$('#shh').style.display='';$('#shadow').innerHTML=S.map(s=>{const f=s.fwd||{};const man=(v)=>v==null?'-':`<span class="${v>0?'pos':v<0?'neg':''}">${v>0?'+':''}${(v/1e4).toFixed(1)}만</span>`;const pp=(v)=>v==null?'-':`<span class="${v>0?'pos':v<0?'neg':''}">${v>0?'+':''}${(+v).toFixed(2)}%p</span>`;const line=!f.n?`아직 거래 없음 (${f.days||0}/20거래일)`:`${f.ready?'':'<b>판정 전</b> · '}${f.days}/20거래일 · ${f.n}건 ${pct(f.mean)} · 승률 ${Math.round(f.win)}% · 시장 대비 ${pp(f.ex)}${f.ex_days?` (플러스 날 ${f.ex_pos}/${f.ex_days})`:''}${f.twin?` · 뒤집은 짝 ${esc(f.twin)} ${pp(f.twin_ex)}`:''}${f.pnl50!=null?` · 체결 손해 뒤 하루 50만씩 ${man(f.pnl50)} · 100만씩 ${man(f.pnl)}`:''}`;return `<div class="card"><div class="ch"><span class="id mono">${esc(s.id)}</span> <span class="muted">${esc(s.desc)}</span></div><p class="src">${line}</p></div>`}).join('')}
-  const CL=D.collect||{};const R=CL.stats||[];
-  if(R.length){const dates=[...new Set(R.map(r=>r.date))].sort().reverse().slice(0,10);const srcs=[...new Set(R.map(r=>r.src))].sort();
-    const cell=r=>r?`<span title="찾음 ${r.found} · 시도 ${r.tried} · 읽음 ${r.ok} · 오류 ${r.err} · 쉼 ${r.blocked} · 짧음 ${r.short} · 통과 ${r.passed} · 번역 ${r.xl} · 명세 ${r.specs}">${r.found}<span class="muted">→</span>${r.ok}${(r.err||r.blocked)?`<span class="neg">(${r.err+r.blocked}×)</span>`:''}<span class="muted">→</span>${r.passed}<span class="muted">→</span>${r.xl}<span class="muted">→</span><b>${r.specs}</b></span>`:'<span class="muted">-</span>';
-    $('#cstat').innerHTML=`<table><tr><th>출처 \\ 날짜<br><span class="muted">찾음→읽음(오류)→통과→번역→명세</span></th>${dates.map(d=>`<th>${d.slice(4,6)}/${d.slice(6)}</th>`).join('')}</tr>${srcs.map(s=>`<tr><td>${esc(s)}</td>${dates.map(d=>`<td class="mono">${cell(R.find(r=>r.date===d&&r.src===s))}</td>`).join('')}</tr>`).join('')}</table>`}
-  else $('#cstat').innerHTML='<div class="empty">오늘 밤 수집부터 쌓인다</div>';
-  $('#cmeth').innerHTML=`<table><tr><th>수집처</th><th>어떻게</th><th>방법</th></tr>${(CL.methods||[]).map(m=>`<tr><td>${esc(m.name)}</td><td class="l">${esc(m.how)}</td><td class="l muted">${esc(m.via)}</td></tr>`).join('')}</table>`;
-  const P=(CL.pace||{}).hosts||{},E=(CL.pace||{}).events||[];
-  $('#cpace').innerHTML=`<table><tr><th>사이트</th><th>지금 간격</th><th>기본</th><th>상태</th><th>누적 걸림</th></tr>${Object.entries(P).map(([h,p])=>`<tr><td>${esc(h)}</td><td class="mono">${p.gap}초</td><td class="mono muted">${p.base}초</td><td>${p.paused?'<span class="neg">쉬는 중</span>':(p.gap>p.base*1.5?'<span class="neg">느리게</span>':'보통')}</td><td class="mono">${p.hits||0}</td></tr>`).join('')}</table>`+
-    (E.length?`<table><tr><th>최근 사건</th><th>사이트</th><th>조치</th><th>이유</th></tr>${E.slice().reverse().map(e=>`<tr><td class="mono">${esc(e.ts)}</td><td>${esc(e.host)}</td><td>${esc(e.event)} → ${e.gap}초</td><td class="l muted">${esc(e.why)}</td></tr>`).join('')}</table>`:'');
-}
-load();
-/* 그림자 테스트 중 — NXT 장후(H0366). 단계(19:50 고름 · 20:02 장후 체결 · 다음 날 시가 채점)마다 서버가 올리고, 이 칸은 1분마다 다시 읽는다 */
-async function loadNxt(){let N=null;try{N=await rpc('kospi_state_get',{p_pin:'__nxt__'})}catch(e){}
-  const box=$('#nxt');if(!N||!N.updated){box.style.display='none';return}
+  const mks=(d.pass_mk||[]).map(m=>bdg(m==='US'?'g':'y',m==='US'?'미장 통과':'국장 통과')).join('');
+  const V=d.variants||[],P=d.parts||[],O=d.overlap||[],SB_=d.siblings||[],RC=d.recent||[];
+  const body=`<p class="desc">${esc(d.desc)}</p>
+    <div class="kpis">${kpi('국장 참고 2010~15',r.ref)}${kpi('국장 학습 2016~22',r.tr)}${kpi('국장 검증 2023~',r.va)}${r.honest?kpi('15:19 가격으로 고르면(2023~)',r.honest):''}
+      <div class="kpi"><small>다중검정 · 빈도</small><b class="mono">${r.dsr!=null?(+r.dsr).toFixed(2):'-'}</b><span>신호 날 하루 ${d.perday}종목 · 신호 있는 날 ${d.dayshare}%</span></div></div>
+    ${d.res_us?`<div class="kpis">${kpi('미장 학습 2016~22',d.res_us.tr)}${kpi('미장 검증 2023~',d.res_us.va)}<div class="kpi"><small>미장 판정</small><b>${(d.pass_mk||[]).includes('US')?'<span class="pos">통과</span>':'탈락'}</b><span>${esc(d.why_us||'')}</span></div></div>`:`<p class="src">미장: ${esc(d.why_us||'판정 전')}</p>`}
+    ${yearly(d.yearly)}`
+    +more(id+'-v',`조정 후보 ${V.length}개`,tbl(['바꾼 것','참고 2010~15','학습 2016~22','검증 2023~'],[`<tr class="base"><td class="l"><b>원안</b></td><td>${st(r.ref)}</td><td>${st(r.tr)}</td><td>${st(r.va)}</td></tr>`,...V.map(v=>`<tr><td class="l">${esc(v.label)}</td><td>${st(v.ref)}</td><td>${st(v.tr)}</td><td>${st(v.va)}</td></tr>`)])
+      +hint('검증 칸만 좋은 것보다 참고·학습 칸도 같이 좋은 걸로 고른다.'))
+    +more(id+'-p','어디서 먹히나 — 종목 크기·시장 국면·비용',tbl(['나눔','학습 2016~22','검증 2023~'],P.map(p=>`<tr><td class="l">${esc(p.label)}</td><td>${st(p.tr)}</td><td>${st(p.va)}</td></tr>`)))
+    +more(id+'-r','최근 신호 10개 · 겹침 · 형제',(O.length?`<p class="src">${O.map(o=>`${esc(o.with)} 와 겹침 ${o.pct}%`).join(' · ')}</p>`:'')+(SB_.length?`<p class="src">형제: ${SB_.map(esc).join(', ')}</p>`:'')
+      +tbl(['날짜','종목','수익(비용 뒤)'],RC.map(([dt,n,rr])=>`<tr><td class="mono">${dt.slice(0,4)}-${dt.slice(4,6)}-${dt.slice(6)}</td><td>${esc(n)}</td><td>${pct(rr)}</td></tr>`)))
+    +more(id+'-h','실전이면 · 출처 · 못 옮긴 부분',`<div class="how">${esc(d.how)}</div>
+      <p class="src">출처: ${esc(d.origin)} · ${src?`<a href="${esc(src[0])}" target="_blank" rel="noopener">${esc((d.source||'').replace(src[0],'').trim()||src[0])}</a>`:esc(d.source)}</p>
+      ${d.approx?`<p class="src">근사한 부분: ${esc(d.approx)}</p>`:''}${d.untestable?`<p class="src">못 옮긴 부분: ${esc(d.untestable)}</p>`:''}
+      ${d.fwd&&d.fwd.n?`<p class="src">통과 뒤 앞으로 성적: ${d.fwd.n}건 ${pct(d.fwd.mean)} · 승률 ${Math.round(d.fwd.win)}% (${d.fwd.days}거래일)</p>`:`<p class="src">통과 뒤 앞으로 성적: 아직 없음(${esc(d.since||'')}부터 기록)</p>`}`);
+  return sec(id,`<span class="mono" style="color:var(--ind)">${esc(d.id)}</span>`,
+    `${esc(d.name)}${e?` · 검증 ${pct(e.mean)} · 승률 ${Math.round(e.win)}%${e.pf!=null?` · PF ${(+e.pf).toFixed(2)}`:''} · 하루 ${d.perday}종목`:''}`,'',body,
+    bdg(d.status==='adopted'?'g':'y',{review:'검토 대기',adopted:'채택'}[d.status]||esc(d.status))+bdg('m',esc(d.kind))+mks,'cand')}
+function secCands(F){
+  if(!F)return S.tried?sec('cands','검토 대기 후보','아직 데이터 없음','','<div class="empty">공장 밤 작업이 한 번 돌면 채워진다</div>'):'';
+  const C=F.cands||[];
+  return sec('cands','검토 대기 후보',C.length?`${C.length}개 · `+C.slice(0,4).map(d=>esc(d.id)).join(' · '):'지금은 없음','',
+    hint('학습(2016~22)·잠가 둔 검증(2023~)·다중검정을 통과한 것만 올라온다. 수익은 비용 뒤 건당. 채택·조정은 클로드 창에서 "F0035 채택"처럼.')
+    +(C.length?C.map(cand).join(''):'<div class="empty">지금은 검토 대기 후보가 없다</div>'),C.length?bdg('y',C.length+'개'):'')}
+
+/* ── 그림자 테스트 중 — NXT 장후(H0366). 서버 nxt_shadow.py 가 '__nxt__' 에 단계마다 올린다 ── */
+function secNxt(N){
+  if(!N||!N.updated)return '';
   const won=v=>v==null?'-':Math.round(v).toLocaleString();
-  const man=v=>v==null||!v?'-':(v>=1e8?(v/1e8).toFixed(1)+'억':Math.round(v/1e4).toLocaleString()+'만');
+  const amt=v=>v==null||!v?'-':(v>=1e8?(v/1e8).toFixed(1)+'억':Math.round(v/1e4).toLocaleString()+'만');
   const S=N.snap||{};const rows=[...(S.picks||[]).map(x=>({...x,g:'상위 절반'})),...(S.big||[]).filter(x=>!(S.picks||[]).some(p=>p.t===x.t)).map(x=>({...x,g:'대형'}))];
-  const pick=rows.length?`<div class="tw"><table><tr><th>무리</th><th>종목</th><th class="r">장후</th><th class="r">시장 대비</th><th class="r">배율</th><th class="r">19:41~50 거래대금</th><th class="r">매수 1호가</th><th class="r">매도 1호가</th><th class="r">살 금액</th><th class="r">10분 평균가</th><th class="r">다음 날 시가</th><th class="r">수익(매도1호가)</th><th class="r">수익(비례 금액)</th></tr>`
-    +rows.map(x=>`<tr><td><span class="gp ${x.g==='대형'?'big':''}">${x.g}</span></td><td>${esc(x.n)} <span class="muted mono">${esc(x.t)}</span></td><td class="r mono">${pct(x.ah)}</td><td class="r mono">${x.rel==null?'-':(x.rel>0?'+':'')+(+x.rel).toFixed(2)+'%p'}</td><td class="r mono">${x.m?x.m+'배':'-'}</td><td class="r mono">${man(x.v10)}</td><td class="r mono">${won(x.bid)}</td><td class="r mono">${won(x.ask)}</td><td class="r mono">${man(x.amt)}</td><td class="r mono">${won(x.vw)}</td><td class="r mono">${won(x.o1)}</td><td class="r mono">${pct(x.r)}</td><td class="r mono">${pct(x.rc)}</td></tr>`).join('')+`</table></div>`
-    :`<div class="empty" style="padding:16px">${S.date?(S.calm===false?`${S.date.slice(4,6)}/${S.date.slice(6)} 시장 장후 ${(+S.mkt).toFixed(2)}% — 시장 전체가 빠진 날이라 쉼`:`${S.date.slice(4,6)}/${S.date.slice(6)} 조건에 맞는 종목 없음`):'아직 첫 기록 전 — 평일 19:50 에 고른다'}</div>`;
-  const C=N.cum||{};const cumT=(g,lab)=>(C[g]||[]).length?`<div class="tw" style="margin-bottom:10px"><table><tr><th>${lab} · 매수 방식</th><th class="r">건수</th><th class="r">건당(비용 뒤)</th><th class="r">승률</th><th class="r">합계</th></tr>`
-    +C[g].map(c=>`<tr><td>${esc(c.k)}</td><td class="r mono">${c.n}</td><td class="r mono">${pct(c.avg)}</td><td class="r mono">${c.win}%</td><td class="r mono">${c.tot==null?'-':(c.tot>0?'+':'')+c.tot.toLocaleString()+'만'}</td></tr>`).join('')+`</table></div>`:'';
-  const T=N.test;const test=T&&T.date?`<div class="sec" style="border-top:1px solid var(--line)"><h3>1주 실주문 시험(NXT 장후 지정가)</h3><span class="mono">${esc(T.date)} ${esc(T.t)}</span> · ${T.error?`<span class="neg">거절 — ${esc(T.error).slice(0,160)}</span>`:`${esc(T.status||'-')} · 지정가 ${won(T.limit)}원 · 체결 ${T.filled||0}주 @ ${won(T.avg)}원${T.sell_avg?` → 다음 날 시가 ${won(T.sell_avg)}원 (${pct((T.sell_avg/T.avg-1)*100)}, 비용 전)`:T.sold?' → 시가 매도 주문함':''}`}</div>`:'';
-  box.innerHTML=`<div class="nh"><span class="tag">그림자 테스트 중</span><b>장후 낙폭 → 다음 날 시가</b><span class="mono muted">${esc(N.hid||'')}</span><span class="muted" style="margin-left:auto">${esc(N.stage||'')} · 갱신 ${esc(N.updated)} · 누적 ${N.days||0}일</span></div>`
-    +`<div class="rule">${esc(N.rule||'')}<br>대형 비교 무리: ${esc(N.big_rule||'')} · 돈은 안 든다(기록만)</div>`
-    +`<div class="sec"><h3>${S.date?`${S.date.slice(4,6)}/${S.date.slice(6)} 고른 종목`:'고른 종목'}${S.n_nxt?` <span class="muted" style="font-weight:400">· 장후 거래 ${S.n_nxt}종목 · 시장 장후 ${pct(S.mkt)} · 후보 ${S.n_cand}</span>`:''}</h3>${pick}</div>`
-    +((C.picks||C.big)?`<div class="sec" style="border-top:1px solid var(--line)"><h3>누적 성적</h3>${cumT('picks','상위 절반')}${cumT('big','대형 200')}</div>`:'')
-    +test;
-  box.style.display=''}
-loadNxt();
-async function loadT1x(){let N=null;try{N=await rpc('kospi_state_get',{p_pin:'__t1top3__'})}catch(e){}
-  const box=$('#t1x');if(!N||!N.updated){box.style.display='none';return}
-  const won=v=>v==null?'-':Math.round(v).toLocaleString();const md=d=>d?d.slice(4,6)+'/'+d.slice(6):'-';
-  const T=N.today;const rows=(T&&T.rows)||[];
-  const fill=x=>x.filled==null?'<span class="muted">시가 전</span>':x.filled?'체결':'<span class="muted">안 사짐</span>';
-  const head=`<tr><th>순위</th><th>종목</th><th class="r">예상 갭</th><th class="r">시장 대비</th><th class="r">지정가</th><th class="r">시가</th><th class="r">${rows.some(x=>x.live)?'지금가':'종가'}</th><th class="r">수익(비용 뒤)</th><th>체결</th></tr>`;
-  const tr=x=>`<tr class="${x.rank<=3?'top':''}"><td>${x.rank<=3?`<span class="gp big">위 ${x.rank}</span>`:x.rank<=5?`<span class="gp">위 ${x.rank}</span>`:`<span class="muted mono">${x.rank}</span>`}</td><td>${esc(x.n)} <span class="muted mono">${esc(x.t)}</span></td><td class="r mono">${pct(x.gap)}</td><td class="r mono">${x.rel==null?'-':(x.rel>0?'+':'')+(+x.rel).toFixed(2)+'%p'}</td><td class="r mono">${won(x.lim)}</td><td class="r mono">${won(x.open)}</td><td class="r mono">${won(x.last)}</td><td class="r mono">${x.filled===false?'<span class="muted">'+pct(x.ret)+'</span>':pct(x.ret)}</td><td>${fill(x)}</td></tr>`;
-  const pick=rows.length?`<div class="tw"><table>${head}${rows.slice(0,5).map(tr).join('')}</table></div>`
-    +(rows.length>5?`<details><summary class="muted" style="padding:6px 0">나머지 ${rows.length-5}종목 (지금 그물에만 들어감)</summary><div class="tw"><table>${head}${rows.slice(5).map(tr).join('')}</table></div></details>`:'')
-    :`<div class="empty" style="padding:16px">아직 기록 없음 — 평일 08:52 데이 후보가 나오면 채워진다</div>`;
-  const C=N.cum||[];const cum=C.length?`<div class="tw"><table><tr><th>무리</th><th class="r">날</th><th class="r">하루 평균(예산 대비)</th><th class="r">플러스 날</th><th class="r">체결 건</th><th class="r">건당</th><th class="r">건 승률</th><th class="r">계좌 누적(하루 ${'20%'} 예산)</th></tr>`
-    +C.map(c=>`<tr><td>${esc(c.k)}</td><td class="r mono">${c.days}</td><td class="r mono">${pct(c.day_avg)}</td><td class="r mono">${c.day_win==null?'-':c.day_win+'%'}</td><td class="r mono">${c.trades}</td><td class="r mono">${pct(c.avg)}</td><td class="r mono">${c.win==null?'-':c.win+'%'}</td><td class="r mono">${pct(c.acct)}</td></tr>`).join('')+`</table></div>`:'';
-  const R=N.recent||[];const cell=v=>v?`${pct(v.day)} <span class="muted">${v.nf}/${v.n}</span>`:'-';
-  const rec=R.length?`<details><summary class="muted" style="padding:6px 0">날마다 보기 (${R.length}일)</summary><div class="tw"><table><tr><th>날</th><th class="r">시장 갭</th><th class="r">후보</th><th class="r">지금 그물</th><th class="r">위 3개</th><th class="r">위 5개</th></tr>`
-    +R.map(d=>`<tr><td class="mono">${md(d.d)}${d.live?' <span class="muted">(장중)</span>':''}</td><td class="r mono">${pct(d.mg)}</td><td class="r mono">${d.n}</td><td class="r mono">${cell(d.all)}</td><td class="r mono">${cell(d.top3)}</td><td class="r mono">${cell(d.top5)}</td></tr>`).join('')+`</table></div><div class="muted" style="font-size:12px;margin-top:6px">칸 = 그날 예산 대비 수익 · 체결/무리 종목 수(안 사진 몫은 0으로 셈)</div></details>`:'';
-  box.innerHTML=`<div class="nh"><span class="tag">그림자 테스트 중</span><b>[갭하락] 하루 위 3개만 사면?</b><span class="mono muted">${esc(N.hid||'')}</span><span class="muted" style="margin-left:auto">${esc(N.stage||'')} · 갱신 ${esc(N.updated)} · 누적 ${N.days||0}일</span></div>`
-    +`<div class="rule">${esc(N.rule||'')}</div>`
-    +`<div class="sec"><h3>${T?`${md(T.date)} 후보 ${T.n}종목`:'후보'}${T&&T.mg!=null?` <span class="muted" style="font-weight:400">· 시장 예상 갭 ${pct(T.mg)} · 노란 줄 = 위 3개</span>`:''}</h3>${pick}</div>`
-    +(cum?`<div class="sec" style="border-top:1px solid var(--line)"><h3>누적 성적</h3>${cum}${rec}</div>`:'');
-  box.style.display=''}
-loadT1x();
-/* 다시 읽기 — 서버가 5분마다(위 3개)·단계마다(NXT) 올리니 5분이면 충분. 탭이 안 보이면 안 읽고, 다시 보이면 바로 한 번(10-25 사용자 "1분마다 필요 있나") */
-setInterval(()=>{if(!document.hidden){loadNxt();loadT1x()}},300000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){loadNxt();loadT1x()}});
-/* 그림자·후보 가설 목록(그림자 규칙 S1~S4 는 10-25 모두 접음 — shadow.py RULES 에 넣으면 다시 칸이 생긴다) — CI 의 shadow.py 가 매일 site/data/shadow.json 을 만든다(10-25 사용자) */
-async function loadShd(){let J=null;try{const r=await fetch('data/shadow.json?'+Date.now(),{cache:'no-store'});if(r.ok)J=await r.json()}catch(e){}
-  const box=$('#shd');if(!J){box.style.display='none';return}
-  const md=d=>d?d.slice(4,6)+'/'+d.slice(6):'-';const won=v=>v==null?'-':Math.round(v).toLocaleString();
-  const rules=(J.rules||[]).map(R=>{const it=R.items||[];
-    const tb=it.length?`<details${R.id==='S4'?' open':''}><summary>신호 ${R.n}건 보기</summary><div class="tw"><table><tr><th>신호일</th><th>종목</th><th class="r">산 값</th><th class="r">지금/만기 값</th><th class="r">수익(비용 뒤)</th><th class="r">보유</th></tr>`
-      +it.map(x=>`<tr><td class="mono">${md(x.d)}</td><td>${esc(x.n)} <span class="muted mono">${esc(x.t)}</span></td><td class="r mono">${won(x.in)}</td><td class="r mono">${won(x.px)}</td><td class="r mono">${pct(x.ret)}</td><td class="r mono">${x.done?'만기 '+md(x.xd):(x.held==null?'-':x.held+'/'+x.hold+'일')}</td></tr>`).join('')+`</table></div></details>`:'<div class="muted">아직 신호 없음</div>';
-    return `<div class="sec"><h3>${esc(R.id)} · ${esc(R.name)} <span class="muted" style="font-weight:400">· ${R.hold}거래일 보유 · 신호 ${R.n} (진행 ${R.open} · 만기 ${R.done})${R.avg_done!=null?` · 만기 평균 ${pct(R.avg_done)} 승률 ${R.win_done}%`:''}${R.avg_all!=null?` · 전체(진행 포함) ${pct(R.avg_all)}`:''}</span></h3>${tb}</div>`}).join('');
-  const H=J.hyps||[];const hy=H.length?`<div class="sec"><h3>등록부의 그림자·후보 가설 ${H.length}개</h3><div class="tw"><table><tr><th>번호</th><th>상태</th><th>가설</th><th>등록</th></tr>`
-    +H.map(h=>`<tr><td class="mono">${esc(h.id)}</td><td><span class="st ${h.st==='후보'?'c':''}">${esc(h.st)}</span></td><td class="l">${esc(h.name)}</td><td class="mono">${esc(h.date)}</td></tr>`).join('')+`</table></div></div>`:'';
-  box.innerHTML=`<div class="nh"><span class="tag">그림자 기록 중</span><b>${(J.rules||[]).length?'그림자 규칙':'등록부 그림자·후보 가설'}</b><span class="muted" style="margin-left:auto">기준 ${md(J.asof)}${(J.rules||[]).length?' · 사지 않고 신호만 적는다 — 산 값 = 신호일 종가':''}</span></div>`+rules+hy;
-  box.style.display=''}
-loadShd();
-/* 자료 모으는 중(11-15 사용자 "자료 모으는 중 추가해줘 · 얼마나 걸리고 언제쯤 마무리될지도") — '__collect__' (research/collecting.py, 30분마다) */
-async function loadCol(){let J=null;try{J=await rpc('kospi_state_get',{p_pin:'__collect__'})}catch(e){}
-  const box=$('#col');if(!J||!(J.items||[]).length){box.style.display='none';return}
-  const ymd=d=>d?d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6):'-';
-  const its=J.items.filter(x=>!x.err).map(x=>{const G=x.goals||[];const top=G.length?G[G.length-1].goal:1;
-    const w=v=>Math.min(100,Math.max(0,v/top*100)).toFixed(1);
-    const bf=x.backfill;const catching=bf&&bf.catching;
-    const pr=x.unit==='쌍';const now=`${x.unit_lab||'쌓인 거래일'} <b>${(x.have||0).toLocaleString()}</b>${pr?'쌍':'일'}`+(x.first?` <span class="muted">(${ymd(x.first)} ~ ${ymd(x.last)})</span>`:'')
-      +(pr&&bf?` · <span class="muted">전체 ${(bf.total||0).toLocaleString()}쌍 · 남은 약 ${bf.eta_h??'-'}시간(밤 20:10~07:30만 받음 · 앞 일감 다음 차례)</span>`:'')+(catching?` · <span class="muted">밀린 날 받는 중 — 남은 ${(bf.left||0).toLocaleString()}쌍 · 약 ${bf.eta_h??'-'}시간(밤 20:10~07:30만 받음) → 받기 끝나면 <b>${x.expect}</b>일</span>`:'');
-    const bar=`<div class="bar"><i class="ex" style="width:${w(x.expect||0)}%"></i><i style="width:${w(x.have)}%"></i>${G.slice(0,-1).map(g=>`<s style="left:${w(g.goal)}%"></s>`).join('')}</div>`;
-    const gl=`<div class="gl">${G.map(g=>`<span>${esc(g.lab)} · ${g.goal.toLocaleString()}${pr?'쌍':'거래일'} → ${g.done?'<span class="ok">도달</span>':`<b>약 ${ymd(g.eta)}</b>`}</span>`).join('')}</div>`;
-    return `<div class="it"><h3>${esc(x.id)} · ${esc(x.name)} <span class="muted" style="font-weight:400">· ${esc(x.parent||'')}</span></h3>`
-      +`<div class="sub">${esc(x.what||'')}<br>${esc(x.how||'')}</div><div style="font-size:13px">${now}</div>${bar}${gl}</div>`}).join('');
-  box.innerHTML=`<div class="nh"><span class="tag">자료 모으는 중</span><b>자료가 쌓여야(받아야) 시험할 수 있는 가설 ${J.items.length}개</b><span class="muted" style="margin-left:auto">갱신 ${esc(J.updated||'')} · 예상 날짜는 거래일로 셈(대략)</span></div>`+its;
-  box.style.display=''}
-loadCol();
+  const head=['무리','종목',R('장후'),R('시장 대비'),R('살 금액'),R('다음 날 시가'),R('수익(매도 1호가)'),R('수익(비례 금액)')];
+  const tr=x=>`<tr><td><span class="gp ${x.g==='대형'?'big':''}">${x.g}</span></td><td>${esc(x.n)} <span class="dim mono">${esc(x.t)}</span></td><td class="ar">${pct(x.ah)}</td><td class="ar">${pct(x.rel,2,'%p')}</td><td class="ar mono">${amt(x.amt)}</td><td class="ar mono">${won(x.o1)}</td><td class="ar">${pct(x.r)}</td><td class="ar">${pct(x.rc)}</td></tr>`;
+  const pick=rows.length?tbl(head,rows.slice(0,6).map(tr))+(rows.length>6?more('nxt-rest',`나머지 ${rows.length-6}종목`,tbl(head,rows.slice(6).map(tr))):'')
+    :`<div class="empty">${S.date?(S.calm===false?`${md(S.date)} 시장 장후 ${(+S.mkt).toFixed(2)}% — 시장 전체가 빠진 날이라 쉼`:`${md(S.date)} 조건에 맞는 종목 없음`):'아직 첫 기록 전 — 평일 19:50 에 고른다'}</div>`;
+  const C=N.cum||{};const P=C.picks||[],B=C.big||[];const keys=[...new Set([...P,...B].map(c=>c.k))];
+  const cc=c=>c?`<td class="ar mono">${c.n}</td><td class="ar">${pct(c.avg)}${c.tot!=null?` <span class="dim mono">${c.tot>0?'+':''}${c.tot.toLocaleString()}만</span>`:''}</td><td class="ar mono">${c.win}%</td>`:'<td class="ar dim">-</td><td class="ar dim">-</td><td class="ar dim">-</td>';
+  const cum=keys.length?tbl(['매수 방식',R('상위 절반 건수'),R('건당(비용 뒤)'),R('승률'),R('대형 200 건수'),R('건당(비용 뒤)'),R('승률')],keys.map(k=>`<tr><td>${esc(k)}</td>${cc(P.find(c=>c.k===k))}${cc(B.find(c=>c.k===k))}</tr>`)):'';
+  const T=N.test;const test=T&&T.date?`<p class="hint" style="margin:10px 0 0">1주 실주문 시험 <span class="mono">${esc(T.date)} ${esc(T.t)}</span> · ${T.error?`<span class="neg">거절 — ${esc(T.error).slice(0,160)}</span>`:`${esc(T.status||'-')} · 지정가 ${won(T.limit)}원 · 체결 ${T.filled||0}주 @ ${won(T.avg)}원${T.sell_avg?` → 다음 날 시가 ${won(T.sell_avg)}원 (${pct((T.sell_avg/T.avg-1)*100)}, 비용 전)`:T.sold?' → 시가 매도 주문함':''}`}</p>`:'';
+  const f=a=>a[0]?`${pct(a[0].avg)} <span class="dim">${a[0].n}건</span>`:'-';
+  return sec('nxt','장후 낙폭 그림자',`누적 ${N.days||0}일 · 상위 절반 ${f(P)} · 대형 ${f(B)}`,`${esc(N.stage||'')} · ${esc((N.updated||'').slice(5))}`,
+    hint('NXT 장후에 빠진 종목을 19:51~20:00 에 샀다 치고 다음 날 시가에 판다. 돈은 안 든다(기록만).')
+    +(cum?`<div class="sub">누적 성적</div>${cum}`:'')
+    +`<div class="sub">${S.date?md(S.date)+' 고른 '+rows.length+'종목':'고른 종목'}${S.n_nxt?` <span class="dim" style="font-weight:400">· 시장 장후 ${pct(S.mkt)} · 후보 ${S.n_cand}</span>`:''}</div>${pick}`
+    +more('nxt-rule','고르는 조건',`<p class="hint" style="margin:0">${esc(N.rule||'')}<br>대형 비교 무리: ${esc(N.big_rule||'')}</p>`)+test,
+    bdg('y','테스트 중')+` <span class="dim mono" style="font-size:12px">${esc(N.hid||'')}</span>`)}
+
+/* ── 실시간 재료 그림자(과거 없음 · 앞으로 성적만) ── */
+function secShadow(S){
+  S=S||[];if(!S.length)return '';const ready=S.filter(s=>(s.fwd||{}).ready).length;
+  const rows=S.map(s=>{const f=s.fwd||{};return `<tr><td class="mono">${esc(s.id)}</td>${clip(s.desc)}<td class="mono">${f.days??0}/20일</td><td class="mono">${f.n??0}건 ${pct(f.mean)}</td><td class="mono">${f.win!=null?Math.round(f.win)+'%':'-'}</td><td>${pct(f.ex,2,'%p')}</td><td>${man(f.pnl50)}</td><td>${man(f.pnl)}</td><td class="mono">${f.twin?esc(f.twin)+' '+pct(f.twin_ex,2,'%p'):'-'}</td></tr>`});
+  return sec('shadow','실시간 재료 그림자',`${S.length}개 · 판정 가능 ${ready}`,'매일 저녁',
+    hint('과거 자료가 없는 재료라, 사지 않고 앞으로 오는 날 성적만 적는다. 20거래일 전엔 판정 안 한다.')
+    +tbl(['id','규칙','날 수','건당','승률','시장 대비','50만 하루','100만 하루','뒤집은 짝'],rows),ready?bdg('g','판정 가능 '+ready):'')}
+
+/* ── 자료 모으는 중 — 서버 research/collecting.py 가 '__collect__' 에 30분마다 ── */
+function secCol(J){
+  if(!J||!(J.items||[]).length)return '';
+  const I=J.items.filter(x=>!x.err);
+  const nx=I.flatMap(x=>(x.goals||[]).filter(g=>!g.done).map(g=>[g.eta,x,g])).sort((a,b)=>a[0]<b[0]?-1:1)[0];
+  const its=I.map(x=>{const G=x.goals||[];const top=G.length?G[G.length-1].goal:1;const w=v=>Math.min(100,Math.max(0,v/top*100)).toFixed(1);
+    const pr=x.unit==='쌍',u=pr?'쌍':'일';const bf=x.backfill;
+    return `<div class="it"><div class="ih"><b>${esc(x.name)}</b><span class="dim mono">${esc(x.id)}</span><span class="muted">${esc(x.parent||'')}</span><span class="n mono">${(x.have||0).toLocaleString()} / ${top.toLocaleString()}${u}</span></div>
+      <div class="cbar"><i class="ex" style="width:${w(x.expect||0)}%"></i><i style="width:${w(x.have||0)}%"></i>${G.slice(0,-1).map(g=>`<s style="left:${w(g.goal)}%"></s>`).join('')}</div>
+      <div class="gl">${G.map(g=>`<span>${esc(String(g.lab).split('(')[0].trim())} ${g.done?'<b style="color:var(--ok)">도달</b>':`약 <b>${day(g.eta)}</b>`}</span>`).join('')}</div>`
+      +more('col-'+x.id,'무엇을 · 어떻게',`<p class="hint" style="margin:0">${esc(x.what||'')}<br>${esc(x.how||'')}${x.first?`<br>${day(x.first)} ~ ${day(x.last)}`:''}${bf&&bf.left?`<br>남은 ${(bf.left||0).toLocaleString()}쌍 · 약 ${bf.eta_h??'-'}시간(밤 20:10~07:30 에만 받음)`:''}${bf&&bf.catching?` → 받기 끝나면 ${x.expect}일`:''}</p>`)+`</div>`}).join('');
+  return sec('col','자료 모으는 중',`${I.length}개`+(nx?` · 가장 빠른 건 ${esc(nx[1].name)} ${esc(String(nx[2].lab).split('(')[0].trim())} 약 ${day(nx[0])}`:''),esc((J.updated||'').slice(5)),
+    hint('자료가 쌓여야(받아야) 시험할 수 있는 가설. 예상 날짜는 거래일로 센 대략.')+its)}
+
+/* ── 등록부의 그림자·후보 가설 — CI 의 shadow.py 가 매일 data/shadow.json ── */
+function secShd(J){
+  if(!J)return '';const H=J.hyps||[],RL=J.rules||[];if(!H.length&&!RL.length)return '';
+  const won=v=>v==null?'-':Math.round(v).toLocaleString();
+  const rules=RL.map(X=>{const it=X.items||[];
+    return `<div class="sub">${esc(X.id)} · ${esc(X.name)} <span class="dim" style="font-weight:400">· ${X.hold}거래일 보유 · 신호 ${X.n}(진행 ${X.open} · 만기 ${X.done})${X.avg_done!=null?` · 만기 평균 ${pct(X.avg_done)} 승률 ${X.win_done}%`:''}</span></div>`
+      +(it.length?more('shd-'+X.id,`신호 ${X.n}건`,tbl(['신호일','종목',R('산 값'),R('지금/만기 값'),R('수익(비용 뒤)'),R('보유')],it.map(x=>`<tr><td class="mono">${md(x.d)}</td><td>${esc(x.n)} <span class="dim mono">${esc(x.t)}</span></td><td class="ar mono">${won(x.in)}</td><td class="ar mono">${won(x.px)}</td><td class="ar">${pct(x.ret)}</td><td class="ar mono">${x.done?'만기 '+md(x.xd):(x.held==null?'-':x.held+'/'+x.hold+'일')}</td></tr>`))):'<div class="dim">아직 신호 없음</div>')}).join('');
+  const hy=H.length?tbl(['번호','상태','가설','등록'],H.map(h=>`<tr><td class="mono">${esc(h.id)}</td><td>${bdg(h.st==='후보'?'b':'y',esc(h.st))}</td>${clip(h.name)}<td class="mono">${esc(h.date)}</td></tr>`)):'';
+  return sec('shd','등록부 그림자·후보 가설',`${H.length}개`+(RL.length?` · 그림자 규칙 ${RL.length}`:'')+(H.length?' · '+H.slice(0,4).map(h=>esc(h.id)).join(' · '):''),'기준 '+md(J.asof),
+    hint('가설 등록부에서 상태가 그림자·후보인 것.')+rules+hy)}
+
+/* ── 글 수집 — 밤마다 모아 규칙 명세로 ── */
+function secCollect(F){
+  if(!F)return '';const CL=F.collect||{};const ST=CL.stats||[];
+  const dates=[...new Set(ST.map(r=>r.date))].sort().reverse().slice(0,7);const srcs=[...new Set(ST.map(r=>r.src))].sort();
+  const cell=r=>r?`<span title="찾음 ${r.found} · 시도 ${r.tried} · 읽음 ${r.ok} · 오류 ${r.err} · 쉼 ${r.blocked} · 짧음 ${r.short} · 통과 ${r.passed} · 번역 ${r.xl} · 명세 ${r.specs}">${r.ok}<span class="dim">/${r.found}</span>${(r.err||r.blocked)?` <span class="neg">${r.err+r.blocked}×</span>`:''}${r.specs?` <b style="color:var(--acc)">${r.specs}</b>`:''}</span>`:'<span class="dim">-</span>';
+  const d0=dates[0];const t0=ST.filter(r=>r.date===d0);const sm=k=>t0.reduce((a,r)=>a+(r[k]||0),0);
+  const P=(CL.pace||{}).hosts||{},E=(CL.pace||{}).events||[];const slow=Object.values(P).filter(p=>p.paused||p.gap>p.base*1.5).length;
+  const stat=ST.length?tbl(['출처',...dates.map(d=>md(d))],srcs.map(s=>`<tr><td>${esc(s)}</td>${dates.map(d=>`<td class="mono">${cell(ST.find(r=>r.date===d&&r.src===s))}</td>`).join('')}</tr>`)):'<div class="empty">오늘 밤 수집부터 쌓인다</div>';
+  return sec('collect','글 수집',d0?`${md(d0)} 찾음 ${sm('found')} → 읽음 ${sm('ok')} → 명세 ${sm('specs')}`+(slow?` · 느려진 사이트 ${slow}`:''):'아직 없음','매일 밤',
+    hint('밤마다 매매 글을 모아 규칙 명세로 옮긴다. 칸 = 읽음/찾음 · <span class="neg">n×</span> = 오류·쉼 · <b style="color:var(--acc)">주황</b> = 명세로 간 수.')+stat
+    +more('collect-how',`수집처 ${(CL.methods||[]).length}곳 · 하룻밤 몫`,tbl(['수집처','어떻게','방법'],(CL.methods||[]).map(m=>`<tr><td>${esc(m.name)}</td><td class="l">${esc(m.how)}</td><td class="l muted">${esc(m.via)}</td></tr>`))
+      +hint('하룻밤 읽기 몫: 유튜브 30개 · 다른 곳 40개씩 · 번역 25개. 몫에 못 든 글은 다음 밤으로.'))
+    +more('collect-pace',`속도 조절${slow?` · 느려진 사이트 ${slow}`:''}`,hint('막힌 낌새가 보이면 그 사이트 간격을 2배로(3번이면 12시간 쉼), 5번 성공마다 20%씩 되돌린다.')
+      +tbl(['사이트','지금 간격','기본','상태','누적 걸림'],Object.entries(P).map(([h,p])=>`<tr><td>${esc(h)}</td><td class="mono">${p.gap}초</td><td class="mono dim">${p.base}초</td><td>${p.paused?'<span class="neg">쉬는 중</span>':(p.gap>p.base*1.5?'<span class="neg">느리게</span>':'보통')}</td><td class="mono">${p.hits||0}</td></tr>`))
+      +(E.length?`<div class="sub">최근 사건</div>`+tbl(['때','사이트','조치','이유'],E.slice().reverse().map(e=>`<tr><td class="mono">${esc(e.ts)}</td><td>${esc(e.host)}</td><td>${esc(e.event)} → ${e.gap}초</td>${clip(e.why)}</tr>`)):''))
+    +(F.usage?`<p class="hint" style="margin:10px 0 0">클로드 크레딧 · ${esc(F.usage)}</p>`:''))}
+
+const S={F:null,N:null,C:null,J:null,init:0};
+function render(){
+  const F=S.F;
+  if(F&&!S.init){S.init=1;if((F.cands||[]).length)OPEN.add('cands')}
+  $('#upd').textContent=F?'갱신 '+(F.updated||'-').slice(5):S.tried?'아직 데이터 없음':'불러오는 중…';
+  if(F){const c=F.counts||{};
+    $('#chips').innerHTML=[['검토 대기',c.review||0],['채택',c.adopted||0],['그림자',c.shadow||0],['형제로 묶음',c.sibling||0],['지금까지 판정',Object.values(c).reduce((a,b)=>a+b,0).toLocaleString()],['공장 누적 시험',(F.trials||0).toLocaleString()]]
+      .map(([l,v])=>`<span>${l} <b>${v}</b></span>`).join('')}
+  $('#root').innerHTML=secCands(F)+secNxt(S.N)+secShadow(F&&F.shadow)+secCol(S.C)+secShd(S.J)+secCollect(F);
+}
+const get=async p=>{try{return await rpc('kospi_state_get',{p_pin:p})}catch(e){return null}};
+async function load(){S.F=await get('__factory__');S.tried=1;render()}
+async function loadNxt(){S.N=await get('__nxt__');render()}
+async function loadCol(){S.C=await get('__collect__');render()}
+async function loadShd(){try{const r=await fetch('data/shadow.json?'+Date.now(),{cache:'no-store'});if(r.ok)S.J=await r.json()}catch(e){}render()}
+load();loadNxt();loadCol();loadShd();
+/* 다시 읽기 — NXT 는 단계마다, 자료 모으는 중은 30분마다 올라온다. 탭이 안 보이면 안 읽고, 다시 보이면 바로 한 번. */
+setInterval(()=>{if(!document.hidden){loadNxt();loadCol()}},300000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){loadNxt();loadCol()}});
 </script></body></html>
