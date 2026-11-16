@@ -155,7 +155,9 @@ def alerts(A, today, miss):
         if len(z) >= 3 and z.gap.mean() < GAP_WARN:
             msg.append("[%s] 최근 %d일 %d건 실전 %+.2f%% · 연구 %+.2f%% · 차이 %+.2f%%p(연구보다 유리: 살 때 %+.2f · 팔 때 %+.2f)" % (
                 RNAME.get(rid, rid), len(days), len(z), z.live.mean(), z.research.mean(), z.gap.mean(), -z.slip_buy.mean(), -z.slip_sell.mean()))
-    t1 = R[R.rid.isin(T1F) & R.in_cond.notna()]
+    # 11-16 사용자 "이런 식으로 사지는 건 알림 안 오게": 시가 > 지정가인데 장중에 사진 건(fill_odd)은 못 막는 틈이고 성적도 손해가 아니라(18종목날 +0.64%)
+    #   텔레그램에선 뺀다 — 조건 밖 비율도 그 건을 빼고 센다. 표(live.csv·점검 현황 페이지)에는 그대로 남는다.
+    t1 = R[R.rid.isin(T1F) & R.in_cond.notna() & (R.fill_odd != 1)]
     if len(t1) >= 3:
         oc = float((t1.in_cond == 0).mean() * 100)
         if oc > OUT_WARN: msg.append("[갭하락] 최근 %d일 연구 조건 밖 체결 %.0f%% (%d/%d)" % (len(days), oc, int((t1.in_cond == 0).sum()), len(t1)))
@@ -165,7 +167,7 @@ def alerts(A, today, miss):
     odd = A[(A.sell_day == today) & (A.fill_odd == 1)]
     if len(odd):                                                              # 11-16 같은 종목을 T1·T2·T3 가 나눠 사면 이름이 세 번 찍힘(RF시스템즈) → 종목으로 묶음
         nm = odd.name.astype(str).value_counts()
-        msg.append("[갭하락] 시가가 지정가 위인데 사짐 %d종목(%d주문): %s" % (len(nm), len(odd), ", ".join(k if v == 1 else "%s×%d" % (k, v) for k, v in list(nm.items())[:5])))
+        print("(알림 안 보냄) [갭하락] 시가가 지정가 위인데 사짐 %d종목(%d주문): %s" % (len(nm), len(odd), ", ".join(k if v == 1 else "%s×%d" % (k, v) for k, v in list(nm.items())[:5])), flush=True)
     if miss: msg.append("[갭하락] 시가가 지정가 아래인데 안 사짐 %d건: %s" % (len(miss), ", ".join(m["name"] for m in miss[:5])))
     return msg
 
