@@ -1546,7 +1546,7 @@ function waitTiles(items){
   const st=(($('#mktstate')||{}).textContent||'').trim();
   const t=(l,v,s,c,sty)=>`<div class="dtile"><span class="l">${l}</span><span class="v ${c||''}"${sty?` style="${sty}"`:''}>${v}</span><span class="s">${s}</span></div>`;
   return `<div class="dtiles">`
-    +t('매수 대기',items.length+'장',`국장 ${kr} · 미장 ${us}`,'','color:var(--acc)')
+    +t('매수 대기',items.length+'건',`국장 ${kr} · 미장 ${us}`,'','color:var(--acc)')
     +t('보유 중',open.length+'종목',m&&m.avg!=null?`평가 ${pc(m.avg)} (동일가중 · 비용 뒤)`:'—','')
     +t('이번 달 완료',pc(davg),dr.length?`${dr.length}건 · 승률 ${Math.round(dr.filter(x=>x>0).length/dr.length*100)}%`:'아직 없음',sg(davg))
     +t('장세',up==null?'—':(up?'상승장':'하락장'),st||'시장 자료 받는 중',up==null?'':(up?'pos':'neg'))+`</div>`}
@@ -1641,7 +1641,7 @@ function renderCards(rows){
     const g=(cur==='all'&&TMODE!=='scalp')?(r.mk==='US'?'US':'KR'):'';
     let gh='';
     if(g&&g!==gPrev){const n=items.filter(x=>(x.r.mk==='US'?'US':'KR')===g).length;
-      gh=`<div class="cgh${g==='US'?' us':''}"><i></i><b>${g==='US'?'미장':'국장'}</b><span>${n}장</span><small>우선순위 = 하루당 기대수익(건당 평균 ÷ 보유일) 순</small></div>`;
+      gh=`<div class="cgh${g==='US'?' us':''}"><i></i><b>${g==='US'?'미장':'국장'}</b><span>${n}건</span><small>우선순위 = 하루당 기대수익(건당 평균 ÷ 보유일) 순</small></div>`;
       gPrev=g}
     /* kq: 규칙의 시장(색·테두리용). 시장 이름 표시는 규칙이 아니라 **종목** 것을 써야 한다 —
        A1 처럼 mkt:'BOTH' 인 공통 규칙은 kq 가 늘 false 라 코스닥 종목도 '코스피' 로 찍혔다
