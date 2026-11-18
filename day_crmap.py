@@ -28,7 +28,10 @@ import numpy as np, pandas as pd
 RID, RNAME = "P9", "반대매매"
 K_RATIO, LAG, F_MIN, GAP = 1.4, 3, 0.3, -3.0
 MAXN = 25                       # 하루 최대(F 큰 순) — 실금액 때 200만 × 25 = 5천만
-PLACE_AT = (8, 57)              # 우선순위 꼴찌 — 스윙 08:51·데이 08:52~ 주문 뒤 남은 돈으로
+PLACE_BEFORE = dt.timedelta(minutes=8, seconds=30)   # 개장 8분 30초 전(평소 08:51:30 · 수능일 09:51:30) — 11-18 사용자 '응 반대매매 옮겨줘':
+#   08:57(꼴찌)이면 [갭하락] 08:52~ 지정가 주문이 돈을 다 묶어 1주 시험이 11-17·11-18 이틀 연속 주문 0. 1주 시험 동안은 [갭하락] 앞에 낸다(1주 × 최대 25종목 ≈ 100만 안팎).
+#   [장후 낙폭]·[장전 되돌림] 시가 매도 주문(개장 9분 30초 전)과 스윙(개장 9분 전)보다는 **뒤**여야 한다 — 같은 종목에 사자 주문이 먼저 걸리면 토스가 그 종목 팔자 주문을 거절한다(opposite-pending-order-exists).
+#   실금액(200만 × 25)으로 넘길 땐 다시 꼴찌(개장 3분 전)로 — 전에는 08:57 고정 시각이었다
 QTY = 1                         # 1주 시험
 
 
@@ -95,7 +98,7 @@ def morning():
     live = D.env().get("DAY_MODE", "notify") == "live" and not (AT.OUT / "STOP").exists()
     if not live:
         log("실매수 꺼짐(DAY_MODE·STOP) — 후보만 기록"); return
-    AT.sleep_until(S["start"].replace(hour=PLACE_AT[0], minute=PLACE_AT[1], second=0), "장전 주문(스윙·데이 뒤)")
+    AT.sleep_until(S["start"] - PLACE_BEFORE, "장전 주문(시가 매도·스윙 뒤 · [갭하락] 앞)")
     try: bp = AT.buying_power("KRW")
     except AT.TossErr: bp = None
     Lg = AT.led(); placed = []
