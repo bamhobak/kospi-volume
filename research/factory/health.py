@@ -23,6 +23,15 @@ HCSV = HD / "health.csv"
 TASKS = ["Morning", "Close", "Evening", "Night"]
 REC_START = "20261012"        # 장전·마감 녹화·전이표 첫 실전일(10-09 한글날 휴장) — 그 전 날짜는 녹화 점검 안 함
 FAC_START = "20261008"        # 공장 저녁 작업(정답지·매일 일봉) 첫날 — 그 전 날짜는 저녁 점검 안 함
+def _late_open():
+    """collect_m1.LATE_OPEN(수능일 등 10:00 개장 날) — 그날 NXT 장전은 시간이 달라 08시대 녹화엔 체결이 없다(헛경보 막기)."""
+    try:
+        m = re.search(r"^LATE_OPEN\s*=\s*\{([^}]*)\}", (C.BASE / "collect_m1.py").read_text(encoding="utf-8"), re.M)
+        return set(re.findall(r"\d{8}", m.group(1))) if m else set()
+    except Exception:
+        return set()
+
+
 PS = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "WindowsPowerShell", "v1.0", "powershell.exe")   # 이름으로 부르면 이 PC PATH 함정(%SystemRoot% 미확장)에 걸린다
 
 
@@ -131,7 +140,8 @@ def check():
             else: ok.append("전이표 %d종목·밤 %s" % (npred, nd))
         _rec(bad, ok, today, "am", 4, "0855")
         fx = C.DATA / "auction" / ("KR_%s_nxt.parquet" % today)
-        if not fx.exists(): bad("🚨", "오늘 NXT 장전 체결가 녹화 없음")
+        if today in _late_open(): ok.append("늦은 개장 — NXT 장전 녹화 확인 건너뜀")
+        elif not fx.exists(): bad("🚨", "오늘 NXT 장전 체결가 녹화 없음")
         else:
             X = pd.read_parquet(fx)
             ntag, ntk = X.tag.nunique(), X[X.today].ticker.nunique()
