@@ -7,7 +7,7 @@
 처음 한 번: 1분봉 과거 채우기(bf, 상위 1,000종목 ~10-01) + 매일 파일(day, 10-02~)로 최근 200거래일 일봉을 만든다(seed).
 그 뒤 매일 저녁: 오늘 매일 파일만 일봉으로 바꿔 덧붙인다(update).
 """
-import glob, time
+import glob, re, time
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor
 import numpy as np, pandas as pd
@@ -20,9 +20,30 @@ DAILY = LD / "kr_daily.parquet"
 M1 = C.BASE / "data" / "m1" / "KR"
 
 
+def _late_open():
+    """collect_m1.LATE_OPEN(수능일 등 10:00~16:30 날). 그날 봉은 1시간 당겨 09:01~15:31 처럼 다룬다(2026-11-19 점검 의사:
+    안 당기면 시가 전부 빈칸·종가는 15:31 값이 들어갔다)."""
+    try:
+        m = re.search(r"^LATE_OPEN\s*=\s*\{([^}]*)\}", (C.BASE / "collect_m1.py").read_text(encoding="utf-8"), re.M)
+        return set(re.findall(r"\d{8}", m.group(1))) if m else set()
+    except Exception:
+        return set()
+
+
+def _kst_sec(ts):
+    """1분봉 ts(UTC 초) → 한국 시각 초. 늦은 개장 날은 1시간 당긴다."""
+    k = ts.astype("int64") + 9 * 3600
+    late = _late_open()
+    if late:
+        dn = k // 86400
+        ld = [d for d in np.unique(dn) if pd.Timestamp(int(d), unit="D").strftime("%Y%m%d") in late]
+        if ld: k = k - 3600 * np.isin(dn, ld)
+    return k
+
+
 def agg(D, since=None):
     """1분봉(t ts o h l c v) → 일봉. 시가는 첫 봉이 09:01 일 때만(그래야 시가 단일가)."""
-    k = D.ts.to_numpy().astype("int64") + 9 * 3600                     # 한국 시각(초) — 글자 변환은 날짜별 한 번만(빠르게)
+    k = _kst_sec(D.ts.to_numpy())                                      # 한국 시각(초) — 글자 변환은 날짜별 한 번만(빠르게)
     dn, sec = k // 86400, k % 86400
     ud = np.unique(dn)
     dstr = dict(zip(ud, pd.to_datetime(ud, unit="D").strftime("%Y%m%d")))
@@ -108,7 +129,7 @@ def snap_m1(day):
     f = M1 / "day" / ("%s.parquet" % day)
     if not f.exists(): return None
     D = pd.read_parquet(f)
-    k = D.ts.to_numpy().astype("int64") + 9 * 3600
+    k = _kst_sec(D.ts.to_numpy())                                      # 늦은 개장 날은 1시간 당김(그날 11:00 봉이 10:00 칸으로)
     hm = ((k % 86400) // 3600) * 100 + (k % 3600) // 60
     D = D.assign(hm=hm)[(hm >= 901) & (hm <= 1531)].sort_values(["t", "ts"])
     D["pv"] = D.c.astype(float) * D.v.astype(float)
@@ -193,7 +214,9 @@ def attach_transfer(U):
 def attach_auction(U):
     import auction as AU
     for k in ("a_eq", "a_drift", "a_imb", "a_nxt", "a_err", "c_imb", "c_drift"): U[k] = np.nan
+    late = _late_open()
     for d in U.date.unique():
+        if d in late: continue                    # 늦은 개장 날은 녹화가 평소 시각(08:5x·15:2x)이라 동시호가가 아님 → 빈칸(2026-11-19 점검 의사)
         F = AU.features(d)
         if F is None or F.empty: continue
         m = (U.date == d).to_numpy()
