@@ -6,6 +6,7 @@
   · 매수 가능 금액(토스)
   · 밤 사이 판정·경보: 사전 등록 판정·밤 연구 일꾼 결과는 각자 보낸다 — 여기선 안 되풀이
   · 막은 경보 N: 경보 판독관(tg_gate.py)이 지난 브리핑 뒤로 막은 수(있을 때만)
+  · 원격 로그인 D-N: 폰 원격 세션(StockServer) 로그인 만료 5일 전부터(11-20) — 약 30일마다 서버에서 claude auth login
     python morning_brief.py [dry]
 """
 import datetime as dt, json, sys
@@ -59,6 +60,29 @@ def yesterday(prev):
     return "어제 실전 %d건 %+.2f%% (연구 %+.2f%%) · %s" % (len(z), z.live.mean(), z.research.mean(), " · ".join(parts))
 
 
+def rc_login(limit=5):
+    """폰 원격 세션(StockServer) 로그인 만료가 limit 일 안이면 한 줄 — 2026-11-20 사용자 "원격 로그인 알림도 오게".
+    로그인은 약 30일 가고 못 늘린다(쓴다고 연장되지 않음). 1년 토큰 변수를 지워야 정식 로그인 쪽 날짜가 보인다."""
+    import os, re, subprocess
+    exe = Path.home() / ".local" / "bin" / "claude.exe"
+    env = {k: v for k, v in os.environ.items() if k != "CLAUDE_CODE_OAUTH_TOKEN"}
+    try:
+        r = subprocess.run([str(exe), "auth", "status", "--text"], capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           timeout=30, env=env, creationflags=0x08000000)
+    except Exception as ex:
+        print("원격 로그인 확인 실패:", type(ex).__name__); return None
+    out = (r.stdout or "") + (r.stderr or "")
+    m = re.search(r"Sign-in ends:(.*)", out)
+    if not m:
+        if re.search(r"not logged in|logged out|login expired|time limit", out, re.I): return "원격 로그인 풀림 · claude auth login"
+        print("원격 로그인 날짜 못 읽음"); return None
+    ds = re.findall(r"(\d{4})-(\d{2})-(\d{2})", m.group(1))
+    if not ds: return "원격 로그인 곧 만료 · claude auth login"          # 날짜 없이 'any day now' · 'may have ended'
+    left = (dt.date(*map(int, ds[0])) - dt.date.today()).days          # 적힌 날 중 가장 이른 날 기준
+    if left > limit: return None
+    return ("원격 로그인 D-%d · claude auth login" % left) if left > 0 else "원격 로그인 곧 만료 · claude auth login"
+
+
 def main(dry=False):
     import autotrade as AT
     import day_alert as D
@@ -74,6 +98,10 @@ def main(dry=False):
     try: lines.append("매수 가능 %.0f만" % (AT.buying_power("KRW") / 1e4))
     except Exception as ex: lines.append("매수 가능 금액 못 읽음")
     if (AT.OUT / "STOP").exists(): lines.append("⛔ 자동매매 STOP 켜짐")
+    try:                                               # 11-20 폰 원격 세션 로그인 만료 5일 전부터
+        x = rc_login()
+        if x: lines.append(x)
+    except Exception: pass
     try:                                               # 11-16 경보 판독관이 지난 브리핑 뒤로 막은 경보 — 뭐였는지는 점검 현황 페이지
         import tg_gate
         last = json.loads((BASE / "data" / "day" / "brief_last.json").read_text(encoding="utf-8")).get("at", "")
