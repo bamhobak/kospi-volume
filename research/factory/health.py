@@ -268,7 +268,9 @@ def _quality(bad, ok, day, A):
     if (C.DATA / "transfer" / ("%s.json" % day)).exists(): lim["tr_pred"] = 35
     for k, v in lim.items():
         if nan(k) > v: bad("⚠", "%s 재료 %s 빈칸 %.0f%%(%d%% 이하 정상)" % (day, k, nan(k), v))
-    if (C.DATA / "auction" / ("KR_%s_am.parquet" % day)).exists():
+    if day in _late_open():                   # 2026-11-20 점검 의사: 늦은 개장 날 장전 녹화는 동시호가가 아니라 live.py 가 일부러 빈칸으로 둔다
+        ok.append("%s 늦은 개장 — 장전 예상 갭 확인 건너뜀" % day)
+    elif (C.DATA / "auction" / ("KR_%s_am.parquet" % day)).exists():
         if nan("a_eq") > 20: bad("⚠", "%s 장전 예상 갭(a_eq) 빈칸 %.0f%% — 녹화·계산 확인" % (day, nan("a_eq")))
         e = U.a_err.abs().median()
         if e == e:
