@@ -449,7 +449,7 @@ def live_buy(snap):
     L += ["✅ %s %d주 @ %s (장후 %+.1f%%)" % (o["name"], int(o["fq"]), f"{o['ap']:,.0f}", o.get("ah") or 0) for o in got]
     L += ["❌ %s 미체결" % o["name"] for o in placed if o not in got]
     if skip: L.append("못 낸 것: " + " · ".join("%s(%s)" % z for z in skip[:6]))
-    if paper: L.append("🧾 가상 매수: " + (" · ".join("%s %d주 @ %s" % (x["name"], x["qty"], f"{x['lim']:,.0f}") for x in pf) or "없음")
+    if paper and pf: L.append("🧾 가상 매수: " + (" · ".join("%s %d주 @ %s" % (x["name"], x["qty"], f"{x['lim']:,.0f}") for x in pf) or "없음")
                        + ("" if len(pf) == len(paper) else " (호가가 지정가 위라 안 사졌을 것 %d건)" % (len(paper) - len(pf))))
     telegram("\n".join(L))
 
@@ -460,7 +460,7 @@ def live_buy(snap):
 #   paper_sell: 다음 거래일 시가 뒤 KRX 시가 단일가로 매도 기록(실제 T6 매도와 같은 값). 실제 매도는 원장만 보므로 가상 보유를 안 판다.
 def paper_buy(d, X):
     import day_alert as D
-    if not X: return []
+    if not X or not D.PAPER_SITE: return []                # 11-23 사용자 "데이규칙 가상 매매는 이제 하지마"
     for x in X: x["fill"] = bool(x.get("ask") and x["ask"] <= x["lim"])
     f = OUT / ("paper_%s.json" % d)
     jsave(f, (jload(f) or []) + X)

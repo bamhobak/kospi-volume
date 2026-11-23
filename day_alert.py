@@ -546,7 +546,7 @@ def day_sync():
 #   trade() 가 돈 모자라 못 낸 몫(통째로 건너뜀 · 3→1주로 줄인 나머지 2주 · 매수가능 부족 거절)을 data/day/paper_날짜.json 에 적는다.
 #   paper_buy: 시가 뒤 KRX 시가 단일가 ≤ 지정가면 '사졌다' → 사이트 데이 보유에 그 주수 · 매수가 = 시가 · paper=True(토스 주문 없음)
 #   paper_sell: 16:25 리뷰가 KRX 종가 단일가로 매도 기록. 실제 매도(close_sell·지킴이·carry_sell)는 원장만 보므로 가상 보유를 안 판다.
-# 2026-11-23 사용자 "가상 기록도 빼줘": 돈 모자라 못 낸 몫은 파일(paper_날짜.json)에만 남기고 **사이트 데이 보유·텔레그램에는 안 올린다**. 되살리려면 True.
+# 2026-11-23 사용자 "가상 기록도 빼줘" → "데이규칙 가상 매매는 이제 하지마": **가상 매수·매도를 아예 안 한다**(사이트·텔레그램·시가 확인 전부). 못 낸 주문 목록(paper_날짜.json)만 남는다. 되살리려면 True.
 PAPER_SITE = False
 
 
@@ -556,6 +556,7 @@ def _paper(today):
 
 
 def paper_buy(today):
+    if not PAPER_SITE: return
     f, X = _paper(today)
     if not X: return
     for x in X:
@@ -608,6 +609,7 @@ def paper_rebuild(today):
 
 def paper_sell(today, act):
     """act = {종목: (KRX 시가, KRX 종가)} — review() 가 만든 것."""
+    if not PAPER_SITE: return None
     f, X = _paper(today)
     if not X: return None
     upd = {}
@@ -712,10 +714,10 @@ def trade(L, today):
     job.__exit__()
     if short:
         (OUT / ("paper_%s.json" % today)).write_text(json.dumps(short, ensure_ascii=False), encoding="utf-8")
-        log("돈 모자라 못 낸 몫 %d건(%d주) → 시가 뒤 가상 매수" % (len(short), sum(z["qty"] for z in short)))
+        log("돈 모자라 못 낸 몫 %d건(%d주)%s" % (len(short), sum(z["qty"] for z in short), " → 시가 뒤 가상 매수" if PAPER_SITE else " — 목록만 남김(가상 매매 안 함)"))
     if not placed:
         if skip: telegram("⚠ 데이 매수 0건 — " + " · ".join("%s(%s)" % s_ for s_ in skip[:6]))
-        if short:
+        if short and PAPER_SITE:
             AT.sleep_until(S["start"] + dt.timedelta(seconds=60), "가상 매수 시가 확인")
             paper_buy(today)
         return
