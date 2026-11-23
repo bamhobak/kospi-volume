@@ -1538,16 +1538,19 @@ function waitTiles(items){
   const open=positions().filter(p=>!p.sell);
   let m=null;try{m=open.length?sumMoney(open,false):null}catch(e){m=null}
   const ym=kstToday().slice(0,6);
-  const dr=positions().filter(p=>p.sell&&String(p.sellDate||'').replace(/-/g,'').slice(0,6)===ym)
-    .map(p=>(costSell(p)/costBuy(p)-1)*100);
-  const davg=dr.length?dr.reduce((a,x)=>a+x,0)/dr.length:null;
+  /* 2026-11-23 사용자 "같은 금액일 때 하는 동일(가중) 이제 없애줘 — 의미 없는 것 같아": 실금액을 넣기 시작해 종목마다 금액이 다르다 → 전부 **실제 넣은 돈 기준**(총손익 ÷ 총매수금액) */
+  const dl=positions().filter(p=>p.sell&&String(p.sellDate||'').replace(/-/g,'').slice(0,6)===ym);
+  const dr=dl.map(p=>(costSell(p)/costBuy(p)-1)*100);
+  const _fb=p=>isUSCode(p.code)?(p.fx||usdkrw()||0):1, _fs=p=>isUSCode(p.code)?(p.sellFx||p.fx||usdkrw()||0):1;
+  const _wl=dl.filter(p=>(p.qty||0)>0), _dc=_wl.reduce((a,p)=>a+costBuy(p)*p.qty*_fb(p),0);
+  const davg=_dc?_wl.reduce((a,p)=>a+(costSell(p)*_fs(p)-costBuy(p)*_fb(p))*p.qty,0)/_dc*100:null;
   /* 장세 — 머리줄 국면 칩과 같은 기준(낮 = 코스피 60일선, 밤 = S&P500 60일선) */
   const K=raw.kospi||{}, U=raw.us, night=!krDay()&&U&&U.up60!=null, up=night?U.up60:K.up60;
   const st=(($('#mktstate')||{}).textContent||'').trim();
   const t=(l,v,s,c,sty)=>`<div class="dtile"><span class="l">${l}</span><span class="v ${c||''}"${sty?` style="${sty}"`:''}>${v}</span><span class="s">${s}</span></div>`;
   return `<div class="dtiles">`
     +t('매수 대기',items.length+'건',`국장 ${kr} · 미장 ${us}`,'','color:var(--acc)')
-    +t('보유 중',open.length+'종목',m&&m.avg!=null?`평가 ${pc(m.avg)} (동일가중 · 비용 뒤)`:'—','')
+    +t('보유 중',open.length+'종목',m&&m.inv?`평가 ${pc(m.ret)} (비용 뒤)`:'—','')
     +t('이번 달 완료',pc(davg),dr.length?`${dr.length}건 · 승률 ${Math.round(dr.filter(x=>x>0).length/dr.length*100)}%`:'아직 없음',sg(davg))
     +t('장세',up==null?'—':(up?'상승장':'하락장'),st||'시장 자료 받는 중',up==null?'':(up?'pos':'neg'))+`</div>`}
 /* 2026-10-24 디자인 개편 — 데이 하루 흐름. 장 여는 날만 지금 단계를 주황으로.
@@ -2083,7 +2086,7 @@ function perParts(P,o){
     +`<input type="number" id="dpn" class="dpn" min="1" step="1" inputmode="numeric" placeholder="직접" value="${P.n&&!NQ.includes(P.n)?P.n:''}" aria-label="최근 건수"><span class="k">건</span></div>`;
   /* 2026-10-24 디자인 개편 — 같은 기간 지수 등락을 막대로, 맨 위에 내 성적(동일가중, o.mine) */
   const iv=perIx(o.selK,o.selF).map(s=>[PER_IXN[s],perIdxPct(s,fromD,toD),0]);
-  if(o.mine!=null&&isFinite(o.mine))iv.unshift([o.toNow?'내 보유 (동일가중)':'내 거래 (동일가중)',o.mine,1]);
+  if(o.mine!=null&&isFinite(o.mine))iv.unshift([o.toNow?'내 보유':'내 거래',o.mine,1]);
   const mx=Math.max(1,...iv.map(x=>Math.abs(x[1]||0)));
   const idx=!fromD?'':`<div class="didx"><span class="k">${bl}일 기준 ${P.n?'최근 '+P.n+'건 · ':''}${perMd(fromD)} ~ ${perMd(toD)} · 같은 기간 지수와 비교</span>`
     +iv.map(([l,v,me])=>`<div class="dbar${me?' me':''}"><span class="dl">${l}</span><span class="dt"><i class="${v!=null&&v<0?'n':''}" style="width:${v==null?0:Math.max(2,Math.abs(v)/mx*100).toFixed(0)}%"></i></span>`
@@ -2171,10 +2174,9 @@ async function renderPositions(){
       const sg=x=>x>0?'pos':x<0?'neg':'';
       const miss=list.length-wl.length;
       const _f=fees();
-      return `<div class="dstat" title="동일가중 = 건별 수익률의 단순 평균(규칙 자체의 성적, 백테스트와 비교용)&#10;금액가중 = 총손익 ÷ 총매수금액(내 계좌가 실제로 번 비율)&#10;승률 = 금액과 상관없이 비용 뒤 수익으로 끝난 건의 비율&#10;PF = 이긴 건 수익률 합 ÷ 진 건 손실률 합(1 보다 크면 번 쪽이 큼)&#10;&#10;비용 뒤 — 국내 매수 ${_f.KR.b}% / 매도 ${_f.KR.s}% · 미장 매수 ${_f.US.b}% / 매도 ${_f.US.s}% · 슬리피지 제외${miss?'&#10;수량 없는 기록 '+miss+'건은 금액가중에서 제외':''}">`
+      return `<div class="dstat" title="수익률 = 총손익 ÷ 총매수금액(내 계좌가 실제로 번 비율)&#10;승률 = 금액과 상관없이 비용 뒤 수익으로 끝난 건의 비율&#10;PF = 이긴 건 수익률 합 ÷ 진 건 손실률 합(1 보다 크면 번 쪽이 큼)&#10;&#10;비용 뒤 — 국내 매수 ${_f.KR.b}% / 매도 ${_f.KR.s}% · 미장 매수 ${_f.US.b}% / 매도 ${_f.US.s}% · 슬리피지 제외${miss?'&#10;수량 없는 기록 '+miss+'건은 수익률에서 제외':''}">`
         +`<b class="${kq||''}">${k==='전체'?k:isFam(k)?famLbl(k)+' · 묶음':(f&&f.name?codeOf(k)+' · '+(f.name.split(' · ')[1]||f.name):codeOf(k))}</b>`
-        +`<span><span class="k">동일</span><span class="${sg(avg)}">${avg>0?'+':''}${avg.toFixed(2)}%</span></span>`
-        +`<span><span class="k">금액</span><span class="${sg(wavg)}">${wavg==null?'—':(wavg>0?'+':'')+wavg.toFixed(2)+'%'}</span></span>`
+        +`<span><span class="k">수익률</span><span class="${sg(wavg)}">${wavg==null?'—':(wavg>0?'+':'')+wavg.toFixed(2)+'%'}</span></span>`
         +`<span><span class="k">수익금</span><span class="${sg(sum)}">${sum?kor(sum,1)+'원':'—'}</span></span>`
         +`<span title="이긴 건 ${rs.filter(x=>x>0).length} / 전체 ${rs.length}"><span class="k">승률</span><span>${win.toFixed(0)}%</span></span>`
         +`<span><span class="k">PF</span><span class="${pfv==null?'':pfv>=1?'pos':'neg'}">${pfv==null?'—':pfv===Infinity?'∞':pfv.toFixed(2)}</span></span></div>`};
@@ -2193,7 +2195,8 @@ async function renderPositions(){
     const selL=selK==='전체'?all:by[selK]||[];
     const selF=(selK==='전체'||MKG.includes(selK))?null:fOf(fK(selK));
     const pp=perParts(DPER,{open:DPEROPEN,basis:true,list:selL,dOf,selK,selF,
-      mine:selL.length?selL.reduce((a,p)=>a+ret(p),0)/selL.length:null});   /* 지수 비교 막대 맨 위 — 고른 묶음의 동일가중(10-24) */
+      mine:(()=>{const wl=selL.filter(p=>(p.qty||0)>0), fb=p=>isUSCode(p.code)?(p.fx||usdkrw()||0):1, fs=p=>isUSCode(p.code)?(p.sellFx||p.fx||usdkrw()||0):1;
+        const c=wl.reduce((a,p)=>a+costBuy(p)*p.qty*fb(p),0);return c?wl.reduce((a,p)=>a+(costSell(p)*fs(p)-costBuy(p)*fb(p))*p.qty,0)/c*100:null})()});   /* 지수 비교 막대 맨 위 — 고른 묶음의 동일가중(10-24) */
     const statRow=(all.length?stat(selK,selL):'<div class="dstat"><span class="k">이 기간 완료 없음</span></div>').replace(/<\/div>$/,pp.btn+'</div>');
     $('#fdesc').innerHTML=`<div class="dsum">${chips}</div>${statRow}${pp.box}`;
     perWire(DPER,DPER_SAVE,()=>{DPEROPEN=!DPEROPEN;render()});
@@ -2242,10 +2245,9 @@ async function renderPositions(){
     /* '동일' 은 완료 탭에 있던 것을 보유 탭에도 놓은 것이다(2026-09-14 요청) — 종목마다
        넣은 돈이 달라도 **다 똑같이 넣었다면 몇 %였나**. 그 옆 '수익률' 은 금액가중이다. */
     /* 요약 줄은 함수로 — 실시간 틱(rtPaint)이 올 때마다 같은 계산으로 제자리 갱신한다(2026-10-06 신고: 표 칸만 바뀌고 요약은 F5 전까지 그대로) */
-    const statHtml=()=>{const m=sumMoney(sel,usdOnly);return `<div class="dstat" title="동일 = 건별 수익률의 단순 평균 — 종목마다 넣은 돈이 달라도 &#10;       전부 같은 금액을 넣었다면 지금 몇 % 인가 (규칙 자체의 성적 · 백테스트와 비교용)&#10;수익률 = 총평가손익 ÷ 총매수금액 — 내 계좌가 실제로 벌고 있는 비율&#10;&#10;둘 다 매매비용 차감 후입니다.${m.navg&&m.navg!==(sel||[]).length?'&#10;현재가를 모르는 '+((sel||[]).length-m.navg)+'건은 동일가중에서 제외':''}">`
+    const statHtml=()=>{const m=sumMoney(sel,usdOnly);return `<div class="dstat" title="수익률 = 총평가손익 ÷ 총매수금액 — 내 계좌가 실제로 벌고 있는 비율&#10;&#10;매매비용 차감 후입니다.">`
       +`<b class="${selF?mkCls(selF.mkt):MKG.includes(posRule)?mkCls(posRule==='미장'?'US':'KR'):''}">${MKG.includes(posRule)?posRule:isFam(posRule)?famLbl(posRule)+' · 묶음':posRule?codeOf(posRule)+' · '+((selF&&selF.name&&selF.name.split(' · ')[1])||posRule):'전체'}</b>`
       +`<span><span class="k">매수금액</span>${m.inv?amt(m.inv)+(m.noFX?' (국내만)':''):'—'}</span>`
-      +`<span><span class="k">동일</span><span class="${sg(m.avg)}">${m.avg==null?'—':(m.avg>0?'+':'')+m.avg.toFixed(2)+'%'}</span></span>`
       +`<span><span class="k">수익률</span><span class="${sg(m.ret)}">${m.inv?(m.ret>0?'+':'')+m.ret.toFixed(2)+'%':'—'}</span></span>`
       +`<span><span class="k">평가손익</span><span class="${sg(m.pnl)}">${m.inv?amt(m.pnl,1):'—'}</span></span>`
       +`<span title="지금 판다면(비용 뒤) 수익인 종목 비율${m.win==null?'':' — 수익 '+m.nwin+' / 전체 '+m.navg}"><span class="k">승률</span><span>${m.win==null?'—':m.win.toFixed(0)+'%'}</span></span>`
@@ -2255,7 +2257,7 @@ async function renderPositions(){
       +(m.miss?`<span class="k" style="color:var(--up)">${USROWS?m.miss+'건 시세없음':'미장 '+m.miss+'건 받는 중…'}</span>`:'')
       +`</div>`};
     const ppP=()=>perParts(PPER,{open:PPEROPEN,basis:false,list:sel||[],dOf:dOfP,selK:posRule&&by[posRule]?posRule:'전체',selF,toNow:true,
-      mine:(()=>{try{return sumMoney(sel||[],usdOnly).avg}catch(e){return null}})()});   /* 지수 비교 막대 맨 위 — 지금 보유의 동일가중(10-24) */
+      mine:(()=>{try{const m=sumMoney(sel||[],usdOnly);return m.inv?m.ret:null}catch(e){return null}})()});   /* 지수 비교 막대 맨 위 — 지금 보유의 동일가중(10-24) */
     const statB=()=>statHtml().replace(/<\/div>$/,ppP().btn+'</div>');
     const togP=()=>{PPEROPEN=!PPEROPEN;render()};
     const stat=statB();
