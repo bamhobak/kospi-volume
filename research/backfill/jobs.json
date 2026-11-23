@@ -30,6 +30,20 @@
   "recurring": true
  },
  {
+  "id": "us_idx",
+  "kind": "us_idx",
+  "desc": "미장 지수 ETF(QQQ·SPY·SOXX) 한국 시각 05:41~09:00·16:41~20:00 1분봉 2022-12~ 매일 이어 받기",
+  "out": "bf_us_idx",
+  "enabled": true,
+  "from": "20221201",
+  "syms": [
+   "QQQ",
+   "SPY",
+   "SOXX"
+  ],
+  "recurring": true
+ },
+ {
   "id": "us_pre",
   "kind": "us_pre",
   "desc": "미장 장전 얇은 갭하락 — 소형주 갭 -2%↓ 날 06:41~10:00 ET 1분봉 2022-06~",

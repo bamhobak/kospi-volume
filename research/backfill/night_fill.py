@@ -10,6 +10,8 @@
   us_pre   (11-15) 미장 [장전 얇은 갭하락] — research/cache/us_gap_pairs.parquet 의 (종목, 미국 거래일) · 06:41~10:00 ET 1분봉 → research/cache/bf_us_pre/
   us_on    (11-15) 미장 [주간거래 낙폭] — research/cache/us_on_pairs.parquet · 그 거래일 앞 밤 주간거래 00:41~04:00 ET 1분봉 → research/cache/bf_us_on/
            (둘 다 봉 시각을 미국 동부 시각 hm 으로 저장 · 목록 파일 날짜를 무작위 순서로 받음)
+  us_idx   (11-23) 미장 지수 ETF(QQQ·SPY·SOXX) — 국장 거래일마다 한국 시각 05:41~09:00(미장 애프터마켓)·16:41~20:00(주간거래·프리마켓) 1분봉
+           2022-12~ · 매일 이어 받기 → research/cache/bf_us_idx/ (hm 은 한국 시각 · [장후 낙폭] 19:50 · [갭하락] 08:50 에 아는 미장 방향)
   m1_gap   data/m1/KR/day 빈 거래일(첫 파일 뒤·어제까지) 메우기 → 같은 폴더(빠진 날만, 있는 파일은 안 건드림)
 지키는 것:
   · 받는 시간 20:10~07:30 만 — 07:30 이 되면 묶음 단위로 저장하고 멈춤(다음 밤 이어받기 = done 파일).
@@ -109,14 +111,14 @@ def save_state(S):
 
 
 # ── 공통 재료 ─────────────────────────────────────────────────────────
-def kr_days():
+def kr_days(first=None):
     """2025-03-04~어제 국장 거래일 — 1분봉 요약(m1_daysum) + 매일 1분봉 파일 + 최근 일봉 달력."""
     ds = set(pd.read_parquet(CACHE / "m1_daysum.parquet", columns=["d"]).d.unique())
     ds |= {Path(p).stem for p in glob.glob(str(BASE / "data" / "m1" / "KR" / "day" / "*.parquet"))}
     try: ds |= set(M.trading_days("KR", 60))
     except Exception as ex: log("달력 받기 실패", repr(ex)[:200])
     today = dt.datetime.now().strftime("%Y%m%d")
-    return sorted(d for d in ds if FIRST <= d < today)
+    return sorted(d for d in ds if (first or FIRST) <= d < today)
 
 
 def nxt_tickers():
@@ -293,7 +295,18 @@ def job_us_on(job, test=False):
     return pairs_job(job, fetch_us_on, set(), test, pairs=_pairs_file(job))
 
 
-RUN = {"nxt_pre": job_nxt_pre, "nxt_ah": job_nxt_ah, "m1_gap": job_m1_gap, "krx_ah": job_krx_ah, "us_pre": job_us_pre, "us_on": job_us_on}
+def fetch_us_idx(t, d):                                                  # 11-23 미장 지수 ETF — 국장 날짜 d 의 한국 시각 아침·저녁 창(봉 시각 = 한국 시각)
+    iso = "%s-%s-%s" % (d[:4], d[4:6], d[6:])
+    return (bars_between(t, d, iso + "T09:01:00.000+09:00", 200, 541, 900)
+            + bars_between(t, d, iso + "T20:01:00.000+09:00", 200, 1641, 2000))
+
+
+def job_us_idx(job, test=False):
+    syms = job.get("syms") or ["QQQ", "SPY", "SOXX"]
+    return pairs_job(job, fetch_us_idx, set(), test, pairs=[(s, d) for d in kr_days(job.get("from") or "20221201") for s in syms])
+
+
+RUN = {"us_idx": job_us_idx, "nxt_pre": job_nxt_pre, "nxt_ah": job_nxt_ah, "m1_gap": job_m1_gap, "krx_ah": job_krx_ah, "us_pre": job_us_pre, "us_on": job_us_on}
 
 
 def run(test=False):

@@ -48,6 +48,7 @@ TASK_INFO = {
     "\\BamhobakM1\\NightFill": ("자료 모으기", "밤 과거 자료 받기(NXT 장전·장후 1분봉, 20:10~07:30)"),
     "\\BamhobakFactory\\Morning": ("규칙 공장", "전이표(미장 밤사이 → 국장 아침 예상 갭)·장전 호가 녹화"),
     "\\BamhobakFactory\\OpenTick": ("자료 모으기", "녹화 넓히기 — NXT 장전 호가 10단계(08:12·08:25)·시가 직후 체결가"),
+    "\\BamhobakFactory\\Extra": ("자료 모으기", "덧 수집 16:50 — 지수 선물 1분봉·종목별 외국인/기관 장중 추정·테마 명단·개장 달력(research/factory/extra.py)"),
     "\\BamhobakFactory\\Check": ("점검", "공장 점검기 + 스스로 고치기"),
     "\\BamhobakFactory\\Close": ("규칙 공장", "마감 단일가 호가 녹화"),
     "\\BamhobakFactory\\Evening": ("규칙 공장", "정답지 역추적·그림자 성적"),
