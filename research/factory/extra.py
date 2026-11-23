@@ -16,7 +16,8 @@
          (research/theme_gap_1116.py)을 없애려고 매일 한 장. → data/factory/theme/YYYYMMDD.parquet (no · theme · ticker · name)
   cal    개장·휴장 달력 — KIS 국내휴장일조회(CTCA0903R)로 앞으로 약 400일 + 늦은 개장 날
          (새해 첫 거래일 10:00~15:30 · 수능일 10:00~16:30 은 '11월 셋째 목요일' 추정 — 공지 확인 필요).
-         → data/factory/calendar/kr_cal.json (7일에 한 번 새로). 14일 안의 늦은 개장 날이 collect_m1.LATE_OPEN 에 없으면 텔레그램 한 줄(날마다 한 번).
+         → data/factory/calendar/kr_cal.json (7일에 한 번 새로). 미리 보는 참고용일 뿐 — 실제 매매·수집은 그날 토스 달력의 개장·마감 시각을 직접 따른다
+         (collect_m1.note_today · autotrade.session). 2026-11-23 사용자 "알림 필요 없지 않아? 알아서 맞게" → 텔레그램 알림 없앰.
   daily  = 위 넷을 차례로(예약 \\BamhobakFactory\\Extra 16:50). 하나가 실패해도 나머지는 계속, 실패한 것만 텔레그램 한 줄.
   미장 지수 ETF(QQQ·SPY·SOXX) 한국 시각 05:41~09:00·16:41~20:00 1분봉은 밤 과거 받기(research/backfill/night_fill.py us_idx)가 받는다
   → research/cache/bf_us_idx/ ([장후 낙폭] 19:50 · [갭하락] 08:50 에 아는 미장 방향).
@@ -215,11 +216,12 @@ def theme(day):
 
 
 # ── ⑩ 개장·휴장 달력 ────────────────────────────────────────────────
-def late_in_code():
+def late_known():
+    """지금까지 실제로 늦게 열린 날(collect_m1.late_hours — 알려진 날 + 그날 달력에서 적힌 날)."""
     try:
-        m = re.search(r"^LATE_OPEN\s*=\s*\{([^}]*)\}", (C.BASE / "collect_m1.py").read_text(encoding="utf-8"), re.M)
-        return sorted(re.findall(r"\d{8}", m.group(1))) if m else []
-    except Exception: return []
+        import collect_m1 as M
+        return {d: list(v) for d, v in sorted(M.late_hours().items())}
+    except Exception: return {}
 
 
 def cal(force=False):
@@ -253,15 +255,10 @@ def cal(force=False):
             if su in days and days[su]:
                 late[su] = {"open": "1000", "close": "1630", "why": "수능일(11월 셋째 목요일 추정 — 공지 확인)"}
         J = {"asof": C.now().isoformat(timespec="seconds"), "from": min(days), "to": max(days), "open": op, "closed_weekday": closed,
-             "late": late, "warned": J.get("warned", [])}
+             "late": late}
         C.log("개장 달력 %s~%s — 개장 %d일 · 평일 휴장 %d일 · 늦은 개장 %s" % (J["from"], J["to"], len(op), len(closed), sorted(late)))
-    J["late_in_code"] = late_in_code()
-    soon = (C.now().date() + dt.timedelta(days=14)).strftime("%Y%m%d")
-    miss = [d for d in sorted(J.get("late", {})) if today <= d <= soon and d not in J["late_in_code"]]
-    key = today + ":" + ",".join(miss)
-    if miss and key not in J.get("warned", []):
-        C.tg("⚠ 늦은 개장 날 %s 이 코드(collect_m1.LATE_OPEN)에 없음 — %s" % (", ".join(miss), J["late"][miss[0]]["why"]))
-        J["warned"] = (J.get("warned", []) + [key])[-30:]
+    J.pop("warned", None); J.pop("late_in_code", None)
+    J["late_known"] = late_known()
     C.jsave(f, J)
     return J
 

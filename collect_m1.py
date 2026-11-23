@@ -96,15 +96,65 @@ def ts_utc(s):
 
 
 LATE_OPEN = {"20261119"}                                            # 수능일 — 국장 10:00~16:30(해마다 11월 공지 뒤 추가)
+# ↑ 옛 방식(손으로 적던 날). 2026-11-23 부터는 아래가 스스로 채운다 — 그날 토스 달력의 정규장 시각이 09:00~15:30 이 아니면 파일에 적는다.
+LATE_HOURS = {"20260102": ("1000", "1530"), "20261119": ("1000", "1630")}      # 알려진 날(개장·마감 HHMM): 새해 첫 거래일 · 수능일
+_LATE_F = BASE / "data" / "m1" / "late_hours.json"
+_late = {"d": None, "chk": None, "fail": 0}
+
+
+def late_hours():
+    """정규장이 09:00~15:30 이 아닌 국장 날 {날짜: (개장, 마감)} — 알려진 날 + 그날 달력에서 본 대로 적어 둔 파일."""
+    if _late["d"] is None:
+        d = dict(LATE_HOURS)
+        try:
+            for k, v in json.loads(_LATE_F.read_text(encoding="utf-8")).items(): d[k] = (str(v[0]), str(v[1]))
+        except Exception: pass
+        _late["d"] = d
+    return _late["d"]
+
+
+def note_today():
+    """오늘 정규장 (개장, 마감) — 토스 달력에서 직접 본다(프로세스당 한 번). 평소와 다르면 파일·LATE_OPEN 에 적는다. 휴장·실패면 None."""
+    today = dt.datetime.now(KST).strftime("%Y%m%d")
+    if _late["chk"] == today: return late_hours().get(today, ("0900", "1530"))
+    try:
+        cal = get("/api/v1/market-calendar/KR") or {}
+        td = cal.get("today") or {}
+        if td.get("date", "").replace("-", "") != today: raise ValueError("달력 날짜가 오늘이 아님")
+        rm = (td.get("integrated") or {}).get("regularMarket")
+        if not rm:
+            _late["chk"] = today; return None
+        o = dt.datetime.fromisoformat(rm["startTime"]).astimezone(KST).strftime("%H%M")
+        c = dt.datetime.fromisoformat(rm["endTime"]).astimezone(KST).strftime("%H%M")
+    except Exception:
+        _late["fail"] += 1
+        if _late["fail"] >= 3: _late["chk"] = today                    # 세 번 실패하면 더 안 묻는다(종목마다 부르는 window 가 느려지지 않게)
+        return None
+    _late["chk"] = today
+    if (o, c) != ("0900", "1530") and late_hours().get(today) != (o, c):
+        late_hours()[today] = (o, c)
+        if o != "0900": LATE_OPEN.add(today)
+        try:
+            J = {}
+            try: J = json.loads(_LATE_F.read_text(encoding="utf-8"))
+            except Exception: pass
+            J[today] = [o, c]
+            tmp = _LATE_F.with_suffix(".tmp"); tmp.write_text(json.dumps(J, ensure_ascii=False, indent=1), encoding="utf-8"); tmp.replace(_LATE_F)
+        except Exception: pass
+    return late_hours().get(today, ("0900", "1530"))
+
+
+LATE_OPEN |= {_d for _d, _v in late_hours().items() if _v[0] != "0900"}
 
 
 def window(mk, day):
     """그 날 정규장 봉 범위(봉 끝 시각, UTC 초)와 첫 요청 before."""
     y, m, d = int(day[:4]), int(day[4:6]), int(day[6:])
-    if mk == "KR" and day in LATE_OPEN:
-        a = dt.datetime(y, m, d, 10, 1, tzinfo=KST); b = dt.datetime(y, m, d, 16, 31, tzinfo=KST)
-    elif mk == "KR":
-        a = dt.datetime(y, m, d, 9, 1, tzinfo=KST); b = dt.datetime(y, m, d, 15, 31, tzinfo=KST)
+    if mk == "KR":                                                      # 11-23: 늦은 개장·마감 날은 late_hours() 가 안다(오늘이면 달력을 먼저 본다)
+        if day == dt.datetime.now(KST).strftime("%Y%m%d"): note_today()
+        o, c = late_hours().get(day, ("0900", "1530"))
+        a = dt.datetime(y, m, d, int(o[:2]), int(o[2:]), tzinfo=KST) + dt.timedelta(minutes=1)
+        b = dt.datetime(y, m, d, int(c[:2]), int(c[2:]), tzinfo=KST) + dt.timedelta(minutes=1)
     else:
         a = dt.datetime(y, m, d, 9, 31, tzinfo=NY); b = dt.datetime(y, m, d, 16, 1, tzinfo=NY)
     return int(a.timestamp()), int(b.timestamp()), b.astimezone(KST).isoformat()

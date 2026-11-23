@@ -28,7 +28,9 @@ def special(day, prev):
     out = []
     try:
         import collect_m1 as M
-        if day in getattr(M, "LATE_OPEN", set()): out.append("늦은 개장 10:00(수능)")
+        hrs = M.note_today() if day == dt.datetime.now().strftime("%Y%m%d") else M.late_hours().get(day)   # 11-23: 그날 시각을 달력에서 직접 본다
+        if hrs and tuple(hrs) != ("0900", "1530"):
+            out.append("늦은 개장 %s:%s" % (hrs[0][:2], hrs[0][2:]) + (" · 마감 %s:%s" % (hrs[1][:2], hrs[1][2:]) if hrs[1] != "1530" else ""))
     except Exception: pass
     if d.weekday() == 3 and 8 <= d.day <= 14: out.append("옵션 만기")
     nxt = d + dt.timedelta(days=1)

@@ -26,8 +26,8 @@ FAC_START = "20261008"        # 공장 저녁 작업(정답지·매일 일봉) �
 def _late_open():
     """collect_m1.LATE_OPEN(수능일 등 10:00 개장 날) — 그날 NXT 장전은 시간이 달라 08시대 녹화엔 체결이 없다(헛경보 막기)."""
     try:
-        m = re.search(r"^LATE_OPEN\s*=\s*\{([^}]*)\}", (C.BASE / "collect_m1.py").read_text(encoding="utf-8"), re.M)
-        return set(re.findall(r"\d{8}", m.group(1))) if m else set()
+        import collect_m1 as _M                                         # 11-23: 손으로 적던 목록 대신 late_hours()(알려진 날 + 그날 달력에서 적힌 날)
+        return {d for d, v in _M.late_hours().items() if v[0] != "0900"}
     except Exception:
         return set()
 

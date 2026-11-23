@@ -24,8 +24,8 @@ def _late_open():
     """collect_m1.LATE_OPEN(수능일 등 10:00~16:30 날). 그날 봉은 1시간 당겨 09:01~15:31 처럼 다룬다(2026-11-19 점검 의사:
     안 당기면 시가 전부 빈칸·종가는 15:31 값이 들어갔다)."""
     try:
-        m = re.search(r"^LATE_OPEN\s*=\s*\{([^}]*)\}", (C.BASE / "collect_m1.py").read_text(encoding="utf-8"), re.M)
-        return set(re.findall(r"\d{8}", m.group(1))) if m else set()
+        import collect_m1 as _M                                         # 11-23: 손으로 적던 목록 대신 late_hours()(알려진 날 + 그날 달력에서 적힌 날)
+        return {d for d, v in _M.late_hours().items() if v[0] != "0900"}
     except Exception:
         return set()
 
