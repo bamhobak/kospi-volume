@@ -546,6 +546,10 @@ def day_sync():
 #   trade() 가 돈 모자라 못 낸 몫(통째로 건너뜀 · 3→1주로 줄인 나머지 2주 · 매수가능 부족 거절)을 data/day/paper_날짜.json 에 적는다.
 #   paper_buy: 시가 뒤 KRX 시가 단일가 ≤ 지정가면 '사졌다' → 사이트 데이 보유에 그 주수 · 매수가 = 시가 · paper=True(토스 주문 없음)
 #   paper_sell: 16:25 리뷰가 KRX 종가 단일가로 매도 기록. 실제 매도(close_sell·지킴이·carry_sell)는 원장만 보므로 가상 보유를 안 판다.
+# 2026-11-23 사용자 "가상 기록도 빼줘": 돈 모자라 못 낸 몫은 파일(paper_날짜.json)에만 남기고 **사이트 데이 보유·텔레그램에는 안 올린다**. 되살리려면 True.
+PAPER_SITE = False
+
+
 def _paper(today):
     f = OUT / ("paper_%s.json" % today)
     return (f, json.loads(f.read_text(encoding="utf-8"))) if f.exists() else (f, [])
@@ -571,10 +575,10 @@ def paper_buy(today):
                       "qty": x["qty"], "filters": [x["rid"]], "auto": True, "day": True, "paper": True})
             n += 1
         return n > 0
-    if F: scalp_update(add, "데이 가상 매수 %d건(돈 모자라 못 낸 몫)" % len(F))
+    if F and PAPER_SITE: scalp_update(add, "데이 가상 매수 %d건(돈 모자라 못 낸 몫)" % len(F))
     log("가상 매수: 못 낸 몫 %d건 중 시가 ≤ 지정가 %d건(%d주) · 시가가 높아 안 사졌을 것 %d건" % (
         len(X), len(F), sum(x["qty"] for x in F), sum(1 for x in X if x.get("open") and not x["fill"])))
-    if F:
+    if F and PAPER_SITE:
         telegram("🧾 <b>데이 가상 매수</b> %s/%s %d/%d건 %d주 %s원" % (
             today[4:6], today[6:], len(F), len(X), sum(x["qty"] for x in F), f"{sum(x['qty'] * x['open'] for x in F):,.0f}"))
 

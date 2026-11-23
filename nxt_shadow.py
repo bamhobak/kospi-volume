@@ -475,7 +475,7 @@ def paper_buy(d, X):
                       "qty": int(x["qty"]), "filters": [RID], "auto": True, "day": True, "paper": True})
             n += 1
         return n > 0
-    if F: D.scalp_update(add, "데이 [%s] 가상 매수 %d건(돈 모자라 못 낸 몫)" % (RNAME, len(F)))
+    if F and D.PAPER_SITE: D.scalp_update(add, "데이 [%s] 가상 매수 %d건(돈 모자라 못 낸 몫)" % (RNAME, len(F)))      # 11-23 사용자: 가상 기록은 사이트에 안 올림(파일만)
     log("T6 가상 매수: 못 낸 몫 %d건 중 사짐 %d건" % (len(X), len(F)))
     return F
 
