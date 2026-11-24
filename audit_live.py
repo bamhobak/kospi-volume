@@ -124,6 +124,8 @@ def missed(d):
     for o in X:
         if o.get("side") == "BUY" and o.get("date") == d and o.get("rid") in T1F and o.get("lim") and o["t"] in K.index:
             if (o.get("fq") or 0) == 0 and o.get("status") in ("CANCELED", "PENDING", None) and float(K.o[o["t"]]) < float(o["lim"]) - 1e-9:
+                if o.get("err") and not o.get("oid"):                    # 11-24: 토스가 거절해 나가지도 않은 주문(돈 모자람 등)은 '안 사짐'이 아니다 — 기록만(바이브컴퍼니 헛경보)
+                    print("(알림 안 보냄) [%s] 거절된 주문 %s %s주 — %s" % (RNAME.get(o["rid"], o["rid"]), o.get("name", ""), o.get("qty"), o["err"]), flush=True); continue
                 out.append(dict(t=o["t"], name=o.get("name", ""), lim=o["lim"], open=float(K.o[o["t"]]), status=o.get("status")))
     return out
 
