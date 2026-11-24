@@ -644,7 +644,11 @@ def extras(x):
 
 def order_list(L):
     # 2026-10-18: T4 전용 후보(t1=False)는 T4 로 한 번만 — 덤(T2·T3)은 [갭하락] 후보에만
-    return [(x, "T1" if x.get("t1", True) else "T4") for x in L] + [(x, r) for x in L if x.get("t1", True) for r in extras(x)]
+    O = [(x, "T1" if x.get("t1", True) else "T4") for x in L] + [(x, r) for x in L if x.get("t1", True) for r in extras(x)]
+    # 2026-11-24 사용자 "깊이 빠진 종목부터 돈이 가게": 전엔 [갭하락] 깊은 순 → T4 전용 → 덤(T2·T3) 순이라, 돈이 모자란 날(08:54 엔 [장후 낙폭] 보유분이 아직 안 팔림)
+    #   깊은 종목의 덤이 얕은 종목의 [갭하락]보다 뒤로 밀려 잘렸다(11-24 바이브컴퍼니 덤 194→1주). 이제 전부 시장 대비 갭 깊은 순 — 같은 종목은 T1→T2→T3 그대로(안정 정렬).
+    rel = lambda x: float(x["rel"]) if isinstance(x.get("rel"), (int, float)) else 0.0
+    return sorted(O, key=lambda p: rel(p[0]))
 
 
 def trade(L, today):
