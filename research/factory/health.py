@@ -233,7 +233,7 @@ def check():
     for s_, ds in sorted(ov.items()):
         if len(ds) >= 3: bad("⚠", "해외 수집 %s 최근 5일 중 %d일 실패 — 출처가 막혔거나 주소가 바뀜" % (s_, len(ds)))
     if any(len(ds) < 3 for ds in ov.values()): ok.append("해외 수집 한때 실패(%s) — 다음 밤에 다시 읽음" % ", ".join(s_ for s_, ds in sorted(ov.items()) if len(ds) < 3))
-    fails = [l for l in lg if l[:10].replace("-", "") in (today, y1) and "실패" in l and "자막 실패" not in l and "검색 실패" not in l and "실패 0)" not in l and "해외 수집 실패" not in l]   # 11-15 "(실패 0)" 은 성공 기록
+    fails = [l for l in lg if l[:10].replace("-", "") in (today, y1) and "실패" in l and "자막 실패" not in l and "검색 실패" not in l and "실패" in re.sub(r"실패 0(?!\d)", "", l) and "해외 수집 실패" not in l and "판독관이 막음" not in l]   # 11-15 "(실패 0)" 은 성공 기록 · 11-24 "중 실패 0 ·"(장중 추정 수급)도 성공 기록
     if fails: bad("⚠", "공장 로그 실패 %d줄 — 첫 줄: %s" % (len(fails), fails[0][20:160]))
     return today, trading, prev, P, ok
 
