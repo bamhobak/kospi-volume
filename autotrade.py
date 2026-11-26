@@ -420,6 +420,27 @@ def find_order(o, used=()):
     return None
 
 
+OID_KEY = 64
+
+
+def list_state(o):
+    """끝난 주문 목록에서 같은 주문번호 줄을 찾는다 → 그 줄 또는 None.
+    2026-11-26 스윙 셀로맥스사이언스(시가부터 상한가라 안 사짐): 09:01 취소가 받아들여져 목록은 09:03 CANCELED 인데
+    주문 한 건 조회는 종일 PENDING·canceledAt 없음을 돌려줬다 → 원장이 '살아 있는 매수'로 남았다(다시 취소하면 422 cancel-restricted).
+    ⚠ 토스 주문번호는 86자 중 앞 64자만 그 주문을 가리킨다 — 뒤 22자는 주문 낼 때 받은 번호와 목록의 번호가 다르다
+    (11-26 스윙·데이 54건 전부 앞 64자로 맞고 종목·방향·수량 일치, 통째로 같은 건 0건). 그래서 앞 64자 + 종목·방향으로 맞춘다."""
+    key = (o.get("oid") or "")[:OID_KEY]
+    if len(key) < OID_KEY: return None
+    try: t0 = ts(o["at"])
+    except (KeyError, TypeError, ValueError): return None
+    try:
+        for z in order_list("CLOSED", pages=50, since=t0 - dt.timedelta(seconds=120)):
+            if (z.get("orderId") or "")[:OID_KEY] == key and z.get("symbol") == o.get("t") and z.get("side") == o.get("side"): return z
+    except TossErr as ex:
+        log("끝난 주문 목록 조회 실패:", ex)
+    return None
+
+
 def submit(Lg, o, body, save=None):
     """주문 내기(2026-11-01 장애 훈련 뒤) — ① 의도를 원장에 먼저 적고 ② 보내고 ③ 결과를 모르면 같은 번호로 다시 낸다(10분 멱등)
     ④ 그래도 모르면 토스 주문 목록으로 확정. 분명한 거부는 TossErr 그대로. 끝내 모르면 False — 다음 실행의 reconcile 이 맺는다."""
@@ -807,6 +828,7 @@ def sync_orders(Lg, save, update, make_pos, since):
             if ex.status == 404 and old: o["closed"] = True; save(Lg)
             continue
         apply_detail(o, d)
+        stale = False
         kr = (o.get("mk") or "KR") == "KR"
         past_open = o.get("date") < today or n.strftime("%H%M") >= "0902" if kr else hours(o) >= 0.13
         if side == "BUY" and o["status"] not in DONE and past_open and not o.get("canceled") and not old:
@@ -816,7 +838,12 @@ def sync_orders(Lg, save, update, make_pos, since):
                 apply_detail(o, detail(o["oid"], o.get("t"), o.get("qty")))
             except TossErr as ex:
                 if ex.code in ("already-filled", "already-canceled"): o["canceled"] = True
+                if ex.code == "cancel-restricted": stale = True       # 취소할 수량이 없다 = 이미 취소 중이거나 끝난 주문
                 log("취소 안 됨(%s):" % ex.code, o.get("t"))
+        if o.get("status") not in DONE and (o.get("canceled") or stale):   # 11-26: 취소는 보냈는데 한 건 조회가 계속 살아 있다고 함 → 목록으로 확정
+            z = list_state(o)
+            if z and z.get("status") in DONE:
+                apply_detail(o, z); log("주문 목록으로 상태 확정:", o.get("t"), o["status"])
         fq, st = o.get("fq") or 0, o.get("status")
         if side == "BUY" and fq > 0 and o.get("ap", 0) > 0:
             if not o.get("pos"):
