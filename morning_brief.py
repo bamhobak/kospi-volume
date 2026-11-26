@@ -42,11 +42,12 @@ def special(day, prev):
 def holds(today):
     """오늘 시가에 팔 데이 보유 — 원장에서 매수 체결됐고 아직 매도 체결 없는 것(오늘 산 것 빼고)."""
     X = json.loads((BASE / "data" / "day" / "ledger.json").read_text(encoding="utf-8"))["orders"]
-    sold = {o.get("posId") for o in X if o.get("side") == "SELL" and o.get("status") == "FILLED"}
+    # 2026-11-26 점검 의사: 상태 FILLED 만 세면 일부 체결(PARTIAL_FILLED·일부 체결 뒤 취소)이 빠짐(11-26 실제 10건인데 7) → 체결 수량(fq)으로 판단
+    sold = {o.get("posId") for o in X if o.get("side") == "SELL" and (o.get("fq") or 0) > 0}
     h = {}
     old = (dt.datetime.strptime(today, "%Y%m%d") - dt.timedelta(days=7)).strftime("%Y%m%d")   # 10-06 첫날 매도와 안 이어진 찌꺼기 3건 같은 옛 줄은 뺀다
     for o in X:
-        if o.get("side") == "BUY" and o.get("status") == "FILLED" and (o.get("fq") or 0) > 0 and old <= o.get("date") < today:
+        if o.get("side") == "BUY" and (o.get("fq") or 0) > 0 and old <= o.get("date") < today:
             pid = (o.get("pos") or {}).get("id")
             if pid and pid not in sold: h.setdefault(o.get("rid"), []).append(o.get("name") or o.get("t"))
     return h
