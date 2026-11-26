@@ -72,7 +72,8 @@ def rounds(days, since=None):
     X = json.loads((BASE / "data" / "day" / "ledger.json").read_text(encoding="utf-8"))["orders"]
     buys = {}
     for o in X:
-        if o.get("side") == "BUY" and o.get("status") == "FILLED" and (o.get("fq") or 0) > 0 and (o.get("pos") or {}).get("id"):
+        # 11-26 점검 의사: 일부만 체결된 매수는 상태가 CANCELED·PARTIAL_FILLED 로 남아 왕복에서 통째로 빠졌다([갭하락] 18·[장후 낙폭] 7건) → 체결 수량으로 본다
+        if o.get("side") == "BUY" and (o.get("fq") or 0) > 0 and (o.get("ap") or 0) and (o.get("pos") or {}).get("id"):
             buys[o["pos"]["id"]] = o
     out = []
     for s in X:
