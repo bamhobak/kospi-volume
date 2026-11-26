@@ -392,13 +392,23 @@ def order_list(status, pages=6, since=None):
     return out
 
 
+OID_KEY = 64
+
+
+def okey(oid):
+    """주문번호에서 그 주문을 가리키는 부분(앞 64자). 2026-11-26: 토스 주문번호 86자 중 뒤 22자는 주문 낼 때 받은 번호와
+    주문 목록의 번호가 다르다(스윙·데이 54건 전부 앞 64자로 맞고 종목·방향·수량 일치, 통째로 같은 건 0건)."""
+    return (oid or "")[:OID_KEY]
+
+
 def used_oids(Lg):
-    """이미 원장에 잡힌 주문번호 — 스윙·데이 원장을 함께 본다.
+    """이미 원장에 잡힌 주문번호(okey = 앞 64자) — 스윙·데이 원장을 함께 본다.
+    2026-11-26: 통째로 모아 목록 번호와 견줘서 한 번도 안 맞았다(뒤 22자가 다름) → 앞 64자로 모은다.
     2026-11-01: 자기 원장만 보면 같은 종목·수량으로 같은 때 낸 다른 원장의 주문을 내 주문으로 잡았다.
     다른 원장을 못 읽어도 멈추지 않는다(자기 원장은 Lg 로 이미 봤다)."""
-    used = {o.get("oid") for o in Lg["orders"] if o.get("oid")}
+    used = {okey(o.get("oid")) for o in Lg["orders"] if o.get("oid")}
     for f in (LEDGER, BASE / "data" / "day" / "ledger.json"):
-        try: used |= {o.get("oid") for o in json.loads(f.read_text(encoding="utf-8"))["orders"] if o.get("oid")}
+        try: used |= {okey(o.get("oid")) for o in json.loads(f.read_text(encoding="utf-8"))["orders"] if o.get("oid")}
         except FileNotFoundError: pass
         except (OSError, ValueError, KeyError, TypeError) as ex: log("다른 원장 못 읽음:", f.name, repr(ex)[:80])
     return used
@@ -409,7 +419,7 @@ def find_order(o, used=()):
     t0 = ts(o["at"])
     for st in ("OPEN", "CLOSED"):
         for z in order_list(st, pages=50, since=t0 - dt.timedelta(seconds=120)):
-            if z.get("orderId") in used or z.get("symbol") != o.get("t") or z.get("side") != o.get("side"): continue
+            if okey(z.get("orderId")) in used or z.get("symbol") != o.get("t") or z.get("side") != o.get("side"): continue
             try:
                 if abs(float(z.get("quantity") or 0) - float(o.get("qty") or 0)) > 1e-9: continue
                 at = ts(z["orderedAt"])
@@ -420,22 +430,18 @@ def find_order(o, used=()):
     return None
 
 
-OID_KEY = 64
-
-
 def list_state(o):
     """끝난 주문 목록에서 같은 주문번호 줄을 찾는다 → 그 줄 또는 None.
     2026-11-26 스윙 셀로맥스사이언스(시가부터 상한가라 안 사짐): 09:01 취소가 받아들여져 목록은 09:03 CANCELED 인데
     주문 한 건 조회는 종일 PENDING·canceledAt 없음을 돌려줬다 → 원장이 '살아 있는 매수'로 남았다(다시 취소하면 422 cancel-restricted).
-    ⚠ 토스 주문번호는 86자 중 앞 64자만 그 주문을 가리킨다 — 뒤 22자는 주문 낼 때 받은 번호와 목록의 번호가 다르다
-    (11-26 스윙·데이 54건 전부 앞 64자로 맞고 종목·방향·수량 일치, 통째로 같은 건 0건). 그래서 앞 64자 + 종목·방향으로 맞춘다."""
-    key = (o.get("oid") or "")[:OID_KEY]
+    주문번호는 okey(앞 64자) + 종목·방향으로 맞춘다."""
+    key = okey(o.get("oid"))
     if len(key) < OID_KEY: return None
     try: t0 = ts(o["at"])
     except (KeyError, TypeError, ValueError): return None
     try:
         for z in order_list("CLOSED", pages=50, since=t0 - dt.timedelta(seconds=120)):
-            if (z.get("orderId") or "")[:OID_KEY] == key and z.get("symbol") == o.get("t") and z.get("side") == o.get("side"): return z
+            if okey(z.get("orderId")) == key and z.get("symbol") == o.get("t") and z.get("side") == o.get("side"): return z
     except TossErr as ex:
         log("끝난 주문 목록 조회 실패:", ex)
     return None
@@ -813,7 +819,7 @@ def sync_orders(Lg, save, update, make_pos, since):
             except TossErr as ex:
                 log("주문 목록 조회 실패:", ex); continue
             if z:
-                o.update(oid=z["orderId"], intent=False, unk=False, err=""); used.add(z["orderId"])
+                o.update(oid=z["orderId"], intent=False, unk=False, err=""); used.add(okey(z["orderId"]))
                 log("놓친 주문 찾음:", side, o.get("t"), o["oid"]); save(Lg)
             elif (n - ts(o["at"])).total_seconds() >= 720:
                 o.update(intent=False, unk=False, closed=True, err=o.get("err") or "no-order"); save(Lg)
