@@ -10,6 +10,7 @@ PC 가 꺼져 있던 날은 다음 실행 때 알아서 따라잡는다.
 순서(전부 순차 — KRX 는 동시 실행하면 차단된다):
   1) KIS 신용잔고   최근 N일 · 코스피/코스닥      → data/kis/market.db · credit
   2) KIS 공매도     최근 N일 · 코스피/코스닥      → data/kis/market.db · short_sale
+  3 앞) KRX 로그인 확인 — 비밀번호 90일 알림이면 미룬다(krx_login_keep.py)
   3) KRX 밸류에이션  못 받은 날짜                 → data/krx_daily.db · fundamental
   4) KRX 공매도잔고  못 받은 날짜                 → data/krx_daily.db · short_balance
   5) KRX 11분할     최근 N일 · 날짜별            → data/investor.db · flow11
@@ -47,6 +48,9 @@ STEPS = [
     (1, "신용잔고 코스닥",   ["collect_kis.py", "credit", "--days", DAYS, "--market", "KOSDAQ", "--workers", "4"]),
     (2, "공매도 코스피",     ["collect_kis.py", "short",  "--days", DAYS, "--market", "KOSPI",  "--workers", "4"]),
     (2, "공매도 코스닥",     ["collect_kis.py", "short",  "--days", DAYS, "--market", "KOSDAQ", "--workers", "4"]),
+    # 3 앞) KRX 로그인 확인 — 비밀번호 90일 알림(CD010)이 뜨면 로그인이 통째로 막혀 아래 KRX 단계가 전부 빈 응답이 된다
+    #       (2026-11-27 저녁~11-28: 밸류에이션·공매도·11분할 하루치 빠짐). '90일 뒤에 다시 알림'을 대신 눌러 준다.
+    (3, "KRX 로그인 확인",   ["krx_login_keep.py"]),
     (3, "밸류에이션",        ["collect_krx_daily.py", "fund", "--gap", "1.6"]),
     (4, "공매도잔고",        ["collect_krx_daily.py", "shortbal", "--gap", "1.6"]),
     # 4b) 공매도 거래량. 백필로 2005~ 를 만들어 놓고 **일일 갱신에는 넣지 않아** 2026-09-04 에
