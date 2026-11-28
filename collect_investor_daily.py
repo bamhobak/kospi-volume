@@ -40,7 +40,9 @@ con.commit()
 last = con.execute("select max(date) from flow11").fetchone()[0] or "20180102"
 days = [d.strftime("%Y%m%d") for d in pd.bdate_range(
         pd.Timestamp.today() - pd.Timedelta(days=DAYS*2 + 5), pd.Timestamp.today())]
-done = {(r[0], r[1]) for r in con.execute("select date,market from done11d")}
+# 그날 1분봉 매일 파일이 있으면 거래일 — KRX 가 로그인 거부 등으로 빈 표를 줘도 휴장으로 적지 않는다(11-28 점검 의사: 11-27 이 휴장 0 으로 찍혀 다시 안 받던 함정)
+traded = lambda d: (BASE/"data"/"m1"/"KR"/"day"/f"{d}.parquet").exists()
+done = {(r[0], r[1]) for r in con.execute("select date,market,n from done11d") if r[2] or not traded(r[0])}
 todo = [(d, m) for d in days for m in ("KOSPI", "KOSDAQ") if (d, m) not in done]
 log.info(f"11분할 날짜별 수집 · 대상 {len(todo)}건 (최근 {DAYS}일 · flow11 최신 {last}) · 간격 {GAP}s")
 
@@ -63,6 +65,8 @@ for d, mk in todo:
     res = one(d, mk)
     if res is None: continue
     if not res:                                   # 휴장일 — 표시만 남기고 넘어간다
+        if traded(d):                             # 거래일인데 빈 표 = KRX 응답 이상 → 표시 없이 다음에 다시
+            log.warning(f"  {d} {mk} 거래일인데 KRX 빈 응답 — 휴장으로 안 적음(다음에 다시)"); continue
         con.execute("insert or replace into done11d values(?,?,?,?)", (d, mk, 0, time.strftime("%H:%M")))
         con.commit(); n += 1; continue
     con.execute("delete from flow11 where date=? and ticker in (%s)" % ",".join("?"*len(res)),
